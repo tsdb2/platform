@@ -14,6 +14,10 @@
 namespace tsdb2 {
 namespace common {
 
+// This token is used to select the forwarding `Singleton` constructor in overload resolution.
+struct ConstructorArgs {};
+static constexpr ConstructorArgs kConstructorArgs;
+
 // Holds a singleton instance of a class, providing the following functionalities:
 //
 //  * lazy construction;
@@ -31,15 +35,19 @@ namespace common {
 //     return kInstance;
 //   }
 //
-// However such pattern doesn't allow overriding in tests.
+// However, the above pattern doesn't allow overriding in tests.
 //
 // Retrieving the instance wrapped in a `Singleton` is very fast in production, as the check for
 // possible overrides only performs a single relaxed atomic load when there's no override.
 template <typename T>
 class Singleton {
  public:
+  explicit Singleton(absl::AnyInvocable<T*()> factory)
+      : construct_([this, factory = std::move(factory)]() mutable { value_ = factory(); }) {}
+
   template <typename... Args>
-  explicit Singleton(Args&&... args) : construct_([=] { Construct(args...); }) {}
+  explicit Singleton(ConstructorArgs const&, Args&&... args)
+      : construct_([=] { Construct(args...); }) {}
 
   // TEST ONLY: replace the wrapped value with a different one.
   void Override(T* const value) {
@@ -82,7 +90,7 @@ class Singleton {
 
   template <typename... Args>
   void Construct(Args&&... args) {
-    new (storage_) T(std::forward<Args>(args)...);
+    value_ = new T(std::forward<Args>(args)...);
   }
 
   T* GetInternal() const {
@@ -93,10 +101,10 @@ class Singleton {
       }
     }
     absl::call_once(once_, *construct_);
-    return reinterpret_cast<T*>(storage_);
+    return value_;
   }
 
-  alignas(T) char mutable storage_[sizeof(T)];
+  T* value_ = nullptr;
 
   absl::once_flag mutable once_;
   NoDestructor<absl::AnyInvocable<void()>> mutable construct_;
