@@ -2,6 +2,7 @@
 
 #include <arpa/inet.h>
 
+#include <cstddef>
 #include <cstdint>
 
 #include "gtest/gtest.h"
@@ -92,6 +93,121 @@ TEST(BufferTest, ShortAt) {
   EXPECT_EQ(ntohs(buffer.at<uint16_t>(1)), 3106);
 }
 
-// TODO
+TEST(BufferTest, MoveConstruct) {
+  size_t constexpr size = 10;
+  auto const data = new uint8_t[size];
+  data[0] = 12;
+  data[1] = 34;
+  data[2] = 56;
+  Buffer b1{data, size, 3};
+  ASSERT_EQ(b1.capacity(), size);
+  ASSERT_EQ(b1.size(), 3);
+  ASSERT_EQ(b1.get(), data);
+  {
+    Buffer b2{std::move(b1)};
+    EXPECT_EQ(b1.capacity(), 0);
+    EXPECT_EQ(b1.size(), 0);
+    EXPECT_EQ(b1.get(), nullptr);
+    EXPECT_EQ(b2.capacity(), size);
+    EXPECT_EQ(b2.size(), 3);
+    EXPECT_EQ(b2.get(), data);
+  }
+  EXPECT_EQ(b1.capacity(), 0);
+  EXPECT_EQ(b1.size(), 0);
+  EXPECT_EQ(b1.get(), nullptr);
+}
+
+TEST(BufferTest, MoveAssign) {
+  size_t constexpr size = 10;
+  auto const data = new uint8_t[size];
+  data[0] = 12;
+  data[1] = 34;
+  data[2] = 56;
+  Buffer b1;
+  ASSERT_EQ(b1.capacity(), 0);
+  ASSERT_EQ(b1.size(), 0);
+  ASSERT_EQ(b1.get(), nullptr);
+  {
+    Buffer b2{data, size, 3};
+    b1 = std::move(b2);
+    EXPECT_EQ(b1.capacity(), size);
+    EXPECT_EQ(b1.size(), 3);
+    EXPECT_EQ(b1.get(), data);
+    EXPECT_EQ(b2.capacity(), 0);
+    EXPECT_EQ(b2.size(), 0);
+    EXPECT_EQ(b2.get(), nullptr);
+  }
+  EXPECT_EQ(b1.capacity(), size);
+  EXPECT_EQ(b1.size(), 3);
+  EXPECT_EQ(b1.get(), data);
+  EXPECT_EQ(data[0], 12);
+  EXPECT_EQ(data[1], 34);
+  EXPECT_EQ(data[2], 56);
+}
+
+TEST(BufferTest, AppendInt) {
+  size_t constexpr capacity = 256;
+  size_t constexpr offset = 10;
+  auto const data = new uint8_t[capacity];
+  Buffer b{data, capacity, offset};
+  b.Append<int>(123);
+  EXPECT_EQ(b.capacity(), capacity);
+  EXPECT_EQ(b.size(), offset + sizeof(int));
+  EXPECT_EQ(b.get(), data);
+  EXPECT_EQ(b.at<int>(offset), 123);
+}
+
+TEST(BufferTest, AppendLongLong) {
+  size_t constexpr capacity = 256;
+  size_t constexpr offset = 10;
+  auto const data = new uint8_t[capacity];
+  Buffer b{data, capacity, offset};
+  b.Append<long long>(456);
+  EXPECT_EQ(b.capacity(), capacity);
+  EXPECT_EQ(b.size(), offset + sizeof(long long));
+  EXPECT_EQ(b.get(), data);
+  EXPECT_EQ(b.at<long long>(offset), 456);
+}
+
+TEST(BufferTest, AppendBuffer) {
+  Buffer b1{sizeof(uintptr_t) * 2};
+  b1.Append<uintptr_t>(123456789);
+  ASSERT_EQ(b1.size(), sizeof(uintptr_t));
+  {
+    Buffer b2{sizeof(uintptr_t)};
+    b2.Append<uintptr_t>(987654321);
+    b1.Append(b2);
+    EXPECT_EQ(b1.size(), sizeof(uintptr_t) * 2);
+    EXPECT_EQ(b1.at<uintptr_t>(0), 123456789);
+    EXPECT_EQ(b1.at<uintptr_t>(sizeof(uintptr_t)), 987654321);
+    EXPECT_EQ(b2.size(), sizeof(uintptr_t));
+    EXPECT_EQ(b2.at<uintptr_t>(0), 987654321);
+  }
+  EXPECT_EQ(b1.size(), sizeof(uintptr_t) * 2);
+  EXPECT_EQ(b1.at<uintptr_t>(0), 123456789);
+  EXPECT_EQ(b1.at<uintptr_t>(sizeof(uintptr_t)), 987654321);
+}
+
+TEST(BufferTest, Release) {
+  size_t constexpr size = 10;
+  auto const data = new uint8_t[size];
+  data[0] = 12;
+  data[1] = 34;
+  data[2] = 56;
+  {
+    Buffer buffer{data, size, 3};
+    ASSERT_EQ(buffer.capacity(), size);
+    ASSERT_EQ(buffer.size(), 3);
+    ASSERT_EQ(buffer.get(), data);
+    EXPECT_EQ(buffer.Release(), data);
+    EXPECT_EQ(buffer.capacity(), 0);
+    EXPECT_EQ(buffer.size(), 0);
+    EXPECT_EQ(buffer.get(), nullptr);
+  }
+  EXPECT_EQ(data[0], 12);
+  EXPECT_EQ(data[1], 34);
+  EXPECT_EQ(data[2], 56);
+  delete[] data;
+}
 
 }  // namespace
