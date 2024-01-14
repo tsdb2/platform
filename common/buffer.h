@@ -1,0 +1,141 @@
+#ifndef __TSDB2_NET_BUFFER_H__
+#define __TSDB2_NET_BUFFER_H__
+
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <type_traits>
+
+#include "absl/log/check.h"
+
+namespace tsdb2 {
+namespace common {
+
+// Manages an owned, preallocated memory buffer.
+class Buffer {
+ public:
+  // Constructs an empty `Buffer` object. The wrapped buffer is not allocated, methods like `get()`
+  // return nullptr, and both the size and capacity are 0.
+  explicit Buffer() = default;
+
+  // Constructs a Buffer with an allocated `capacity` and initial length 0.
+  explicit Buffer(size_t const capacity)
+      : capacity_(capacity), length_(0), data_(new uint8_t[capacity_]) {}
+
+  // Takes ownership of the buffer pointed to by the `data` raw pointer, which must have `capacity`
+  // bytes of capacity and at least `length` initialized bytes.
+  explicit Buffer(void* const data, size_t const capacity, size_t const length = 0)
+      : capacity_(capacity), length_(length), data_(static_cast<uint8_t*>(data)) {}
+
+  // Frees any memory used by the buffer.
+  ~Buffer() { delete[] data_; }
+
+  // Moving transfers ownership of the buffer.
+
+  Buffer(Buffer&& other) noexcept
+      : capacity_(other.capacity_), length_(other.length_), data_(other.Release()) {}
+
+  Buffer& operator=(Buffer&& other) noexcept {
+    delete[] data_;
+    capacity_ = other.capacity_;
+    length_ = other.length_;
+    data_ = other.Release();
+    return *this;
+  }
+
+  // Returns the allocated capacity.
+  size_t capacity() const { return capacity_; }
+
+  // Returns the size of the buffer, in bytes.
+  size_t size() const { return length_; }
+
+  // Returns a pointer to the buffer.
+  void* get() const { return data_; }
+
+  // Returns a pointer to the buffer as a byte array. This is the same as
+  // `static_cast<uint8_t*>(get())`.
+  uint8_t* as_byte_array() const { return data_; }
+
+  // Returns the bytes at `offset` interpreted as a value of type `Data`.
+  //
+  // WARNING: this function doesn't perform any endianness conversion. Since `Buffer` is mainly
+  // meant for IPC, bytes will typically be stored in network byte order here. It's the caller's
+  // responsibility to call functions like `ntoh*` as needed on the returned value.
+  template <typename Data>
+  Data& at(size_t const offset) {
+    return *reinterpret_cast<Data*>(data_ + offset);
+  }
+
+  // Returns the bytes at `offset` interpreted as a value of type `Data`.
+  //
+  // WARNING: this function doesn't perform any endianness conversion. Since `Buffer` is mainly
+  // meant for IPC, bytes will typically be stored in network byte order here. It's the caller's
+  // responsibility to call functions like `ntoh*` as needed on the returned value.
+  template <typename Data>
+  Data const& at(size_t const offset) const {
+    return *reinterpret_cast<Data const*>(data_ + offset);
+  }
+
+  // Appends the provided `word` to the buffer. The word must be of an arithmetic type, i.e.: a
+  // boolean, an integer type, a floating point type, or a cv-qualified version thereof. Pointers,
+  // aggregates, and other types are not allowed because `Buffer` is mainly meant for IPC, so those
+  // types don't make sense in the context of another process.
+  //
+  // This method check-fails in case of a buffer overflow, i.e. if `size() + sizeof(Word) >
+  // capacity()`.
+  //
+  // NOTE: `Buffer` is mainly intended for IPC but it doesn't perform any endianness conversion, so
+  // it's the caller's responsibility to ensure the correct endianness. Bytes would typically be
+  // stored in a `Buffer` in network byte order, so the caller will typically need to call functions
+  // like `hton*`.
+  template <typename Word>
+  Buffer& Append(Word const word) {
+    static_assert(std::is_arithmetic_v<Word>,
+                  "argument to Add() must be an arithmetic type as per std::is_arithmetic");
+    CHECK_LE(length_ + sizeof(Word), capacity_) << "buffer overflow";
+    *reinterpret_cast<Word*>(data_ + length_) = word;
+    length_ += sizeof(word);
+    return *this;
+  }
+
+  // Copies the entire content of `other` appending it to the end of this buffer. `other` is not
+  // changed. Check-fails if this buffer doesn't have enough capacity (that is, if
+  // `size() + other.size() > capacity()`).
+  //
+  // NOTE: this method may be expensive because the data from `other` is copied (we use
+  // `std::memcpy`).
+  //
+  // NOTE: unlike the template overload of `Append` which takes a word in host byte order, this
+  // overload takes a buffer that's supposed to contain data already in network byte order.
+  // Therefore not endianness conversion is needed by this overload.
+  Buffer& Append(Buffer const& other) {
+    CHECK_LE(length_ + other.length_, capacity_) << "buffer overflow";
+    std::memcpy(data_ + length_, other.data_, other.length_);
+    length_ += other.length_;
+    return *this;
+  }
+
+  // Releases ownership of the buffer, invalidating this object and returning a pointer to the
+  // previously wrapped data.
+  uint8_t* Release() {
+    auto const data = data_;
+    capacity_ = 0;
+    length_ = 0;
+    data_ = nullptr;
+    return data;
+  }
+
+ private:
+  // Copies are forbidden because they are potentially expensive.
+  Buffer(Buffer const&) = delete;
+  Buffer& operator=(Buffer const&) = delete;
+
+  size_t capacity_ = 0;
+  size_t length_ = 0;
+  uint8_t* data_ = nullptr;
+};
+
+}  // namespace common
+}  // namespace tsdb2
+
+#endif  // __TSDB2_NET_BUFFER_H__

@@ -21,6 +21,7 @@ cc_library(
     hdrs = ["select_server.h"],
     deps = [
         ":fd",
+        "//common:buffer",
         "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/functional:bind_front",
         "@com_google_absl//absl/log:check",

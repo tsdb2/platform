@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <utility>
@@ -15,6 +16,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
+#include "common/buffer.h"
 #include "net/fd.h"
 
 namespace tsdb2 {
@@ -65,8 +67,31 @@ void ListenerSocket::OnOutput() {
   // Nothing to do here.
 }
 
+absl::Status Socket::Read(size_t const length, ReadCallback callback) {
+  Buffer buffer{length};
+  absl::MutexLock lock{&read_mutex_};
+  if (read_status_) {
+    return absl::FailedPreconditionError("another read is already in progress");
+  }
+  ssize_t const result = recv(*fd_, buffer.get(), length, MSG_DONTWAIT);
+  if (result < 0) {
+    if (errno != EAGAIN && errno != EWOULDBLOCK) {
+      return absl::ErrnoToStatus(errno, "recv() failed");
+    } else {
+      read_status_.emplace(std::move(buffer), length, std::move(callback));
+      return absl::OkStatus();
+    }
+  } else if (result < length) {
+    read_status_.emplace(std::move(buffer), length - result, std::move(callback));
+    return absl::OkStatus();
+  } else {
+    callback(std::move(buffer));
+    return absl::OkStatus();
+  }
+}
+
 absl::Status SelectServer::Start() {
-  absl::MutexLock lock{&mutex_};
+  absl::WriterMutexLock lock{&mutex_};
   if (epoll_fd_ < 0) {
     epoll_fd_ = epoll_create1(EPOLL_CLOEXEC);
     if (epoll_fd_ < 0) {
@@ -81,7 +106,7 @@ absl::Status SelectServer::Start() {
 }
 
 void SelectServer::Stop() {
-  absl::MutexLock lock{&mutex_};
+  absl::WriterMutexLock lock{&mutex_};
   if (epoll_fd_ < 0) {
     return;
   }
@@ -93,7 +118,7 @@ void SelectServer::Stop() {
 }
 
 int SelectServer::epoll_fd() const {
-  absl::MutexLock lock{&mutex_};
+  absl::ReaderMutexLock lock{&mutex_};
   return epoll_fd_;
 }
 

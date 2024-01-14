@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <sys/epoll.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <thread>
@@ -16,10 +17,13 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
+#include "common/buffer.h"
 #include "net/fd.h"
 
 namespace tsdb2 {
 namespace net {
+
+using Buffer = ::tsdb2::common::Buffer;
 
 class SelectServer;
 
@@ -48,9 +52,9 @@ class BaseSocket {
 
 class ListenerSocket : public BaseSocket {
  public:
-  using Callback = absl::AnyInvocable<void(absl::StatusOr<FD>)>;
+  using Callback = absl::AnyInvocable<void(absl::StatusOr<FD> status_or_socket)>;
 
-  explicit ListenerSocket(FD fd) : BaseSocket(std::move(fd)) {}
+  static bool constexpr kIsListener = true;
 
   absl::Status Accept(Callback callback) ABSL_LOCKS_EXCLUDED(mutex_);
 
@@ -59,8 +63,58 @@ class ListenerSocket : public BaseSocket {
   void OnOutput() override ABSL_LOCKS_EXCLUDED(mutex_);
 
  private:
+  friend class SelectServer;
+
+  explicit ListenerSocket(FD fd) : BaseSocket(std::move(fd)) {}
+
   absl::Mutex mutable mutex_;
-  std::optional<Callback> callback_ ABSL_GUARDED_BY(mutex_);
+  std::optional<Callback> callback_ ABSL_GUARDED_BY(mutex_) = std::nullopt;
+};
+
+class Socket : public BaseSocket {
+ public:
+  using ReadCallback = absl::AnyInvocable<void(absl::StatusOr<Buffer> status_or_buffer)>;
+  using WriteCallback = absl::AnyInvocable<void(absl::Status status)>;
+
+  static bool constexpr kIsListener = false;
+
+  absl::Status Read(size_t length, ReadCallback callback) ABSL_LOCKS_EXCLUDED(read_mutex_);
+
+  absl::Status Write(Buffer const& buffer, WriteCallback callback)
+      ABSL_LOCKS_EXCLUDED(write_mutex_);
+
+ protected:
+  void OnInput() override ABSL_LOCKS_EXCLUDED(read_mutex_);
+  void OnOutput() override ABSL_LOCKS_EXCLUDED(write_mutex_);
+
+ private:
+  struct ReadStatus {
+    explicit ReadStatus(Buffer buffer, size_t const remaining, ReadCallback callback)
+        : buffer(std::move(buffer)), remaining(remaining), callback(std::move(callback)) {}
+
+    Buffer buffer;
+    size_t remaining;
+    ReadCallback callback;
+  };
+
+  struct WriteStatus {
+    explicit WriteStatus(Buffer const& buffer, size_t const remaining, WriteCallback callback)
+        : buffer(buffer), remaining(remaining), callback(std::move(callback)) {}
+
+    Buffer const& buffer;
+    size_t remaining;
+    WriteCallback callback;
+  };
+
+  friend class SelectServer;
+
+  explicit Socket(FD fd) : BaseSocket(std::move(fd)) {}
+
+  absl::Mutex mutable read_mutex_;
+  std::optional<ReadStatus> read_status_ ABSL_GUARDED_BY(read_mutex_) = std::nullopt;
+
+  absl::Mutex mutable write_mutex_;
+  std::optional<WriteStatus> write_status_ ABSL_GUARDED_BY(write_mutex_) = std::nullopt;
 };
 
 class SelectServer {
@@ -104,15 +158,18 @@ template <typename SocketType, typename... Args>
 absl::StatusOr<SocketType*> SelectServer::CreateSocket(Args&&... args) {
   static_assert(std::is_base_of_v<BaseSocket, SocketType>,
                 "SocketType must be a subclass of BaseSocket");
-  auto const epfd = epoll_fd();
-  if (epfd < 0) {
+  absl::ReaderMutexLock lock{&mutex_};
+  if (epoll_fd_ < 0) {
     return absl::FailedPreconditionError("SelectServer hasn't started yet");
   }
   auto const socket = new SocketType(std::forward<Args>(args)...);
   struct epoll_event event;
-  event.events = EPOLLIN | EPOLLOUT | EPOLLET | EPOLLEXCLUSIVE;
+  event.events = EPOLLIN | EPOLLET | EPOLLEXCLUSIVE;
+  if constexpr (!SocketType::kIsListener) {
+    event.events |= EPOLLOUT;
+  }
   event.data.ptr = socket;
-  if (epoll_ctl(epfd, EPOLL_CTL_ADD, socket->fd(), &event) < 0) {
+  if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, socket->fd(), &event) < 0) {
     return absl::ErrnoToStatus(errno, "epoll_ctl(EPOLL_ADD) failed");
   }
   return socket;
