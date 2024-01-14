@@ -58,9 +58,12 @@ class Buffer {
 
   // Returns the bytes at `offset` interpreted as a value of type `Data`.
   //
-  // WARNING: this function doesn't perform any endianness conversion. Since `Buffer` is mainly
-  // meant for IPC, bytes will typically be stored in network byte order here. It's the caller's
+  // NOTE: this function doesn't perform any endianness conversion. Since `Buffer` is mainly meant
+  // for IPC, bytes will typically be stored in network byte order here. It's the caller's
   // responsibility to call functions like `ntoh*` as needed on the returned value.
+  //
+  // WARNING: this function doesn't perform any bound checking. In case of an overflow the behavior
+  // is undefined.
   template <typename Data>
   Data& at(size_t const offset) {
     return *reinterpret_cast<Data*>(data_ + offset);
@@ -68,9 +71,12 @@ class Buffer {
 
   // Returns the bytes at `offset` interpreted as a value of type `Data`.
   //
-  // WARNING: this function doesn't perform any endianness conversion. Since `Buffer` is mainly
-  // meant for IPC, bytes will typically be stored in network byte order here. It's the caller's
+  // NOTE: this function doesn't perform any endianness conversion. Since `Buffer` is mainly meant
+  // for IPC, bytes will typically be stored in network byte order here. It's the caller's
   // responsibility to call functions like `ntoh*` as needed on the returned value.
+  //
+  // WARNING: this function doesn't perform any bound checking. In case of an overflow the behavior
+  // is undefined.
   template <typename Data>
   Data const& at(size_t const offset) const {
     return *reinterpret_cast<Data const*>(data_ + offset);
