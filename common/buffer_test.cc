@@ -5,10 +5,12 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace {
 
+using ::testing::_;
 using ::tsdb2::common::Buffer;
 
 TEST(BufferTest, Empty) {
@@ -17,6 +19,7 @@ TEST(BufferTest, Empty) {
   EXPECT_EQ(buffer.size(), 0);
   EXPECT_EQ(buffer.get(), nullptr);
   EXPECT_EQ(buffer.as_byte_array(), nullptr);
+  EXPECT_FALSE(buffer.is_full());
 }
 
 TEST(BufferTest, Preallocated) {
@@ -25,6 +28,7 @@ TEST(BufferTest, Preallocated) {
   EXPECT_EQ(buffer.size(), 0);
   EXPECT_NE(buffer.get(), nullptr);
   EXPECT_EQ(buffer.get(), buffer.as_byte_array());
+  EXPECT_FALSE(buffer.is_full());
 }
 
 TEST(BufferTest, TakeOwnership) {
@@ -37,6 +41,7 @@ TEST(BufferTest, TakeOwnership) {
   EXPECT_EQ(buffer.size(), 2);
   EXPECT_EQ(buffer.get(), data);
   EXPECT_EQ(buffer.get(), buffer.as_byte_array());
+  EXPECT_FALSE(buffer.is_full());
 }
 
 TEST(BufferTest, TakeOwernshipWithDefaultLength) {
@@ -49,6 +54,7 @@ TEST(BufferTest, TakeOwernshipWithDefaultLength) {
   EXPECT_EQ(buffer.size(), 0);
   EXPECT_EQ(buffer.get(), data);
   EXPECT_EQ(buffer.get(), buffer.as_byte_array());
+  EXPECT_FALSE(buffer.is_full());
 }
 
 TEST(BufferTest, ConstByteAt) {
@@ -186,6 +192,52 @@ TEST(BufferTest, AppendBuffer) {
   EXPECT_EQ(b1.size(), sizeof(uintptr_t) * 2);
   EXPECT_EQ(b1.at<uintptr_t>(0), 123456789);
   EXPECT_EQ(b1.at<uintptr_t>(sizeof(uintptr_t)), 987654321);
+}
+
+TEST(BufferDeathTest, WordAppendOverflow) {
+  Buffer buffer{10};
+  buffer.Append<uint64_t>(123);
+  EXPECT_DEATH(buffer.Append<uint64_t>(456), _);
+}
+
+TEST(BufferDeathTest, BufferAppendOverflow) {
+  Buffer b1{10};
+  b1.Append<uint64_t>(12);
+  Buffer b2{10};
+  b2.Append<uint64_t>(34);
+  EXPECT_DEATH(b1.Append(b2), _);
+}
+
+TEST(BufferTest, NotFull) {
+  Buffer buffer{10};
+  buffer.Append<uint32_t>(42);
+  ASSERT_EQ(buffer.capacity(), 10);
+  ASSERT_EQ(buffer.size(), 4);
+  EXPECT_FALSE(buffer.is_full());
+}
+
+TEST(BufferTest, Full) {
+  Buffer buffer{10};
+  buffer.Append<uint64_t>(42);
+  buffer.Append<uint16_t>(42);
+  ASSERT_EQ(buffer.capacity(), 10);
+  ASSERT_EQ(buffer.size(), 10);
+  EXPECT_TRUE(buffer.is_full());
+}
+
+TEST(BufferTest, Advance) {
+  Buffer buffer{10};
+  ASSERT_EQ(buffer.capacity(), 10);
+  ASSERT_EQ(buffer.size(), 0);
+  buffer.Advance(3);
+  EXPECT_EQ(buffer.size(), 3);
+  buffer.Advance(4);
+  EXPECT_EQ(buffer.size(), 7);
+}
+
+TEST(BufferTest, AdvanceOverflow) {
+  Buffer buffer{10};
+  EXPECT_DEATH(buffer.Advance(30), _);
 }
 
 TEST(BufferTest, Release) {

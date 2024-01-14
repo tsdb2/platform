@@ -73,20 +73,46 @@ absl::Status Socket::Read(size_t const length, ReadCallback callback) {
   if (read_status_) {
     return absl::FailedPreconditionError("another read is already in progress");
   }
-  ssize_t const result = recv(*fd_, buffer.get(), length, MSG_DONTWAIT);
-  if (result < 0) {
-    if (errno != EAGAIN && errno != EWOULDBLOCK) {
-      return absl::ErrnoToStatus(errno, "recv() failed");
-    } else {
-      read_status_.emplace(std::move(buffer), length, std::move(callback));
+  while (true) {
+    size_t const offset = buffer.size();
+    ssize_t const result =
+        recv(*fd_, buffer.as_byte_array() + offset, length - offset, MSG_DONTWAIT);
+    if (result < 0) {
+      if (errno != EAGAIN && errno != EWOULDBLOCK) {
+        return absl::ErrnoToStatus(errno, "recv() failed");
+      } else {
+        read_status_.emplace(std::move(buffer), std::move(callback));
+        return absl::OkStatus();
+      }
+    }
+    buffer.Advance(result);
+    if (buffer.is_full()) {
+      callback(std::move(buffer));
       return absl::OkStatus();
     }
-  } else if (result < length) {
-    read_status_.emplace(std::move(buffer), length - result, std::move(callback));
-    return absl::OkStatus();
-  } else {
-    callback(std::move(buffer));
-    return absl::OkStatus();
+  }
+}
+
+void Socket::OnInput() {
+  absl::MutexLock lock{&read_mutex_};
+  while (read_status_) {
+    auto &buffer = read_status_->buffer;
+    size_t const offset = buffer.size();
+    size_t const remaining = buffer.capacity() - offset;
+    ssize_t const result = recv(*fd_, buffer.as_byte_array() + offset, remaining, MSG_DONTWAIT);
+    if (result < 0) {
+      if (errno != EAGAIN && errno != EWOULDBLOCK) {
+        auto callback = std::move(read_status_->callback);
+        read_status_.reset();
+        callback(absl::ErrnoToStatus(errno, "recv() failed"));
+      }
+    } else {
+      buffer.Advance(result);
+      if (buffer.is_full()) {
+        read_status_->callback(std::move(buffer));
+        read_status_.reset();
+      }
+    }
   }
 }
 

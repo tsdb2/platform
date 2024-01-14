@@ -89,11 +89,10 @@ class Socket : public BaseSocket {
 
  private:
   struct ReadStatus {
-    explicit ReadStatus(Buffer buffer, size_t const remaining, ReadCallback callback)
-        : buffer(std::move(buffer)), remaining(remaining), callback(std::move(callback)) {}
+    explicit ReadStatus(Buffer buffer, ReadCallback callback)
+        : buffer(std::move(buffer)), callback(std::move(callback)) {}
 
     Buffer buffer;
-    size_t remaining;
     ReadCallback callback;
   };
 

@@ -50,13 +50,19 @@ class Buffer {
   size_t size() const { return length_; }
 
   // Returns a pointer to the buffer.
-  void* get() const { return data_; }
+  void* get() { return data_; }
+  void const* get() const { return data_; }
 
   // Returns a pointer to the buffer as a byte array. This is the same as
   // `static_cast<uint8_t*>(get())`.
-  uint8_t* as_byte_array() const { return data_; }
+  uint8_t* as_byte_array() { return data_; }
+  uint8_t const* as_byte_array() const { return data_; }
 
-  // Returns the bytes at `offset` interpreted as a value of type `Data`.
+  // True iff the Buffer object is non-empty AND `size() == capacity()` (i.e. the buffer is full).
+  bool is_full() const { return capacity_ > 0 && !(length_ < capacity_); }
+
+  // Returns the bytes at `offset` interpreted as a value of type `Data`. The `offset` is expressed
+  // in bytes, independently of `sizeof(Data)`.
   //
   // NOTE: this function doesn't perform any endianness conversion. Since `Buffer` is mainly meant
   // for IPC, bytes will typically be stored in network byte order here. It's the caller's
@@ -69,7 +75,8 @@ class Buffer {
     return *reinterpret_cast<Data*>(data_ + offset);
   }
 
-  // Returns the bytes at `offset` interpreted as a value of type `Data`.
+  // Returns the bytes at `offset` interpreted as a value of type `Data`. The `offset` is expressed
+  // in bytes, independently of `sizeof(Data)`.
   //
   // NOTE: this function doesn't perform any endianness conversion. Since `Buffer` is mainly meant
   // for IPC, bytes will typically be stored in network byte order here. It's the caller's
@@ -119,6 +126,21 @@ class Buffer {
     std::memcpy(data_ + length_, other.data_, other.length_);
     length_ += other.length_;
     return *this;
+  }
+
+  // Increments the size by the specified amount. Meant to be called as a result of writing data to
+  // the memory pointed to by `get()` / `as_byte_array()`. Example:
+  //
+  //   Buffer buffer{20};
+  //   buffer.Append<uint32_t>(42);
+  //   std::memcpy(source, buffer.get(), 10);
+  //   buffer.Advance(10);
+  //   std::cout << buffer.size() << std::endl;  // prints "14"
+  //
+  // `Advance` check-fails if the resulting size is greater than the capacity.
+  void Advance(size_t const delta) {
+    length_ += delta;
+    CHECK_LE(length_, capacity_) << "buffer overflow";
   }
 
   // Releases ownership of the buffer, invalidating this object and returning a pointer to the
