@@ -3,12 +3,16 @@ cc_library(
     srcs = ["init_tsdb2.cc"],
     hdrs = ["init_tsdb2.h"],
     deps = [
+        "//net:http_server",
+        "//net:select_server",
         "@com_google_absl//absl/flags:parse",
+        "@com_google_absl//absl/log:initialize",
         "@com_google_absl//absl/synchronization",
     ],
 )
 
-cc_library(
+# TODO: convert to a cc_library.
+cc_binary(
     name = "server_main",
     srcs = [
         "server_main.cc",
@@ -16,6 +20,5 @@ cc_library(
     ],
     deps = [
         ":init_tsdb2",
-        "@com_google_absl//absl/flags:flag",
     ],
 )

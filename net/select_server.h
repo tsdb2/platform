@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <type_traits>
 #include <utility>
@@ -57,6 +58,13 @@ class ListenerSocket : public BaseSocket {
 
   static bool constexpr kIsListener = true;
 
+  // Returns the local address this socket has been bound to. An empty string indicates it was bound
+  // to INADDR6_ANY.
+  std::string_view address() const { return address_; }
+
+  // Returns the local TCP/IP port this socket is listening on.
+  uint16_t port() const { return port_; }
+
   absl::Status Accept(Callback callback) ABSL_LOCKS_EXCLUDED(mutex_);
 
  protected:
@@ -66,9 +74,13 @@ class ListenerSocket : public BaseSocket {
  private:
   friend class SelectServer;
 
-  static absl::StatusOr<ListenerSocket*> Create(std::string const& address, uint16_t port);
+  static absl::StatusOr<ListenerSocket*> Create(std::string_view address, uint16_t port);
 
-  explicit ListenerSocket(FD fd) : BaseSocket(std::move(fd)) {}
+  explicit ListenerSocket(std::string_view const address, uint16_t const port, FD fd)
+      : BaseSocket(std::move(fd)), address_(address), port_(port) {}
+
+  std::string const address_;
+  uint16_t const port_;
 
   absl::Mutex mutable mutex_;
   std::optional<Callback> callback_ ABSL_GUARDED_BY(mutex_) = std::nullopt;

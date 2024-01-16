@@ -10,7 +10,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
-#include <string>
+#include <string_view>
 #include <utility>
 
 #include "absl/flags/flag.h"
@@ -74,7 +74,7 @@ void ListenerSocket::OnOutput() {
   // Nothing to do here.
 }
 
-absl::StatusOr<ListenerSocket *> ListenerSocket::Create(std::string const &address,
+absl::StatusOr<ListenerSocket *> ListenerSocket::Create(std::string_view const address,
                                                         uint16_t const port) {
   struct sockaddr_in6 sa;
   std::memset(&sa, 0, sizeof(sa));
@@ -82,9 +82,12 @@ absl::StatusOr<ListenerSocket *> ListenerSocket::Create(std::string const &addre
   sa.sin6_port = htons(port);
   if (address.empty()) {
     sa.sin6_addr = IN6ADDR_ANY_INIT;
-  } else if (inet_pton(AF_INET6, address.c_str(), &sa.sin6_addr) < 0) {
-    return absl::InvalidArgumentError(
-        absl::StrCat("invalid address: \"", absl::CEscape(address), "\""));
+  } else {
+    std::string const address_string{address};
+    if (inet_pton(AF_INET6, address_string.c_str(), &sa.sin6_addr) < 0) {
+      return absl::InvalidArgumentError(
+          absl::StrCat("invalid address: \"", absl::CEscape(address), "\""));
+    }
   }
   int const fd = socket(AF_INET6, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
   if (fd < 0) {
@@ -103,7 +106,7 @@ absl::StatusOr<ListenerSocket *> ListenerSocket::Create(std::string const &addre
     close(fd);
     return absl::ErrnoToStatus(errno, "listen() failed");
   }
-  return new ListenerSocket(FD{fd});
+  return new ListenerSocket(address, port, FD{fd});
 }
 
 absl::Status Socket::Read(size_t const length, ReadCallback callback) {
