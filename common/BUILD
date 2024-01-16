@@ -98,27 +98,11 @@ cc_test(
 )
 
 cc_library(
-    name = "murmur3",
-    srcs = ["murmur3.cc"],
-    hdrs = ["murmur3.h"],
-)
-
-cc_test(
-    name = "murmur3_test",
-    srcs = ["murmur3_test.cc"],
-    deps = [
-        ":murmur3",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_library(
     name = "fingerprint",
     hdrs = ["fingerprint.h"],
     deps = [
         ":flat_map",
         ":flat_set",
-        ":murmur3",
         "@com_google_absl//absl/types:span",
     ],
 )

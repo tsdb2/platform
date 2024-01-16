@@ -108,8 +108,8 @@ class IsOkMatcher {
 
 // Macros for testing the results of functions that return absl::Status or absl::StatusOr<T> (for
 // any type T).
-#define EXPECT_OK(expression) EXPECT_THAT(expression, ::testing::IsOk())
-#define ASSERT_OK(expression) ASSERT_THAT(expression, ::testing::IsOk())
+#define EXPECT_OK(expression) EXPECT_THAT(expression, ::testing::status::IsOk())
+#define ASSERT_OK(expression) ASSERT_THAT(expression, ::testing::status::IsOk())
 
 // Returns a gMock matcher that matches a StatusOr<> whose status is OK and whose value matches the
 // inner matcher.
