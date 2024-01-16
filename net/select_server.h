@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <thread>
 #include <type_traits>
 #include <utility>
@@ -65,6 +66,8 @@ class ListenerSocket : public BaseSocket {
  private:
   friend class SelectServer;
 
+  static absl::StatusOr<ListenerSocket*> Create(std::string const& address, uint16_t port);
+
   explicit ListenerSocket(FD fd) : BaseSocket(std::move(fd)) {}
 
   absl::Mutex mutable mutex_;
@@ -80,8 +83,12 @@ class Socket : public BaseSocket {
 
   absl::Status Read(size_t length, ReadCallback callback) ABSL_LOCKS_EXCLUDED(read_mutex_);
 
+  bool CancelRead() ABSL_LOCKS_EXCLUDED(read_mutex_);
+
   absl::Status Write(Buffer const& buffer, WriteCallback callback)
       ABSL_LOCKS_EXCLUDED(write_mutex_);
+
+  bool CancelWrite() ABSL_LOCKS_EXCLUDED(write_mutex_);
 
  protected:
   void OnInput() override ABSL_LOCKS_EXCLUDED(read_mutex_);
@@ -107,7 +114,11 @@ class Socket : public BaseSocket {
 
   friend class SelectServer;
 
+  static absl::StatusOr<Socket*> Create(FD fd) { return new Socket(std::move(fd)); }
+
   explicit Socket(FD fd) : BaseSocket(std::move(fd)) {}
+
+  void FinalizeWrite(absl::Status status) ABSL_EXCLUSIVE_LOCKS_REQUIRED(write_mutex_);
 
   absl::Mutex mutable read_mutex_;
   std::optional<ReadStatus> read_status_ ABSL_GUARDED_BY(read_mutex_) = std::nullopt;
@@ -116,37 +127,45 @@ class Socket : public BaseSocket {
   std::optional<WriteStatus> write_status_ ABSL_GUARDED_BY(write_mutex_) = std::nullopt;
 };
 
+// `SelectServer` is a singleton that manages a pool of worker threads listening to I/O events on
+// all the sockets in the process. All sockets must be created through this class.
+//
+// The number of worker threads is configured in the --tsdb2_select_server_num_workers command line
+// flag.
+//
+// Despite being called "select" server, the implementation uses epoll in edge-triggered mode in
+// order to achieve the highest performance and parallelism.
 class SelectServer {
  public:
-  struct Options {
-    uint16_t num_workers = 1;
-    bool start_now = false;
-  };
+  // Returns the singleton instance of `SelectServer`.
+  static SelectServer* GetInstance();
 
-  explicit SelectServer(Options options) : options_(std::move(options)) {
-    CHECK_GT(options_.num_workers, 0) << "SelectServer needs to have at least 1 worker";
-    if (options_.start_now) {
-      StartOrDie();
-    }
-  }
+  // Start the `SelectServer`'s worker threads.
+  void StartOrDie() ABSL_LOCKS_EXCLUDED(mutex_);
 
-  ~SelectServer() { Stop(); }
-
-  absl::Status Start() ABSL_LOCKS_EXCLUDED(mutex_);
-
-  void StartOrDie() { CHECK_OK(Start()) << "SelectServer failed to start"; }
-
-  void Stop() ABSL_LOCKS_EXCLUDED(mutex_);
-
+  // Create a socket and make the `SelectServer` listen to I/O events related to it.
+  //
+  // REQUIRES: `StartOrDie()` must have been completed.
   template <typename SocketType, typename... Args>
   absl::StatusOr<SocketType*> CreateSocket(Args&&... args) ABSL_LOCKS_EXCLUDED(mutex_);
 
  private:
+  explicit SelectServer() = default;
+
+  // `SelectServer` must be a singleton because unblocking its workers from `epoll_wait` and
+  // stopping them is too complicated (it would require firing a signal, using thread-local storage
+  // so that the signal handler knows what `SelectServer` instance it's stopping, write a state
+  // machine to manage all the possible states, etc.)
+  //
+  // Not being able to destroy a `SelectServer` is not a big deal because a server can't be very
+  // useful if it's completely deaf / can't accept connections, so we simply forbid destruction so
+  // that the workers can keep running indefinitely and we avoid all the aforementioned
+  // complexities.
+  ~SelectServer() = delete;
+
   int epoll_fd() const ABSL_LOCKS_EXCLUDED(mutex_);
 
   void WorkerLoop();
-
-  Options const options_;
 
   absl::Mutex mutable mutex_;
   int epoll_fd_ ABSL_GUARDED_BY(mutex_) = -1;
@@ -161,7 +180,12 @@ absl::StatusOr<SocketType*> SelectServer::CreateSocket(Args&&... args) {
   if (epoll_fd_ < 0) {
     return absl::FailedPreconditionError("SelectServer hasn't started yet");
   }
-  auto const socket = new SocketType(std::forward<Args>(args)...);
+  absl::StatusOr<SocketType*> const status_or_socket =
+      SocketType::Create(std::forward<Args>(args)...);
+  if (!status_or_socket.ok()) {
+    return status_or_socket;
+  }
+  auto const socket = *status_or_socket;
   struct epoll_event event;
   event.events = EPOLLIN | EPOLLET | EPOLLEXCLUSIVE;
   if constexpr (!SocketType::kIsListener) {

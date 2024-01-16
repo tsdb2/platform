@@ -22,11 +22,22 @@ cc_library(
     deps = [
         ":fd",
         "//common:buffer",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/functional:bind_front",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/synchronization",
+    ],
+)
+
+cc_test(
+    name = "select_server_test",
+    srcs = ["select_server_test.cc"],
+    deps = [
+        ":select_server",
+        "//common:testing",
+        "@com_google_googletest//:gtest_main",
     ],
 )
