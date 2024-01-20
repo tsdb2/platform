@@ -4,7 +4,7 @@
 #include "absl/log/initialize.h"
 #include "absl/synchronization/notification.h"
 #include "net/http_server.h"
-#include "net/select_server.h"
+#include "net/sockets.h"
 
 namespace tsdb2 {
 namespace init {

@@ -4,7 +4,7 @@ cc_library(
     hdrs = ["init_tsdb2.h"],
     deps = [
         "//net:http_server",
-        "//net:select_server",
+        "//net:sockets",
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/log:initialize",
         "@com_google_absl//absl/synchronization",
