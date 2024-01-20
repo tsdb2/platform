@@ -1,5 +1,5 @@
-#ifndef __TSDB2_NET_BUFFER_H__
-#define __TSDB2_NET_BUFFER_H__
+#ifndef __TSDB2_COMMON_BUFFER_H__
+#define __TSDB2_COMMON_BUFFER_H__
 
 #include <cstddef>
 #include <cstdint>
@@ -166,4 +166,4 @@ class Buffer {
 }  // namespace common
 }  // namespace tsdb2
 
-#endif  // __TSDB2_NET_BUFFER_H__
+#endif  // __TSDB2_COMMON_BUFFER_H__

@@ -1,5 +1,5 @@
-#ifndef __TSDB2_COMMON_FLAT_SET_INTERNAL_H__
-#define __TSDB2_COMMON_FLAT_SET_INTERNAL_H__
+#ifndef __TSDB2_COMMON_FLAT_CONTAINER_INTERNAL_H__
+#define __TSDB2_COMMON_FLAT_CONTAINER_INTERNAL_H__
 
 #include <array>
 #include <cstddef>
@@ -101,4 +101,4 @@ constexpr void ConstexprCheckDuplications(std::array<T, N> const& array, Compare
 }  // namespace common
 }  // namespace tsdb2
 
-#endif  // __TSDB2_COMMON_FLAT_SET_INTERNAL_H__
+#endif  // __TSDB2_COMMON_FLAT_CONTAINER_INTERNAL_H__

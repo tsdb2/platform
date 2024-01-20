@@ -1,3 +1,6 @@
+#ifndef __TSDB2_NET_HTTP_SERVER_H__
+#define __TSDB2_NET_HTTP_SERVER_H__
+
 #include <cstdint>
 #include <memory>
 #include <string_view>
@@ -54,3 +57,5 @@ class HttpServer {
 
 }  // namespace net
 }  // namespace tsdb2
+
+#endif  // __TSDB2_NET_HTTP_SERVER_H__
