@@ -209,7 +209,7 @@ class ListenerSocket : public BaseSocket {
                                                                 uint16_t port,
                                                                 AcceptCallback callback);
 
-  std::vector<FD> AcceptAll() ABSL_LOCKS_EXCLUDED(mutex_);
+  absl::StatusOr<std::vector<FD>> AcceptAll() ABSL_LOCKS_EXCLUDED(mutex_);
 
   std::string const address_;
   uint16_t const port_;

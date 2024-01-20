@@ -198,8 +198,13 @@ void ListenerSocket::OnError() {
 }
 
 void ListenerSocket::OnInput() {
-  for (auto& fd : AcceptAll()) {
-    callback_(parent_->CreateSocket<Socket>(std::move(fd)));
+  auto status_or_fds = AcceptAll();
+  if (status_or_fds.ok()) {
+    for (auto& fd : status_or_fds.value()) {
+      callback_(parent_->CreateSocket<Socket>(std::move(fd)));
+    }
+  } else {
+    callback_(status_or_fds.status());
   }
 }
 
@@ -242,11 +247,11 @@ absl::StatusOr<std::unique_ptr<ListenerSocket>> ListenerSocket::Create(
       new ListenerSocket(parent, tag, address, port, std::move(fd), std::move(callback)));
 }
 
-std::vector<FD> ListenerSocket::AcceptAll() {
+absl::StatusOr<std::vector<FD>> ListenerSocket::AcceptAll() {
   std::vector<FD> fds;
   absl::MutexLock lock{&mutex_};
   if (!fd_) {
-    return {};
+    return absl::FailedPreconditionError("this socket has been shut down");
   }
   while (true) {
     int const result = accept4(*fd_, nullptr, nullptr, SOCK_NONBLOCK | SOCK_CLOEXEC);
@@ -254,8 +259,10 @@ std::vector<FD> ListenerSocket::AcceptAll() {
       if (errno != EAGAIN && errno != EWOULDBLOCK) {
         RemoveFromParent();
         fd_.Close();
+        return absl::ErrnoToStatus(errno, "accept4() failed");
+      } else {
+        return fds;
       }
-      return fds;
     } else {
       fds.emplace_back(result);
     }
