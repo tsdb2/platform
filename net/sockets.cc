@@ -2,14 +2,18 @@
 
 #include <arpa/inet.h>
 #include <errno.h>
+#include <netdb.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include "absl/flags/flag.h"
@@ -18,6 +22,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
+#include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "common/buffer.h"
 #include "net/fd.h"
@@ -176,6 +181,40 @@ void Socket::OnOutput() {
       }
     }
   }
+}
+
+absl::StatusOr<std::unique_ptr<Socket>> Socket::Create(SelectServer* const parent,
+                                                       InetSocketTag const&,
+                                                       std::string const& address,
+                                                       uint16_t const port) {
+  auto const port_string = absl::StrCat(port);
+  struct addrinfo* rai;
+  if (getaddrinfo(address.c_str(), port_string.c_str(), nullptr, &rai) < 0) {
+    return absl::ErrnoToStatus(errno, absl::StrCat("getaddrinfo(\"", absl::CEscape(address), "\", ",
+                                                   port_string, ") failed"));
+  }
+  struct addrinfo* ai = rai;
+  while (ai && ai->ai_socktype != SOCK_STREAM) {
+    ai = ai->ai_next;
+  }
+  if (!ai) {
+    freeaddrinfo(rai);
+    return absl::NotFoundError(absl::StrCat("getaddrinfo(\"", absl::CEscape(address), "\", ",
+                                            port_string,
+                                            ") didn't return any SOCK_STREAM addresses"));
+  }
+  int const socket_result = socket(ai->ai_family, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+  if (socket_result < 0) {
+    freeaddrinfo(rai);
+    return absl::ErrnoToStatus(errno, "socket() failed");
+  }
+  FD fd{socket_result};
+  int const connect_result = connect(*fd, ai->ai_addr, ai->ai_addrlen);
+  freeaddrinfo(rai);
+  if (connect_result < 0) {
+    return absl::ErrnoToStatus(errno, "connect() failed");
+  }
+  return std::unique_ptr<Socket>(new Socket(parent, std::move(fd)));
 }
 
 void Socket::AbortRead(absl::Status status) {

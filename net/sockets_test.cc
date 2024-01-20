@@ -3,6 +3,7 @@
 #include <utility>
 
 #include "absl/status/statusor.h"
+#include "absl/synchronization/notification.h"
 #include "common/reffed_ptr.h"
 #include "common/testing.h"
 #include "gmock/gmock.h"
@@ -32,16 +33,21 @@ TEST_F(SocketTest, Listen) {
               IsOkAndHolds(Not(nullptr)));
 }
 
-TEST_F(SocketTest, Accept) {
+TEST_F(SocketTest, AcceptInet) {
+  uint16_t constexpr port = 8080;
+  absl::Notification accepted;
   reffed_ptr<Socket> socket;
   auto status_or_listener = select_server_->CreateSocket<ListenerSocket>(
-      ListenerSocket::kInetSocketTag, "::1", 8080,
+      ListenerSocket::kInetSocketTag, "::1", port,
       [&](absl::StatusOr<reffed_ptr<Socket>> status_or_socket) {
         EXPECT_THAT(status_or_socket, IsOkAndHolds(Not(nullptr)));
         socket = std::move(status_or_socket).value();
+        accepted.Notify();
       });
   EXPECT_THAT(status_or_listener, IsOkAndHolds(Not(nullptr)));
-  // TODO
+  auto status_or_socket = select_server_->CreateSocket<Socket>(Socket::kInetSocketTag, "::1", port);
+  EXPECT_THAT(status_or_socket, IsOkAndHolds(Not(nullptr)));
+  accepted.WaitForNotification();
 }
 
 // TODO

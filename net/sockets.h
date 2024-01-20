@@ -70,20 +70,83 @@ class BaseSocket : public ::tsdb2::common::RefCounted {
   BaseSocket& operator=(BaseSocket&&) = delete;
 };
 
-// Generic unencrypted socket.
+// Generic unencrypted socket. This class is used for both client-side and server-side connections.
+//
+// Server-side sockets are implicitly constructed by `ListenerSocket` when accepting a connection
+// and returned in the provided `AcceptCallback`. For example:
+//
+//   reffed_ptr<Socket> socket;
+//   auto const listener = SelectServer::GetInstance()->CreateSocket<ListenerSocket>(
+//       ListenerSocket::kInetSocketTag, address, port,
+//       [&](absl::StatusOr<reffed_ptr<Socket>> status_or_socket) {
+//         if (!status_or_socket.ok()) {
+//           // There was an error other than EAGAIN / EWOULDBLOCK.
+//         } else {
+//           socket = std::move(status_or_socket).value();
+//         }
+//       });
+//
+// While client-side sockets can be constructed as follows:
+//
+//   auto const socket = SelectServer::GetInstance()->CreateSocket<Socket>(
+//       Socket::kInetSocketTag, "www.example.com", 80);
+//
+// WARNING: unencrypted TCP/IP connections are not recommended. Use `SSLSocket` instead.
+//
+// The I/O model of `Socket` is fully asynchronous, but keep in mind that only one read operation at
+// a time and only one write operation at a time are supported. See the `Read` and `Write` methods
+// for more information.
 class Socket : public BaseSocket {
  public:
   using ReadCallback = absl::AnyInvocable<void(absl::StatusOr<Buffer> status_or_buffer)>;
   using WriteCallback = absl::AnyInvocable<void(absl::Status status)>;
 
+  struct InetSocketTag {};
+  static inline InetSocketTag constexpr kInetSocketTag;
+
+  struct UnixDomainSocketTag {};
+  static inline UnixDomainSocketTag constexpr kUnixDomainSocketTag;
+
   static bool constexpr kIsListener = false;
 
+  // Starts an asynchronous read operation. `callback` will be invoked upon completion. If the
+  // operation is successful `callback` will receive a `Buffer` object of the specified `length`,
+  // otherwise it will receive an error status.
+  //
+  // REQUIRES: `callback` must not be empty. The caller must always be notified of the end of a read
+  // operation, otherwise it wouldn't know when it's okay to start the next.
+  //
+  // Only one read operation at a time is supported. If `Read` is called while another read is in
+  // progress it will return immediately with an error status. If you need to split a read in two,
+  // the next `Read` call must be issued in the `callback`.
+  //
+  // It usually doesn't make sense to issue multiple concurrent reads on the same socket, but if you
+  // absolutely must then a read queue must be managed by the caller.
   absl::Status Read(size_t length, ReadCallback callback) ABSL_LOCKS_EXCLUDED(mutex_);
 
+  // Cancels the read operation currently in progress, if any. Returns true iff a read operation was
+  // in progress and cancelled. The callback function of the cancelled operation will be invoked
+  // with an error status.
   bool CancelRead() ABSL_LOCKS_EXCLUDED(mutex_);
 
+  // Starts an asynchronous write operation. `Socket` takes ownership of the provided `Buffer` and
+  // takes care of deleting it as soon as it's no longer needed. Upon completion, `callback` will be
+  // invoked with a status.
+  //
+  // REQUIRES: `callback` must not be empty. The caller must always be notified of the end of a
+  // write operation, otherwise it wouldn't know when it's okay to start the next.
+  //
+  // Only one write operation at a time is supported. If `Write` is called while another write is in
+  // progress it will return immediately with an error status. If you need to split a write in two,
+  // the next `Write` call must be issued in the `callback`.
+  //
+  // It usually doesn't make sense to issue multiple concurrent writes on the same socket, but if
+  // you absolutely must then a write queue must be managed by the caller.
   absl::Status Write(Buffer buffer, WriteCallback callback) ABSL_LOCKS_EXCLUDED(mutex_);
 
+  // Cancels the write operation currently in progress, if any. Returns true iff a write operation
+  // was in progress and cancelled. The callback function of the cancelled operation will be invoked
+  // with an error status.
   bool CancelWrite() ABSL_LOCKS_EXCLUDED(mutex_);
 
  protected:
@@ -125,9 +188,18 @@ class Socket : public BaseSocket {
 
   explicit Socket(SelectServer* const parent, FD fd) : BaseSocket(parent, std::move(fd)) {}
 
+  // Constructs a `Socket` from the specified file descriptor. Used by `ListenerSocket` to construct
+  // sockets for accepted connections.
   static absl::StatusOr<std::unique_ptr<Socket>> Create(SelectServer* const parent, FD fd) {
     return std::unique_ptr<Socket>(new Socket(parent, std::move(fd)));
   }
+
+  // Constructs a stream `Socket` connected to the specified host and port. This function uses
+  // `getaddrinfo` to perform address resolution, so the `address` can be a numeric IPv4 address
+  // (e.g. 192.168.0.1), a numeric IPv6 address (e.g. "::1"), or even a DNS name (e.g.
+  // "www.example.com" or "localhost").
+  static absl::StatusOr<std::unique_ptr<Socket>> Create(SelectServer* parent, InetSocketTag const&,
+                                                        std::string const& address, uint16_t port);
 
   void AbortRead(absl::Status status) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
