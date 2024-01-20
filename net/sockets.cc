@@ -49,6 +49,9 @@ void BaseSocket::OnLastUnref() {
 }
 
 absl::Status Socket::Read(size_t const length, ReadCallback callback) {
+  if (!callback) {
+    return absl::InvalidArgumentError("the read callback must not be empty");
+  }
   Buffer buffer{length};
   absl::MutexLock lock{&mutex_};
   if (!fd_) {
@@ -88,6 +91,9 @@ bool Socket::CancelRead() {
 }
 
 absl::Status Socket::Write(Buffer buffer, WriteCallback callback) {
+  if (!callback) {
+    return absl::InvalidArgumentError("the write callback must not be empty");
+  }
   absl::MutexLock lock{&mutex_};
   if (!fd_) {
     return absl::FailedPreconditionError("this socket has been shut down");
@@ -254,6 +260,9 @@ void ListenerSocket::OnOutput() {
 absl::StatusOr<std::unique_ptr<ListenerSocket>> ListenerSocket::Create(
     SelectServer* const parent, InetSocketTag const& tag, std::string_view const address,
     uint16_t const port, AcceptCallback callback) {
+  if (!callback) {
+    return absl::InvalidArgumentError("the accept callback must not be empty");
+  }
   struct sockaddr_in6 sa;
   std::memset(&sa, 0, sizeof(sa));
   sa.sin6_family = AF_INET6;
