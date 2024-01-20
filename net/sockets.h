@@ -38,15 +38,11 @@ class SelectServer;
 class BaseSocket : public ::tsdb2::common::RefCounted {
  public:
   explicit BaseSocket(SelectServer* const parent, FD fd)
-      : parent_(parent), hash_(absl::HashOf(*fd)), fd_(std::move(fd)) {}
+      : parent_(parent), initial_fd_(*fd), hash_(absl::HashOf(*fd)), fd_(std::move(fd)) {}
 
   virtual ~BaseSocket() = default;
 
-  int fd() const ABSL_LOCKS_EXCLUDED(mutex_) {
-    absl::MutexLock lock{&mutex_};
-    return *fd_;
-  }
-
+  int initial_fd() const { return initial_fd_; }
   size_t hash() const { return hash_; }
 
  protected:
@@ -61,6 +57,7 @@ class BaseSocket : public ::tsdb2::common::RefCounted {
   virtual void OnOutput() = 0;
 
   SelectServer* const parent_;
+  int const initial_fd_;
   size_t const hash_;
 
   absl::Mutex mutable mutex_;
@@ -259,8 +256,8 @@ class SelectServer {
     struct Eq {
       using is_transparent = void;
 
-      static int ToFD(std::unique_ptr<BaseSocket> const& socket) { return socket->fd(); }
-      static int ToFD(BaseSocket const* const socket) { return socket->fd(); }
+      static int ToFD(std::unique_ptr<BaseSocket> const& socket) { return socket->initial_fd(); }
+      static int ToFD(BaseSocket const* const socket) { return socket->initial_fd(); }
       static int ToFD(int const fd) { return fd; }
       static int ToFD(FD const& fd) { return *fd; }
 
@@ -319,7 +316,7 @@ absl::StatusOr<::tsdb2::common::reffed_ptr<SocketType>> SelectServer::CreateSock
   }
   std::unique_ptr<SocketType> socket = std::move(status_or_socket).value();
   SocketType* const ptr = socket.get();
-  int const fd = socket->fd();
+  int const fd = socket->initial_fd();
   struct epoll_event event;
   event.events = EPOLLIN | EPOLLET | EPOLLEXCLUSIVE;
   if constexpr (!SocketType::kIsListener) {

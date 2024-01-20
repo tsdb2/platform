@@ -46,6 +46,9 @@ void BaseSocket::OnLastUnref() {
 absl::Status Socket::Read(size_t const length, ReadCallback callback) {
   Buffer buffer{length};
   absl::MutexLock lock{&mutex_};
+  if (!fd_) {
+    return absl::FailedPreconditionError("this socket has been shut down");
+  }
   if (read_status_) {
     return absl::FailedPreconditionError("another read is already in progress on the same socket");
   }
@@ -81,6 +84,9 @@ bool Socket::CancelRead() {
 
 absl::Status Socket::Write(Buffer buffer, WriteCallback callback) {
   absl::MutexLock lock{&mutex_};
+  if (!fd_) {
+    return absl::FailedPreconditionError("this socket has been shut down");
+  }
   if (write_status_) {
     return absl::FailedPreconditionError("another write is already in progress on the same socket");
   }
@@ -130,7 +136,7 @@ void Socket::OnError() {
 
 void Socket::OnInput() {
   absl::MutexLock lock{&mutex_};
-  while (read_status_) {
+  while (fd_ && read_status_) {
     auto& buffer = read_status_->buffer;
     size_t const offset = buffer.size();
     size_t const remaining = buffer.capacity() - offset;
@@ -153,7 +159,7 @@ void Socket::OnInput() {
 
 void Socket::OnOutput() {
   absl::MutexLock lock{&mutex_};
-  while (write_status_) {
+  while (fd_ && write_status_) {
     auto const& buffer = write_status_->buffer;
     size_t const offset = buffer.size() - write_status_->remaining;
     ssize_t const result = write(*fd_, buffer.as_byte_array() + offset, write_status_->remaining);
@@ -239,9 +245,16 @@ absl::StatusOr<std::unique_ptr<ListenerSocket>> ListenerSocket::Create(
 std::vector<FD> ListenerSocket::AcceptAll() {
   std::vector<FD> fds;
   absl::MutexLock lock{&mutex_};
+  if (!fd_) {
+    return {};
+  }
   while (true) {
     int const result = accept4(*fd_, nullptr, nullptr, SOCK_NONBLOCK | SOCK_CLOEXEC);
     if (result < 0) {
+      if (errno != EAGAIN && errno != EWOULDBLOCK) {
+        RemoveFromParent();
+        fd_.Close();
+      }
       return fds;
     } else {
       fds.emplace_back(result);
