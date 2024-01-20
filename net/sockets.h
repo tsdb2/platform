@@ -231,14 +231,14 @@ class SelectServer {
   static SelectServer* GetInstance();
 
   // Start the `SelectServer`'s worker threads.
-  void StartOrDie() ABSL_LOCKS_EXCLUDED(epoll_mutex_);
+  void StartOrDie();
 
   // Create a socket and make the `SelectServer` listen to I/O events related to it.
   //
   // REQUIRES: `StartOrDie()` must have been completed.
   template <typename SocketType, typename... Args>
   absl::StatusOr<::tsdb2::common::reffed_ptr<SocketType>> CreateSocket(Args&&... args)
-      ABSL_LOCKS_EXCLUDED(epoll_mutex_);
+      ABSL_LOCKS_EXCLUDED(mutex_);
 
  private:
   friend class BaseSocket;
@@ -272,6 +272,10 @@ class SelectServer {
 
   explicit SelectServer() = default;
 
+  // Called by `GetInstance` only the first time, to construct the singleton `SelectServer`
+  // instance.
+  static SelectServer* CreateInstance();
+
   // `SelectServer` must be a singleton because unblocking its workers from `epoll_wait` and
   // stopping them is too complicated (it would require firing a signal, using thread-local storage
   // so that the signal handler knows what `SelectServer` instance it's stopping, write a state
@@ -283,30 +287,23 @@ class SelectServer {
   // complexities.
   ~SelectServer() = delete;
 
-  int epoll_fd() const {
-    absl::MutexLock lock{&epoll_mutex_};
-    return epoll_fd_;
-  }
-
-  ::tsdb2::common::reffed_ptr<BaseSocket> LookupSocket(int fd) ABSL_LOCKS_EXCLUDED(sockets_mutex_);
+  ::tsdb2::common::reffed_ptr<BaseSocket> LookupSocket(int fd) ABSL_LOCKS_EXCLUDED(mutex_);
 
   void RemoveSocket(BaseSocket const& socket);
 
   void WorkerLoop();
 
-  absl::Mutex mutable sockets_mutex_;
-  SocketSet sockets_ ABSL_GUARDED_BY(sockets_mutex_);
+  absl::Mutex mutable mutex_;
+  SocketSet sockets_ ABSL_GUARDED_BY(mutex_);
 
-  absl::Mutex mutable epoll_mutex_;
-  int epoll_fd_ ABSL_GUARDED_BY(epoll_mutex_) = -1;
-  std::vector<std::thread> workers_ ABSL_GUARDED_BY(epoll_mutex_);
+  int volatile epoll_fd_ = -1;
+  std::vector<std::thread> workers_;
 };
 
 template <typename SocketType, typename... Args>
 absl::StatusOr<::tsdb2::common::reffed_ptr<SocketType>> SelectServer::CreateSocket(Args&&... args) {
   static_assert(std::is_base_of_v<BaseSocket, SocketType>,
                 "SocketType must be a subclass of BaseSocket");
-  absl::ReaderMutexLock epoll_lock{&epoll_mutex_};
   if (epoll_fd_ < 0) {
     return absl::FailedPreconditionError("SelectServer hasn't started yet");
   }
@@ -324,9 +321,10 @@ absl::StatusOr<::tsdb2::common::reffed_ptr<SocketType>> SelectServer::CreateSock
   }
   event.data.fd = fd;
   {
-    absl::MutexLock sockets_lock{&sockets_mutex_};
+    absl::MutexLock lock{&mutex_};
     auto const [unused_it, inserted] = sockets_.emplace(std::move(socket));
     CHECK_EQ(inserted, true) << "internal error: duplicated file descriptor in socket map!";
+    // TODO: we shouldn't do a syscall inside a lock, this mutex is critical.
     if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &event) < 0) {
       return absl::ErrnoToStatus(errno, "epoll_ctl(EPOLL_ADD) failed");
     }

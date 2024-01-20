@@ -263,12 +263,11 @@ std::vector<FD> ListenerSocket::AcceptAll() {
 }
 
 SelectServer* SelectServer::GetInstance() {
-  static SelectServer* const kInstance = new SelectServer();
+  static SelectServer* const kInstance = CreateInstance();
   return kInstance;
 }
 
 void SelectServer::StartOrDie() {
-  absl::WriterMutexLock lock{&epoll_mutex_};
   if (epoll_fd_ < 0) {
     epoll_fd_ = epoll_create1(EPOLL_CLOEXEC);
     CHECK_GE(epoll_fd_, 0) << "epoll_create1() failed, errno=" << errno;
@@ -282,8 +281,14 @@ void SelectServer::StartOrDie() {
   }
 }
 
+SelectServer* SelectServer::CreateInstance() {
+  auto const instance = new SelectServer();
+  instance->StartOrDie();
+  return instance;
+}
+
 reffed_ptr<BaseSocket> SelectServer::LookupSocket(int const fd) {
-  absl::MutexLock lock{&sockets_mutex_};
+  absl::MutexLock lock{&mutex_};
   auto const it = sockets_.find(fd);
   if (it != sockets_.end()) {
     return reffed_ptr<BaseSocket>(it->get());
@@ -293,16 +298,16 @@ reffed_ptr<BaseSocket> SelectServer::LookupSocket(int const fd) {
 }
 
 void SelectServer::RemoveSocket(BaseSocket const& socket) {
+  epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, socket.initial_fd(), nullptr);
   typename SocketSet::node_type node;
-  absl::MutexLock lock{&sockets_mutex_};
+  absl::MutexLock lock{&mutex_};
   node = sockets_.extract(&socket);
 }
 
 void SelectServer::WorkerLoop() {
-  auto const epfd = epoll_fd();
   struct epoll_event events[kMaxEvents];
   while (true) {
-    int const num_events = epoll_wait(epfd, events, kMaxEvents, 0);
+    int const num_events = epoll_wait(epoll_fd_, events, kMaxEvents, 0);
     if (num_events < 0) {
       CHECK_EQ(errno, EINTR) << "epoll_wait() failed, errno=" << errno;
       continue;
