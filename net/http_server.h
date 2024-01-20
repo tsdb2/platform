@@ -3,8 +3,8 @@
 #include <string_view>
 
 #include "absl/status/statusor.h"
-#include "net/fd.h"
-#include "net/select_server.h"
+#include "common/reffed_ptr.h"
+#include "net/sockets.h"
 
 namespace tsdb2 {
 namespace net {
@@ -43,13 +43,13 @@ class HttpServer {
   HttpServer(HttpServer const&) = delete;
   HttpServer& operator=(HttpServer const&) = delete;
 
-  explicit HttpServer(ListenerSocket* const listener) : listener_(listener) { Accept(); }
+  explicit HttpServer() = default;
 
-  void Accept();
+  absl::Status Listen(std::string_view address, uint16_t port);
 
-  void AcceptCallback(absl::StatusOr<FD> fd);
+  void AcceptCallback(absl::StatusOr<::tsdb2::common::reffed_ptr<Socket>> status_or_socket);
 
-  ListenerSocket* const listener_;
+  ::tsdb2::common::reffed_ptr<ListenerSocket> listener_;
 };
 
 }  // namespace net

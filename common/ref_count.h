@@ -39,11 +39,15 @@ class RefCounted {
   // Increments the reference count.
   void Ref() { ref_count_.fetch_add(1, std::memory_order_relaxed); }
 
-  // Decrements the reference count and triggers `OnLastUnref` the count reaches 0.
-  void Unref() {
+  // Decrements the reference count and triggers `OnLastUnref` the count reaches 0. In that case it
+  // returns true, otherwise it returns false.
+  bool Unref() {
     if (ref_count_.fetch_sub(1, std::memory_order_release) == 1) {
       std::atomic_thread_fence(std::memory_order_acquire);
       OnLastUnref();
+      return true;
+    } else {
+      return false;
     }
   }
 

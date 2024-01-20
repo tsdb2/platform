@@ -1,4 +1,4 @@
-#include "net/select_server.h"
+#include "net/sockets.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -9,8 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <memory>
-#include <string_view>
+#include <string>
 #include <utility>
 
 #include "absl/flags/flag.h"
@@ -19,7 +18,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
-#include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "common/buffer.h"
 #include "net/fd.h"
@@ -33,85 +31,21 @@ namespace {
 
 size_t constexpr kMaxEvents = 1024;
 
+using ::tsdb2::common::reffed_ptr;
+
 }  // namespace
 
-absl::Status ListenerSocket::Accept(Callback callback) {
+void BaseSocket::RemoveFromParent() { parent_->RemoveSocket(*this); }
+
+void BaseSocket::OnLastUnref() {
   absl::MutexLock lock{&mutex_};
-  if (callback_) {
-    return absl::FailedPreconditionError("another Accept call is already in progress");
-  }
-  int const result = accept4(*fd_, nullptr, nullptr, SOCK_NONBLOCK | SOCK_CLOEXEC);
-  if (result < 0) {
-    if (errno != EAGAIN && errno != EWOULDBLOCK) {
-      return absl::ErrnoToStatus(errno, "accept4() failed");
-    } else {
-      callback_.emplace(std::move(callback));
-      return absl::OkStatus();
-    }
-  } else {
-    callback(FD(result));
-    return absl::OkStatus();
-  }
-}
-
-void ListenerSocket::OnInput() {
-  absl::MutexLock lock{&mutex_};
-  if (callback_) {
-    int const result = accept4(*fd_, nullptr, nullptr, SOCK_NONBLOCK | SOCK_CLOEXEC);
-    if (result < 0) {
-      if (errno != EAGAIN && errno != EWOULDBLOCK) {
-        (*callback_)(absl::ErrnoToStatus(errno, "accept4() failed"));
-        callback_.reset();
-      }
-    } else {
-      (*callback_)(FD(result));
-      callback_.reset();
-    }
-  }
-}
-
-void ListenerSocket::OnOutput() {
-  // Nothing to do here.
-}
-
-absl::StatusOr<ListenerSocket *> ListenerSocket::Create(std::string_view const address,
-                                                        uint16_t const port) {
-  struct sockaddr_in6 sa;
-  std::memset(&sa, 0, sizeof(sa));
-  sa.sin6_family = AF_INET6;
-  sa.sin6_port = htons(port);
-  if (address.empty()) {
-    sa.sin6_addr = IN6ADDR_ANY_INIT;
-  } else {
-    std::string const address_string{address};
-    if (inet_pton(AF_INET6, address_string.c_str(), &sa.sin6_addr) < 0) {
-      return absl::InvalidArgumentError(
-          absl::StrCat("invalid address: \"", absl::CEscape(address), "\""));
-    }
-  }
-  int const fd = socket(AF_INET6, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
-  if (fd < 0) {
-    return absl::ErrnoToStatus(errno, "socket(AF_INET6, SOCK_STREAM) failed");
-  }
-  int opt = 0;
-  if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt)) < 0) {
-    close(fd);
-    return absl::ErrnoToStatus(errno, "setsockopt() failed");
-  }
-  if (bind(fd, (struct sockaddr *)&sa, sizeof(sa)) < 0) {
-    close(fd);
-    return absl::ErrnoToStatus(errno, "bind() failed");
-  }
-  if (listen(fd, SOMAXCONN) < 0) {
-    close(fd);
-    return absl::ErrnoToStatus(errno, "listen() failed");
-  }
-  return new ListenerSocket(address, port, FD{fd});
+  RemoveFromParent();
+  fd_.Close();
 }
 
 absl::Status Socket::Read(size_t const length, ReadCallback callback) {
   Buffer buffer{length};
-  absl::MutexLock lock{&read_mutex_};
+  absl::MutexLock lock{&mutex_};
   if (read_status_) {
     return absl::FailedPreconditionError("another read is already in progress on the same socket");
   }
@@ -136,19 +70,17 @@ absl::Status Socket::Read(size_t const length, ReadCallback callback) {
 }
 
 bool Socket::CancelRead() {
-  absl::MutexLock lock{&read_mutex_};
+  absl::MutexLock lock{&mutex_};
   if (read_status_) {
-    auto callback = std::move(read_status_->callback);
-    read_status_.reset();
-    callback(absl::CancelledError("cancelled by user"));
+    AbortRead(absl::CancelledError("cancelled by the user"));
     return true;
   } else {
     return false;
   }
 }
 
-absl::Status Socket::Write(Buffer const &buffer, WriteCallback callback) {
-  absl::MutexLock lock{&write_mutex_};
+absl::Status Socket::Write(Buffer buffer, WriteCallback callback) {
+  absl::MutexLock lock{&mutex_};
   if (write_status_) {
     return absl::FailedPreconditionError("another write is already in progress on the same socket");
   }
@@ -160,7 +92,7 @@ absl::Status Socket::Write(Buffer const &buffer, WriteCallback callback) {
       if (errno != EAGAIN && errno != EWOULDBLOCK) {
         return absl::ErrnoToStatus(errno, "write() failed");
       } else {
-        write_status_.emplace(buffer, remaining, std::move(callback));
+        write_status_.emplace(std::move(buffer), remaining, std::move(callback));
         return absl::OkStatus();
       }
     } else {
@@ -174,29 +106,38 @@ absl::Status Socket::Write(Buffer const &buffer, WriteCallback callback) {
 }
 
 bool Socket::CancelWrite() {
-  absl::MutexLock lock{&write_mutex_};
+  absl::MutexLock lock{&mutex_};
   if (write_status_) {
-    auto callback = std::move(write_status_->callback);
-    write_status_.reset();
-    callback(absl::CancelledError("cancelled by user"));
+    FinalizeWrite(absl::CancelledError("cancelled by the user"));
     return true;
   } else {
     return false;
   }
 }
 
+void Socket::OnError() {
+  auto const status = absl::AbortedError("socket shutdown");
+  absl::MutexLock lock{&mutex_};
+  RemoveFromParent();
+  fd_.Close();
+  if (write_status_) {
+    FinalizeWrite(status);
+  }
+  if (read_status_) {
+    AbortRead(status);
+  }
+}
+
 void Socket::OnInput() {
-  absl::MutexLock lock{&read_mutex_};
+  absl::MutexLock lock{&mutex_};
   while (read_status_) {
-    auto &buffer = read_status_->buffer;
+    auto& buffer = read_status_->buffer;
     size_t const offset = buffer.size();
     size_t const remaining = buffer.capacity() - offset;
     ssize_t const result = recv(*fd_, buffer.as_byte_array() + offset, remaining, MSG_DONTWAIT);
     if (result < 0) {
       if (errno != EAGAIN && errno != EWOULDBLOCK) {
-        auto callback = std::move(read_status_->callback);
-        read_status_.reset();
-        callback(absl::ErrnoToStatus(errno, "recv() failed"));
+        AbortRead(absl::ErrnoToStatus(errno, "recv() failed"));
       } else {
         return;
       }
@@ -211,9 +152,9 @@ void Socket::OnInput() {
 }
 
 void Socket::OnOutput() {
-  absl::MutexLock lock{&write_mutex_};
+  absl::MutexLock lock{&mutex_};
   while (write_status_) {
-    auto const &buffer = write_status_->buffer;
+    auto const& buffer = write_status_->buffer;
     size_t const offset = buffer.size() - write_status_->remaining;
     ssize_t const result = write(*fd_, buffer.as_byte_array() + offset, write_status_->remaining);
     if (result < 0) {
@@ -231,19 +172,90 @@ void Socket::OnOutput() {
   }
 }
 
-void Socket::FinalizeWrite(absl::Status const status) {
-  auto callback = std::move(write_status_->callback);
-  write_status_.reset();
-  callback(absl::OkStatus());
+void Socket::AbortRead(absl::Status status) {
+  auto callback = std::move(read_status_->callback);
+  read_status_.reset();
+  callback(status);
 }
 
-SelectServer *SelectServer::GetInstance() {
-  static SelectServer *const kInstance = new SelectServer();
+void Socket::FinalizeWrite(absl::Status status) {
+  auto callback = std::move(write_status_->callback);
+  write_status_.reset();
+  callback(status);
+}
+
+void ListenerSocket::OnError() {
+  absl::MutexLock lock{&mutex_};
+  RemoveFromParent();
+  fd_.Close();
+  callback_(absl::AbortedError("socket shutdown"));
+}
+
+void ListenerSocket::OnInput() {
+  for (auto& fd : AcceptAll()) {
+    callback_(parent_->CreateSocket<Socket>(std::move(fd)));
+  }
+}
+
+void ListenerSocket::OnOutput() {
+  // Nothing to do here.
+}
+
+absl::StatusOr<std::unique_ptr<ListenerSocket>> ListenerSocket::Create(
+    SelectServer* const parent, InetSocketTag const& tag, std::string_view const address,
+    uint16_t const port, AcceptCallback callback) {
+  struct sockaddr_in6 sa;
+  std::memset(&sa, 0, sizeof(sa));
+  sa.sin6_family = AF_INET6;
+  sa.sin6_port = htons(port);
+  if (address.empty()) {
+    sa.sin6_addr = IN6ADDR_ANY_INIT;
+  } else {
+    std::string const address_string{address};
+    if (inet_pton(AF_INET6, address_string.c_str(), &sa.sin6_addr) < 0) {
+      return absl::InvalidArgumentError(
+          absl::StrCat("invalid address: \"", absl::CEscape(address), "\""));
+    }
+  }
+  int const result = socket(AF_INET6, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+  if (result < 0) {
+    return absl::ErrnoToStatus(errno, "socket(AF_INET6, SOCK_STREAM) failed");
+  }
+  FD fd{result};
+  int opt = 0;
+  if (setsockopt(*fd, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt)) < 0) {
+    return absl::ErrnoToStatus(errno, "setsockopt() failed");
+  }
+  if (bind(*fd, (struct sockaddr*)&sa, sizeof(sa)) < 0) {
+    return absl::ErrnoToStatus(errno, "bind() failed");
+  }
+  if (listen(*fd, SOMAXCONN) < 0) {
+    return absl::ErrnoToStatus(errno, "listen() failed");
+  }
+  return std::unique_ptr<ListenerSocket>(
+      new ListenerSocket(parent, tag, address, port, std::move(fd), std::move(callback)));
+}
+
+std::vector<FD> ListenerSocket::AcceptAll() {
+  std::vector<FD> fds;
+  absl::MutexLock lock{&mutex_};
+  while (true) {
+    int const result = accept4(*fd_, nullptr, nullptr, SOCK_NONBLOCK | SOCK_CLOEXEC);
+    if (result < 0) {
+      return fds;
+    } else {
+      fds.emplace_back(result);
+    }
+  }
+}
+
+SelectServer* SelectServer::GetInstance() {
+  static SelectServer* const kInstance = new SelectServer();
   return kInstance;
 }
 
 void SelectServer::StartOrDie() {
-  absl::WriterMutexLock lock{&mutex_};
+  absl::WriterMutexLock lock{&epoll_mutex_};
   if (epoll_fd_ < 0) {
     epoll_fd_ = epoll_create1(EPOLL_CLOEXEC);
     CHECK_GE(epoll_fd_, 0) << "epoll_create1() failed, errno=" << errno;
@@ -257,9 +269,20 @@ void SelectServer::StartOrDie() {
   }
 }
 
-int SelectServer::epoll_fd() const {
-  absl::ReaderMutexLock lock{&mutex_};
-  return epoll_fd_;
+reffed_ptr<BaseSocket> SelectServer::LookupSocket(int const fd) {
+  absl::MutexLock lock{&sockets_mutex_};
+  auto const it = sockets_.find(fd);
+  if (it != sockets_.end()) {
+    return reffed_ptr<BaseSocket>(it->get());
+  } else {
+    return reffed_ptr<BaseSocket>();
+  }
+}
+
+void SelectServer::RemoveSocket(BaseSocket const& socket) {
+  typename SocketSet::node_type node;
+  absl::MutexLock lock{&sockets_mutex_};
+  node = sockets_.extract(&socket);
 }
 
 void SelectServer::WorkerLoop() {
@@ -272,15 +295,19 @@ void SelectServer::WorkerLoop() {
       continue;
     }
     for (int i = 0; i < num_events; ++i) {
-      auto const socket = static_cast<BaseSocket *>(events[i].data.ptr);
-      auto const revents = events[i].events;
-      if ((revents & EPOLLERR) || (revents & EPOLLHUP)) {
-        epoll_ctl(epfd, EPOLL_CTL_DEL, socket->fd(), nullptr);
-        delete socket;
-      } else if (revents & EPOLLIN) {
-        socket->OnInput();
-      } else if (revents & EPOLLOUT) {
-        socket->OnOutput();
+      auto const socket = LookupSocket(events[i].data.fd);
+      if (!socket) {
+        continue;
+      }
+      if (events[i].events & (EPOLLERR | EPOLLHUP)) {
+        socket->OnError();
+      } else {
+        if (events[i].events & EPOLLIN) {
+          socket->OnInput();
+        }
+        if (events[i].events & EPOLLOUT) {
+          socket->OnOutput();
+        }
       }
     }
   }

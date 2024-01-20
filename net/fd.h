@@ -55,6 +55,13 @@ class FD {
   int get() const { return fd_; }
   int operator*() const { return fd_; }
 
+  // Closes the wrapped file descriptor and empties this `FD` object. Does nothing if the `FD` is
+  // already empty.
+  void Close() {
+    MaybeClose();
+    fd_ = -1;
+  }
+
   // Releases ownership of the wrapped file descriptor number. The caller receives the number and
   // becomes responsible for closing it.
   //

@@ -23,6 +23,12 @@ TEST(FDTest, NotEmpty) {
   EXPECT_EQ(*fd, 123);
 }
 
+TEST(FDTest, Close) {
+  FD fd{123};
+  fd.Close();
+  EXPECT_TRUE(fd.empty());
+}
+
 TEST(FDTest, Release) {
   FD fd{123};
   EXPECT_EQ(fd.Release(), 123);
