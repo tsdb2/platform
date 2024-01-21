@@ -115,33 +115,73 @@ class reffed_ptr final {
   explicit operator bool() const { return ptr_ != nullptr; }
 
   template <typename U>
-  friend bool operator==(reffed_ptr<T> const& lhs, reffed_ptr<U> const& rhs) {
+  friend bool operator==(reffed_ptr<T> const& lhs, reffed_ptr<U> const& rhs) noexcept {
     return lhs.get() == rhs.get();
   }
 
   template <typename U>
-  friend bool operator!=(reffed_ptr<T> const& lhs, reffed_ptr<U> const& rhs) {
+  friend bool operator!=(reffed_ptr<T> const& lhs, reffed_ptr<U> const& rhs) noexcept {
     return lhs.get() != rhs.get();
   }
 
   template <typename U>
-  friend bool operator<(reffed_ptr<T> const& lhs, reffed_ptr<U> const& rhs) {
+  friend bool operator<(reffed_ptr<T> const& lhs, reffed_ptr<U> const& rhs) noexcept {
     return lhs.get() < rhs.get();
   }
 
   template <typename U>
-  friend bool operator>(reffed_ptr<T> const& lhs, reffed_ptr<U> const& rhs) {
+  friend bool operator>(reffed_ptr<T> const& lhs, reffed_ptr<U> const& rhs) noexcept {
     return lhs.get() > rhs.get();
   }
 
   template <typename U>
-  friend bool operator<=(reffed_ptr<T> const& lhs, reffed_ptr<U> const& rhs) {
+  friend bool operator<=(reffed_ptr<T> const& lhs, reffed_ptr<U> const& rhs) noexcept {
     return lhs.get() <= rhs.get();
   }
 
   template <typename U>
-  friend bool operator>=(reffed_ptr<T> const& lhs, reffed_ptr<U> const& rhs) {
+  friend bool operator>=(reffed_ptr<T> const& lhs, reffed_ptr<U> const& rhs) noexcept {
     return lhs.get() >= rhs.get();
+  }
+
+  friend bool operator==(reffed_ptr<T> const& lhs, std::nullptr_t) noexcept {
+    return lhs.get() == nullptr;
+  }
+
+  friend bool operator==(std::nullptr_t, reffed_ptr<T> const& rhs) noexcept {
+    return nullptr == rhs.get();
+  }
+
+  friend bool operator!=(reffed_ptr<T> const& lhs, std::nullptr_t) noexcept {
+    return lhs.get() != nullptr;
+  }
+
+  friend bool operator!=(std::nullptr_t, reffed_ptr<T> const& rhs) noexcept {
+    return nullptr != rhs.get();
+  }
+
+  friend bool operator<(reffed_ptr<T> const& lhs, std::nullptr_t) noexcept { return false; }
+
+  friend bool operator<(std::nullptr_t, reffed_ptr<T> const& rhs) noexcept {
+    return nullptr < rhs.get();
+  }
+
+  friend bool operator>(reffed_ptr<T> const& lhs, std::nullptr_t) noexcept {
+    return lhs.get() > nullptr;
+  }
+
+  friend bool operator>(std::nullptr_t, reffed_ptr<T> const& rhs) noexcept { return false; }
+
+  friend bool operator<=(reffed_ptr<T> const& lhs, std::nullptr_t) noexcept {
+    return lhs.get() <= nullptr;
+  }
+
+  friend bool operator<=(std::nullptr_t, reffed_ptr<T> const& rhs) noexcept { return true; }
+
+  friend bool operator>=(reffed_ptr<T> const& lhs, std::nullptr_t) noexcept { return true; }
+
+  friend bool operator>=(std::nullptr_t, reffed_ptr<T> const& rhs) noexcept {
+    return nullptr >= rhs.get();
   }
 
  private:

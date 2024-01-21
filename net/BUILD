@@ -43,6 +43,7 @@ cc_test(
     deps = [
         ":sockets",
         "//common:reffed_ptr",
+        "//common:simple_condition",
         "//common:testing",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

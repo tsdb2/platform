@@ -44,6 +44,7 @@ void BaseSocket::RemoveFromParent() { parent_->RemoveSocket(*this); }
 
 void BaseSocket::OnLastUnref() {
   absl::MutexLock lock{&mutex_};
+  shutdown(*fd_, SHUT_RDWR);
   RemoveFromParent();
   fd_.Close();
 }
@@ -320,7 +321,7 @@ absl::StatusOr<std::unique_ptr<ListenerSocket>> ListenerSocket::Create(
   FD fd{result};
   int opt = 0;
   if (setsockopt(*fd, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt)) < 0) {
-    return absl::ErrnoToStatus(errno, "setsockopt() failed");
+    return absl::ErrnoToStatus(errno, "setsockopt(IPPROTO_IPV6, IPV6_V6ONLY, 0) failed");
   }
   if (bind(*fd, (struct sockaddr*)&sa, sizeof(sa)) < 0) {
     return absl::ErrnoToStatus(errno, "bind() failed");

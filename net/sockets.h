@@ -66,9 +66,12 @@ class BaseSocket : public ::tsdb2::common::RefCounted {
   virtual void OnOutput() = 0;
 
   SelectServer* const parent_;
+
+ private:
   int const initial_fd_;
   size_t const hash_;
 
+ protected:
   absl::Mutex mutable mutex_;
   FD fd_ ABSL_GUARDED_BY(mutex_);
 
@@ -98,7 +101,14 @@ class BaseSocket : public ::tsdb2::common::RefCounted {
 // While client-side sockets can be constructed as follows:
 //
 //   auto const socket = SelectServer::GetInstance()->CreateSocket<Socket>(
-//       Socket::kInetSocketTag, "www.example.com", 80);
+//       Socket::kInetSocketTag, "www.example.com", 80,
+//       [](absl::Status connect_status) {
+//         if (!connect_status.ok()) {
+//           // Connection to the provided address/port failed.
+//         } else {
+//           // We can start reading and writing.
+//         }
+//       });
 //
 // WARNING: unencrypted TCP/IP connections are not recommended. Use `SSLSocket` instead.
 //
@@ -433,10 +443,9 @@ absl::StatusOr<::tsdb2::common::reffed_ptr<SocketType>> SelectServer::CreateSock
     absl::MutexLock lock{&mutex_};
     auto const [unused_it, inserted] = sockets_.emplace(std::move(socket));
     CHECK_EQ(inserted, true) << "internal error: duplicated file descriptor in socket map!";
-    // TODO: we shouldn't do a syscall inside a lock, this mutex is critical.
-    if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &event) < 0) {
-      return absl::ErrnoToStatus(errno, "epoll_ctl(EPOLL_ADD) failed");
-    }
+  }
+  if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &event) < 0) {
+    return absl::ErrnoToStatus(errno, "epoll_ctl(EPOLL_ADD) failed");
   }
   return ::tsdb2::common::reffed_ptr<SocketType>(ptr);
 }
