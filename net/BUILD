@@ -44,7 +44,9 @@ cc_test(
         ":sockets",
         "//common:reffed_ptr",
         "//common:testing",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/synchronization",
         "@com_google_googletest//:gtest_main",
     ],
 )

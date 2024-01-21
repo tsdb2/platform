@@ -27,7 +27,7 @@
 #include "common/buffer.h"
 #include "net/fd.h"
 
-ABSL_FLAG(uint16_t, tsdb2_select_server_num_workers, 10, "Number of I/O worker threads.");
+ABSL_FLAG(uint16_t, select_server_num_workers, 10, "Number of I/O worker threads.");
 
 namespace tsdb2 {
 namespace net {
@@ -104,10 +104,10 @@ absl::Status Socket::Write(Buffer buffer, WriteCallback callback) {
   size_t offset = 0;
   while (true) {
     size_t const remaining = buffer.size() - offset;
-    ssize_t const result = write(*fd_, buffer.as_byte_array() + offset, remaining);
+    ssize_t const result = send(*fd_, buffer.as_byte_array() + offset, remaining, MSG_DONTWAIT);
     if (result < 0) {
       if (errno != EAGAIN && errno != EWOULDBLOCK) {
-        return absl::ErrnoToStatus(errno, "write() failed");
+        return absl::ErrnoToStatus(errno, "send() failed");
       } else {
         write_status_.emplace(std::move(buffer), remaining, std::move(callback));
         return absl::OkStatus();
@@ -137,6 +137,10 @@ void Socket::OnError() {
   absl::MutexLock lock{&mutex_};
   RemoveFromParent();
   fd_.Close();
+  if (connect_status_) {
+    connect_status_->callback(status);
+    connect_status_.reset();
+  }
   if (write_status_) {
     FinalizeWrite(status);
   }
@@ -147,6 +151,7 @@ void Socket::OnError() {
 
 void Socket::OnInput() {
   absl::MutexLock lock{&mutex_};
+  MaybeFinalizeConnect();
   while (fd_ && read_status_) {
     auto& buffer = read_status_->buffer;
     size_t const offset = buffer.size();
@@ -170,13 +175,15 @@ void Socket::OnInput() {
 
 void Socket::OnOutput() {
   absl::MutexLock lock{&mutex_};
+  MaybeFinalizeConnect();
   while (fd_ && write_status_) {
     auto const& buffer = write_status_->buffer;
     size_t const offset = buffer.size() - write_status_->remaining;
-    ssize_t const result = write(*fd_, buffer.as_byte_array() + offset, write_status_->remaining);
+    ssize_t const result =
+        send(*fd_, buffer.as_byte_array() + offset, write_status_->remaining, MSG_DONTWAIT);
     if (result < 0) {
       if (errno != EAGAIN && errno != EWOULDBLOCK) {
-        FinalizeWrite(absl::ErrnoToStatus(errno, "write() failed"));
+        FinalizeWrite(absl::ErrnoToStatus(errno, "send() failed"));
       } else {
         return;
       }
@@ -192,7 +199,8 @@ void Socket::OnOutput() {
 absl::StatusOr<std::unique_ptr<Socket>> Socket::Create(SelectServer* const parent,
                                                        InetSocketTag const&,
                                                        std::string const& address,
-                                                       uint16_t const port) {
+                                                       uint16_t const port,
+                                                       ConnectCallback callback) {
   auto const port_string = absl::StrCat(port);
   struct addrinfo* rai;
   if (getaddrinfo(address.c_str(), port_string.c_str(), nullptr, &rai) < 0) {
@@ -209,7 +217,8 @@ absl::StatusOr<std::unique_ptr<Socket>> Socket::Create(SelectServer* const paren
                                             port_string,
                                             ") didn't return any SOCK_STREAM addresses"));
   }
-  int const socket_result = socket(ai->ai_family, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+  int const socket_result =
+      socket(ai->ai_family, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, ai->ai_protocol);
   if (socket_result < 0) {
     freeaddrinfo(rai);
     return absl::ErrnoToStatus(errno, "socket() failed");
@@ -218,9 +227,37 @@ absl::StatusOr<std::unique_ptr<Socket>> Socket::Create(SelectServer* const paren
   int const connect_result = connect(*fd, ai->ai_addr, ai->ai_addrlen);
   freeaddrinfo(rai);
   if (connect_result < 0) {
-    return absl::ErrnoToStatus(errno, "connect() failed");
+    if (errno != EINPROGRESS) {
+      return absl::ErrnoToStatus(errno, "connect() failed");
+    } else {
+      return std::unique_ptr<Socket>(
+          new Socket(parent, kConnectingTag, std::move(fd), std::move(callback)));
+    }
+  } else {
+    return std::unique_ptr<Socket>(new Socket(parent, kConnectedTag, std::move(fd)));
   }
-  return std::unique_ptr<Socket>(new Socket(parent, std::move(fd)));
+}
+
+void Socket::MaybeFinalizeConnect() {
+  if (!connect_status_) {
+    return;
+  }
+  if (!fd_) {
+    connect_status_->callback(absl::AbortedError("socket shutdown"));
+    return;
+  }
+  int error = 0;
+  socklen_t size = sizeof(error);
+  if (getsockopt(*fd_, SOL_SOCKET, SO_ERROR, &error, &size) < 0) {
+    connect_status_->callback(
+        absl::ErrnoToStatus(errno, "getsockopt(SOL_SOCKET, SO_ERROR) failed"));
+  }
+  if (error) {
+    connect_status_->callback(absl::ErrnoToStatus(error, "connect() failed"));
+  } else {
+    connect_status_->callback(absl::OkStatus());
+  }
+  connect_status_.reset();
 }
 
 void Socket::AbortRead(absl::Status status) {
@@ -327,9 +364,9 @@ void SelectServer::StartOrDie() {
     epoll_fd_ = epoll_create1(EPOLL_CLOEXEC);
     CHECK_GE(epoll_fd_, 0) << "epoll_create1() failed, errno=" << errno;
   }
-  auto const num_workers = absl::GetFlag(FLAGS_tsdb2_select_server_num_workers);
+  auto const num_workers = absl::GetFlag(FLAGS_select_server_num_workers);
   CHECK_GT(num_workers, 0) << "SelectServer needs at least 1 worker, but " << num_workers
-                           << " were specified in --tsdb2_select_server_num_workers";
+                           << " were specified in --select_server_num_workers";
   workers_.reserve(num_workers);
   for (int i = 0; i < num_workers; ++i) {
     workers_.emplace_back(absl::bind_front(&SelectServer::WorkerLoop, this));
@@ -362,9 +399,9 @@ void SelectServer::RemoveSocket(BaseSocket const& socket) {
 void SelectServer::WorkerLoop() {
   struct epoll_event events[kMaxEvents];
   while (true) {
-    int const num_events = epoll_wait(epoll_fd_, events, kMaxEvents, 0);
+    int const num_events = epoll_wait(epoll_fd_, events, kMaxEvents, -1);
     if (num_events < 0) {
-      CHECK_EQ(errno, EINTR) << "epoll_wait() failed, errno=" << errno;
+      CHECK_EQ(errno, EINTR) << absl::ErrnoToStatus(errno, "epoll_wait() failed");
       continue;
     }
     for (int i = 0; i < num_events; ++i) {

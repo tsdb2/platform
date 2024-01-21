@@ -2,6 +2,7 @@
 
 #include <utility>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/notification.h"
 #include "common/reffed_ptr.h"
@@ -36,6 +37,7 @@ TEST_F(SocketTest, Listen) {
 TEST_F(SocketTest, AcceptInet) {
   uint16_t constexpr port = 8080;
   absl::Notification accepted;
+  absl::Notification connected;
   reffed_ptr<Socket> socket;
   auto status_or_listener = select_server_->CreateSocket<ListenerSocket>(
       ListenerSocket::kInetSocketTag, "::1", port,
@@ -45,9 +47,14 @@ TEST_F(SocketTest, AcceptInet) {
         accepted.Notify();
       });
   EXPECT_THAT(status_or_listener, IsOkAndHolds(Not(nullptr)));
-  auto status_or_socket = select_server_->CreateSocket<Socket>(Socket::kInetSocketTag, "::1", port);
+  auto status_or_socket = select_server_->CreateSocket<Socket>(Socket::kInetSocketTag, "::1", port,
+                                                               [&](absl::Status status) {
+                                                                 EXPECT_OK(status);
+                                                                 connected.Notify();
+                                                               });
   EXPECT_THAT(status_or_socket, IsOkAndHolds(Not(nullptr)));
   accepted.WaitForNotification();
+  connected.WaitForNotification();
 }
 
 // TODO

@@ -1,3 +1,12 @@
+// This unit provides a low-level API for IPC with asynchronous I/O. It supports TCP/IP sockets and
+// Unix domain sockets. The former can be encrypted or unencrypted (but it's strongly recommended to
+// encrypt them), while the latter are always unencrypted.
+//
+// The various socket classes are supported by a `SelectServer` singleton that uses epoll in
+// edge-triggered mode to achieve the highest performance and parallelism. `SelectServer` runs a
+// number of background threads that can be configured in the --select_server_num_workers command
+// line flag.
+
 #ifndef __TSDB2_NET_SOCKETS_H__
 #define __TSDB2_NET_SOCKETS_H__
 
@@ -98,6 +107,7 @@ class BaseSocket : public ::tsdb2::common::RefCounted {
 // for more information.
 class Socket : public BaseSocket {
  public:
+  using ConnectCallback = absl::AnyInvocable<void(absl::Status status)>;
   using ReadCallback = absl::AnyInvocable<void(absl::StatusOr<Buffer> status_or_buffer)>;
   using WriteCallback = absl::AnyInvocable<void(absl::Status status)>;
 
@@ -157,6 +167,25 @@ class Socket : public BaseSocket {
  private:
   friend class SelectServer;
 
+  struct ConnectedTag {};
+  static inline ConnectedTag constexpr kConnectedTag;
+
+  struct ConnectingTag {};
+  static inline ConnectingTag constexpr kConnectingTag;
+
+  struct ConnectStatus {
+    explicit ConnectStatus(ConnectCallback connect_callback)
+        : callback(std::move(connect_callback)) {}
+
+    ConnectStatus(ConnectStatus const&) = delete;
+    ConnectStatus& operator=(ConnectStatus const&) = delete;
+
+    ConnectStatus(ConnectStatus&&) noexcept = default;
+    ConnectStatus& operator=(ConnectStatus&&) noexcept = default;
+
+    ConnectCallback callback;
+  };
+
   struct ReadStatus {
     explicit ReadStatus(Buffer buffer, ReadCallback read_callback)
         : buffer(std::move(buffer)), callback(std::move(read_callback)) {}
@@ -186,12 +215,16 @@ class Socket : public BaseSocket {
     WriteCallback callback;
   };
 
-  explicit Socket(SelectServer* const parent, FD fd) : BaseSocket(parent, std::move(fd)) {}
+  explicit Socket(SelectServer* const parent, ConnectedTag const&, FD fd)
+      : BaseSocket(parent, std::move(fd)) {}
+
+  explicit Socket(SelectServer* const parent, ConnectingTag const&, FD fd, ConnectCallback callback)
+      : BaseSocket(parent, std::move(fd)), connect_status_(std::move(callback)) {}
 
   // Constructs a `Socket` from the specified file descriptor. Used by `ListenerSocket` to construct
   // sockets for accepted connections.
   static absl::StatusOr<std::unique_ptr<Socket>> Create(SelectServer* const parent, FD fd) {
-    return std::unique_ptr<Socket>(new Socket(parent, std::move(fd)));
+    return std::unique_ptr<Socket>(new Socket(parent, kConnectedTag, std::move(fd)));
   }
 
   // Constructs a stream `Socket` connected to the specified host and port. This function uses
@@ -199,12 +232,16 @@ class Socket : public BaseSocket {
   // (e.g. 192.168.0.1), a numeric IPv6 address (e.g. "::1"), or even a DNS name (e.g.
   // "www.example.com" or "localhost").
   static absl::StatusOr<std::unique_ptr<Socket>> Create(SelectServer* parent, InetSocketTag const&,
-                                                        std::string const& address, uint16_t port);
+                                                        std::string const& address, uint16_t port,
+                                                        ConnectCallback callback);
+
+  void MaybeFinalizeConnect() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   void AbortRead(absl::Status status) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   void FinalizeWrite(absl::Status status) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
+  std::optional<ConnectStatus> connect_status_ ABSL_GUARDED_BY(mutex_) = std::nullopt;
   std::optional<ReadStatus> read_status_ ABSL_GUARDED_BY(mutex_) = std::nullopt;
   std::optional<WriteStatus> write_status_ ABSL_GUARDED_BY(mutex_) = std::nullopt;
 };
@@ -305,7 +342,7 @@ class SelectServer {
   // Start the `SelectServer`'s worker threads.
   void StartOrDie();
 
-  // Create a socket and make the `SelectServer` listen to I/O events related to it.
+  // Creates a socket and makes the `SelectServer` listen to I/O events related to it.
   //
   // REQUIRES: `StartOrDie()` must have been completed.
   template <typename SocketType, typename... Args>
