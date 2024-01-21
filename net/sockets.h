@@ -57,7 +57,9 @@ class BaseSocket : public ::tsdb2::common::RefCounted {
  protected:
   friend class SelectServer;
 
-  void RemoveFromParent() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  void RemoveFromEpoll();
+
+  std::unique_ptr<BaseSocket> RemoveFromParent() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   void OnLastUnref() override ABSL_LOCKS_EXCLUDED(mutex_);
 
@@ -408,7 +410,9 @@ class SelectServer {
 
   ::tsdb2::common::reffed_ptr<BaseSocket> LookupSocket(int fd) ABSL_LOCKS_EXCLUDED(mutex_);
 
-  void RemoveSocket(BaseSocket const& socket);
+  void DisableSocket(BaseSocket const& socket);
+
+  std::unique_ptr<BaseSocket> RemoveSocket(BaseSocket const& socket);
 
   void WorkerLoop();
 

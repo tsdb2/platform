@@ -40,12 +40,15 @@ using ::tsdb2::common::reffed_ptr;
 
 }  // namespace
 
-void BaseSocket::RemoveFromParent() { parent_->RemoveSocket(*this); }
+void BaseSocket::RemoveFromEpoll() { parent_->DisableSocket(*this); }
+
+std::unique_ptr<BaseSocket> BaseSocket::RemoveFromParent() { return parent_->RemoveSocket(*this); }
 
 void BaseSocket::OnLastUnref() {
+  std::unique_ptr<BaseSocket> socket;
   absl::MutexLock lock{&mutex_};
   shutdown(*fd_, SHUT_RDWR);
-  RemoveFromParent();
+  socket = RemoveFromParent();
   fd_.Close();
 }
 
@@ -136,7 +139,6 @@ bool Socket::CancelWrite() {
 void Socket::OnError() {
   auto const status = absl::AbortedError("socket shutdown");
   absl::MutexLock lock{&mutex_};
-  RemoveFromParent();
   fd_.Close();
   if (connect_status_) {
     connect_status_->callback(status);
@@ -275,7 +277,6 @@ void Socket::FinalizeWrite(absl::Status status) {
 
 void ListenerSocket::OnError() {
   absl::MutexLock lock{&mutex_};
-  RemoveFromParent();
   fd_.Close();
   callback_(absl::AbortedError("socket shutdown"));
 }
@@ -343,7 +344,7 @@ absl::StatusOr<std::vector<FD>> ListenerSocket::AcceptAll() {
     int const result = accept4(*fd_, nullptr, nullptr, SOCK_NONBLOCK | SOCK_CLOEXEC);
     if (result < 0) {
       if (errno != EAGAIN && errno != EWOULDBLOCK) {
-        RemoveFromParent();
+        RemoveFromEpoll();
         fd_.Close();
         return absl::ErrnoToStatus(errno, "accept4() failed");
       } else {
@@ -390,11 +391,13 @@ reffed_ptr<BaseSocket> SelectServer::LookupSocket(int const fd) {
   }
 }
 
-void SelectServer::RemoveSocket(BaseSocket const& socket) {
+void SelectServer::DisableSocket(BaseSocket const& socket) {
   epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, socket.initial_fd(), nullptr);
-  typename SocketSet::node_type node;
+}
+
+std::unique_ptr<BaseSocket> SelectServer::RemoveSocket(BaseSocket const& socket) {
   absl::MutexLock lock{&mutex_};
-  node = sockets_.extract(&socket);
+  return std::unique_ptr<BaseSocket>(sockets_.extract(&socket).value().release());
 }
 
 void SelectServer::WorkerLoop() {
@@ -411,6 +414,7 @@ void SelectServer::WorkerLoop() {
         continue;
       }
       if (events[i].events & (EPOLLERR | EPOLLHUP)) {
+        DisableSocket(*socket);
         socket->OnError();
       } else {
         if (events[i].events & EPOLLIN) {

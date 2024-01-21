@@ -12,7 +12,7 @@ class SequenceNumber {
  public:
   // `first` is the first number of the sequence. It defaults to 1 so that 0 can be used as an
   // "invalid" value.
-  explicit SequenceNumber(uintptr_t const first = 1) : next_(first) {}
+  explicit constexpr SequenceNumber(uintptr_t const first = 1) : next_(first) {}
 
   // Generates the next number. Thread-safe.
   uintptr_t GetNext() { return next_.fetch_add(1, std::memory_order_relaxed); }

@@ -1,10 +1,16 @@
 #include "common/sequence_number.h"
 
+#include <type_traits>
+
 #include "gtest/gtest.h"
 
 namespace {
 
 using ::tsdb2::common::SequenceNumber;
+
+TEST(SequenceNumberTest, TriviallyDestructible) {
+  EXPECT_TRUE(std::is_trivially_destructible_v<SequenceNumber>);
+}
 
 TEST(SequenceNumberTest, First) {
   SequenceNumber sn{123};
