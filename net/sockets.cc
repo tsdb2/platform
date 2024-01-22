@@ -42,14 +42,13 @@ using ::tsdb2::common::reffed_ptr;
 
 void BaseSocket::RemoveFromEpoll() { parent_->DisableSocket(*this); }
 
-std::unique_ptr<BaseSocket> BaseSocket::RemoveFromParent() { return parent_->RemoveSocket(*this); }
-
 void BaseSocket::OnLastUnref() {
-  std::unique_ptr<BaseSocket> socket;
+  std::shared_ptr<BaseSocket> socket;
   absl::MutexLock lock{&mutex_};
-  shutdown(*fd_, SHUT_RDWR);
-  socket = RemoveFromParent();
-  fd_.Close();
+  if (fd_) {
+    shutdown(*fd_, SHUT_RDWR);
+  }
+  socket = parent_->RemoveSocket(*this);
 }
 
 absl::Status Socket::Read(size_t const length, ReadCallback callback) {
@@ -387,7 +386,7 @@ reffed_ptr<BaseSocket> SelectServer::LookupSocket(int const fd) {
   if (it != sockets_.end()) {
     return reffed_ptr<BaseSocket>(it->get());
   } else {
-    return reffed_ptr<BaseSocket>();
+    return nullptr;
   }
 }
 
@@ -395,9 +394,9 @@ void SelectServer::DisableSocket(BaseSocket const& socket) {
   epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, socket.initial_fd(), nullptr);
 }
 
-std::unique_ptr<BaseSocket> SelectServer::RemoveSocket(BaseSocket const& socket) {
+std::shared_ptr<BaseSocket> SelectServer::RemoveSocket(BaseSocket const& socket) {
   absl::MutexLock lock{&mutex_};
-  return std::unique_ptr<BaseSocket>(sockets_.extract(&socket).value().release());
+  return sockets_.extract(&socket).value();
 }
 
 void SelectServer::WorkerLoop() {

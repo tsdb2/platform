@@ -59,8 +59,6 @@ class BaseSocket : public ::tsdb2::common::RefCounted {
 
   void RemoveFromEpoll();
 
-  std::unique_ptr<BaseSocket> RemoveFromParent() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
-
   void OnLastUnref() override ABSL_LOCKS_EXCLUDED(mutex_);
 
   virtual void OnError() = 0;
@@ -368,7 +366,7 @@ class SelectServer {
   struct HashEq {
     struct Hash {
       using is_transparent = void;
-      size_t operator()(std::unique_ptr<BaseSocket> const& socket) const { return socket->hash(); }
+      size_t operator()(std::shared_ptr<BaseSocket> const& socket) const { return socket->hash(); }
       size_t operator()(BaseSocket const* const socket) const { return socket->hash(); }
       size_t operator()(int const fd) const { return absl::HashOf(fd); }
       size_t operator()(FD const& fd) const { return absl::HashOf(*fd); }
@@ -377,7 +375,7 @@ class SelectServer {
     struct Eq {
       using is_transparent = void;
 
-      static int ToFD(std::unique_ptr<BaseSocket> const& socket) { return socket->initial_fd(); }
+      static int ToFD(std::shared_ptr<BaseSocket> const& socket) { return socket->initial_fd(); }
       static int ToFD(BaseSocket const* const socket) { return socket->initial_fd(); }
       static int ToFD(int const fd) { return fd; }
       static int ToFD(FD const& fd) { return *fd; }
@@ -389,7 +387,7 @@ class SelectServer {
     };
   };
 
-  using SocketSet = absl::flat_hash_set<std::unique_ptr<BaseSocket>, HashEq::Hash, HashEq::Eq>;
+  using SocketSet = absl::flat_hash_set<std::shared_ptr<BaseSocket>, HashEq::Hash, HashEq::Eq>;
 
   explicit SelectServer() = default;
 
@@ -412,7 +410,7 @@ class SelectServer {
 
   void DisableSocket(BaseSocket const& socket);
 
-  std::unique_ptr<BaseSocket> RemoveSocket(BaseSocket const& socket);
+  std::shared_ptr<BaseSocket> RemoveSocket(BaseSocket const& socket);
 
   void WorkerLoop();
 
