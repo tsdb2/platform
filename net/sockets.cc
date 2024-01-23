@@ -43,7 +43,7 @@ using ::tsdb2::common::reffed_ptr;
 void BaseSocket::RemoveFromEpoll() { parent_->DisableSocket(*this); }
 
 void BaseSocket::OnLastUnref() {
-  std::shared_ptr<BaseSocket> socket;
+  std::unique_ptr<BaseSocket> socket;
   absl::MutexLock lock{&mutex_};
   if (fd_) {
     shutdown(*fd_, SHUT_RDWR);
@@ -394,11 +394,11 @@ void SelectServer::DisableSocket(BaseSocket const& socket) {
   epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, socket.initial_fd(), nullptr);
 }
 
-std::shared_ptr<BaseSocket> SelectServer::RemoveSocket(BaseSocket const& socket) {
+std::unique_ptr<BaseSocket> SelectServer::RemoveSocket(BaseSocket const& socket) {
   absl::MutexLock lock{&mutex_};
   auto const it = sockets_.find(&socket);
   if (it != sockets_.end() && !(*it)->is_referenced()) {
-    return sockets_.extract(it).value();
+    return std::unique_ptr<BaseSocket>(sockets_.extract(it).value().release());
   } else {
     return nullptr;
   }
