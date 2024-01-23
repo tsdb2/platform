@@ -163,17 +163,17 @@ class reffed_ptr final {
   friend bool operator<(reffed_ptr<T> const& lhs, std::nullptr_t) noexcept { return false; }
 
   friend bool operator<(std::nullptr_t, reffed_ptr<T> const& rhs) noexcept {
-    return nullptr < rhs.get();
+    return rhs.get() != nullptr;
   }
 
   friend bool operator>(reffed_ptr<T> const& lhs, std::nullptr_t) noexcept {
-    return lhs.get() > nullptr;
+    return lhs.get() != nullptr;
   }
 
   friend bool operator>(std::nullptr_t, reffed_ptr<T> const& rhs) noexcept { return false; }
 
   friend bool operator<=(reffed_ptr<T> const& lhs, std::nullptr_t) noexcept {
-    return lhs.get() <= nullptr;
+    return lhs.get() == nullptr;
   }
 
   friend bool operator<=(std::nullptr_t, reffed_ptr<T> const& rhs) noexcept { return true; }
@@ -181,7 +181,7 @@ class reffed_ptr final {
   friend bool operator>=(reffed_ptr<T> const& lhs, std::nullptr_t) noexcept { return true; }
 
   friend bool operator>=(std::nullptr_t, reffed_ptr<T> const& rhs) noexcept {
-    return nullptr >= rhs.get();
+    return rhs.get() == nullptr;
   }
 
  private:

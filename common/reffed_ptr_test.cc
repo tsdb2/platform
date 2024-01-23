@@ -222,18 +222,69 @@ TEST(ReffedPtrTest, Dereference) {
   EXPECT_EQ(ptr->field(), 42);
 }
 
-TEST(ReffedPtrTest, ComparisonOperators) {
+TEST(ReffedPtrTest, EqualityOperators) {
   RefCounted rc1;
   reffed_ptr<RefCounted> ptr1{&rc1};
   reffed_ptr<RefCounted> ptr2{&rc1};
   RefCounted rc2;
   reffed_ptr<RefCounted> ptr3{&rc2};
+  reffed_ptr<RefCounted> ptr4;
+  EXPECT_FALSE(ptr1 == nullptr);
+  EXPECT_FALSE(nullptr == ptr1);
+  EXPECT_TRUE(ptr1 != nullptr);
+  EXPECT_TRUE(nullptr != ptr1);
   EXPECT_TRUE(ptr1 == ptr2);
   EXPECT_FALSE(ptr1 != ptr2);
   EXPECT_FALSE(ptr1 == ptr3);
   EXPECT_TRUE(ptr1 != ptr3);
   EXPECT_FALSE(ptr2 == ptr3);
   EXPECT_TRUE(ptr2 != ptr3);
+  EXPECT_TRUE(ptr4 == nullptr);
+  EXPECT_TRUE(nullptr == ptr4);
+  EXPECT_FALSE(ptr4 != nullptr);
+  EXPECT_FALSE(nullptr != ptr4);
+}
+
+TEST(ReffedPtrTest, ComparisonOperators) {
+  RefCounted rc1, rc2;
+  reffed_ptr<RefCounted> ptr1{&rc1};
+  reffed_ptr<RefCounted> ptr2{&rc2};
+  reffed_ptr<RefCounted> ptr3;
+  if (&rc2 < &rc1) {
+    ptr1.swap(ptr2);
+  }
+  EXPECT_FALSE(ptr1 < nullptr);
+  EXPECT_TRUE(nullptr < ptr1);
+  EXPECT_FALSE(ptr1 <= nullptr);
+  EXPECT_TRUE(nullptr <= ptr1);
+  EXPECT_TRUE(ptr1 > nullptr);
+  EXPECT_FALSE(nullptr > ptr1);
+  EXPECT_TRUE(ptr1 >= nullptr);
+  EXPECT_FALSE(nullptr >= ptr1);
+  EXPECT_FALSE(ptr1 < ptr1);
+  EXPECT_FALSE(ptr1 < ptr1);
+  EXPECT_TRUE(ptr1 <= ptr1);
+  EXPECT_TRUE(ptr1 <= ptr1);
+  EXPECT_TRUE(ptr1 < ptr2);
+  EXPECT_FALSE(ptr2 < ptr1);
+  EXPECT_TRUE(ptr1 <= ptr2);
+  EXPECT_FALSE(ptr2 <= ptr1);
+  EXPECT_FALSE(ptr1 > ptr2);
+  EXPECT_TRUE(ptr2 > ptr1);
+  EXPECT_FALSE(ptr1 >= ptr2);
+  EXPECT_TRUE(ptr2 >= ptr1);
+  EXPECT_FALSE(ptr1 > ptr1);
+  EXPECT_FALSE(ptr1 > ptr1);
+  EXPECT_TRUE(ptr1 >= ptr1);
+  EXPECT_TRUE(ptr1 >= ptr1);
+  EXPECT_FALSE(ptr3 < nullptr);
+  EXPECT_FALSE(nullptr < ptr3);
+  EXPECT_TRUE(ptr3 <= nullptr);
+  EXPECT_TRUE(nullptr <= ptr3);
+  EXPECT_FALSE(ptr3 > nullptr);
+  EXPECT_FALSE(nullptr > ptr3);
+  EXPECT_TRUE(ptr3 >= nullptr);
+  EXPECT_TRUE(nullptr >= ptr3);
 }
 
 class HeapRefCounted {
