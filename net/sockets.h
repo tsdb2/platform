@@ -339,8 +339,7 @@ class ListenerSocket : public BaseSocket {
 // `SelectServer` is a singleton that manages a pool of worker threads listening to I/O events on
 // all the sockets in the process. All sockets must be created through this class.
 //
-// The number of worker threads is configured in the --tsdb2_select_server_num_workers command line
-// flag.
+// The number of worker threads is configured in the --select_server_num_workers command line flag.
 //
 // Despite being called "select" server, the implementation uses epoll in edge-triggered mode in
 // order to achieve the highest performance and parallelism.
