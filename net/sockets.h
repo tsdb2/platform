@@ -15,6 +15,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <optional>
 #include <string>
@@ -110,7 +111,7 @@ class BaseSocket : public ::tsdb2::common::RefCounted {
 //         }
 //       });
 //
-// WARNING: unencrypted TCP/IP connections are not recommended. Use `SSLSocket` instead.
+// WARNING: unencrypted TCP/IP connections are not recommended. Prefer using `SSLSocket` instead.
 //
 // The I/O model of `Socket` is fully asynchronous, but keep in mind that only one read operation at
 // a time and only one write operation at a time are supported. See the `Read` and `Write` methods
@@ -245,6 +246,12 @@ class Socket : public BaseSocket {
                                                         std::string const& address, uint16_t port,
                                                         ConnectCallback callback);
 
+  // Constructs a stream `Socket` connected to the specified Unix domain socket path.
+  static absl::StatusOr<std::unique_ptr<Socket>> Create(SelectServer* parent,
+                                                        UnixDomainSocketTag const&,
+                                                        std::string_view socket_name,
+                                                        ConnectCallback callback);
+
   void MaybeFinalizeConnect() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   void AbortRead(absl::Status status) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
@@ -282,7 +289,8 @@ class Socket : public BaseSocket {
 //         }
 //       });
 //
-// WARNING: unencrypted TCP/IP connections are not recommended. Use `SSLListenerSocket` instead.
+// WARNING: unencrypted TCP/IP connections are not recommended. Prefer using `SSLListenerSocket`
+// instead.
 //
 // NOTE: the accept callback may be called many times concurrently. Ensure proper thread-safety of
 // anything that's in its closure as well as any other data your callback may access.
@@ -322,10 +330,22 @@ class ListenerSocket : public BaseSocket {
         port_(port),
         callback_(std::move(callback)) {}
 
+  explicit ListenerSocket(SelectServer* const parent, UnixDomainSocketTag const&,
+                          std::string_view const socket_name, FD fd, AcceptCallback callback)
+      : BaseSocket(parent, std::move(fd)),
+        address_(socket_name),
+        port_(0),
+        callback_(std::move(callback)) {}
+
   static absl::StatusOr<std::unique_ptr<ListenerSocket>> Create(SelectServer* parent,
                                                                 InetSocketTag const& tag,
                                                                 std::string_view address,
                                                                 uint16_t port,
+                                                                AcceptCallback callback);
+
+  static absl::StatusOr<std::unique_ptr<ListenerSocket>> Create(SelectServer* parent,
+                                                                UnixDomainSocketTag const& tag,
+                                                                std::string_view socket_name,
                                                                 AcceptCallback callback);
 
   absl::StatusOr<std::vector<FD>> AcceptAll() ABSL_LOCKS_EXCLUDED(mutex_);
@@ -440,6 +460,7 @@ absl::StatusOr<::tsdb2::common::reffed_ptr<SocketType>> SelectServer::CreateSock
     CHECK_EQ(inserted, true) << "internal error: duplicated file descriptor in socket map!";
   }
   struct epoll_event event;
+  std::memset(&event, 0, sizeof(event));
   event.events = EPOLLIN | EPOLLET | EPOLLEXCLUSIVE;
   if constexpr (!SocketType::kIsListener) {
     event.events |= EPOLLOUT;

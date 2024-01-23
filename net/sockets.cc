@@ -6,6 +6,7 @@
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/un.h>
 #include <unistd.h>
 
 #include <cstddef>
@@ -34,9 +35,12 @@ namespace net {
 
 namespace {
 
+using ::tsdb2::common::reffed_ptr;
+
 size_t constexpr kMaxEvents = 1024;
 
-using ::tsdb2::common::reffed_ptr;
+size_t constexpr kMaxUnixDomainSocketPathLength =
+    sizeof(struct sockaddr_un) - offsetof(struct sockaddr_un, sun_path) - 1;
 
 }  // namespace
 
@@ -243,6 +247,36 @@ absl::StatusOr<std::unique_ptr<Socket>> Socket::Create(SelectServer* const paren
   }
 }
 
+absl::StatusOr<std::unique_ptr<Socket>> Socket::Create(SelectServer* const parent,
+                                                       UnixDomainSocketTag const&,
+                                                       std::string_view const socket_name,
+                                                       ConnectCallback callback) {
+  if (socket_name.size() > kMaxUnixDomainSocketPathLength) {
+    return absl::InvalidArgumentError(absl::StrCat("path `", absl::CEscape(socket_name),
+                                                   "` exceeds the maximum length of ",
+                                                   kMaxUnixDomainSocketPathLength));
+  }
+  int const result = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+  if (result < 0) {
+    return absl::ErrnoToStatus(errno, "socket(AF_UNIX, SOCK_STREAM) failed");
+  }
+  FD fd{result};
+  struct sockaddr_un sa;
+  std::memset(&sa, 0, sizeof(sa));
+  sa.sun_family = AF_INET;
+  std::strncpy(sa.sun_path, socket_name.data(), kMaxUnixDomainSocketPathLength);
+  if (connect(*fd, (struct sockaddr*)&sa, sizeof(sa)) < 0) {
+    if (errno != EINPROGRESS) {
+      return absl::ErrnoToStatus(errno, "connect() failed");
+    } else {
+      return std::unique_ptr<Socket>(
+          new Socket(parent, kConnectingTag, std::move(fd), std::move(callback)));
+    }
+  } else {
+    return std::unique_ptr<Socket>(new Socket(parent, kConnectedTag, std::move(fd)));
+  }
+}
+
 void Socket::MaybeFinalizeConnect() {
   if (!connect_status_) {
     return;
@@ -335,6 +369,36 @@ absl::StatusOr<std::unique_ptr<ListenerSocket>> ListenerSocket::Create(
   }
   return std::unique_ptr<ListenerSocket>(
       new ListenerSocket(parent, tag, address, port, std::move(fd), std::move(callback)));
+}
+
+absl::StatusOr<std::unique_ptr<ListenerSocket>> ListenerSocket::Create(
+    SelectServer* const parent, UnixDomainSocketTag const& tag, std::string_view const socket_name,
+    AcceptCallback callback) {
+  if (!callback) {
+    return absl::InvalidArgumentError("the accept callback must not be empty");
+  }
+  if (socket_name.size() > kMaxUnixDomainSocketPathLength) {
+    return absl::InvalidArgumentError(absl::StrCat("path `", absl::CEscape(socket_name),
+                                                   "` exceeds the maximum length of ",
+                                                   kMaxUnixDomainSocketPathLength));
+  }
+  int const result = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+  if (result < 0) {
+    return absl::ErrnoToStatus(errno, "socket(AF_UNIX, SOCK_STREAM) failed");
+  }
+  FD fd{result};
+  struct sockaddr_un sa;
+  std::memset(&sa, 0, sizeof(sa));
+  sa.sun_family = AF_UNIX;
+  std::strncpy(sa.sun_path, socket_name.data(), kMaxUnixDomainSocketPathLength);
+  if (bind(*fd, (struct sockaddr*)&sa, sizeof(sa)) < 0) {
+    return absl::ErrnoToStatus(errno, "bind() failed");
+  }
+  if (listen(*fd, SOMAXCONN) < 0) {
+    return absl::ErrnoToStatus(errno, "listen() failed");
+  }
+  return std::unique_ptr<ListenerSocket>(
+      new ListenerSocket(parent, tag, socket_name, std::move(fd), std::move(callback)));
 }
 
 absl::StatusOr<std::vector<FD>> ListenerSocket::AcceptAll() {
