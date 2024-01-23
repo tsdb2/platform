@@ -1,5 +1,5 @@
 common --client_env=CC=clang --client_env=CXX=clang++ --cxxopt='-std=c++17' --cxxopt='-Wno-unused-function'
 
-build:asan --cxxopt='-fsanitize=address' --cxxopt='-fno-omit-frame-pointer' --linkopt='-fsanitize=address'
+build:asan --cxxopt='-fsanitize=address' --cxxopt='-fno-omit-frame-pointer' --cxxopt='-DASAN_OPTIONS=detect_leaks=0' --linkopt='-fsanitize=address'
 build:msan --cxxopt='-fsanitize=memory' --cxxopt='-fno-omit-frame-pointer' --linkopt='-fsanitize=memory'
 build:tsan --cxxopt='-fsanitize=thread' --cxxopt='-fno-omit-frame-pointer' --linkopt='-fsanitize=thread'

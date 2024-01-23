@@ -46,7 +46,9 @@ void BaseSocket::OnLastUnref() {
   std::unique_ptr<BaseSocket> socket;
   absl::MutexLock lock{&mutex_};
   if (fd_) {
+    RemoveFromEpoll();
     shutdown(*fd_, SHUT_RDWR);
+    fd_.Close();
   }
   socket = parent_->RemoveSocket(*this);
 }
@@ -138,6 +140,7 @@ bool Socket::CancelWrite() {
 void Socket::OnError() {
   auto const status = absl::AbortedError("socket shutdown");
   absl::MutexLock lock{&mutex_};
+  RemoveFromEpoll();
   fd_.Close();
   if (connect_status_) {
     connect_status_->callback(status);
@@ -276,6 +279,7 @@ void Socket::FinalizeWrite(absl::Status status) {
 
 void ListenerSocket::OnError() {
   absl::MutexLock lock{&mutex_};
+  RemoveFromEpoll();
   fd_.Close();
   callback_(absl::AbortedError("socket shutdown"));
 }
@@ -418,7 +422,6 @@ void SelectServer::WorkerLoop() {
         continue;
       }
       if (events[i].events & (EPOLLERR | EPOLLHUP)) {
-        DisableSocket(*socket);
         socket->OnError();
       } else {
         if (events[i].events & EPOLLIN) {

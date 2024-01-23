@@ -433,23 +433,23 @@ absl::StatusOr<::tsdb2::common::reffed_ptr<SocketType>> SelectServer::CreateSock
     return status_or_socket.status();
   }
   std::unique_ptr<SocketType> socket = std::move(status_or_socket).value();
-  SocketType* const ptr = socket.get();
+  ::tsdb2::common::reffed_ptr<SocketType> ptr{socket.get()};
   int const fd = socket->initial_fd();
+  {
+    absl::MutexLock lock{&mutex_};
+    auto const [unused_it, inserted] = sockets_.emplace(std::move(socket));
+    CHECK_EQ(inserted, true) << "internal error: duplicated file descriptor in socket map!";
+  }
   struct epoll_event event;
   event.events = EPOLLIN | EPOLLET | EPOLLEXCLUSIVE;
   if constexpr (!SocketType::kIsListener) {
     event.events |= EPOLLOUT;
   }
   event.data.fd = fd;
-  {
-    absl::MutexLock lock{&mutex_};
-    auto const [unused_it, inserted] = sockets_.emplace(std::move(socket));
-    CHECK_EQ(inserted, true) << "internal error: duplicated file descriptor in socket map!";
-  }
   if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &event) < 0) {
     return absl::ErrnoToStatus(errno, "epoll_ctl(EPOLL_ADD) failed");
   }
-  return ::tsdb2::common::reffed_ptr<SocketType>(ptr);
+  return ptr;
 }
 
 }  // namespace net
