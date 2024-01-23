@@ -17,6 +17,12 @@ namespace common {
 // for an explanation of how the memory barriers work.
 class RefCount {
  public:
+  // Returns true iff the reference count is > 0.
+  bool is_referenced() const { return ref_count_.load(std::memory_order_acquire) > 0; }
+
+  // Returns true iff the reference count is 1.
+  bool is_last() const { return ref_count_.load(std::memory_order_acquire) == 1; }
+
   // Increments the reference count.
   void Ref() { ref_count_.fetch_add(1, std::memory_order_relaxed); }
 
@@ -34,7 +40,13 @@ class RefCount {
 // Note that the reference count is initialized to 0.
 class RefCounted {
  public:
-  virtual ~RefCounted() { DCHECK_EQ(ref_count_.load(std::memory_order_acquire), 0); }
+  virtual ~RefCounted() { DCHECK_EQ(is_referenced(), false); }
+
+  // Returns true iff the reference count is > 0.
+  bool is_referenced() const { return ref_count_.load(std::memory_order_acquire) > 0; }
+
+  // Returns true iff the reference count is 1.
+  bool is_last() const { return ref_count_.load(std::memory_order_acquire) == 1; }
 
   // Increments the reference count.
   void Ref() { ref_count_.fetch_add(1, std::memory_order_relaxed); }

@@ -13,10 +13,42 @@ using ::tsdb2::common::RefCount;
 using ::tsdb2::common::RefCounted;
 using ::tsdb2::common::SimpleRefCounted;
 
+TEST(RefCountTest, Initial) {
+  RefCount rc;
+  EXPECT_FALSE(rc.is_referenced());
+  EXPECT_FALSE(rc.is_last());
+}
+
+TEST(RefCountTest, Ref) {
+  RefCount rc;
+  rc.Ref();
+  EXPECT_TRUE(rc.is_referenced());
+  EXPECT_TRUE(rc.is_last());
+}
+
 TEST(RefCountTest, RefUnref) {
   RefCount rc;
   rc.Ref();
   EXPECT_TRUE(rc.Unref());
+  EXPECT_FALSE(rc.is_referenced());
+  EXPECT_FALSE(rc.is_last());
+}
+
+TEST(RefCountTest, RefRef) {
+  RefCount rc;
+  rc.Ref();
+  rc.Ref();
+  EXPECT_TRUE(rc.is_referenced());
+  EXPECT_FALSE(rc.is_last());
+}
+
+TEST(RefCountTest, RefRefUnref) {
+  RefCount rc;
+  rc.Ref();
+  rc.Ref();
+  EXPECT_FALSE(rc.Unref());
+  EXPECT_TRUE(rc.is_referenced());
+  EXPECT_TRUE(rc.is_last());
 }
 
 TEST(RefCountTest, RefRefUnrefUnref) {
@@ -25,6 +57,8 @@ TEST(RefCountTest, RefRefUnrefUnref) {
   rc.Ref();
   EXPECT_FALSE(rc.Unref());
   EXPECT_TRUE(rc.Unref());
+  EXPECT_FALSE(rc.is_referenced());
+  EXPECT_FALSE(rc.is_last());
 }
 
 class TestRefCounted : public RefCounted {
@@ -44,23 +78,37 @@ class RefCountedTest : public ::testing::Test {
   TestRefCounted rc_{&flag_};
 };
 
-TEST_F(RefCountedTest, Initial) { EXPECT_FALSE(flag_); }
+TEST_F(RefCountedTest, Initial) {
+  EXPECT_FALSE(flag_);
+  EXPECT_FALSE(rc_.is_referenced());
+  EXPECT_FALSE(rc_.is_last());
+}
 
 TEST_F(RefCountedTest, RefUnref) {
   rc_.Ref();
   EXPECT_FALSE(flag_);
+  EXPECT_TRUE(rc_.is_referenced());
+  EXPECT_TRUE(rc_.is_last());
   rc_.Unref();
   EXPECT_TRUE(flag_);
+  EXPECT_FALSE(rc_.is_referenced());
+  EXPECT_FALSE(rc_.is_last());
 }
 
 TEST_F(RefCountedTest, RefRefUnrefUnref) {
   rc_.Ref();
   rc_.Ref();
   EXPECT_FALSE(flag_);
+  EXPECT_TRUE(rc_.is_referenced());
+  EXPECT_FALSE(rc_.is_last());
   rc_.Unref();
   EXPECT_FALSE(flag_);
+  EXPECT_TRUE(rc_.is_referenced());
+  EXPECT_TRUE(rc_.is_last());
   rc_.Unref();
   EXPECT_TRUE(flag_);
+  EXPECT_FALSE(rc_.is_referenced());
+  EXPECT_FALSE(rc_.is_last());
 }
 
 class TestSimpleRefCounted : public SimpleRefCounted {

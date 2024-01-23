@@ -16,6 +16,7 @@
 namespace {
 
 using ::testing::Not;
+using ::testing::status::IsOk;
 using ::testing::status::IsOkAndHolds;
 using ::tsdb2::common::reffed_ptr;
 using ::tsdb2::common::SimpleCondition;
@@ -49,10 +50,14 @@ TEST_F(SocketTest, ConnectInetSocket) {
   auto status_or_listener = select_server_->CreateSocket<ListenerSocket>(
       ListenerSocket::kInetSocketTag, "::1", port,
       [&](absl::StatusOr<reffed_ptr<Socket>> status_or_socket) {
-        ASSERT_THAT(status_or_socket, IsOkAndHolds(Not(nullptr)));
         absl::MutexLock lock{&server_mutex};
-        ASSERT_EQ(socket, nullptr);
-        socket = std::move(status_or_socket).value();
+        if (socket) {
+          EXPECT_THAT(status_or_socket, Not(IsOk()));
+          socket = nullptr;
+        } else {
+          ASSERT_THAT(status_or_socket, IsOkAndHolds(Not(nullptr)));
+          socket = std::move(status_or_socket).value();
+        }
       });
   ASSERT_THAT(status_or_listener, IsOkAndHolds(Not(nullptr)));
   absl::Mutex client_mutex;

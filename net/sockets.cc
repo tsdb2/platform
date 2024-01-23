@@ -396,7 +396,12 @@ void SelectServer::DisableSocket(BaseSocket const& socket) {
 
 std::shared_ptr<BaseSocket> SelectServer::RemoveSocket(BaseSocket const& socket) {
   absl::MutexLock lock{&mutex_};
-  return sockets_.extract(&socket).value();
+  auto const it = sockets_.find(&socket);
+  if (it != sockets_.end() && !(*it)->is_referenced()) {
+    return sockets_.extract(it).value();
+  } else {
+    return nullptr;
+  }
 }
 
 void SelectServer::WorkerLoop() {
