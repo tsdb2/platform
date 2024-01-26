@@ -17,10 +17,10 @@
 namespace testing {
 namespace status {
 
-inline const absl::Status& GetStatus(absl::Status const& status) { return status; }
+inline absl::Status const& GetStatus(absl::Status const& status) { return status; }
 
 template <typename T>
-inline const absl::Status& GetStatus(absl::StatusOr<T> const& status) {
+inline absl::Status const& GetStatus(absl::StatusOr<T> const& status) {
   return status.status();
 }
 
@@ -122,6 +122,38 @@ IsOkAndHoldsMatcher<typename std::decay<InnerMatcher>::type> IsOkAndHolds(
 
 // Returns a gMock matcher that matches a Status or StatusOr<> which is OK.
 inline IsOkMatcher IsOk() { return IsOkMatcher(); }
+
+template <typename Inner>
+class StatusIsMatcher {
+ public:
+  using is_gtest_matcher = void;
+
+  explicit StatusIsMatcher(Inner inner) : inner_(std::move(inner)) {}
+
+  void DescribeTo(std::ostream* const os) const {
+    *os << "has status code that ";
+    ::testing::MatcherCast<absl::StatusCode>(inner_).DescribeTo(os);
+  }
+
+  void DescribeNegationTo(std::ostream* const os) const {
+    *os << "does not have status code that ";
+    ::testing::MatcherCast<absl::StatusCode>(inner_).DescribeTo(os);
+  }
+
+  template <typename Value>
+  bool MatchAndExplain(Value const& value, MatchResultListener* const listener) const {
+    return ::testing::MatcherCast<absl::StatusCode>(inner_).MatchAndExplain(GetStatus(value).code(),
+                                                                            listener);
+  }
+
+ private:
+  Inner inner_;
+};
+
+template <typename Inner>
+StatusIsMatcher<std::decay_t<Inner>> StatusIs(Inner&& inner) {
+  return StatusIsMatcher<std::decay_t<Inner>>(std::forward<Inner>(inner));
+}
 
 }  // namespace status
 }  // namespace testing

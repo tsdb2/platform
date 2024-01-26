@@ -21,6 +21,7 @@ namespace {
 using ::testing::Not;
 using ::testing::status::IsOk;
 using ::testing::status::IsOkAndHolds;
+using ::testing::status::StatusIs;
 using ::tsdb2::common::Buffer;
 using ::tsdb2::common::reffed_ptr;
 using ::tsdb2::common::SimpleCondition;
@@ -42,6 +43,27 @@ class SocketTest : public ::testing::Test {
 
   SelectServer* const select_server_ = SelectServer::GetInstance();
 };
+
+TEST_F(SocketTest, InvalidAcceptCallback) {
+  EXPECT_THAT(select_server_->CreateSocket<ListenerSocket>(ListenerSocket::kInetSocketTag, "",
+                                                           GetNewPort(), nullptr),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(select_server_->CreateSocket<ListenerSocket>(ListenerSocket::kUnixDomainSocketTag,
+                                                           "/tmp/socket", nullptr),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST_F(SocketTest, PortCollision) {
+  auto const port = GetNewPort();
+  auto const listener = select_server_->CreateSocket<ListenerSocket>(
+      ListenerSocket::kInetSocketTag, "::1", port,
+      [](absl::StatusOr<reffed_ptr<Socket>>) { FAIL(); });
+  ASSERT_THAT(listener, IsOkAndHolds(Not(nullptr)));
+  EXPECT_THAT(select_server_->CreateSocket<ListenerSocket>(
+                  ListenerSocket::kInetSocketTag, "::1", port,
+                  [](absl::StatusOr<reffed_ptr<Socket>>) { FAIL(); }),
+              Not(IsOk()));
+}
 
 TEST_F(SocketTest, Listen) {
   EXPECT_THAT(select_server_->CreateSocket<ListenerSocket>(
@@ -127,7 +149,6 @@ TEST_F(SocketTest, InetSocket) {
   auto const client_socket = std::move(status_or_socket).value();
   absl::MutexLock(&server_mutex, SimpleCondition([&] { return server_socket.operator bool(); }));
   absl::MutexLock(&client_mutex, absl::Condition(&connected));
-  std::string_view constexpr kClientToServerData = "client to server";
   TransferData(client_socket, server_socket, "lorem ipsum");
   TransferData(server_socket, client_socket, "dolor sit amet");
 }
