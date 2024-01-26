@@ -58,6 +58,11 @@ class Buffer {
   uint8_t* as_byte_array() { return data_; }
   uint8_t const* as_byte_array() const { return data_; }
 
+  // Returns a pointer to the buffer as a byte array. This is the same as
+  // `static_cast<uint8_t*>(get())`.
+  char* as_char_array() { return reinterpret_cast<char*>(data_); }
+  char const* as_char_array() const { return reinterpret_cast<char const*>(data_); }
+
   // True iff the Buffer object is non-empty AND `size() == capacity()` (i.e. the buffer is full).
   bool is_full() const { return capacity_ > 0 && !(length_ < capacity_); }
 
@@ -137,10 +142,29 @@ class Buffer {
   //   buffer.Advance(10);
   //   std::cout << buffer.size() << std::endl;  // prints "14"
   //
+  // Note that you can use the `MemCpy` method instead of `std::memcpy`+`Advance`.
+  //
   // `Advance` check-fails if the resulting size is greater than the capacity.
   void Advance(size_t const delta) {
     length_ += delta;
     CHECK_LE(length_, capacity_) << "buffer overflow";
+  }
+
+  // Copies `length` bytes from `source` into the buffer, advancing the size of the buffer
+  // accordingly.
+  //
+  // This is equivalent to calling `std::memcpy` followed by `Advance`:
+  //
+  //   Buffer buffer{20};
+  //   buffer.Append<uint32_t>(42);
+  //   buffer.MemCpy(source, 10);
+  //   std::cout << buffer.size() << std::endl;  // prints "14"
+  //
+  // `MemCpy` check-fails if the buffer capacity would be exceeded.
+  void MemCpy(void const* const source, size_t const length) {
+    CHECK_LE(length_ + length, capacity_) << "buffer overflow";
+    std::memcpy(data_ + length_, source, length);
+    length_ += length;
   }
 
   // Releases ownership of the buffer, invalidating this object and returning a pointer to the

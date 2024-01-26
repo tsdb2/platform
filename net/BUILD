@@ -42,6 +42,7 @@ cc_test(
     srcs = ["sockets_test.cc"],
     deps = [
         ":sockets",
+        "//common:buffer",
         "//common:reffed_ptr",
         "//common:sequence_number",
         "//common:simple_condition",

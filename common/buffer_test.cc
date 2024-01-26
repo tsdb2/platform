@@ -4,6 +4,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
+#include <string_view>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -19,6 +21,7 @@ TEST(BufferTest, Empty) {
   EXPECT_EQ(buffer.size(), 0);
   EXPECT_EQ(buffer.get(), nullptr);
   EXPECT_EQ(buffer.as_byte_array(), nullptr);
+  EXPECT_EQ(buffer.as_char_array(), nullptr);
   EXPECT_FALSE(buffer.is_full());
 }
 
@@ -28,6 +31,7 @@ TEST(BufferTest, Preallocated) {
   EXPECT_EQ(buffer.size(), 0);
   EXPECT_NE(buffer.get(), nullptr);
   EXPECT_EQ(buffer.get(), buffer.as_byte_array());
+  EXPECT_EQ(buffer.get(), buffer.as_char_array());
   EXPECT_FALSE(buffer.is_full());
 }
 
@@ -41,6 +45,7 @@ TEST(BufferTest, TakeOwnership) {
   EXPECT_EQ(buffer.size(), 2);
   EXPECT_EQ(buffer.get(), data);
   EXPECT_EQ(buffer.get(), buffer.as_byte_array());
+  EXPECT_EQ(buffer.get(), buffer.as_char_array());
   EXPECT_FALSE(buffer.is_full());
 }
 
@@ -54,6 +59,7 @@ TEST(BufferTest, TakeOwernshipWithDefaultLength) {
   EXPECT_EQ(buffer.size(), 0);
   EXPECT_EQ(buffer.get(), data);
   EXPECT_EQ(buffer.get(), buffer.as_byte_array());
+  EXPECT_EQ(buffer.get(), buffer.as_char_array());
   EXPECT_FALSE(buffer.is_full());
 }
 
@@ -238,6 +244,17 @@ TEST(BufferTest, Advance) {
 TEST(BufferTest, AdvanceOverflow) {
   Buffer buffer{10};
   EXPECT_DEATH(buffer.Advance(30), _);
+}
+
+TEST(BufferTest, MemCpy) {
+  std::string_view constexpr kData = "HELLO";
+  Buffer buffer{20};
+  buffer.Append<uint32_t>(42);
+  buffer.MemCpy(kData.data(), kData.size());
+  EXPECT_EQ(buffer.capacity(), 20);
+  EXPECT_EQ(buffer.size(), 4 + kData.size());
+  EXPECT_EQ(buffer.at<uint32_t>(0), 42);
+  EXPECT_EQ(std::strncmp(kData.data(), buffer.as_char_array() + 4, kData.size()), 0);
 }
 
 TEST(BufferTest, Release) {
