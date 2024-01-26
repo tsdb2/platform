@@ -32,6 +32,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
 #include "common/buffer.h"
 #include "common/ref_count.h"
 #include "common/reffed_ptr.h"
@@ -41,6 +42,34 @@ namespace tsdb2 {
 namespace net {
 
 using Buffer = ::tsdb2::common::Buffer;
+
+absl::Duration constexpr kDefaultKeepAliveIdle = absl::Seconds(45);
+absl::Duration constexpr kDefaultKeepAliveInterval = absl::Seconds(6);
+int constexpr kDefaultKeepAliveCount = 5;
+
+// Options for configuring TCP/IP sockets.
+struct SocketOptions {
+  // Enables SO_KEEPALIVE. Uses the `keep_alive_params` below.
+  bool keep_alive = false;
+
+  struct KeepAliveParams {
+    // Sets the TCP_KEEPIDLE time.
+    absl::Duration idle = kDefaultKeepAliveIdle;
+
+    // Sets the TCP_KEEPINTVL time.
+    absl::Duration interval = kDefaultKeepAliveInterval;
+
+    // Sets the TCP_KEEPCNT value.
+    int count = kDefaultKeepAliveCount;
+  };
+
+  // Define the behavior of the keepalive packets, if enabled.
+  KeepAliveParams keep_alive_params;
+
+  // Sets the IP_TOS. Some of the standard available values are: `IPTOS_LOWDELAY`,
+  // `IPTOS_THROUGHPUT`, `IPTOS_RELIABILITY`, and `IPTOS_MINCOST`.
+  uint8_t ip_tos;
+};
 
 class SelectServer;
 
@@ -57,6 +86,8 @@ class BaseSocket : public ::tsdb2::common::RefCounted {
 
  protected:
   friend class SelectServer;
+
+  static absl::Status ConfigureInetSocket(FD const& fd, SocketOptions const& options);
 
   void RemoveFromEpoll();
 
@@ -244,6 +275,7 @@ class Socket : public BaseSocket {
   // "www.example.com" or "localhost").
   static absl::StatusOr<std::unique_ptr<Socket>> Create(SelectServer* parent, InetSocketTag const&,
                                                         std::string const& address, uint16_t port,
+                                                        SocketOptions const& options,
                                                         ConnectCallback callback);
 
   // Constructs a stream `Socket` connected to the specified Unix domain socket path.

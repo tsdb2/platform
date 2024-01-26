@@ -28,6 +28,7 @@ using ::tsdb2::common::SimpleCondition;
 using ::tsdb2::net::ListenerSocket;
 using ::tsdb2::net::SelectServer;
 using ::tsdb2::net::Socket;
+using ::tsdb2::net::SocketOptions;
 
 ABSL_CONST_INIT ::tsdb2::common::SequenceNumber port_number_generator{1024};
 
@@ -38,9 +39,6 @@ class SocketTest : public ::testing::Test {
   explicit SocketTest() { select_server_->StartOrDie(); }
 
  protected:
-  static void TransferData(reffed_ptr<Socket> const& client_socket,
-                           reffed_ptr<Socket> const& server_socket, std::string_view data);
-
   SelectServer* const select_server_ = SelectServer::GetInstance();
 };
 
@@ -88,9 +86,16 @@ ListenerState operator++(ListenerState& value, int) {
   return original;
 }
 
-void SocketTest::TransferData(reffed_ptr<Socket> const& client_socket,
-                              reffed_ptr<Socket> const& server_socket,
-                              std::string_view const data) {
+class SocketWithOptionsTest : public SocketTest,
+                              public ::testing::WithParamInterface<SocketOptions> {
+ protected:
+  static void TransferData(reffed_ptr<Socket> const& client_socket,
+                           reffed_ptr<Socket> const& server_socket, std::string_view data);
+};
+
+void SocketWithOptionsTest::TransferData(reffed_ptr<Socket> const& client_socket,
+                                         reffed_ptr<Socket> const& server_socket,
+                                         std::string_view const data) {
   absl::Notification write_notification;
   Buffer buffer{data.size()};
   buffer.MemCpy(data.data(), data.size());
@@ -112,7 +117,7 @@ void SocketTest::TransferData(reffed_ptr<Socket> const& client_socket,
   read_notification.WaitForNotification();
 }
 
-TEST_F(SocketTest, InetSocket) {
+TEST_P(SocketWithOptionsTest, InetSocket) {
   uint16_t const port = GetNewPort();
   absl::Mutex server_mutex;
   ListenerState server_state = ListenerState::kListening;
@@ -139,7 +144,7 @@ TEST_F(SocketTest, InetSocket) {
   absl::Mutex client_mutex;
   bool connected = false;
   auto status_or_socket = select_server_->CreateSocket<Socket>(
-      Socket::kInetSocketTag, "::1", port, [&](absl::Status status) {
+      Socket::kInetSocketTag, "::1", port, GetParam(), [&](absl::Status status) {
         ASSERT_OK(status);
         absl::MutexLock lock{&client_mutex};
         ASSERT_FALSE(connected);
@@ -153,6 +158,8 @@ TEST_F(SocketTest, InetSocket) {
   TransferData(server_socket, client_socket, "dolor sit amet");
 }
 
-// TODO
+INSTANTIATE_TEST_SUITE_P(SocketWithOptionsTest, SocketWithOptionsTest,
+                         ::testing::Values(SocketOptions{.keep_alive = false},
+                                           SocketOptions{.keep_alive = true}));
 
 }  // namespace

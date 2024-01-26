@@ -3,6 +3,8 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netdb.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -43,6 +45,38 @@ size_t constexpr kMaxUnixDomainSocketPathLength =
     sizeof(struct sockaddr_un) - offsetof(struct sockaddr_un, sun_path) - 1;
 
 }  // namespace
+
+absl::Status BaseSocket::ConfigureInetSocket(FD const& fd, SocketOptions const& options) {
+  if (options.keep_alive) {
+    int64_t optval = 1;
+    if (setsockopt(*fd, SOL_SOCKET, SO_KEEPALIVE, &optval, sizeof(optval)) < 0) {
+      return absl::ErrnoToStatus(errno, "setsockopt(SOL_SOCKET, SO_KEEPALIVE, 1) failed");
+    }
+    optval = absl::ToInt64Seconds(options.keep_alive_params.idle);
+    if (setsockopt(*fd, SOL_TCP, TCP_KEEPIDLE, &optval, sizeof(optval)) < 0) {
+      return absl::ErrnoToStatus(errno, absl::StrCat("setsockopt(SOL_TCP, TCP_KEEPIDLE, ",
+                                                     options.keep_alive_params.idle, ") failed"));
+    }
+    optval = absl::ToInt64Seconds(options.keep_alive_params.interval);
+    if (setsockopt(*fd, SOL_TCP, TCP_KEEPINTVL, &optval, sizeof(optval)) < 0) {
+      return absl::ErrnoToStatus(errno,
+                                 absl::StrCat("setsockopt(SOL_TCP, TCP_KEEPINTVL, ",
+                                              options.keep_alive_params.interval, ") failed"));
+    }
+    optval = options.keep_alive_params.count;
+    if (setsockopt(*fd, SOL_TCP, TCP_KEEPCNT, &optval, sizeof(optval)) < 0) {
+      return absl::ErrnoToStatus(errno, absl::StrCat("setsockopt(SOL_TCP, TCP_KEEPCNT, ",
+                                                     options.keep_alive_params.count, ") failed"));
+    }
+  }
+  if (options.ip_tos) {
+    if (setsockopt(*fd, SOL_IP, IP_TOS, &options.ip_tos, sizeof(options.ip_tos)) < 0) {
+      return absl::ErrnoToStatus(
+          errno, absl::StrCat("setsockopt(SOL_IP, IP_TOS, ", options.ip_tos, ") failed"));
+    }
+  }
+  return absl::OkStatus();
+}
 
 void BaseSocket::RemoveFromEpoll() { parent_->DisableSocket(*this); }
 
@@ -205,11 +239,9 @@ void Socket::OnOutput() {
   }
 }
 
-absl::StatusOr<std::unique_ptr<Socket>> Socket::Create(SelectServer* const parent,
-                                                       InetSocketTag const&,
-                                                       std::string const& address,
-                                                       uint16_t const port,
-                                                       ConnectCallback callback) {
+absl::StatusOr<std::unique_ptr<Socket>> Socket::Create(
+    SelectServer* const parent, InetSocketTag const&, std::string const& address,
+    uint16_t const port, SocketOptions const& options, ConnectCallback callback) {
   auto const port_string = absl::StrCat(port);
   struct addrinfo* rai;
   if (getaddrinfo(address.c_str(), port_string.c_str(), nullptr, &rai) < 0) {
@@ -233,6 +265,11 @@ absl::StatusOr<std::unique_ptr<Socket>> Socket::Create(SelectServer* const paren
     return absl::ErrnoToStatus(errno, "socket() failed");
   }
   FD fd{socket_result};
+  auto status = ConfigureInetSocket(fd, options);
+  if (!status.ok()) {
+    freeaddrinfo(rai);
+    return status;
+  }
   int const connect_result = connect(*fd, ai->ai_addr, ai->ai_addrlen);
   freeaddrinfo(rai);
   if (connect_result < 0) {
