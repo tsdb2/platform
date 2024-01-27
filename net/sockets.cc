@@ -359,6 +359,9 @@ void ListenerSocket::OnInput() {
   auto status_or_fds = AcceptAll();
   if (status_or_fds.ok()) {
     for (auto& fd : status_or_fds.value()) {
+      if (options_) {
+        ConfigureInetSocket(fd, *options_);
+      }
       callback_(parent_->CreateSocket<Socket>(std::move(fd)));
     }
   } else {
@@ -372,7 +375,7 @@ void ListenerSocket::OnOutput() {
 
 absl::StatusOr<std::unique_ptr<ListenerSocket>> ListenerSocket::Create(
     SelectServer* const parent, InetSocketTag const& tag, std::string_view const address,
-    uint16_t const port, AcceptCallback callback) {
+    uint16_t const port, SocketOptions options, AcceptCallback callback) {
   if (!callback) {
     return absl::InvalidArgumentError("the accept callback must not be empty");
   }
@@ -404,8 +407,8 @@ absl::StatusOr<std::unique_ptr<ListenerSocket>> ListenerSocket::Create(
   if (listen(*fd, SOMAXCONN) < 0) {
     return absl::ErrnoToStatus(errno, "listen() failed");
   }
-  return std::unique_ptr<ListenerSocket>(
-      new ListenerSocket(parent, tag, address, port, std::move(fd), std::move(callback)));
+  return std::unique_ptr<ListenerSocket>(new ListenerSocket(
+      parent, tag, address, port, std::move(fd), std::move(options), std::move(callback)));
 }
 
 absl::StatusOr<std::unique_ptr<ListenerSocket>> ListenerSocket::Create(

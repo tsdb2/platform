@@ -44,7 +44,7 @@ class SocketTest : public ::testing::Test {
 
 TEST_F(SocketTest, InvalidAcceptCallback) {
   EXPECT_THAT(select_server_->CreateSocket<ListenerSocket>(ListenerSocket::kInetSocketTag, "",
-                                                           GetNewPort(), nullptr),
+                                                           GetNewPort(), SocketOptions(), nullptr),
               StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(select_server_->CreateSocket<ListenerSocket>(ListenerSocket::kUnixDomainSocketTag,
                                                            "/tmp/socket", nullptr),
@@ -54,18 +54,18 @@ TEST_F(SocketTest, InvalidAcceptCallback) {
 TEST_F(SocketTest, PortCollision) {
   auto const port = GetNewPort();
   auto const listener = select_server_->CreateSocket<ListenerSocket>(
-      ListenerSocket::kInetSocketTag, "::1", port,
+      ListenerSocket::kInetSocketTag, "::1", port, SocketOptions(),
       [](absl::StatusOr<reffed_ptr<Socket>>) { FAIL(); });
   ASSERT_THAT(listener, IsOkAndHolds(Not(nullptr)));
   EXPECT_THAT(select_server_->CreateSocket<ListenerSocket>(
-                  ListenerSocket::kInetSocketTag, "::1", port,
+                  ListenerSocket::kInetSocketTag, "::1", port, SocketOptions(),
                   [](absl::StatusOr<reffed_ptr<Socket>>) { FAIL(); }),
               Not(IsOk()));
 }
 
 TEST_F(SocketTest, Listen) {
   EXPECT_THAT(select_server_->CreateSocket<ListenerSocket>(
-                  ListenerSocket::kInetSocketTag, "::1", GetNewPort(),
+                  ListenerSocket::kInetSocketTag, "::1", GetNewPort(), SocketOptions(),
                   [](absl::StatusOr<reffed_ptr<Socket>>) { FAIL(); }),
               IsOkAndHolds(Not(nullptr)));
 }
@@ -123,7 +123,7 @@ TEST_P(SocketWithOptionsTest, InetSocket) {
   ListenerState server_state = ListenerState::kListening;
   reffed_ptr<Socket> server_socket;
   auto status_or_listener = select_server_->CreateSocket<ListenerSocket>(
-      ListenerSocket::kInetSocketTag, "::1", port,
+      ListenerSocket::kInetSocketTag, "::1", port, GetParam(),
       [&](absl::StatusOr<reffed_ptr<Socket>> status_or_socket) {
         absl::MutexLock lock{&server_mutex};
         switch (server_state++) {

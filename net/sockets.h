@@ -356,10 +356,11 @@ class ListenerSocket : public BaseSocket {
 
   explicit ListenerSocket(SelectServer* const parent, InetSocketTag const&,
                           std::string_view const address, uint16_t const port, FD fd,
-                          AcceptCallback callback)
+                          SocketOptions options, AcceptCallback callback)
       : BaseSocket(parent, std::move(fd)),
         address_(address),
         port_(port),
+        options_(std::move(options)),
         callback_(std::move(callback)) {}
 
   explicit ListenerSocket(SelectServer* const parent, UnixDomainSocketTag const&,
@@ -367,13 +368,12 @@ class ListenerSocket : public BaseSocket {
       : BaseSocket(parent, std::move(fd)),
         address_(socket_name),
         port_(0),
+        options_(std::nullopt),
         callback_(std::move(callback)) {}
 
-  static absl::StatusOr<std::unique_ptr<ListenerSocket>> Create(SelectServer* parent,
-                                                                InetSocketTag const& tag,
-                                                                std::string_view address,
-                                                                uint16_t port,
-                                                                AcceptCallback callback);
+  static absl::StatusOr<std::unique_ptr<ListenerSocket>> Create(
+      SelectServer* parent, InetSocketTag const& tag, std::string_view address, uint16_t port,
+      SocketOptions options, AcceptCallback callback);
 
   static absl::StatusOr<std::unique_ptr<ListenerSocket>> Create(SelectServer* parent,
                                                                 UnixDomainSocketTag const& tag,
@@ -384,6 +384,7 @@ class ListenerSocket : public BaseSocket {
 
   std::string const address_;
   uint16_t const port_;
+  std::optional<SocketOptions> const options_;
 
   AcceptCallback callback_;
 };

@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -17,6 +18,16 @@
 
 ABSL_FLAG(std::string, local_address, "", "The local network address this server will bind to.");
 ABSL_FLAG(uint16_t, port, 8080, "The local TCP/IP port this server will listen on.");
+
+ABSL_FLAG(bool, tcp_keep_alive, true, "Use TCP keep-alives.");
+
+ABSL_FLAG(std::optional<absl::Duration>, tcp_keep_alive_idle, std::nullopt,
+          "TCP keep-alive idle time.");
+
+ABSL_FLAG(std::optional<absl::Duration>, tcp_keep_alive_interval, std::nullopt,
+          "TCP keep-alive interval.");
+
+ABSL_FLAG(std::optional<int>, tcp_keep_alive_count, std::nullopt, "Max. TCP keep-alive count.");
 
 namespace tsdb2 {
 namespace net {
@@ -58,8 +69,25 @@ HttpServer* HttpServer::GetDefault() {
 }
 
 absl::Status HttpServer::Listen(std::string_view const address, uint16_t const port) {
+  SocketOptions options{
+      .keep_alive = absl::GetFlag(FLAGS_tcp_keep_alive),
+  };
+  if (options.keep_alive) {
+    auto const keep_alive_idle = absl::GetFlag(FLAGS_tcp_keep_alive_idle);
+    if (keep_alive_idle) {
+      options.keep_alive_params.idle = *keep_alive_idle;
+    }
+    auto const keep_alive_interval = absl::GetFlag(FLAGS_tcp_keep_alive_interval);
+    if (keep_alive_interval) {
+      options.keep_alive_params.interval = *keep_alive_interval;
+    }
+    auto const keep_alive_count = absl::GetFlag(FLAGS_tcp_keep_alive_count);
+    if (keep_alive_count) {
+      options.keep_alive_params.count = *keep_alive_count;
+    }
+  }
   auto status_or_listener = SelectServer::GetInstance()->CreateSocket<ListenerSocket>(
-      ListenerSocket::kInetSocketTag, address, port,
+      ListenerSocket::kInetSocketTag, address, port, options,
       absl::bind_front(&HttpServer::AcceptCallback, this));
   if (status_or_listener.ok()) {
     listener_ = std::move(status_or_listener).value();
