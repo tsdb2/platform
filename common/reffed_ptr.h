@@ -114,6 +114,11 @@ class reffed_ptr final {
   // Returns `true` iff the wrapped pointer is != nullptr.
   explicit operator bool() const { return ptr_ != nullptr; }
 
+  template <typename H>
+  friend H AbslHashValue(H h, reffed_ptr<T> const& ptr) {
+    return H::combine(std::move(h), ptr.get());
+  }
+
   template <typename U>
   friend bool operator==(reffed_ptr<T> const& lhs, reffed_ptr<U> const& rhs) noexcept {
     return lhs.get() == rhs.get();

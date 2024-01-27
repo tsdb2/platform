@@ -360,7 +360,11 @@ void ListenerSocket::OnInput() {
   if (status_or_fds.ok()) {
     for (auto& fd : status_or_fds.value()) {
       if (options_) {
-        ConfigureInetSocket(fd, *options_);
+        auto configure_status = ConfigureInetSocket(fd, *options_);
+        if (!configure_status.ok()) {
+          callback_(std::move(configure_status));
+          continue;
+        }
       }
       callback_(parent_->CreateSocket<Socket>(std::move(fd)));
     }

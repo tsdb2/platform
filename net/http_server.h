@@ -5,7 +5,9 @@
 #include <memory>
 #include <string_view>
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
+#include "absl/synchronization/mutex.h"
 #include "common/reffed_ptr.h"
 #include "net/sockets.h"
 
@@ -20,12 +22,13 @@ class HttpServer {
  public:
   // Constructs an HTTP server bound to the specified address and listening on the specified port.
   // If the address is an empty string the server will bind to `INADDR6_ANY`.
-  static absl::StatusOr<std::unique_ptr<HttpServer>> Create(std::string_view address,
-                                                            uint16_t port);
+  static absl::StatusOr<std::unique_ptr<HttpServer>> Create(std::string_view address, uint16_t port,
+                                                            SocketOptions const& options);
 
-  // Shorthand for `Create("", port)`.
-  static absl::StatusOr<std::unique_ptr<HttpServer>> Create(uint16_t const port) {
-    return Create("", port);
+  // Shorthand for `Create("", port, options)`.
+  static absl::StatusOr<std::unique_ptr<HttpServer>> Create(uint16_t const port,
+                                                            SocketOptions const& options) {
+    return Create("", port, options);
   }
 
   // Returns a default singleton `HttpServer` instance.
@@ -48,11 +51,15 @@ class HttpServer {
 
   explicit HttpServer() = default;
 
-  absl::Status Listen(std::string_view address, uint16_t port);
+  absl::Status Listen(std::string_view address, uint16_t port, SocketOptions const& options);
 
-  void AcceptCallback(absl::StatusOr<::tsdb2::common::reffed_ptr<Socket>> status_or_socket);
+  void AcceptCallback(absl::StatusOr<::tsdb2::common::reffed_ptr<Socket>> status_or_socket)
+      ABSL_LOCKS_EXCLUDED(mutex_);
 
   ::tsdb2::common::reffed_ptr<ListenerSocket> listener_;
+
+  absl::Mutex mutable mutex_;
+  absl::flat_hash_set<::tsdb2::common::reffed_ptr<Socket>> connections_ ABSL_GUARDED_BY(mutex_);
 };
 
 }  // namespace net

@@ -2,6 +2,7 @@
 
 #include <utility>
 
+#include "absl/hash/hash.h"
 #include "gtest/gtest.h"
 
 namespace {
@@ -220,6 +221,16 @@ TEST(ReffedPtrTest, Dereference) {
   reffed_ptr<Derived> ptr{&rc};
   EXPECT_EQ((*ptr).field(), 42);
   EXPECT_EQ(ptr->field(), 42);
+}
+
+TEST(ReffedPtrTest, Hash) {
+  RefCounted rc1;
+  RefCounted rc2;
+  reffed_ptr<RefCounted> ptr1{&rc1};
+  reffed_ptr<RefCounted> ptr2{&rc1};
+  reffed_ptr<RefCounted> ptr3{&rc2};
+  EXPECT_EQ(absl::HashOf(ptr1), absl::HashOf(ptr2));
+  EXPECT_NE(absl::HashOf(ptr1), absl::HashOf(ptr3));
 }
 
 TEST(ReffedPtrTest, EqualityOperators) {

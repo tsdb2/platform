@@ -128,6 +128,7 @@ cc_test(
     srcs = ["reffed_ptr_test.cc"],
     deps = [
         ":reffed_ptr",
+        "@com_google_absl//absl/hash",
         "@com_google_googletest//:gtest_main",
     ],
 )
