@@ -3,7 +3,7 @@ cc_library(
     srcs = ["init_tsdb2.cc"],
     hdrs = ["init_tsdb2.h"],
     deps = [
-        "//net:http_server",
+        "//net:http_node",
         "//net:sockets",
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/log:initialize",

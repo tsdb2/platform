@@ -1,5 +1,5 @@
-#ifndef __TSDB2_NET_HTTP_SERVER_H__
-#define __TSDB2_NET_HTTP_SERVER_H__
+#ifndef __TSDB2_NET_HTTP_NODE_H__
+#define __TSDB2_NET_HTTP_NODE_H__
 
 #include <cstdint>
 #include <memory>
@@ -14,29 +14,29 @@
 namespace tsdb2 {
 namespace net {
 
-// An HTTP server supporting both HTTP/1.1 and HTTP/2.
+// An HTTP client and server supporting both HTTP/1.1 and HTTP/2.
 //
 // The implementation uses `SelectServer`, so the underlying sockets are dual-stack and it will be
 // possible to connect to this server both via IPv4 and IPv6.
-class HttpServer {
+class HttpNode {
  public:
   // Constructs an HTTP server bound to the specified address and listening on the specified port.
   // If the address is an empty string the server will bind to `INADDR6_ANY`.
-  static absl::StatusOr<std::unique_ptr<HttpServer>> Create(std::string_view address, uint16_t port,
-                                                            SocketOptions const& options);
+  static absl::StatusOr<std::unique_ptr<HttpNode>> Create(std::string_view address, uint16_t port,
+                                                          SocketOptions const& options);
 
   // Shorthand for `Create("", port, options)`.
-  static absl::StatusOr<std::unique_ptr<HttpServer>> Create(uint16_t const port,
-                                                            SocketOptions const& options) {
+  static absl::StatusOr<std::unique_ptr<HttpNode>> Create(uint16_t const port,
+                                                          SocketOptions const& options) {
     return Create("", port, options);
   }
 
-  // Returns a default singleton `HttpServer` instance.
+  // Returns a default singleton `HttpNode` instance.
   //
   // The singleton instance takes its local address and port from the --local_address and --port
   // command line flags respectively. It's created the first time `GetDefault()` is invoked and is
   // never destroyed.
-  static HttpServer* GetDefault();
+  static HttpNode* GetDefault();
 
   // Returns the local address this server is bound to. An empty string indicates it was bound to
   // INADDR6_ANY.
@@ -46,10 +46,10 @@ class HttpServer {
   uint16_t port() const { return listener_->port(); }
 
  private:
-  HttpServer(HttpServer const&) = delete;
-  HttpServer& operator=(HttpServer const&) = delete;
+  HttpNode(HttpNode const&) = delete;
+  HttpNode& operator=(HttpNode const&) = delete;
 
-  explicit HttpServer() = default;
+  explicit HttpNode() = default;
 
   absl::Status Listen(std::string_view address, uint16_t port, SocketOptions const& options);
 

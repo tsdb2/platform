@@ -1,5 +1,3 @@
-#include "net/http_server.h"
-
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -15,6 +13,7 @@
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "common/reffed_ptr.h"
+#include "net/http_node.h"
 #include "net/sockets.h"
 
 ABSL_FLAG(std::string, local_address, "", "The local network address this server will bind to.");
@@ -39,10 +38,10 @@ using ::tsdb2::common::reffed_ptr;
 
 }  // namespace
 
-absl::StatusOr<std::unique_ptr<HttpServer>> HttpServer::Create(std::string_view const address,
-                                                               uint16_t const port,
-                                                               SocketOptions const& options) {
-  std::unique_ptr<HttpServer> server{new HttpServer()};
+absl::StatusOr<std::unique_ptr<HttpNode>> HttpNode::Create(std::string_view const address,
+                                                           uint16_t const port,
+                                                           SocketOptions const& options) {
+  std::unique_ptr<HttpNode> server{new HttpNode()};
   auto status = server->Listen(address, port, options);
   if (status.ok()) {
     return server;
@@ -53,7 +52,7 @@ absl::StatusOr<std::unique_ptr<HttpServer>> HttpServer::Create(std::string_view 
 
 namespace {
 
-HttpServer* CreateDefaultServerOrDie() {
+HttpNode* CreateDefaultServerOrDie() {
   SocketOptions options{
       .keep_alive = absl::GetFlag(FLAGS_tcp_keep_alive),
   };
@@ -72,7 +71,7 @@ HttpServer* CreateDefaultServerOrDie() {
     }
   }
   auto status_or_server =
-      HttpServer::Create(absl::GetFlag(FLAGS_local_address), absl::GetFlag(FLAGS_port), options);
+      HttpNode::Create(absl::GetFlag(FLAGS_local_address), absl::GetFlag(FLAGS_port), options);
   CHECK_OK(status_or_server) << "Failed to create default HTTP server: "
                              << status_or_server.status();
   auto const server = status_or_server.value().release();
@@ -82,16 +81,16 @@ HttpServer* CreateDefaultServerOrDie() {
 
 }  // namespace
 
-HttpServer* HttpServer::GetDefault() {
-  static HttpServer* const kInstance = CreateDefaultServerOrDie();
+HttpNode* HttpNode::GetDefault() {
+  static HttpNode* const kInstance = CreateDefaultServerOrDie();
   return kInstance;
 }
 
-absl::Status HttpServer::Listen(std::string_view const address, uint16_t const port,
-                                SocketOptions const& options) {
+absl::Status HttpNode::Listen(std::string_view const address, uint16_t const port,
+                              SocketOptions const& options) {
   auto status_or_listener = SelectServer::GetInstance()->CreateSocket<ListenerSocket>(
       ListenerSocket::kInetSocketTag, address, port, options,
-      absl::bind_front(&HttpServer::AcceptCallback, this));
+      absl::bind_front(&HttpNode::AcceptCallback, this));
   if (status_or_listener.ok()) {
     listener_ = std::move(status_or_listener).value();
     return absl::OkStatus();
@@ -100,7 +99,7 @@ absl::Status HttpServer::Listen(std::string_view const address, uint16_t const p
   }
 }
 
-void HttpServer::AcceptCallback(absl::StatusOr<reffed_ptr<Socket>> status_or_socket) {
+void HttpNode::AcceptCallback(absl::StatusOr<reffed_ptr<Socket>> status_or_socket) {
   if (status_or_socket.ok()) {
     absl::MutexLock lock{&mutex_};
     connections_.emplace(std::move(status_or_socket).value());
