@@ -1,9 +1,8 @@
+#include "net/http_node.h"
 #include "server/init_tsdb2.h"
 
 int main(int argc, char* argv[]) {
   ::tsdb2::init::InitServer(argc, argv);
-
-  // TODO: run HTTP/2 server.
-
+  ::tsdb2::net::HttpNode::GetDefault()->WaitForTermination();
   return 0;
 }

@@ -1,3 +1,5 @@
+#include "net/http_node.h"
+
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -12,8 +14,8 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
+#include "common/buffer.h"
 #include "common/reffed_ptr.h"
-#include "net/http_node.h"
 #include "net/sockets.h"
 
 ABSL_FLAG(std::string, local_address, "", "The local network address this server will bind to.");
@@ -34,7 +36,10 @@ namespace net {
 
 namespace {
 
+using ::tsdb2::common::Buffer;
 using ::tsdb2::common::reffed_ptr;
+
+std::string_view constexpr kClientPreface = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
 }  // namespace
 
@@ -86,6 +91,28 @@ HttpNode* HttpNode::GetDefault() {
   return kInstance;
 }
 
+absl::Status HttpNode::Connection::ServerPreface() {
+  return Read(kClientPreface.size(), [this](Buffer const& buffer) {
+    std::string_view preface{buffer.as_char_array(), buffer.size()};
+    if (preface != kClientPreface) {
+      Destroy();
+    } else {
+      // Start reading and processing frames.
+    }
+  });
+}
+
+absl::Status HttpNode::Connection::Read(size_t const length, ReadCallback callback) {
+  return socket_->Read(length, [this, callback = std::move(callback)](
+                                   absl::StatusOr<Buffer> const status_or_buffer) mutable {
+    if (status_or_buffer.ok()) {
+      callback(status_or_buffer.value());
+    } else {
+      Destroy();
+    }
+  });
+}
+
 absl::Status HttpNode::Listen(std::string_view const address, uint16_t const port,
                               SocketOptions const& options) {
   auto status_or_listener = SelectServer::GetInstance()->CreateSocket<ListenerSocket>(
@@ -100,12 +127,24 @@ absl::Status HttpNode::Listen(std::string_view const address, uint16_t const por
 }
 
 void HttpNode::AcceptCallback(absl::StatusOr<reffed_ptr<Socket>> status_or_socket) {
-  if (status_or_socket.ok()) {
-    absl::MutexLock lock{&mutex_};
-    connections_.emplace(std::move(status_or_socket).value());
-  } else {
-    LOG(ERROR) << "accept() failed: " << status_or_socket.status();
+  if (!status_or_socket.ok()) {
+    LOG(ERROR) << status_or_socket.status();
+    return;
   }
+  auto connection = std::make_unique<Connection>(this, std::move(status_or_socket).value());
+  auto preface_status = connection->ServerPreface();
+  if (!preface_status.ok()) {
+    LOG(ERROR) << preface_status;
+    return;
+  }
+  absl::MutexLock lock{&mutex_};
+  connections_.emplace(std::move(connection));
+}
+
+void HttpNode::RemoveConnection(Connection const& connection) {
+  typename ConnectionSet::node_type node;
+  absl::MutexLock lock{&mutex_};
+  node = connections_.extract(connection);
 }
 
 }  // namespace net

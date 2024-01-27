@@ -20,5 +20,6 @@ cc_binary(
     ],
     deps = [
         ":init_tsdb2",
+        "//net:http_node",
     ],
 )

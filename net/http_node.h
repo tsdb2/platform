@@ -1,13 +1,20 @@
 #ifndef __TSDB2_NET_HTTP_NODE_H__
 #define __TSDB2_NET_HTTP_NODE_H__
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string_view>
+#include <utility>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/functional/any_invocable.h"
+#include "absl/hash/hash.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/synchronization/notification.h"
+#include "common/buffer.h"
 #include "common/reffed_ptr.h"
 #include "net/sockets.h"
 
@@ -45,7 +52,71 @@ class HttpNode {
   // Returns the local TCP/IP port this server is listening on.
   uint16_t port() const { return listener_->port(); }
 
+  void WaitForTermination() { termination_.WaitForNotification(); }
+
  private:
+  // Handles a single network connection. This class is used for both accepted and initiated
+  // connections.
+  class Connection {
+   public:
+    // Custom hash & eq functors to store connections in hash table data structures indexing them by
+    // socket pointer (our socket classes guarantee pointer stability).
+    struct HashEq {
+      static ::tsdb2::common::reffed_ptr<Socket> const& GetSocket(Connection const& connection) {
+        return connection.socket_;
+      }
+
+      static ::tsdb2::common::reffed_ptr<Socket> const& GetSocket(Connection* const connection) {
+        return connection->socket_;
+      }
+
+      static ::tsdb2::common::reffed_ptr<Socket> const& GetSocket(
+          std::unique_ptr<Connection> const& connection) {
+        return connection->socket_;
+      }
+
+      struct Hash {
+        using is_transparent = void;
+        template <typename Value>
+        size_t operator()(Value&& value) const {
+          return absl::HashOf(GetSocket(std::forward<Value>(value)));
+        }
+      };
+
+      struct Eq {
+        using is_transparent = void;
+        template <typename LHS, typename RHS>
+        bool operator()(LHS&& lhs, RHS&& rhs) const {
+          return GetSocket(std::forward<LHS>(lhs)) == GetSocket(std::forward<RHS>(rhs));
+        }
+      };
+    };
+
+    explicit Connection(HttpNode* const parent, ::tsdb2::common::reffed_ptr<Socket> socket)
+        : parent_(parent), socket_(std::move(socket)) {}
+
+    absl::Status ServerPreface();
+
+   private:
+    using ReadCallback = absl::AnyInvocable<void(Buffer const& buffer)>;
+
+    void Destroy() { parent_->RemoveConnection(*this); }
+
+    absl::Status Read(size_t length, ReadCallback callback);
+
+    Connection(Connection const&) = delete;
+    Connection& operator=(Connection const&) = delete;
+    Connection(Connection&&) = delete;
+    Connection& operator=(Connection&&) = delete;
+
+    HttpNode* const parent_;
+
+    ::tsdb2::common::reffed_ptr<Socket> socket_;
+  };
+
+  using ConnectionSet = absl::flat_hash_set<std::unique_ptr<Connection>, Connection::HashEq::Hash,
+                                            Connection::HashEq::Eq>;
+
   HttpNode(HttpNode const&) = delete;
   HttpNode& operator=(HttpNode const&) = delete;
 
@@ -56,10 +127,14 @@ class HttpNode {
   void AcceptCallback(absl::StatusOr<::tsdb2::common::reffed_ptr<Socket>> status_or_socket)
       ABSL_LOCKS_EXCLUDED(mutex_);
 
+  void RemoveConnection(Connection const& connection) ABSL_LOCKS_EXCLUDED(mutex_);
+
   ::tsdb2::common::reffed_ptr<ListenerSocket> listener_;
 
   absl::Mutex mutable mutex_;
-  absl::flat_hash_set<::tsdb2::common::reffed_ptr<Socket>> connections_ ABSL_GUARDED_BY(mutex_);
+  ConnectionSet connections_ ABSL_GUARDED_BY(mutex_);
+
+  absl::Notification termination_;
 };
 
 }  // namespace net
