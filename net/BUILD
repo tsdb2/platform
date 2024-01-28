@@ -64,6 +64,8 @@ cc_library(
         ":sockets",
         "//common:buffer",
         "//common:reffed_ptr",
+        "//common:utilities",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/functional:any_invocable",

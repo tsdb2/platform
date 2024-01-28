@@ -6,6 +6,15 @@ cc_library(
 )
 
 cc_library(
+    name = "utilities",
+    hdrs = ["utilities.h"],
+    deps = [
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
     name = "fixed",
     hdrs = ["fixed.h"],
 )

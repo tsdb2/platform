@@ -49,18 +49,16 @@ TEST(BufferTest, TakeOwnership) {
   EXPECT_FALSE(buffer.is_full());
 }
 
-TEST(BufferTest, TakeOwernshipWithDefaultLength) {
-  size_t constexpr size = 10;
-  auto const data = new uint8_t[size];
-  data[0] = 12;
-  data[1] = 34;
-  Buffer buffer{data, size};
-  EXPECT_EQ(buffer.capacity(), size);
-  EXPECT_EQ(buffer.size(), 0);
-  EXPECT_EQ(buffer.get(), data);
+TEST(BufferTest, CopyFromCaller) {
+  std::string_view constexpr kData = "lorem ipsum dolor sit amet";
+  Buffer buffer{kData.data(), kData.size()};
+  EXPECT_EQ(buffer.capacity(), kData.size());
+  EXPECT_EQ(buffer.size(), kData.size());
+  EXPECT_NE(buffer.get(), kData.data());
   EXPECT_EQ(buffer.get(), buffer.as_byte_array());
   EXPECT_EQ(buffer.get(), buffer.as_char_array());
-  EXPECT_FALSE(buffer.is_full());
+  EXPECT_TRUE(buffer.is_full());
+  EXPECT_TRUE(kData == std::string_view(buffer.as_char_array(), kData.size()));
 }
 
 TEST(BufferTest, ConstByteAt) {

@@ -24,8 +24,17 @@ class Buffer {
 
   // Takes ownership of the buffer pointed to by the `data` raw pointer, which must have `capacity`
   // bytes of capacity and at least `length` initialized bytes.
-  explicit Buffer(void* const data, size_t const capacity, size_t const length = 0)
+  //
+  // REQUIRES: `data` must have been allocated on the heap using `operator new`.
+  explicit Buffer(void* const data, size_t const capacity, size_t const length)
       : capacity_(capacity), length_(length), data_(static_cast<uint8_t*>(data)) {}
+
+  // Allocates a buffer with `size` capacity and length and copies `data` into it. This constructor
+  // does not take ownership of `data`.
+  explicit Buffer(void const* const data, size_t const size)
+      : capacity_(size), length_(size), data_(new uint8_t[size]) {
+    std::memcpy(data_, data, size);
+  }
 
   // Frees any memory used by the buffer.
   ~Buffer() { delete[] data_; }

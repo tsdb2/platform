@@ -95,14 +95,17 @@ class HttpNode {
     explicit Connection(HttpNode* const parent, ::tsdb2::common::reffed_ptr<Socket> socket)
         : parent_(parent), socket_(std::move(socket)) {}
 
+    void Destroy() ABSL_LOCKS_EXCLUDED(mutex_);
+
     absl::Status ServerPreface();
 
    private:
     using ReadCallback = absl::AnyInvocable<void(Buffer const& buffer)>;
+    using WriteCallback = absl::AnyInvocable<void()>;
 
-    void Destroy() { parent_->RemoveConnection(*this); }
+    absl::Status ReadOrDestroy(size_t length, ReadCallback callback) ABSL_LOCKS_EXCLUDED(mutex_);
 
-    absl::Status Read(size_t length, ReadCallback callback);
+    absl::Status WriteOrDestroy(Buffer buffer, WriteCallback callback) ABSL_LOCKS_EXCLUDED(mutex_);
 
     Connection(Connection const&) = delete;
     Connection& operator=(Connection const&) = delete;
@@ -111,7 +114,8 @@ class HttpNode {
 
     HttpNode* const parent_;
 
-    ::tsdb2::common::reffed_ptr<Socket> socket_;
+    absl::Mutex mutable mutex_;
+    ::tsdb2::common::reffed_ptr<Socket> socket_ ABSL_GUARDED_BY(mutex_);
   };
 
   using ConnectionSet = absl::flat_hash_set<std::unique_ptr<Connection>, Connection::HashEq::Hash,
