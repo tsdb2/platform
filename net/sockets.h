@@ -10,8 +10,13 @@
 #ifndef __TSDB2_NET_SOCKETS_H__
 #define __TSDB2_NET_SOCKETS_H__
 
+#include <arpa/inet.h>
 #include <errno.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
 #include <sys/epoll.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -31,6 +36,8 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/escaping.h"
+#include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "common/buffer.h"
@@ -46,6 +53,15 @@ using Buffer = ::tsdb2::common::Buffer;
 absl::Duration constexpr kDefaultKeepAliveIdle = absl::Seconds(45);
 absl::Duration constexpr kDefaultKeepAliveInterval = absl::Seconds(6);
 int constexpr kDefaultKeepAliveCount = 5;
+
+size_t constexpr kMaxUnixDomainSocketPathLength =
+    sizeof(struct sockaddr_un) - offsetof(struct sockaddr_un, sun_path) - 1;
+
+struct InetSocketTag {};
+static inline InetSocketTag constexpr kInetSocketTag;
+
+struct UnixDomainSocketTag {};
+static inline UnixDomainSocketTag constexpr kUnixDomainSocketTag;
 
 // Options for configuring TCP/IP sockets.
 struct SocketOptions {
@@ -121,8 +137,7 @@ class BaseSocket : public ::tsdb2::common::RefCounted {
 //
 //   reffed_ptr<Socket> socket;
 //   auto const listener = SelectServer::GetInstance()->CreateSocket<ListenerSocket>(
-//       ListenerSocket::kInetSocketTag, address, port,
-//       [&](absl::StatusOr<reffed_ptr<Socket>> status_or_socket) {
+//       kInetSocketTag, address, port, [&](absl::StatusOr<reffed_ptr<Socket>> status_or_socket) {
 //         if (!status_or_socket.ok()) {
 //           // There was an error other than EAGAIN / EWOULDBLOCK.
 //         } else {
@@ -133,8 +148,7 @@ class BaseSocket : public ::tsdb2::common::RefCounted {
 // While client-side sockets can be constructed as follows:
 //
 //   auto const socket = SelectServer::GetInstance()->CreateSocket<Socket>(
-//       Socket::kInetSocketTag, "www.example.com", 80,
-//       [](absl::Status connect_status) {
+//       kInetSocketTag, "www.example.com", 80, [](absl::Status connect_status) {
 //         if (!connect_status.ok()) {
 //           // Connection to the provided address/port failed.
 //         } else {
@@ -152,12 +166,6 @@ class Socket : public BaseSocket {
   using ConnectCallback = absl::AnyInvocable<void(absl::Status status)>;
   using ReadCallback = absl::AnyInvocable<void(absl::StatusOr<Buffer> status_or_buffer)>;
   using WriteCallback = absl::AnyInvocable<void(absl::Status status)>;
-
-  struct InetSocketTag {};
-  static inline InetSocketTag constexpr kInetSocketTag;
-
-  struct UnixDomainSocketTag {};
-  static inline UnixDomainSocketTag constexpr kUnixDomainSocketTag;
 
   static bool constexpr kIsListener = false;
 
@@ -300,7 +308,7 @@ class Socket : public BaseSocket {
 // To construct a listener for Unix Domain sockets:
 //
 //   auto const listener = SelectServer::GetInstance()->CreateSocket<ListenerSocket>(
-//       ListenerSocket::kUnixDomainSocketTag, socket_name,
+//       kUnixDomainSocketTag, socket_name,
 //       [&](absl::StatusOr<::tsdb2::common::reffed_ptr<Socket>> status_or_socket) {
 //         if (!status_or_socket.ok()) {
 //           // There was an error other than EAGAIN / EWOULDBLOCK.
@@ -312,7 +320,7 @@ class Socket : public BaseSocket {
 // To construct a listener for unencrypted dual-stack TCP/IP connections:
 //
 //   auto const listener = SelectServer::GetInstance()->CreateSocket<ListenerSocket>(
-//       ListenerSocket::kInetSocketTag, address, port,
+//       kInetSocketTag, address, port,
 //       [&](absl::StatusOr<::tsdb2::common::reffed_ptr<Socket>> status_or_socket) {
 //         if (!status_or_socket.ok()) {
 //           // There was an error other than EAGAIN / EWOULDBLOCK.
@@ -326,16 +334,14 @@ class Socket : public BaseSocket {
 //
 // NOTE: the accept callback may be called many times concurrently. Ensure proper thread-safety of
 // anything that's in its closure as well as any other data your callback may access.
+template <typename Socket>
 class ListenerSocket : public BaseSocket {
  public:
+  static_assert(std::is_base_of_v<::tsdb2::net::Socket, Socket>,
+                "The socket type created by ListenerSocket must be a subclass of Socket");
+
   using AcceptCallback = absl::AnyInvocable<void(
       absl::StatusOr<::tsdb2::common::reffed_ptr<Socket>> status_or_socket)>;
-
-  struct InetSocketTag {};
-  static inline InetSocketTag constexpr kInetSocketTag;
-
-  struct UnixDomainSocketTag {};
-  static inline UnixDomainSocketTag constexpr kUnixDomainSocketTag;
 
   static bool constexpr kIsListener = true;
 
@@ -371,14 +377,13 @@ class ListenerSocket : public BaseSocket {
         options_(std::nullopt),
         callback_(std::move(callback)) {}
 
-  static absl::StatusOr<std::unique_ptr<ListenerSocket>> Create(
+  static absl::StatusOr<std::unique_ptr<ListenerSocket<Socket>>> Create(
       SelectServer* parent, InetSocketTag const& tag, std::string_view address, uint16_t port,
       SocketOptions options, AcceptCallback callback);
 
-  static absl::StatusOr<std::unique_ptr<ListenerSocket>> Create(SelectServer* parent,
-                                                                UnixDomainSocketTag const& tag,
-                                                                std::string_view socket_name,
-                                                                AcceptCallback callback);
+  static absl::StatusOr<std::unique_ptr<ListenerSocket<Socket>>> Create(
+      SelectServer* parent, UnixDomainSocketTag const& tag, std::string_view socket_name,
+      AcceptCallback callback);
 
   absl::StatusOr<std::vector<FD>> AcceptAll() ABSL_LOCKS_EXCLUDED(mutex_);
 
@@ -472,6 +477,131 @@ class SelectServer {
   int volatile epoll_fd_ = -1;
   std::vector<std::thread> workers_;
 };
+
+template <typename Socket>
+void ListenerSocket<Socket>::OnError() {
+  absl::MutexLock lock{&mutex_};
+  RemoveFromEpoll();
+  fd_.Close();
+  callback_(absl::AbortedError("socket shutdown"));
+}
+
+template <typename Socket>
+void ListenerSocket<Socket>::OnInput() {
+  auto status_or_fds = AcceptAll();
+  if (status_or_fds.ok()) {
+    for (auto& fd : status_or_fds.value()) {
+      if (options_) {
+        auto configure_status = ConfigureInetSocket(fd, *options_);
+        if (!configure_status.ok()) {
+          callback_(std::move(configure_status));
+          continue;
+        }
+      }
+      callback_(parent_->CreateSocket<Socket>(std::move(fd)));
+    }
+  } else {
+    callback_(status_or_fds.status());
+  }
+}
+
+template <typename Socket>
+void ListenerSocket<Socket>::OnOutput() {
+  // Nothing to do here.
+}
+
+template <typename Socket>
+absl::StatusOr<std::unique_ptr<ListenerSocket<Socket>>> ListenerSocket<Socket>::Create(
+    SelectServer* const parent, InetSocketTag const& tag, std::string_view const address,
+    uint16_t const port, SocketOptions options, AcceptCallback callback) {
+  if (!callback) {
+    return absl::InvalidArgumentError("the accept callback must not be empty");
+  }
+  struct sockaddr_in6 sa;
+  std::memset(&sa, 0, sizeof(sa));
+  sa.sin6_family = AF_INET6;
+  sa.sin6_port = htons(port);
+  if (address.empty()) {
+    sa.sin6_addr = IN6ADDR_ANY_INIT;
+  } else {
+    std::string const address_string{address};
+    if (inet_pton(AF_INET6, address_string.c_str(), &sa.sin6_addr) < 0) {
+      return absl::InvalidArgumentError(
+          absl::StrCat("invalid address: \"", absl::CEscape(address), "\""));
+    }
+  }
+  int const result = socket(AF_INET6, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+  if (result < 0) {
+    return absl::ErrnoToStatus(errno, "socket(AF_INET6, SOCK_STREAM) failed");
+  }
+  FD fd{result};
+  int opt = 0;
+  if (setsockopt(*fd, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt)) < 0) {
+    return absl::ErrnoToStatus(errno, "setsockopt(IPPROTO_IPV6, IPV6_V6ONLY, 0) failed");
+  }
+  if (bind(*fd, (struct sockaddr*)&sa, sizeof(sa)) < 0) {
+    return absl::ErrnoToStatus(errno, "bind() failed");
+  }
+  if (listen(*fd, SOMAXCONN) < 0) {
+    return absl::ErrnoToStatus(errno, "listen() failed");
+  }
+  return std::unique_ptr<ListenerSocket<Socket>>(new ListenerSocket<Socket>(
+      parent, tag, address, port, std::move(fd), std::move(options), std::move(callback)));
+}
+
+template <typename Socket>
+absl::StatusOr<std::unique_ptr<ListenerSocket<Socket>>> ListenerSocket<Socket>::Create(
+    SelectServer* const parent, UnixDomainSocketTag const& tag, std::string_view const socket_name,
+    AcceptCallback callback) {
+  if (!callback) {
+    return absl::InvalidArgumentError("the accept callback must not be empty");
+  }
+  if (socket_name.size() > kMaxUnixDomainSocketPathLength) {
+    return absl::InvalidArgumentError(absl::StrCat("path `", absl::CEscape(socket_name),
+                                                   "` exceeds the maximum length of ",
+                                                   kMaxUnixDomainSocketPathLength));
+  }
+  int const result = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+  if (result < 0) {
+    return absl::ErrnoToStatus(errno, "socket(AF_UNIX, SOCK_STREAM) failed");
+  }
+  FD fd{result};
+  struct sockaddr_un sa;
+  std::memset(&sa, 0, sizeof(sa));
+  sa.sun_family = AF_UNIX;
+  std::strncpy(sa.sun_path, socket_name.data(), kMaxUnixDomainSocketPathLength);
+  if (bind(*fd, (struct sockaddr*)&sa, sizeof(sa)) < 0) {
+    return absl::ErrnoToStatus(errno, "bind() failed");
+  }
+  if (listen(*fd, SOMAXCONN) < 0) {
+    return absl::ErrnoToStatus(errno, "listen() failed");
+  }
+  return std::unique_ptr<ListenerSocket<Socket>>(
+      new ListenerSocket<Socket>(parent, tag, socket_name, std::move(fd), std::move(callback)));
+}
+
+template <typename Socket>
+absl::StatusOr<std::vector<FD>> ListenerSocket<Socket>::AcceptAll() {
+  std::vector<FD> fds;
+  absl::MutexLock lock{&mutex_};
+  if (!fd_) {
+    return absl::FailedPreconditionError("this socket has been shut down");
+  }
+  while (true) {
+    int const result = accept4(*fd_, nullptr, nullptr, SOCK_NONBLOCK | SOCK_CLOEXEC);
+    if (result < 0) {
+      if (errno != EAGAIN && errno != EWOULDBLOCK) {
+        RemoveFromEpoll();
+        fd_.Close();
+        return absl::ErrnoToStatus(errno, "accept4() failed");
+      } else {
+        return fds;
+      }
+    } else {
+      fds.emplace_back(result);
+    }
+  }
+}
 
 template <typename SocketType, typename... Args>
 absl::StatusOr<::tsdb2::common::reffed_ptr<SocketType>> SelectServer::CreateSocket(Args&&... args) {

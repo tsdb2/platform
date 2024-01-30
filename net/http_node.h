@@ -133,7 +133,7 @@ class HttpNode {
 
   void RemoveConnection(Connection const& connection) ABSL_LOCKS_EXCLUDED(mutex_);
 
-  ::tsdb2::common::reffed_ptr<ListenerSocket> listener_;
+  ::tsdb2::common::reffed_ptr<ListenerSocket<Socket>> listener_;
 
   absl::Mutex mutable mutex_;
   ConnectionSet connections_ ABSL_GUARDED_BY(mutex_);

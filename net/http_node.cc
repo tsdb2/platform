@@ -169,9 +169,8 @@ absl::Status HttpNode::Connection::WriteOrDestroy(Buffer buffer, WriteCallback c
 
 absl::Status HttpNode::Listen(std::string_view const address, uint16_t const port,
                               SocketOptions const& options) {
-  auto status_or_listener = SelectServer::GetInstance()->CreateSocket<ListenerSocket>(
-      ListenerSocket::kInetSocketTag, address, port, options,
-      absl::bind_front(&HttpNode::AcceptCallback, this));
+  auto status_or_listener = SelectServer::GetInstance()->CreateSocket<ListenerSocket<Socket>>(
+      kInetSocketTag, address, port, options, absl::bind_front(&HttpNode::AcceptCallback, this));
   if (status_or_listener.ok()) {
     listener_ = std::move(status_or_listener).value();
     return absl::OkStatus();

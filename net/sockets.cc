@@ -1,6 +1,5 @@
 #include "net/sockets.h"
 
-#include <arpa/inet.h>
 #include <errno.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -9,7 +8,6 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
-#include <unistd.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -27,7 +25,9 @@
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
 #include "common/buffer.h"
+#include "common/reffed_ptr.h"
 #include "net/fd.h"
 
 ABSL_FLAG(uint16_t, select_server_num_workers, 10, "Number of I/O worker threads.");
@@ -40,9 +40,6 @@ namespace {
 using ::tsdb2::common::reffed_ptr;
 
 size_t constexpr kMaxEvents = 1024;
-
-size_t constexpr kMaxUnixDomainSocketPathLength =
-    sizeof(struct sockaddr_un) - offsetof(struct sockaddr_un, sun_path) - 1;
 
 }  // namespace
 
@@ -300,7 +297,7 @@ absl::StatusOr<std::unique_ptr<Socket>> Socket::Create(SelectServer* const paren
   FD fd{result};
   struct sockaddr_un sa;
   std::memset(&sa, 0, sizeof(sa));
-  sa.sun_family = AF_INET;
+  sa.sun_family = AF_UNIX;
   std::strncpy(sa.sun_path, socket_name.data(), kMaxUnixDomainSocketPathLength);
   if (connect(*fd, (struct sockaddr*)&sa, sizeof(sa)) < 0) {
     if (errno != EINPROGRESS) {
@@ -346,125 +343,6 @@ void Socket::FinalizeWrite(absl::Status status) {
   auto callback = std::move(write_status_->callback);
   write_status_.reset();
   callback(status);
-}
-
-void ListenerSocket::OnError() {
-  absl::MutexLock lock{&mutex_};
-  RemoveFromEpoll();
-  fd_.Close();
-  callback_(absl::AbortedError("socket shutdown"));
-}
-
-void ListenerSocket::OnInput() {
-  auto status_or_fds = AcceptAll();
-  if (status_or_fds.ok()) {
-    for (auto& fd : status_or_fds.value()) {
-      if (options_) {
-        auto configure_status = ConfigureInetSocket(fd, *options_);
-        if (!configure_status.ok()) {
-          callback_(std::move(configure_status));
-          continue;
-        }
-      }
-      callback_(parent_->CreateSocket<Socket>(std::move(fd)));
-    }
-  } else {
-    callback_(status_or_fds.status());
-  }
-}
-
-void ListenerSocket::OnOutput() {
-  // Nothing to do here.
-}
-
-absl::StatusOr<std::unique_ptr<ListenerSocket>> ListenerSocket::Create(
-    SelectServer* const parent, InetSocketTag const& tag, std::string_view const address,
-    uint16_t const port, SocketOptions options, AcceptCallback callback) {
-  if (!callback) {
-    return absl::InvalidArgumentError("the accept callback must not be empty");
-  }
-  struct sockaddr_in6 sa;
-  std::memset(&sa, 0, sizeof(sa));
-  sa.sin6_family = AF_INET6;
-  sa.sin6_port = htons(port);
-  if (address.empty()) {
-    sa.sin6_addr = IN6ADDR_ANY_INIT;
-  } else {
-    std::string const address_string{address};
-    if (inet_pton(AF_INET6, address_string.c_str(), &sa.sin6_addr) < 0) {
-      return absl::InvalidArgumentError(
-          absl::StrCat("invalid address: \"", absl::CEscape(address), "\""));
-    }
-  }
-  int const result = socket(AF_INET6, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
-  if (result < 0) {
-    return absl::ErrnoToStatus(errno, "socket(AF_INET6, SOCK_STREAM) failed");
-  }
-  FD fd{result};
-  int opt = 0;
-  if (setsockopt(*fd, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt)) < 0) {
-    return absl::ErrnoToStatus(errno, "setsockopt(IPPROTO_IPV6, IPV6_V6ONLY, 0) failed");
-  }
-  if (bind(*fd, (struct sockaddr*)&sa, sizeof(sa)) < 0) {
-    return absl::ErrnoToStatus(errno, "bind() failed");
-  }
-  if (listen(*fd, SOMAXCONN) < 0) {
-    return absl::ErrnoToStatus(errno, "listen() failed");
-  }
-  return std::unique_ptr<ListenerSocket>(new ListenerSocket(
-      parent, tag, address, port, std::move(fd), std::move(options), std::move(callback)));
-}
-
-absl::StatusOr<std::unique_ptr<ListenerSocket>> ListenerSocket::Create(
-    SelectServer* const parent, UnixDomainSocketTag const& tag, std::string_view const socket_name,
-    AcceptCallback callback) {
-  if (!callback) {
-    return absl::InvalidArgumentError("the accept callback must not be empty");
-  }
-  if (socket_name.size() > kMaxUnixDomainSocketPathLength) {
-    return absl::InvalidArgumentError(absl::StrCat("path `", absl::CEscape(socket_name),
-                                                   "` exceeds the maximum length of ",
-                                                   kMaxUnixDomainSocketPathLength));
-  }
-  int const result = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
-  if (result < 0) {
-    return absl::ErrnoToStatus(errno, "socket(AF_UNIX, SOCK_STREAM) failed");
-  }
-  FD fd{result};
-  struct sockaddr_un sa;
-  std::memset(&sa, 0, sizeof(sa));
-  sa.sun_family = AF_UNIX;
-  std::strncpy(sa.sun_path, socket_name.data(), kMaxUnixDomainSocketPathLength);
-  if (bind(*fd, (struct sockaddr*)&sa, sizeof(sa)) < 0) {
-    return absl::ErrnoToStatus(errno, "bind() failed");
-  }
-  if (listen(*fd, SOMAXCONN) < 0) {
-    return absl::ErrnoToStatus(errno, "listen() failed");
-  }
-  return std::unique_ptr<ListenerSocket>(
-      new ListenerSocket(parent, tag, socket_name, std::move(fd), std::move(callback)));
-}
-
-absl::StatusOr<std::vector<FD>> ListenerSocket::AcceptAll() {
-  std::vector<FD> fds;
-  absl::MutexLock lock{&mutex_};
-  if (!fd_) {
-    return absl::FailedPreconditionError("this socket has been shut down");
-  }
-  while (true) {
-    int const result = accept4(*fd_, nullptr, nullptr, SOCK_NONBLOCK | SOCK_CLOEXEC);
-    if (result < 0) {
-      if (errno != EAGAIN && errno != EWOULDBLOCK) {
-        RemoveFromEpoll();
-        fd_.Close();
-        return absl::ErrnoToStatus(errno, "accept4() failed");
-      } else {
-        return fds;
-      }
-    } else {
-      fds.emplace_back(result);
-    }
-  }
 }
 
 SelectServer* SelectServer::GetInstance() {

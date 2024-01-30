@@ -25,6 +25,8 @@ using ::testing::status::StatusIs;
 using ::tsdb2::common::Buffer;
 using ::tsdb2::common::reffed_ptr;
 using ::tsdb2::common::SimpleCondition;
+using ::tsdb2::net::kInetSocketTag;
+using ::tsdb2::net::kUnixDomainSocketTag;
 using ::tsdb2::net::ListenerSocket;
 using ::tsdb2::net::SelectServer;
 using ::tsdb2::net::Socket;
@@ -43,29 +45,29 @@ class SocketTest : public ::testing::Test {
 };
 
 TEST_F(SocketTest, InvalidAcceptCallback) {
-  EXPECT_THAT(select_server_->CreateSocket<ListenerSocket>(ListenerSocket::kInetSocketTag, "",
-                                                           GetNewPort(), SocketOptions(), nullptr),
+  EXPECT_THAT(select_server_->CreateSocket<ListenerSocket<Socket>>(kInetSocketTag, "", GetNewPort(),
+                                                                   SocketOptions(), nullptr),
               StatusIs(absl::StatusCode::kInvalidArgument));
-  EXPECT_THAT(select_server_->CreateSocket<ListenerSocket>(ListenerSocket::kUnixDomainSocketTag,
-                                                           "/tmp/socket", nullptr),
+  EXPECT_THAT(select_server_->CreateSocket<ListenerSocket<Socket>>(kUnixDomainSocketTag,
+                                                                   "/tmp/socket", nullptr),
               StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST_F(SocketTest, PortCollision) {
   auto const port = GetNewPort();
-  auto const listener = select_server_->CreateSocket<ListenerSocket>(
-      ListenerSocket::kInetSocketTag, "::1", port, SocketOptions(),
+  auto const listener = select_server_->CreateSocket<ListenerSocket<Socket>>(
+      kInetSocketTag, "::1", port, SocketOptions(),
       [](absl::StatusOr<reffed_ptr<Socket>>) { FAIL(); });
   ASSERT_THAT(listener, IsOkAndHolds(Not(nullptr)));
-  EXPECT_THAT(select_server_->CreateSocket<ListenerSocket>(
-                  ListenerSocket::kInetSocketTag, "::1", port, SocketOptions(),
+  EXPECT_THAT(select_server_->CreateSocket<ListenerSocket<Socket>>(
+                  kInetSocketTag, "::1", port, SocketOptions(),
                   [](absl::StatusOr<reffed_ptr<Socket>>) { FAIL(); }),
               Not(IsOk()));
 }
 
 TEST_F(SocketTest, Listen) {
-  EXPECT_THAT(select_server_->CreateSocket<ListenerSocket>(
-                  ListenerSocket::kInetSocketTag, "::1", GetNewPort(), SocketOptions(),
+  EXPECT_THAT(select_server_->CreateSocket<ListenerSocket<Socket>>(
+                  kInetSocketTag, "::1", GetNewPort(), SocketOptions(),
                   [](absl::StatusOr<reffed_ptr<Socket>>) { FAIL(); }),
               IsOkAndHolds(Not(nullptr)));
 }
@@ -122,8 +124,8 @@ TEST_P(SocketWithOptionsTest, InetSocket) {
   absl::Mutex server_mutex;
   ListenerState server_state = ListenerState::kListening;
   reffed_ptr<Socket> server_socket;
-  auto status_or_listener = select_server_->CreateSocket<ListenerSocket>(
-      ListenerSocket::kInetSocketTag, "::1", port, GetParam(),
+  auto status_or_listener = select_server_->CreateSocket<ListenerSocket<Socket>>(
+      kInetSocketTag, "::1", port, GetParam(),
       [&](absl::StatusOr<reffed_ptr<Socket>> status_or_socket) {
         absl::MutexLock lock{&server_mutex};
         switch (server_state++) {
@@ -144,7 +146,7 @@ TEST_P(SocketWithOptionsTest, InetSocket) {
   absl::Mutex client_mutex;
   bool connected = false;
   auto status_or_socket = select_server_->CreateSocket<Socket>(
-      Socket::kInetSocketTag, "::1", port, GetParam(), [&](absl::Status status) {
+      kInetSocketTag, "::1", port, GetParam(), [&](absl::Status status) {
         ASSERT_OK(status);
         absl::MutexLock lock{&client_mutex};
         ASSERT_FALSE(connected);
