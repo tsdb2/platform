@@ -75,16 +75,20 @@ absl::Status BaseSocket::ConfigureInetSocket(FD const& fd, SocketOptions const& 
   return absl::OkStatus();
 }
 
-void BaseSocket::RemoveFromEpoll() { parent_->DisableSocket(*this); }
+void BaseSocket::CloseFD(bool const attempt_shutdown) {
+  if (fd_) {
+    parent_->RemoveFromEpoll(*fd_);
+    if (attempt_shutdown) {
+      shutdown(*fd_, SHUT_RDWR);
+    }
+    fd_.Close();
+  }
+}
 
 void BaseSocket::OnLastUnref() {
   std::unique_ptr<BaseSocket> socket;
   absl::MutexLock lock{&mutex_};
-  if (fd_) {
-    RemoveFromEpoll();
-    shutdown(*fd_, SHUT_RDWR);
-    fd_.Close();
-  }
+  CloseFD(/*attempt_shutdown=*/true);
   socket = parent_->RemoveSocket(*this);
 }
 
@@ -106,7 +110,7 @@ absl::Status Socket::Read(size_t const length, ReadCallback callback) {
         recv(*fd_, buffer.as_byte_array() + offset, length - offset, MSG_DONTWAIT);
     if (result < 0) {
       if (errno != EAGAIN && errno != EWOULDBLOCK) {
-        return absl::ErrnoToStatus(errno, "recv() failed");
+        return CloseLocked(absl::ErrnoToStatus(errno, "recv() failed"));
       } else {
         read_status_.emplace(std::move(buffer), std::move(callback));
         return absl::OkStatus();
@@ -114,8 +118,7 @@ absl::Status Socket::Read(size_t const length, ReadCallback callback) {
     }
     buffer.Advance(result);
     if (buffer.is_full()) {
-      callback(std::move(buffer));
-      return absl::OkStatus();
+      return MaybeCloseLocked(callback(std::move(buffer)));
     }
   }
 }
@@ -123,7 +126,7 @@ absl::Status Socket::Read(size_t const length, ReadCallback callback) {
 bool Socket::CancelRead() {
   absl::MutexLock lock{&mutex_};
   if (read_status_) {
-    AbortRead(absl::CancelledError("cancelled by the user"));
+    AbortReadAndClose(absl::CancelledError("cancelled by the user"));
     return true;
   } else {
     return false;
@@ -147,7 +150,7 @@ absl::Status Socket::Write(Buffer buffer, WriteCallback callback) {
     ssize_t const result = send(*fd_, buffer.as_byte_array() + offset, remaining, MSG_DONTWAIT);
     if (result < 0) {
       if (errno != EAGAIN && errno != EWOULDBLOCK) {
-        return absl::ErrnoToStatus(errno, "send() failed");
+        return CloseLocked(absl::ErrnoToStatus(errno, "send() failed"));
       } else {
         write_status_.emplace(std::move(buffer), remaining, std::move(callback));
         return absl::OkStatus();
@@ -155,8 +158,7 @@ absl::Status Socket::Write(Buffer buffer, WriteCallback callback) {
     } else {
       offset += result;
       if (!(offset < buffer.size())) {
-        callback(absl::OkStatus());
-        return absl::OkStatus();
+        return MaybeCloseLocked(callback(absl::OkStatus()));
       }
     }
   }
@@ -165,7 +167,7 @@ absl::Status Socket::Write(Buffer buffer, WriteCallback callback) {
 bool Socket::CancelWrite() {
   absl::MutexLock lock{&mutex_};
   if (write_status_) {
-    FinalizeWrite(absl::CancelledError("cancelled by the user"));
+    FinalizeWriteOrClose(absl::CancelledError("cancelled by the user"));
     return true;
   } else {
     return false;
@@ -173,20 +175,8 @@ bool Socket::CancelWrite() {
 }
 
 void Socket::OnError() {
-  auto const status = absl::AbortedError("socket shutdown");
   absl::MutexLock lock{&mutex_};
-  RemoveFromEpoll();
-  fd_.Close();
-  if (connect_status_) {
-    connect_status_->callback(status);
-    connect_status_.reset();
-  }
-  if (write_status_) {
-    FinalizeWrite(status);
-  }
-  if (read_status_) {
-    AbortRead(status);
-  }
+  CloseLocked(absl::AbortedError("socket shutdown")).IgnoreError();
 }
 
 void Socket::OnInput() {
@@ -199,14 +189,14 @@ void Socket::OnInput() {
     ssize_t const result = recv(*fd_, buffer.as_byte_array() + offset, remaining, MSG_DONTWAIT);
     if (result < 0) {
       if (errno != EAGAIN && errno != EWOULDBLOCK) {
-        AbortRead(absl::ErrnoToStatus(errno, "recv() failed"));
+        AbortReadAndClose(absl::ErrnoToStatus(errno, "recv() failed"));
       } else {
         return;
       }
     } else {
       buffer.Advance(result);
       if (buffer.is_full()) {
-        read_status_->callback(std::move(buffer));
+        MaybeCloseLocked(read_status_->callback(std::move(buffer))).IgnoreError();
         read_status_.reset();
       }
     }
@@ -223,14 +213,14 @@ void Socket::OnOutput() {
         send(*fd_, buffer.as_byte_array() + offset, write_status_->remaining, MSG_DONTWAIT);
     if (result < 0) {
       if (errno != EAGAIN && errno != EWOULDBLOCK) {
-        FinalizeWrite(absl::ErrnoToStatus(errno, "send() failed"));
+        FinalizeWriteOrClose(absl::ErrnoToStatus(errno, "send() failed"));
       } else {
         return;
       }
     } else {
       write_status_->remaining -= result;
       if (!(offset + result < buffer.size())) {
-        FinalizeWrite(absl::OkStatus());
+        FinalizeWrite(absl::OkStatus()).IgnoreError();
       }
     }
   }
@@ -311,6 +301,21 @@ absl::StatusOr<std::unique_ptr<Socket>> Socket::Create(SelectServer* const paren
   }
 }
 
+absl::Status Socket::CloseLocked(absl::Status status) {
+  CloseFD(/*attempt_shutdown=*/false);
+  if (connect_status_) {
+    connect_status_->callback(status);
+    connect_status_.reset();
+  }
+  if (write_status_) {
+    FinalizeWrite(status).IgnoreError();
+  }
+  if (read_status_) {
+    AbortRead(status);
+  }
+  return status;
+}
+
 void Socket::MaybeFinalizeConnect() {
   if (!connect_status_) {
     return;
@@ -336,13 +341,22 @@ void Socket::MaybeFinalizeConnect() {
 void Socket::AbortRead(absl::Status status) {
   auto callback = std::move(read_status_->callback);
   read_status_.reset();
-  callback(status);
+  callback(std::move(status)).IgnoreError();
 }
 
-void Socket::FinalizeWrite(absl::Status status) {
+void Socket::AbortReadAndClose(absl::Status status) {
+  AbortRead(status);
+  CloseLocked(std::move(status)).IgnoreError();
+}
+
+absl::Status Socket::FinalizeWrite(absl::Status status) {
   auto callback = std::move(write_status_->callback);
   write_status_.reset();
-  callback(status);
+  return callback(status);
+}
+
+void Socket::FinalizeWriteOrClose(absl::Status status) {
+  MaybeCloseLocked(FinalizeWrite(std::move(status))).IgnoreError();
 }
 
 SelectServer* SelectServer::GetInstance() {
@@ -378,10 +392,6 @@ reffed_ptr<BaseSocket> SelectServer::LookupSocket(int const fd) {
   } else {
     return nullptr;
   }
-}
-
-void SelectServer::DisableSocket(BaseSocket const& socket) {
-  epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, socket.initial_fd(), nullptr);
 }
 
 std::unique_ptr<BaseSocket> SelectServer::RemoveSocket(BaseSocket const& socket) {

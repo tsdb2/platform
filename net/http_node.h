@@ -9,17 +9,77 @@
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/functional/any_invocable.h"
+#include "absl/functional/bind_front.h"
 #include "absl/hash/hash.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/escaping.h"
+#include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/synchronization/notification.h"
 #include "common/buffer.h"
 #include "common/reffed_ptr.h"
+#include "common/utilities.h"
+#include "net/fd.h"
+#include "net/http.h"
 #include "net/sockets.h"
 
 namespace tsdb2 {
 namespace net {
+
+template <typename Socket>
+class HttpConnection : public Socket {
+ public:
+  static bool constexpr kIsListener = false;
+
+  static absl::StatusOr<std::unique_ptr<HttpConnection>> Create(SelectServer* const parent, FD fd) {
+    std::unique_ptr<HttpConnection> connection{new HttpConnection(parent, std::move(fd))};
+    auto preface_status = connection->ServerPreface();
+    if (preface_status.ok()) {
+      return connection;
+    } else {
+      return preface_status;
+    }
+  }
+
+ private:
+  explicit HttpConnection(SelectServer* const parent, FD fd)
+      : Socket(parent, Socket::kConnectedTag, std::move(fd)) {}
+
+  absl::Status ReadClientPreface(absl::StatusOr<Buffer> status_or_buffer);
+
+  absl::Status ServerPreface();
+};
+
+template <typename Socket>
+absl::Status HttpConnection<Socket>::ReadClientPreface(absl::StatusOr<Buffer> status_or_buffer) {
+  if (!status_or_buffer.ok()) {
+    return status_or_buffer.status();
+  }
+  auto const& buffer = status_or_buffer.value();
+  std::string_view preface{buffer.as_char_array(), buffer.size()};
+  if (preface != kClientPreface) {
+    return absl::UnavailableError(absl::StrCat("the client sent an invalid HTTP/2 preface: \"",
+                                               absl::CEscape(preface), "\""));
+  }
+  // TODO: start reading and processing frames.
+  return absl::OkStatus();
+}
+
+template <typename Socket>
+absl::Status HttpConnection<Socket>::ServerPreface() {
+  RETURN_IF_ERROR(this->Read(kFrameHeaderSize,
+                             absl::bind_front(&HttpConnection<Socket>::ReadClientPreface, this)));
+  FrameHeader const header{
+      .length = 0,
+      .type = kFrameTypeSettings,
+      .flags = 0,
+      .reserved = 0,
+      .stream_id = 0,
+  };
+  return this->Write(Buffer(&header, kFrameHeaderSize),
+                     [](absl::Status) { return absl::OkStatus(); });
+}
 
 // An HTTP client and server supporting both HTTP/1.1 and HTTP/2.
 //
@@ -55,88 +115,19 @@ class HttpNode {
   void WaitForTermination() { termination_.WaitForNotification(); }
 
  private:
-  // Handles a single network connection. This class is used for both accepted and initiated
-  // connections.
-  class Connection {
-   public:
-    // Custom hash & eq functors to store connections in hash table data structures indexing them by
-    // socket pointer (our socket classes guarantee pointer stability).
-    struct HashEq {
-      static ::tsdb2::common::reffed_ptr<Socket> const& GetSocket(Connection const& connection) {
-        return connection.socket_;
-      }
-
-      static ::tsdb2::common::reffed_ptr<Socket> const& GetSocket(Connection* const connection) {
-        return connection->socket_;
-      }
-
-      static ::tsdb2::common::reffed_ptr<Socket> const& GetSocket(
-          std::unique_ptr<Connection> const& connection) {
-        return connection->socket_;
-      }
-
-      struct Hash {
-        using is_transparent = void;
-        template <typename Value>
-        size_t operator()(Value&& value) const {
-          return absl::HashOf(GetSocket(std::forward<Value>(value)));
-        }
-      };
-
-      struct Eq {
-        using is_transparent = void;
-        template <typename LHS, typename RHS>
-        bool operator()(LHS&& lhs, RHS&& rhs) const {
-          return GetSocket(std::forward<LHS>(lhs)) == GetSocket(std::forward<RHS>(rhs));
-        }
-      };
-    };
-
-    explicit Connection(HttpNode* const parent, ::tsdb2::common::reffed_ptr<Socket> socket)
-        : parent_(parent), socket_(std::move(socket)) {}
-
-    void Destroy() ABSL_LOCKS_EXCLUDED(mutex_);
-
-    absl::Status ServerPreface();
-
-   private:
-    using ReadCallback = absl::AnyInvocable<void(Buffer const& buffer)>;
-    using WriteCallback = absl::AnyInvocable<void()>;
-
-    absl::Status ReadOrDestroy(size_t length, ReadCallback callback) ABSL_LOCKS_EXCLUDED(mutex_);
-
-    absl::Status WriteOrDestroy(Buffer buffer, WriteCallback callback) ABSL_LOCKS_EXCLUDED(mutex_);
-
-    Connection(Connection const&) = delete;
-    Connection& operator=(Connection const&) = delete;
-    Connection(Connection&&) = delete;
-    Connection& operator=(Connection&&) = delete;
-
-    HttpNode* const parent_;
-
-    absl::Mutex mutable mutex_;
-    ::tsdb2::common::reffed_ptr<Socket> socket_ ABSL_GUARDED_BY(mutex_);
-  };
-
-  using ConnectionSet = absl::flat_hash_set<std::unique_ptr<Connection>, Connection::HashEq::Hash,
-                                            Connection::HashEq::Eq>;
-
   HttpNode(HttpNode const&) = delete;
   HttpNode& operator=(HttpNode const&) = delete;
+  HttpNode(HttpNode&&) = delete;
+  HttpNode& operator=(HttpNode&&) = delete;
 
   explicit HttpNode() = default;
 
   absl::Status Listen(std::string_view address, uint16_t port, SocketOptions const& options);
 
-  void AcceptCallback(absl::StatusOr<::tsdb2::common::reffed_ptr<Socket>> status_or_socket)
-      ABSL_LOCKS_EXCLUDED(mutex_);
+  void AcceptCallback(
+      absl::StatusOr<::tsdb2::common::reffed_ptr<HttpConnection<Socket>>> status_or_socket);
 
-  void RemoveConnection(Connection const& connection) ABSL_LOCKS_EXCLUDED(mutex_);
-
-  ::tsdb2::common::reffed_ptr<ListenerSocket<Socket>> listener_;
-
-  absl::Mutex mutable mutex_;
-  ConnectionSet connections_ ABSL_GUARDED_BY(mutex_);
+  ::tsdb2::common::reffed_ptr<ListenerSocket<HttpConnection<Socket>>> listener_;
 
   absl::Notification termination_;
 };

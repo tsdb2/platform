@@ -105,7 +105,7 @@ class BaseSocket : public ::tsdb2::common::RefCounted {
 
   static absl::Status ConfigureInetSocket(FD const& fd, SocketOptions const& options);
 
-  void RemoveFromEpoll();
+  void CloseFD(bool attempt_shutdown) ABSL_SHARED_LOCKS_REQUIRED(mutex_);
 
   void OnLastUnref() override ABSL_LOCKS_EXCLUDED(mutex_);
 
@@ -164,8 +164,8 @@ class BaseSocket : public ::tsdb2::common::RefCounted {
 class Socket : public BaseSocket {
  public:
   using ConnectCallback = absl::AnyInvocable<void(absl::Status status)>;
-  using ReadCallback = absl::AnyInvocable<void(absl::StatusOr<Buffer> status_or_buffer)>;
-  using WriteCallback = absl::AnyInvocable<void(absl::Status status)>;
+  using ReadCallback = absl::AnyInvocable<absl::Status(absl::StatusOr<Buffer> status_or_buffer)>;
+  using WriteCallback = absl::AnyInvocable<absl::Status(absl::Status status)>;
 
   static bool constexpr kIsListener = false;
 
@@ -210,18 +210,24 @@ class Socket : public BaseSocket {
   bool CancelWrite() ABSL_LOCKS_EXCLUDED(mutex_);
 
  protected:
-  void OnError() override ABSL_LOCKS_EXCLUDED(mutex_);
-  void OnInput() override ABSL_LOCKS_EXCLUDED(mutex_);
-  void OnOutput() override ABSL_LOCKS_EXCLUDED(mutex_);
-
- private:
-  friend class SelectServer;
-
   struct ConnectedTag {};
   static inline ConnectedTag constexpr kConnectedTag;
 
   struct ConnectingTag {};
   static inline ConnectingTag constexpr kConnectingTag;
+
+  explicit Socket(SelectServer* const parent, ConnectedTag const&, FD fd)
+      : BaseSocket(parent, std::move(fd)) {}
+
+  explicit Socket(SelectServer* const parent, ConnectingTag const&, FD fd, ConnectCallback callback)
+      : BaseSocket(parent, std::move(fd)), connect_status_(std::move(callback)) {}
+
+  void OnError() override;
+  void OnInput() override ABSL_LOCKS_EXCLUDED(mutex_);
+  void OnOutput() override ABSL_LOCKS_EXCLUDED(mutex_);
+
+ private:
+  friend class SelectServer;
 
   struct ConnectStatus {
     explicit ConnectStatus(ConnectCallback connect_callback)
@@ -265,12 +271,6 @@ class Socket : public BaseSocket {
     WriteCallback callback;
   };
 
-  explicit Socket(SelectServer* const parent, ConnectedTag const&, FD fd)
-      : BaseSocket(parent, std::move(fd)) {}
-
-  explicit Socket(SelectServer* const parent, ConnectingTag const&, FD fd, ConnectCallback callback)
-      : BaseSocket(parent, std::move(fd)), connect_status_(std::move(callback)) {}
-
   // Constructs a `Socket` from the specified file descriptor. Used by `ListenerSocket` to construct
   // sockets for accepted connections.
   static absl::StatusOr<std::unique_ptr<Socket>> Create(SelectServer* const parent, FD fd) {
@@ -292,11 +292,23 @@ class Socket : public BaseSocket {
                                                         std::string_view socket_name,
                                                         ConnectCallback callback);
 
+  absl::Status CloseLocked(absl::Status status) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+
+  absl::Status MaybeCloseLocked(absl::Status status) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
+    if (status.ok()) {
+      return status;
+    } else {
+      return CloseLocked(std::move(status));
+    }
+  }
+
   void MaybeFinalizeConnect() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   void AbortRead(absl::Status status) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  void AbortReadAndClose(absl::Status status) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
-  void FinalizeWrite(absl::Status status) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  absl::Status FinalizeWrite(absl::Status status) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  void FinalizeWriteOrClose(absl::Status status) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   std::optional<ConnectStatus> connect_status_ ABSL_GUARDED_BY(mutex_) = std::nullopt;
   std::optional<ReadStatus> read_status_ ABSL_GUARDED_BY(mutex_) = std::nullopt;
@@ -385,6 +397,10 @@ class ListenerSocket : public BaseSocket {
       SelectServer* parent, UnixDomainSocketTag const& tag, std::string_view socket_name,
       AcceptCallback callback);
 
+  void CloseFD() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
+    BaseSocket::CloseFD(/*attempt_shutdown=*/false);
+  }
+
   absl::StatusOr<std::vector<FD>> AcceptAll() ABSL_LOCKS_EXCLUDED(mutex_);
 
   std::string const address_;
@@ -465,7 +481,7 @@ class SelectServer {
 
   ::tsdb2::common::reffed_ptr<BaseSocket> LookupSocket(int fd) ABSL_LOCKS_EXCLUDED(mutex_);
 
-  void DisableSocket(BaseSocket const& socket);
+  void RemoveFromEpoll(int const fd) { epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, nullptr); }
 
   std::unique_ptr<BaseSocket> RemoveSocket(BaseSocket const& socket);
 
@@ -481,8 +497,7 @@ class SelectServer {
 template <typename Socket>
 void ListenerSocket<Socket>::OnError() {
   absl::MutexLock lock{&mutex_};
-  RemoveFromEpoll();
-  fd_.Close();
+  CloseFD();
   callback_(absl::AbortedError("socket shutdown"));
 }
 
@@ -591,8 +606,7 @@ absl::StatusOr<std::vector<FD>> ListenerSocket<Socket>::AcceptAll() {
     int const result = accept4(*fd_, nullptr, nullptr, SOCK_NONBLOCK | SOCK_CLOEXEC);
     if (result < 0) {
       if (errno != EAGAIN && errno != EWOULDBLOCK) {
-        RemoveFromEpoll();
-        fd_.Close();
+        CloseFD();
         return absl::ErrnoToStatus(errno, "accept4() failed");
       } else {
         return fds;
@@ -619,7 +633,7 @@ absl::StatusOr<::tsdb2::common::reffed_ptr<SocketType>> SelectServer::CreateSock
   int const fd = socket->initial_fd();
   {
     absl::MutexLock lock{&mutex_};
-    auto const [unused_it, inserted] = sockets_.emplace(std::move(socket));
+    auto const [unused_it, inserted] = sockets_.insert(std::move(socket));
     CHECK_EQ(inserted, true) << "internal error: duplicated file descriptor in socket map!";
   }
   struct epoll_event event;

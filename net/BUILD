@@ -48,6 +48,7 @@ cc_test(
         "//common:sequence_number",
         "//common:simple_condition",
         "//common:testing",
+        "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/synchronization",
@@ -58,7 +59,10 @@ cc_test(
 cc_library(
     name = "http_node",
     srcs = ["http_node.cc"],
-    hdrs = ["http_node.h"],
+    hdrs = [
+        "http.h",
+        "http_node.h",
+    ],
     deps = [
         ":fd",
         ":sockets",
@@ -75,6 +79,7 @@ cc_library(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
     ],
 )

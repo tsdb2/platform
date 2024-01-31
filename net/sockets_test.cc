@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
@@ -91,6 +92,22 @@ ListenerState operator++(ListenerState& value, int) {
 class SocketWithOptionsTest : public SocketTest,
                               public ::testing::WithParamInterface<SocketOptions> {
  protected:
+  static Socket::ReadCallback SuccessfulReadCallback(
+      absl::AnyInvocable<void(absl::StatusOr<Buffer>)> callback) {
+    return [callback = std::move(callback)](absl::StatusOr<Buffer> status_or_buffer) mutable {
+      callback(std::move(status_or_buffer));
+      return absl::OkStatus();
+    };
+  }
+
+  static Socket::WriteCallback SuccessfulWriteCallback(
+      absl::AnyInvocable<void(absl::Status)> callback) {
+    return [callback = std::move(callback)](absl::Status status) mutable {
+      callback(std::move(status));
+      return absl::OkStatus();
+    };
+  }
+
   static void TransferData(reffed_ptr<Socket> const& client_socket,
                            reffed_ptr<Socket> const& server_socket, std::string_view data);
 };
@@ -101,20 +118,22 @@ void SocketWithOptionsTest::TransferData(reffed_ptr<Socket> const& client_socket
   absl::Notification write_notification;
   Buffer buffer{data.size()};
   buffer.MemCpy(data.data(), data.size());
-  ASSERT_OK(client_socket->Write(std::move(buffer), [&](absl::Status status) {
-    ASSERT_FALSE(write_notification.HasBeenNotified());
-    ASSERT_OK(status);
-    write_notification.Notify();
-  }));
+  ASSERT_OK(
+      client_socket->Write(std::move(buffer), SuccessfulWriteCallback([&](absl::Status status) {
+                             ASSERT_FALSE(write_notification.HasBeenNotified());
+                             ASSERT_OK(status);
+                             write_notification.Notify();
+                           })));
   absl::Notification read_notification;
-  ASSERT_OK(server_socket->Read(data.size(), [&](absl::StatusOr<Buffer> status_or_buffer) {
-    ASSERT_FALSE(read_notification.HasBeenNotified());
-    ASSERT_OK(status_or_buffer);
-    auto const& buffer = status_or_buffer.value();
-    ASSERT_EQ(buffer.size(), data.size());
-    ASSERT_EQ(data, std::string_view(buffer.as_char_array(), buffer.size()));
-    read_notification.Notify();
-  }));
+  ASSERT_OK(server_socket->Read(
+      data.size(), SuccessfulReadCallback([&](absl::StatusOr<Buffer> status_or_buffer) {
+        ASSERT_FALSE(read_notification.HasBeenNotified());
+        ASSERT_OK(status_or_buffer);
+        auto const& buffer = status_or_buffer.value();
+        ASSERT_EQ(buffer.size(), data.size());
+        ASSERT_EQ(data, std::string_view(buffer.as_char_array(), buffer.size()));
+        read_notification.Notify();
+      })));
   write_notification.WaitForNotification();
   read_notification.WaitForNotification();
 }

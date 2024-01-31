@@ -8,10 +8,10 @@ namespace tsdb2 {
 namespace util {
 namespace internal {
 
-absl::Status ReturnIfError_GetStatus(absl::Status const& status) { return status; }
+inline absl::Status ReturnIfError_GetStatus(absl::Status const& status) { return status; }
 
 template <typename T>
-absl::Status ReturnIfError_GetStatus(absl::StatusOr<T> const& status_or) {
+inline absl::Status ReturnIfError_GetStatus(absl::StatusOr<T> const& status_or) {
   return status_or.status();
 }
 
