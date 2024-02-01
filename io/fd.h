@@ -1,5 +1,5 @@
-#ifndef __TSDB2_NET_FD_H__
-#define __TSDB2_NET_FD_H__
+#ifndef __TSDB2_IO_FD_H__
+#define __TSDB2_IO_FD_H__
 
 #include <unistd.h>
 
@@ -88,4 +88,4 @@ class FD {
 }  // namespace io
 }  // namespace tsdb2
 
-#endif  // __TSDB2_NET_FD_H__
+#endif  // __TSDB2_IO_FD_H__
