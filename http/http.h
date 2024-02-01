@@ -1,5 +1,5 @@
-#ifndef __TSDB2_NET_HTTP_H__
-#define __TSDB2_NET_HTTP_H__
+#ifndef __TSDB2_HTTP_HTTP_H__
+#define __TSDB2_HTTP_HTTP_H__
 
 #include <cstddef>
 #include <string_view>
@@ -7,7 +7,7 @@
 #include "absl/base/attributes.h"
 
 namespace tsdb2 {
-namespace net {
+namespace http {
 
 std::string_view constexpr kClientPreface = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
@@ -33,7 +33,7 @@ unsigned int constexpr kFrameTypeGoAway = 7;
 unsigned int constexpr kFrameTypeWindowUpdate = 8;
 unsigned int constexpr kFrameTypeContinuation = 9;
 
-}  // namespace net
+}  // namespace http
 }  // namespace tsdb2
 
-#endif  // __TSDB2_NET_HTTP_H__
+#endif  // __TSDB2_HTTP_HTTP_H__

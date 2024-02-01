@@ -3,13 +3,13 @@
 #include "absl/flags/parse.h"
 #include "absl/log/initialize.h"
 #include "absl/synchronization/notification.h"
-#include "net/http_node.h"
+#include "http/http_node.h"
 #include "net/sockets.h"
 
 namespace tsdb2 {
 namespace init {
 
-using ::tsdb2::net::HttpNode;
+using ::tsdb2::http::HttpNode;
 using ::tsdb2::net::SelectServer;
 
 namespace {

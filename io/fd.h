@@ -6,7 +6,7 @@
 #include <utility>
 
 namespace tsdb2 {
-namespace net {
+namespace io {
 
 // Manages a Unix file descriptor, closing it automatically upon destruction.
 //
@@ -85,7 +85,7 @@ class FD {
   int fd_;
 };
 
-}  // namespace net
+}  // namespace io
 }  // namespace tsdb2
 
 #endif  // __TSDB2_NET_FD_H__

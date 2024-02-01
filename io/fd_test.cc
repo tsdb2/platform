@@ -1,4 +1,4 @@
-#include "net/fd.h"
+#include "io/fd.h"
 
 #include <utility>
 
@@ -7,7 +7,7 @@
 
 namespace {
 
-using ::tsdb2::net::FD;
+using ::tsdb2::io::FD;
 
 TEST(FDTest, Empty) {
   FD fd;

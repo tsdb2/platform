@@ -43,12 +43,13 @@
 #include "common/buffer.h"
 #include "common/ref_count.h"
 #include "common/reffed_ptr.h"
-#include "net/fd.h"
+#include "io/fd.h"
 
 namespace tsdb2 {
 namespace net {
 
-using Buffer = ::tsdb2::common::Buffer;
+using ::tsdb2::common::Buffer;
+using ::tsdb2::io::FD;
 
 absl::Duration constexpr kDefaultKeepAliveIdle = absl::Seconds(45);
 absl::Duration constexpr kDefaultKeepAliveInterval = absl::Seconds(6);

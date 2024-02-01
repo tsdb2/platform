@@ -1,4 +1,4 @@
-#include "net/http_node.h"
+#include "http/http_node.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -19,7 +19,7 @@
 #include "common/buffer.h"
 #include "common/reffed_ptr.h"
 #include "common/utilities.h"
-#include "net/http.h"
+#include "http/http.h"
 #include "net/sockets.h"
 
 ABSL_FLAG(std::string, local_address, "", "The local network address this server will bind to.");
@@ -36,12 +36,17 @@ ABSL_FLAG(std::optional<absl::Duration>, tcp_keep_alive_interval, std::nullopt,
 ABSL_FLAG(std::optional<int>, tcp_keep_alive_count, std::nullopt, "Max. TCP keep-alive count.");
 
 namespace tsdb2 {
-namespace net {
+namespace http {
 
 namespace {
 
 using ::tsdb2::common::Buffer;
 using ::tsdb2::common::reffed_ptr;
+using ::tsdb2::net::kInetSocketTag;
+using ::tsdb2::net::ListenerSocket;
+using ::tsdb2::net::SelectServer;
+using ::tsdb2::net::Socket;
+using ::tsdb2::net::SocketOptions;
 
 }  // namespace
 
@@ -116,5 +121,5 @@ void HttpNode::AcceptCallback(absl::StatusOr<reffed_ptr<HttpConnection<Socket>>>
   }
 }
 
-}  // namespace net
+}  // namespace http
 }  // namespace tsdb2
