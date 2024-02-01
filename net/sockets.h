@@ -51,11 +51,13 @@ namespace net {
 using ::tsdb2::common::Buffer;
 using ::tsdb2::io::FD;
 
-absl::Duration constexpr kDefaultKeepAliveIdle = absl::Seconds(45);
-absl::Duration constexpr kDefaultKeepAliveInterval = absl::Seconds(6);
-int constexpr kDefaultKeepAliveCount = 5;
+inline constexpr char kLocalHost[] = "::1";
 
-size_t constexpr kMaxUnixDomainSocketPathLength =
+inline absl::Duration constexpr kDefaultKeepAliveIdle = absl::Seconds(45);
+inline absl::Duration constexpr kDefaultKeepAliveInterval = absl::Seconds(6);
+inline int constexpr kDefaultKeepAliveCount = 5;
+
+inline size_t constexpr kMaxUnixDomainSocketPathLength =
     sizeof(struct sockaddr_un) - offsetof(struct sockaddr_un, sun_path) - 1;
 
 struct InetSocketTag {};
@@ -64,28 +66,28 @@ static inline InetSocketTag constexpr kInetSocketTag;
 struct UnixDomainSocketTag {};
 static inline UnixDomainSocketTag constexpr kUnixDomainSocketTag;
 
+// Parameters to configure TCP keep-alives. Set these inside `SocketOptions`.
+struct KeepAliveParams {
+  // Sets the TCP_KEEPIDLE time.
+  absl::Duration idle = kDefaultKeepAliveIdle;
+
+  // Sets the TCP_KEEPINTVL time.
+  absl::Duration interval = kDefaultKeepAliveInterval;
+
+  // Sets the TCP_KEEPCNT value.
+  int count = kDefaultKeepAliveCount;
+};
+
 // Options for configuring TCP/IP sockets.
 struct SocketOptions {
   // Enables SO_KEEPALIVE. Uses the `keep_alive_params` below.
   bool keep_alive = false;
 
-  struct KeepAliveParams {
-    // Sets the TCP_KEEPIDLE time.
-    absl::Duration idle = kDefaultKeepAliveIdle;
-
-    // Sets the TCP_KEEPINTVL time.
-    absl::Duration interval = kDefaultKeepAliveInterval;
-
-    // Sets the TCP_KEEPCNT value.
-    int count = kDefaultKeepAliveCount;
-  };
-
   // Define the behavior of the keepalive packets, if enabled.
   KeepAliveParams keep_alive_params;
 
-  // Sets the IP_TOS. Some of the standard available values are: `IPTOS_LOWDELAY`,
-  // `IPTOS_THROUGHPUT`, `IPTOS_RELIABILITY`, and `IPTOS_MINCOST`.
-  uint8_t ip_tos;
+  // Optionally sets the IP type of service. See RFC 791 for possible values.
+  std::optional<uint8_t> ip_tos;
 };
 
 class SelectServer;
@@ -169,6 +171,16 @@ class Socket : public BaseSocket {
   using WriteCallback = absl::AnyInvocable<absl::Status(absl::Status status)>;
 
   static bool constexpr kIsListener = false;
+
+  // Returns a boolean indicating whether TCP keep-alives are enabled for this socket.
+  absl::StatusOr<bool> is_keep_alive() const ABSL_LOCKS_EXCLUDED(mutex_);
+
+  // Returns the `KeepAliveParams` configured for this socket. An error status is returned if
+  // keep-alives are not enabled for this socket.
+  absl::StatusOr<KeepAliveParams> keep_alive_params() const ABSL_LOCKS_EXCLUDED(mutex_);
+
+  // Returns the IP TOS for this socket.
+  absl::StatusOr<uint8_t> ip_tos() const ABSL_LOCKS_EXCLUDED(mutex_);
 
   // Starts an asynchronous read operation. `callback` will be invoked upon completion. If the
   // operation is successful `callback` will receive a `Buffer` object of the specified `length`,

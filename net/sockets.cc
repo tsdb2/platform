@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <netinet/ip.h>
 #include <netinet/tcp.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
@@ -50,26 +51,27 @@ absl::Status BaseSocket::ConfigureInetSocket(FD const& fd, SocketOptions const& 
       return absl::ErrnoToStatus(errno, "setsockopt(SOL_SOCKET, SO_KEEPALIVE, 1) failed");
     }
     optval = absl::ToInt64Seconds(options.keep_alive_params.idle);
-    if (setsockopt(*fd, SOL_TCP, TCP_KEEPIDLE, &optval, sizeof(optval)) < 0) {
-      return absl::ErrnoToStatus(errno, absl::StrCat("setsockopt(SOL_TCP, TCP_KEEPIDLE, ",
+    if (setsockopt(*fd, IPPROTO_TCP, TCP_KEEPIDLE, &optval, sizeof(optval)) < 0) {
+      return absl::ErrnoToStatus(errno, absl::StrCat("setsockopt(IPPROTO_TCP, TCP_KEEPIDLE, ",
                                                      options.keep_alive_params.idle, ") failed"));
     }
     optval = absl::ToInt64Seconds(options.keep_alive_params.interval);
-    if (setsockopt(*fd, SOL_TCP, TCP_KEEPINTVL, &optval, sizeof(optval)) < 0) {
+    if (setsockopt(*fd, IPPROTO_TCP, TCP_KEEPINTVL, &optval, sizeof(optval)) < 0) {
       return absl::ErrnoToStatus(errno,
-                                 absl::StrCat("setsockopt(SOL_TCP, TCP_KEEPINTVL, ",
+                                 absl::StrCat("setsockopt(IPPROTO_TCP, TCP_KEEPINTVL, ",
                                               options.keep_alive_params.interval, ") failed"));
     }
     optval = options.keep_alive_params.count;
-    if (setsockopt(*fd, SOL_TCP, TCP_KEEPCNT, &optval, sizeof(optval)) < 0) {
-      return absl::ErrnoToStatus(errno, absl::StrCat("setsockopt(SOL_TCP, TCP_KEEPCNT, ",
+    if (setsockopt(*fd, IPPROTO_TCP, TCP_KEEPCNT, &optval, sizeof(optval)) < 0) {
+      return absl::ErrnoToStatus(errno, absl::StrCat("setsockopt(IPPROTO_TCP, TCP_KEEPCNT, ",
                                                      options.keep_alive_params.count, ") failed"));
     }
   }
   if (options.ip_tos) {
-    if (setsockopt(*fd, SOL_IP, IP_TOS, &options.ip_tos, sizeof(options.ip_tos)) < 0) {
+    auto const optval = *options.ip_tos;
+    if (setsockopt(*fd, IPPROTO_IP, IP_TOS, &optval, sizeof(optval)) < 0) {
       return absl::ErrnoToStatus(
-          errno, absl::StrCat("setsockopt(SOL_IP, IP_TOS, ", options.ip_tos, ") failed"));
+          errno, absl::StrCat("setsockopt(IPPROTO_IP, IP_TOS, ", optval, ") failed"));
     }
   }
   return absl::OkStatus();
@@ -90,6 +92,68 @@ void BaseSocket::OnLastUnref() {
   absl::MutexLock lock{&mutex_};
   CloseFD(/*attempt_shutdown=*/true);
   socket = parent_->RemoveSocket(*this);
+}
+
+absl::StatusOr<bool> Socket::is_keep_alive() const {
+  {
+    absl::MutexLock lock{&mutex_};
+    if (!fd_) {
+      return absl::FailedPreconditionError("this socket has been shut down");
+    }
+    int optval = 0;
+    socklen_t optsize = sizeof(optval);
+    if (!getsockopt(*fd_, SOL_SOCKET, SO_KEEPALIVE, &optval, &optsize)) {
+      return !!optval;
+    }
+  }
+  return absl::ErrnoToStatus(errno, "getsockopt(SOL_SOCKET, SO_KEEPALIVE) failed");
+}
+
+absl::StatusOr<KeepAliveParams> Socket::keep_alive_params() const {
+  absl::MutexLock lock{&mutex_};
+  if (!fd_) {
+    return absl::FailedPreconditionError("this socket has been shut down");
+  }
+  int64_t optval = 0;
+  socklen_t optsize = sizeof(optval);
+  if (getsockopt(*fd_, SOL_SOCKET, SO_KEEPALIVE, &optval, &optsize) < 0) {
+    return absl::ErrnoToStatus(errno, "getsockopt(SOL_SOCKET, SO_KEEPALIVE) failed");
+  }
+  if (!optval) {
+    return absl::FailedPreconditionError("TCP keep-alives are disabled for this socket");
+  }
+  KeepAliveParams kap;
+  optsize = sizeof(optval);
+  if (getsockopt(*fd_, IPPROTO_TCP, TCP_KEEPIDLE, &optval, &optsize) < 0) {
+    return absl::ErrnoToStatus(errno, "getsockopt(IPPROTO_TCP, TCP_KEEPIDLE) failed");
+  }
+  kap.idle = absl::Seconds(optval);  // TODO: deal with optsize<8
+  optsize = sizeof(optval);
+  if (getsockopt(*fd_, IPPROTO_TCP, TCP_KEEPINTVL, &optval, &optsize) < 0) {
+    return absl::ErrnoToStatus(errno, "getsockopt(IPPROTO_TCP, TCP_KEEPINTVL) failed");
+  }
+  kap.interval = absl::Seconds(optval);  // TODO: deal with optsize<8
+  optsize = sizeof(optval);
+  if (getsockopt(*fd_, IPPROTO_TCP, TCP_KEEPCNT, &optval, &optsize) < 0) {
+    return absl::ErrnoToStatus(errno, "getsockopt(IPPROTO_TCP, TCP_KEEPCNT) failed");
+  }
+  kap.count = static_cast<int>(optval);  // TODO: deal with optsize<8
+  return kap;
+}
+
+absl::StatusOr<uint8_t> Socket::ip_tos() const {
+  {
+    absl::MutexLock lock{&mutex_};
+    if (!fd_) {
+      return absl::FailedPreconditionError("this socket has been shut down");
+    }
+    uint8_t optval = 0;
+    socklen_t optsize = sizeof(optval);
+    if (!getsockopt(*fd_, IPPROTO_IP, IP_TOS, &optval, &optsize)) {
+      return optval;
+    }
+  }
+  return absl::ErrnoToStatus(errno, "getsockopt(IPPROTO_IP, IP_TOS) failed");
 }
 
 absl::Status Socket::Read(size_t const length, ReadCallback callback) {

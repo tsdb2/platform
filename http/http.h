@@ -9,7 +9,7 @@
 namespace tsdb2 {
 namespace http {
 
-std::string_view constexpr kClientPreface = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
+inline std::string_view constexpr kClientPreface = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
 struct ABSL_ATTRIBUTE_PACKED FrameHeader {
   unsigned int length : 24;
@@ -19,19 +19,19 @@ struct ABSL_ATTRIBUTE_PACKED FrameHeader {
   unsigned int stream_id : 31;
 };
 
-size_t constexpr kFrameHeaderSize = sizeof(FrameHeader);
+inline size_t constexpr kFrameHeaderSize = sizeof(FrameHeader);
 static_assert(kFrameHeaderSize == 9, "incorrect frame header size");
 
-unsigned int constexpr kFrameTypeData = 0;
-unsigned int constexpr kFrameTypeHeaders = 1;
-unsigned int constexpr kFrameTypePriority = 2;
-unsigned int constexpr kFrameTypeResetStream = 3;
-unsigned int constexpr kFrameTypeSettings = 4;
-unsigned int constexpr kFrameTypePushPromise = 5;
-unsigned int constexpr kFrameTypePing = 6;
-unsigned int constexpr kFrameTypeGoAway = 7;
-unsigned int constexpr kFrameTypeWindowUpdate = 8;
-unsigned int constexpr kFrameTypeContinuation = 9;
+inline unsigned int constexpr kFrameTypeData = 0;
+inline unsigned int constexpr kFrameTypeHeaders = 1;
+inline unsigned int constexpr kFrameTypePriority = 2;
+inline unsigned int constexpr kFrameTypeResetStream = 3;
+inline unsigned int constexpr kFrameTypeSettings = 4;
+inline unsigned int constexpr kFrameTypePushPromise = 5;
+inline unsigned int constexpr kFrameTypePing = 6;
+inline unsigned int constexpr kFrameTypeGoAway = 7;
+inline unsigned int constexpr kFrameTypeWindowUpdate = 8;
+inline unsigned int constexpr kFrameTypeContinuation = 9;
 
 }  // namespace http
 }  // namespace tsdb2
