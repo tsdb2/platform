@@ -146,7 +146,6 @@ void ConnectedSocketTest::TransferData(reffed_ptr<Socket> const& client_socket,
 uint16_t const ConnectedSocketTest::port_ = GetNewPort();
 
 TEST_P(ConnectedSocketTest, InetSocket) {
-  uint16_t const port = GetNewPort();
   absl::Mutex server_mutex;
   ListenerState server_state = ListenerState::kListening;
   reffed_ptr<Socket> server_socket;

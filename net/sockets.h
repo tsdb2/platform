@@ -474,6 +474,7 @@ class SelectServer {
   };
 
   using SocketSet = absl::flat_hash_set<std::unique_ptr<BaseSocket>, HashEq::Hash, HashEq::Eq>;
+  using DeadSocketSet = absl::flat_hash_set<std::unique_ptr<BaseSocket>>;
 
   explicit SelectServer() = default;
 
@@ -494,14 +495,17 @@ class SelectServer {
 
   ::tsdb2::common::reffed_ptr<BaseSocket> LookupSocket(int fd) ABSL_LOCKS_EXCLUDED(mutex_);
 
-  void RemoveFromEpoll(int const fd) { epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, nullptr); }
+  void KillSocket(int fd) ABSL_LOCKS_EXCLUDED(mutex_, dead_mutex_);
 
-  std::unique_ptr<BaseSocket> RemoveSocket(BaseSocket const& socket);
+  std::unique_ptr<BaseSocket> DestroySocket(BaseSocket const& socket);
 
   void WorkerLoop();
 
   absl::Mutex mutable mutex_;
   SocketSet sockets_ ABSL_GUARDED_BY(mutex_);
+
+  absl::Mutex mutable dead_mutex_;
+  DeadSocketSet dead_sockets_ ABSL_GUARDED_BY(dead_mutex_);
 
   int volatile epoll_fd_ = -1;
   std::vector<std::thread> workers_;

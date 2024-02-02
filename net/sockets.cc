@@ -21,6 +21,7 @@
 #include "absl/flags/flag.h"
 #include "absl/functional/bind_front.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
@@ -79,7 +80,7 @@ absl::Status BaseSocket::ConfigureInetSocket(FD const& fd, SocketOptions const& 
 
 void BaseSocket::CloseFD(bool const attempt_shutdown) {
   if (fd_) {
-    parent_->RemoveFromEpoll(*fd_);
+    parent_->KillSocket(*fd_);
     if (attempt_shutdown) {
       shutdown(*fd_, SHUT_RDWR);
     }
@@ -91,7 +92,7 @@ void BaseSocket::OnLastUnref() {
   std::unique_ptr<BaseSocket> socket;
   absl::MutexLock lock{&mutex_};
   CloseFD(/*attempt_shutdown=*/true);
-  socket = parent_->RemoveSocket(*this);
+  socket = parent_->DestroySocket(*this);
 }
 
 absl::StatusOr<bool> Socket::is_keep_alive() const {
@@ -458,8 +459,31 @@ reffed_ptr<BaseSocket> SelectServer::LookupSocket(int const fd) {
   }
 }
 
-std::unique_ptr<BaseSocket> SelectServer::RemoveSocket(BaseSocket const& socket) {
-  absl::MutexLock lock{&mutex_};
+void SelectServer::KillSocket(int const fd) {
+  std::unique_ptr<BaseSocket> socket;
+  absl::MutexLock lock1{&dead_mutex_};
+  epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, nullptr);
+  {
+    absl::MutexLock lock2{&mutex_};
+    auto node = sockets_.extract(fd);
+    if (node) {
+      socket = std::unique_ptr<BaseSocket>(node.value().release());
+    }
+  }
+  if (!socket) {
+    LOG(ERROR) << "file descriptor " << fd << " not found among live sockets!";
+    return;
+  }
+  dead_sockets_.emplace(std::move(socket));
+}
+
+std::unique_ptr<BaseSocket> SelectServer::DestroySocket(BaseSocket const& socket) {
+  absl::MutexLock lock1{&dead_mutex_};
+  auto node = dead_sockets_.extract(&socket);
+  if (node) {
+    return std::unique_ptr<BaseSocket>(node.value().release());
+  }
+  absl::MutexLock lock2{&mutex_};
   auto const it = sockets_.find(&socket);
   if (it != sockets_.end() && !(*it)->is_referenced()) {
     return std::unique_ptr<BaseSocket>(sockets_.extract(it).value().release());
