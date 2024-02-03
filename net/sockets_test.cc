@@ -4,6 +4,7 @@
 #include <netinet/ip.h>
 #include <sys/socket.h>
 
+#include <random>
 #include <string_view>
 #include <utility>
 
@@ -16,7 +17,6 @@
 #include "absl/synchronization/notification.h"
 #include "common/buffer.h"
 #include "common/reffed_ptr.h"
-#include "common/sequence_number.h"
 #include "common/simple_condition.h"
 #include "common/testing.h"
 #include "common/utilities.h"
@@ -43,9 +43,12 @@ using ::tsdb2::net::SelectServer;
 using ::tsdb2::net::Socket;
 using ::tsdb2::net::SocketOptions;
 
-ABSL_CONST_INIT ::tsdb2::common::SequenceNumber port_number_generator{1024};
-
-uint16_t GetNewPort() { return static_cast<uint16_t>(port_number_generator.GetNext()); }
+uint16_t GetNewPort() {
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  std::uniform_int_distribution<> dis(1024, 65535);
+  return dis(gen);
+}
 
 class SocketTest : public ::testing::Test {
  public:
@@ -105,7 +108,10 @@ class TestInetConnection {
     MakeConnection(select_server, options);
   }
 
+  reffed_ptr<Socket>& server_socket() { return server_socket_; }
   reffed_ptr<Socket> const& server_socket() const { return server_socket_; }
+
+  reffed_ptr<Socket>& client_socket() { return client_socket_; }
   reffed_ptr<Socket> const& client_socket() const { return client_socket_; }
 
  private:
@@ -166,8 +172,9 @@ class ConnectedSocketTest : public SocketTest, public ::testing::WithParamInterf
  protected:
   static Socket::ReadCallback ReadCallbackAdapter(
       absl::Status result, absl::AnyInvocable<void(absl::StatusOr<Buffer>)> callback) {
-    return [result = std::move(result),
+    return [status = std::move(result),
             callback = std::move(callback)](absl::StatusOr<Buffer> status_or_buffer) mutable {
+      absl::Status result = status_or_buffer.ok() ? status : status_or_buffer.status();
       callback(std::move(status_or_buffer));
       return result;
     };
@@ -177,8 +184,8 @@ class ConnectedSocketTest : public SocketTest, public ::testing::WithParamInterf
       absl::Status result, absl::AnyInvocable<void(absl::Status)> callback) {
     return
         [result = std::move(result), callback = std::move(callback)](absl::Status status) mutable {
-          callback(std::move(status));
-          return result;
+          callback(status);
+          return status.ok() ? status : result;
         };
   }
 
@@ -274,5 +281,54 @@ TEST_P(InetSocketTest, InetSocket) {
 INSTANTIATE_TEST_SUITE_P(InetSocketTest, InetSocketTest,
                          ::testing::Values(SocketOptions{.keep_alive = false},
                                            SocketOptions{.keep_alive = true}));
+
+class HangUpTest : public ConnectedSocketTest {};
+
+TEST_F(HangUpTest, ClientHangUp) {
+  TestInetConnection connection{select_server_, SocketOptions()};
+  absl::Notification done;
+  ASSERT_OK(
+      connection.server_socket()->Read(10, [&](absl::StatusOr<Buffer> const status_or_buffer) {
+        EXPECT_THAT(status_or_buffer, Not(IsOk()));
+        done.Notify();
+        return status_or_buffer.status();
+      }));
+  connection.client_socket().reset();
+  done.WaitForNotification();
+}
+
+TEST_F(HangUpTest, ServerHangUp) {
+  TestInetConnection connection{select_server_, SocketOptions()};
+  absl::Notification done;
+  ASSERT_OK(
+      connection.client_socket()->Read(10, [&](absl::StatusOr<Buffer> const status_or_buffer) {
+        EXPECT_THAT(status_or_buffer, Not(IsOk()));
+        done.Notify();
+        return status_or_buffer.status();
+      }));
+  connection.server_socket().reset();
+  done.WaitForNotification();
+}
+
+class CancelTest : public ConnectedSocketTest {};
+
+TEST_F(CancelTest, CancelRead) {
+  TestInetConnection connection{select_server_, SocketOptions()};
+  auto const& server_socket = connection.server_socket();
+  absl::Notification done;
+  ASSERT_OK(server_socket->Read(10, [&](absl::StatusOr<Buffer> const status_or_buffer) {
+    EXPECT_THAT(status_or_buffer, Not(IsOk()));
+    done.Notify();
+    return status_or_buffer.status();
+  }));
+  EXPECT_TRUE(server_socket->CancelRead());
+  done.WaitForNotification();
+  EXPECT_THAT(server_socket->Read(10,
+                                  [](absl::StatusOr<Buffer> status_or_buffer) {
+                                    CHECK(false);
+                                    return std::move(status_or_buffer).status();
+                                  }),
+              Not(IsOk()));
+}
 
 }  // namespace

@@ -32,7 +32,6 @@ cc_test(
         ":sockets",
         "//common:buffer",
         "//common:reffed_ptr",
-        "//common:sequence_number",
         "//common:simple_condition",
         "//common:testing",
         "//common:utilities",

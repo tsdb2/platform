@@ -164,6 +164,7 @@ absl::Status Socket::Read(size_t const length, ReadCallback callback) {
   }
   while (true) {
     size_t const offset = buffer.size();
+    CHECK_GT(length, offset);
     ssize_t const result =
         recv(*fd_, buffer.as_byte_array() + offset, length - offset, MSG_DONTWAIT);
     if (result < 0) {
@@ -173,10 +174,13 @@ absl::Status Socket::Read(size_t const length, ReadCallback callback) {
         read_status_.emplace(std::move(buffer), std::move(callback));
         return absl::OkStatus();
       }
-    }
-    buffer.Advance(result);
-    if (buffer.is_full()) {
-      return MaybeCloseLocked(callback(std::move(buffer)));
+    } else if (result > 0) {
+      buffer.Advance(result);
+      if (buffer.is_full()) {
+        return MaybeCloseLocked(callback(std::move(buffer)));
+      }
+    } else {
+      CloseLocked(absl::AbortedError("socket shutdown")).IgnoreError();
     }
   }
 }
@@ -205,6 +209,7 @@ absl::Status Socket::Write(Buffer buffer, WriteCallback callback) {
   size_t offset = 0;
   while (true) {
     size_t const remaining = buffer.size() - offset;
+    CHECK_GT(remaining, 0);
     ssize_t const result = send(*fd_, buffer.as_byte_array() + offset, remaining, MSG_DONTWAIT);
     if (result < 0) {
       if (errno != EAGAIN && errno != EWOULDBLOCK) {
@@ -213,11 +218,13 @@ absl::Status Socket::Write(Buffer buffer, WriteCallback callback) {
         write_status_.emplace(std::move(buffer), remaining, std::move(callback));
         return absl::OkStatus();
       }
-    } else {
+    } else if (result > 0) {
       offset += result;
       if (!(offset < buffer.size())) {
         return MaybeCloseLocked(callback(absl::OkStatus()));
       }
+    } else {
+      CloseLocked(absl::AbortedError("socket shutdown")).IgnoreError();
     }
   }
 }
@@ -244,6 +251,7 @@ void Socket::OnInput() {
     auto& buffer = read_status_->buffer;
     size_t const offset = buffer.size();
     size_t const remaining = buffer.capacity() - offset;
+    CHECK_GT(remaining, 0);
     ssize_t const result = recv(*fd_, buffer.as_byte_array() + offset, remaining, MSG_DONTWAIT);
     if (result < 0) {
       if (errno != EAGAIN && errno != EWOULDBLOCK) {
@@ -251,12 +259,14 @@ void Socket::OnInput() {
       } else {
         return;
       }
-    } else {
+    } else if (result > 0) {
       buffer.Advance(result);
       if (buffer.is_full()) {
         MaybeCloseLocked(read_status_->callback(std::move(buffer))).IgnoreError();
         read_status_.reset();
       }
+    } else {
+      CloseLocked(absl::AbortedError("socket shutdown")).IgnoreError();
     }
   }
 }
@@ -266,6 +276,8 @@ void Socket::OnOutput() {
   MaybeFinalizeConnect();
   while (fd_ && write_status_) {
     auto const& buffer = write_status_->buffer;
+    CHECK_GT(write_status_->remaining, 0);
+    CHECK_LT(write_status_->remaining, buffer.size());
     size_t const offset = buffer.size() - write_status_->remaining;
     ssize_t const result =
         send(*fd_, buffer.as_byte_array() + offset, write_status_->remaining, MSG_DONTWAIT);
@@ -275,11 +287,13 @@ void Socket::OnOutput() {
       } else {
         return;
       }
-    } else {
+    } else if (result > 0) {
       write_status_->remaining -= result;
       if (!(offset + result < buffer.size())) {
         FinalizeWrite(absl::OkStatus()).IgnoreError();
       }
+    } else {
+      CloseLocked(absl::AbortedError("socket shutdown")).IgnoreError();
     }
   }
 }
