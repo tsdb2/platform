@@ -34,8 +34,10 @@ cc_library(
 cc_library(
     name = "testing",
     testonly = True,
-    hdrs = [
-        "testing.h",
+    srcs = ["testing.cc"],
+    hdrs = ["testing.h"],
+    deps = [
+        "//server:crash",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest",

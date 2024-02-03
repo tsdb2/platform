@@ -5,6 +5,7 @@
 #include "absl/synchronization/notification.h"
 #include "http/http_node.h"
 #include "net/sockets.h"
+#include "server/crash.h"
 
 namespace tsdb2 {
 namespace init {
@@ -20,6 +21,7 @@ absl::Notification init_done;
 
 void InitServer(int argc, char* argv[]) {
   absl::InitializeLog();
+  InstallCrashHandler();
   absl::ParseCommandLine(argc, argv);
   SelectServer::GetInstance()->StartOrDie();
   HttpNode::GetDefault();
