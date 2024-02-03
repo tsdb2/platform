@@ -30,6 +30,7 @@
 #include "absl/time/time.h"
 #include "common/buffer.h"
 #include "common/reffed_ptr.h"
+#include "common/utilities.h"
 #include "io/fd.h"
 
 ABSL_FLAG(uint16_t, select_server_num_workers, 10, "Number of I/O worker threads.");
@@ -124,21 +125,13 @@ absl::StatusOr<KeepAliveParams> Socket::keep_alive_params() const {
     return absl::FailedPreconditionError("TCP keep-alives are disabled for this socket");
   }
   KeepAliveParams kap;
-  optsize = sizeof(optval);
-  if (getsockopt(*fd_, IPPROTO_TCP, TCP_KEEPIDLE, &optval, &optsize) < 0) {
-    return absl::ErrnoToStatus(errno, "getsockopt(IPPROTO_TCP, TCP_KEEPIDLE) failed");
-  }
-  kap.idle = absl::Seconds(optval);  // TODO: deal with optsize<8
-  optsize = sizeof(optval);
-  if (getsockopt(*fd_, IPPROTO_TCP, TCP_KEEPINTVL, &optval, &optsize) < 0) {
-    return absl::ErrnoToStatus(errno, "getsockopt(IPPROTO_TCP, TCP_KEEPINTVL) failed");
-  }
-  kap.interval = absl::Seconds(optval);  // TODO: deal with optsize<8
-  optsize = sizeof(optval);
-  if (getsockopt(*fd_, IPPROTO_TCP, TCP_KEEPCNT, &optval, &optsize) < 0) {
-    return absl::ErrnoToStatus(errno, "getsockopt(IPPROTO_TCP, TCP_KEEPCNT) failed");
-  }
-  kap.count = static_cast<int>(optval);  // TODO: deal with optsize<8
+  ASSIGN_OR_RETURN(optval, GetIntSockOpt(IPPROTO_TCP, "IPPROTO_TCP", TCP_KEEPIDLE, "TCP_KEEPIDLE"));
+  kap.idle = absl::Seconds(optval);
+  ASSIGN_OR_RETURN(optval,
+                   GetIntSockOpt(IPPROTO_TCP, "IPPROTO_TCP", TCP_KEEPINTVL, "TCP_KEEPINTVL"));
+  kap.interval = absl::Seconds(optval);
+  ASSIGN_OR_RETURN(optval, GetIntSockOpt(IPPROTO_TCP, "IPPROTO_TCP", TCP_KEEPCNT, "TCP_KEEPCNT"));
+  kap.count = optval;
   return kap;
 }
 
@@ -363,6 +356,29 @@ absl::StatusOr<std::unique_ptr<Socket>> Socket::Create(SelectServer* const paren
     }
   } else {
     return std::unique_ptr<Socket>(new Socket(parent, kConnectedTag, std::move(fd)));
+  }
+}
+
+absl::StatusOr<int64_t> Socket::GetIntSockOpt(int const level, std::string_view const level_name,
+                                              int const option,
+                                              std::string_view const option_name) const {
+  int64_t optval = 0;
+  socklen_t optsize = sizeof(optval);
+  if (getsockopt(*fd_, level, option, &optval, &optsize) < 0) {
+    return absl::ErrnoToStatus(
+        errno, absl::StrCat("getsockopt(", level_name, ", ", option_name, ") failed"));
+  }
+  switch (optsize) {
+    case 1:
+      return static_cast<int64_t>(*reinterpret_cast<int8_t*>(&optval));
+    case 2:
+      return static_cast<int64_t>(*reinterpret_cast<int16_t*>(&optval));
+    case 4:
+      return static_cast<int64_t>(*reinterpret_cast<int32_t*>(&optval));
+    case 8:
+      return static_cast<int64_t>(*reinterpret_cast<int64_t*>(&optval));
+    default:
+      return absl::UnknownError("getsockopt() returned an unknown value size");
   }
 }
 

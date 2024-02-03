@@ -14,6 +14,18 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "utilities_test",
+    srcs = ["utilities_test.cc"],
+    deps = [
+        ":testing",
+        ":utilities",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
 cc_library(
     name = "fixed",
     hdrs = ["fixed.h"],

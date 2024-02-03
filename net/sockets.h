@@ -305,6 +305,10 @@ class Socket : public BaseSocket {
                                                         std::string_view socket_name,
                                                         ConnectCallback callback);
 
+  absl::StatusOr<int64_t> GetIntSockOpt(int level, std::string_view level_name, int option,
+                                        std::string_view option_name) const
+      ABSL_SHARED_LOCKS_REQUIRED(mutex_);
+
   absl::Status CloseLocked(absl::Status status) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   absl::Status MaybeCloseLocked(absl::Status status) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {

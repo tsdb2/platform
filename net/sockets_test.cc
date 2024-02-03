@@ -1,5 +1,9 @@
 #include "net/sockets.h"
 
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <sys/socket.h>
+
 #include <string_view>
 #include <utility>
 
@@ -14,11 +18,14 @@
 #include "common/sequence_number.h"
 #include "common/simple_condition.h"
 #include "common/testing.h"
+#include "common/utilities.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace {
 
+using ::testing::AllOf;
+using ::testing::Field;
 using ::testing::Not;
 using ::testing::status::IsOk;
 using ::testing::status::IsOkAndHolds;
@@ -26,6 +33,7 @@ using ::testing::status::StatusIs;
 using ::tsdb2::common::Buffer;
 using ::tsdb2::common::reffed_ptr;
 using ::tsdb2::common::SimpleCondition;
+using ::tsdb2::net::KeepAliveParams;
 using ::tsdb2::net::kInetSocketTag;
 using ::tsdb2::net::kLocalHost;
 using ::tsdb2::net::kUnixDomainSocketTag;
@@ -145,7 +153,85 @@ void ConnectedSocketTest::TransferData(reffed_ptr<Socket> const& client_socket,
 
 uint16_t const ConnectedSocketTest::port_ = GetNewPort();
 
-TEST_P(ConnectedSocketTest, InetSocket) {
+class SocketSettingsTest : public ConnectedSocketTest {};
+
+TEST_P(SocketSettingsTest, Settings) {
+  SocketOptions const& options = GetParam();
+  absl::Mutex server_mutex;
+  ListenerState server_state = ListenerState::kListening;
+  reffed_ptr<Socket> server_socket;
+  auto status_or_listener = select_server_->CreateSocket<ListenerSocket<Socket>>(
+      kInetSocketTag, kLocalHost, port_, options,
+      [&](absl::StatusOr<reffed_ptr<Socket>> status_or_socket) {
+        absl::MutexLock lock{&server_mutex};
+        switch (server_state++) {
+          case ListenerState::kListening:
+            ASSERT_THAT(status_or_socket, IsOkAndHolds(Not(nullptr)));
+            server_socket = std::move(status_or_socket).value();
+            break;
+          case ListenerState::kAccepted:
+            ASSERT_THAT(status_or_socket, Not(IsOk()));
+            server_socket = nullptr;
+            break;
+          default:
+            FAIL();
+            break;
+        }
+      });
+  ASSERT_THAT(status_or_listener, IsOkAndHolds(Not(nullptr)));
+  absl::Mutex client_mutex;
+  bool connected = false;
+  auto status_or_socket = select_server_->CreateSocket<Socket>(
+      kInetSocketTag, kLocalHost, port_, options, [&](absl::Status status) {
+        ASSERT_OK(status);
+        absl::MutexLock lock{&client_mutex};
+        ASSERT_FALSE(connected);
+        connected = true;
+      });
+  ASSERT_THAT(status_or_socket, IsOkAndHolds(Not(nullptr)));
+  auto const client_socket = std::move(status_or_socket).value();
+  absl::MutexLock(&server_mutex, SimpleCondition([&] { return server_socket.operator bool(); }));
+  absl::MutexLock(&client_mutex, absl::Condition(&connected));
+  EXPECT_THAT(server_socket->ip_tos(), IsOkAndHolds(*(options.ip_tos)));
+  EXPECT_THAT(client_socket->ip_tos(), IsOkAndHolds(*(options.ip_tos)));
+  EXPECT_THAT(server_socket->is_keep_alive(), IsOkAndHolds(options.keep_alive));
+  EXPECT_THAT(client_socket->is_keep_alive(), IsOkAndHolds(options.keep_alive));
+  if (options.keep_alive) {
+    EXPECT_THAT(
+        server_socket->keep_alive_params(),
+        IsOkAndHolds(AllOf(Field(&KeepAliveParams::idle, options.keep_alive_params.idle),
+                           Field(&KeepAliveParams::interval, options.keep_alive_params.interval),
+                           Field(&KeepAliveParams::count, options.keep_alive_params.count))));
+    EXPECT_THAT(
+        client_socket->keep_alive_params(),
+        IsOkAndHolds(AllOf(Field(&KeepAliveParams::idle, options.keep_alive_params.idle),
+                           Field(&KeepAliveParams::interval, options.keep_alive_params.interval),
+                           Field(&KeepAliveParams::count, options.keep_alive_params.count))));
+  } else {
+    EXPECT_THAT(server_socket->keep_alive_params(), Not(IsOk()));
+    EXPECT_THAT(client_socket->keep_alive_params(), Not(IsOk()));
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(SocketSettingsTest, SocketSettingsTest,
+                         ::testing::Values(
+                             SocketOptions{
+                                 .keep_alive = false,
+                                 .ip_tos = IPTOS_LOWDELAY + (2 << 5),
+                             },
+                             SocketOptions{
+                                 .keep_alive = true,
+                                 .keep_alive_params{
+                                     .idle = absl::Seconds(90),
+                                     .interval = absl::Seconds(10),
+                                     .count = 42,
+                                 },
+                                 .ip_tos = IPTOS_THROUGHPUT + (3 << 5),
+                             }));
+
+class InetSocketTest : public ConnectedSocketTest {};
+
+TEST_P(InetSocketTest, InetSocket) {
   absl::Mutex server_mutex;
   ListenerState server_state = ListenerState::kListening;
   reffed_ptr<Socket> server_socket;
@@ -185,7 +271,7 @@ TEST_P(ConnectedSocketTest, InetSocket) {
   TransferData(server_socket, client_socket, "dolor sit amet");
 }
 
-INSTANTIATE_TEST_SUITE_P(ConnectedSocketTest, ConnectedSocketTest,
+INSTANTIATE_TEST_SUITE_P(InetSocketTest, InetSocketTest,
                          ::testing::Values(SocketOptions{.keep_alive = false},
                                            SocketOptions{.keep_alive = true}));
 
