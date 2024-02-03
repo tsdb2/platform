@@ -9,6 +9,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/functional/any_invocable.h"
+#include "absl/functional/bind_front.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
@@ -98,6 +99,69 @@ ListenerState operator++(ListenerState& value, int) {
   return original;
 }
 
+class TestInetConnection {
+ public:
+  explicit TestInetConnection(SelectServer* const select_server, SocketOptions const& options) {
+    MakeConnection(select_server, options);
+  }
+
+  reffed_ptr<Socket> const& server_socket() const { return server_socket_; }
+  reffed_ptr<Socket> const& client_socket() const { return client_socket_; }
+
+ private:
+  TestInetConnection(TestInetConnection const&) = delete;
+  TestInetConnection& operator=(TestInetConnection const&) = delete;
+  TestInetConnection(TestInetConnection&&) = delete;
+  TestInetConnection& operator=(TestInetConnection&&) = delete;
+
+  void AcceptCallback(absl::StatusOr<reffed_ptr<Socket>> status_or_socket)
+      ABSL_LOCKS_EXCLUDED(mutex_) {
+    absl::MutexLock lock{&mutex_};
+    switch (state_++) {
+      case ListenerState::kListening:
+        ASSERT_THAT(status_or_socket, IsOkAndHolds(Not(nullptr)));
+        server_socket_ = std::move(status_or_socket).value();
+        break;
+      case ListenerState::kAccepted:
+        ASSERT_THAT(status_or_socket, Not(IsOk()));
+        server_socket_ = nullptr;
+        break;
+      default:
+        FAIL();
+        break;
+    }
+  }
+
+  void MakeConnection(SelectServer* const select_server, SocketOptions const& options) {
+    auto const port = GetNewPort();
+    auto status_or_listener = select_server->CreateSocket<ListenerSocket<Socket>>(
+        kInetSocketTag, kLocalHost, port, options,
+        absl::bind_front(&TestInetConnection::AcceptCallback, this));
+    ASSERT_THAT(status_or_listener, IsOkAndHolds(Not(nullptr)));
+    listener_ = std::move(status_or_listener).value();
+    absl::Notification connected;
+    auto status_or_socket = select_server->CreateSocket<Socket>(
+        kInetSocketTag, kLocalHost, port, options, [&](absl::Status const status) {
+          ASSERT_OK(status);
+          ASSERT_FALSE(connected.HasBeenNotified());
+          connected.Notify();
+        });
+    ASSERT_THAT(status_or_socket, IsOkAndHolds(Not(nullptr)));
+    client_socket_ = std::move(status_or_socket).value();
+    absl::MutexLock(&mutex_, SimpleCondition([&]() ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
+      return state_ == ListenerState::kAccepted;
+    }));
+    connected.WaitForNotification();
+  }
+
+  reffed_ptr<ListenerSocket<Socket>> listener_;
+
+  absl::Mutex mutable mutex_;
+  ListenerState state_ ABSL_GUARDED_BY(mutex_) = ListenerState::kListening;
+  reffed_ptr<Socket> server_socket_ ABSL_GUARDED_BY(mutex_);
+  reffed_ptr<Socket> client_socket_;
+};
+
 class ConnectedSocketTest : public SocketTest, public ::testing::WithParamInterface<SocketOptions> {
  protected:
   static Socket::ReadCallback ReadCallbackAdapter(
@@ -157,41 +221,9 @@ class SocketSettingsTest : public ConnectedSocketTest {};
 
 TEST_P(SocketSettingsTest, Settings) {
   SocketOptions const& options = GetParam();
-  absl::Mutex server_mutex;
-  ListenerState server_state = ListenerState::kListening;
-  reffed_ptr<Socket> server_socket;
-  auto status_or_listener = select_server_->CreateSocket<ListenerSocket<Socket>>(
-      kInetSocketTag, kLocalHost, port_, options,
-      [&](absl::StatusOr<reffed_ptr<Socket>> status_or_socket) {
-        absl::MutexLock lock{&server_mutex};
-        switch (server_state++) {
-          case ListenerState::kListening:
-            ASSERT_THAT(status_or_socket, IsOkAndHolds(Not(nullptr)));
-            server_socket = std::move(status_or_socket).value();
-            break;
-          case ListenerState::kAccepted:
-            ASSERT_THAT(status_or_socket, Not(IsOk()));
-            server_socket = nullptr;
-            break;
-          default:
-            FAIL();
-            break;
-        }
-      });
-  ASSERT_THAT(status_or_listener, IsOkAndHolds(Not(nullptr)));
-  absl::Mutex client_mutex;
-  bool connected = false;
-  auto status_or_socket = select_server_->CreateSocket<Socket>(
-      kInetSocketTag, kLocalHost, port_, options, [&](absl::Status status) {
-        ASSERT_OK(status);
-        absl::MutexLock lock{&client_mutex};
-        ASSERT_FALSE(connected);
-        connected = true;
-      });
-  ASSERT_THAT(status_or_socket, IsOkAndHolds(Not(nullptr)));
-  auto const client_socket = std::move(status_or_socket).value();
-  absl::MutexLock(&server_mutex, SimpleCondition([&] { return server_socket.operator bool(); }));
-  absl::MutexLock(&client_mutex, absl::Condition(&connected));
+  TestInetConnection connection{select_server_, options};
+  auto const& server_socket = connection.server_socket();
+  auto const& client_socket = connection.client_socket();
   EXPECT_THAT(server_socket->ip_tos(), IsOkAndHolds(*(options.ip_tos)));
   EXPECT_THAT(client_socket->ip_tos(), IsOkAndHolds(*(options.ip_tos)));
   EXPECT_THAT(server_socket->is_keep_alive(), IsOkAndHolds(options.keep_alive));
@@ -232,41 +264,9 @@ INSTANTIATE_TEST_SUITE_P(SocketSettingsTest, SocketSettingsTest,
 class InetSocketTest : public ConnectedSocketTest {};
 
 TEST_P(InetSocketTest, InetSocket) {
-  absl::Mutex server_mutex;
-  ListenerState server_state = ListenerState::kListening;
-  reffed_ptr<Socket> server_socket;
-  auto status_or_listener = select_server_->CreateSocket<ListenerSocket<Socket>>(
-      kInetSocketTag, kLocalHost, port_, GetParam(),
-      [&](absl::StatusOr<reffed_ptr<Socket>> status_or_socket) {
-        absl::MutexLock lock{&server_mutex};
-        switch (server_state++) {
-          case ListenerState::kListening:
-            ASSERT_THAT(status_or_socket, IsOkAndHolds(Not(nullptr)));
-            server_socket = std::move(status_or_socket).value();
-            break;
-          case ListenerState::kAccepted:
-            ASSERT_THAT(status_or_socket, Not(IsOk()));
-            server_socket = nullptr;
-            break;
-          default:
-            FAIL();
-            break;
-        }
-      });
-  ASSERT_THAT(status_or_listener, IsOkAndHolds(Not(nullptr)));
-  absl::Mutex client_mutex;
-  bool connected = false;
-  auto status_or_socket = select_server_->CreateSocket<Socket>(
-      kInetSocketTag, kLocalHost, port_, GetParam(), [&](absl::Status status) {
-        ASSERT_OK(status);
-        absl::MutexLock lock{&client_mutex};
-        ASSERT_FALSE(connected);
-        connected = true;
-      });
-  ASSERT_THAT(status_or_socket, IsOkAndHolds(Not(nullptr)));
-  auto const client_socket = std::move(status_or_socket).value();
-  absl::MutexLock(&server_mutex, SimpleCondition([&] { return server_socket.operator bool(); }));
-  absl::MutexLock(&client_mutex, absl::Condition(&connected));
+  TestInetConnection connection{select_server_, GetParam()};
+  auto const& server_socket = connection.server_socket();
+  auto const& client_socket = connection.client_socket();
   TransferData(client_socket, server_socket, "lorem ipsum");
   TransferData(server_socket, client_socket, "dolor sit amet");
 }
