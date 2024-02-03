@@ -8,6 +8,7 @@
 namespace {
 
 using ::testing::status::IsOk;
+using ::testing::status::IsOkAndHolds;
 using ::testing::status::StatusIs;
 
 absl::Status Foo(bool const fail) {
@@ -15,6 +16,14 @@ absl::Status Foo(bool const fail) {
     return absl::AbortedError("failed");
   } else {
     return absl::OkStatus();
+  }
+}
+
+absl::StatusOr<int> FooOr(bool const fail) {
+  if (fail) {
+    return absl::AbortedError("failed");
+  } else {
+    return 42;
   }
 }
 
@@ -28,14 +37,6 @@ TEST(UtilitiesTest, ReturnIfError) {
   EXPECT_THAT(Bar(true), StatusIs(absl::StatusCode::kAborted));
 }
 
-absl::StatusOr<int> FooOr(bool const fail) {
-  if (fail) {
-    return absl::AbortedError("failed");
-  } else {
-    return 42;
-  }
-}
-
 absl::Status BarOr(bool const fail) {
   RETURN_IF_ERROR(FooOr(fail));
   return absl::OkStatus();
@@ -46,6 +47,25 @@ TEST(UtilitiesTest, ReturnIfErrorOr) {
   EXPECT_THAT(BarOr(true), StatusIs(absl::StatusCode::kAborted));
 }
 
-// TODO
+absl::StatusOr<int> Baz(bool const fail) {
+  int n;
+  ASSIGN_OR_RETURN(n, FooOr(fail));
+  return n;
+}
+
+TEST(UtilitiesTest, AssignOrReturn) {
+  EXPECT_THAT(Baz(false), IsOkAndHolds(42));
+  EXPECT_THAT(Baz(true), StatusIs(absl::StatusCode::kAborted));
+}
+
+absl::StatusOr<int> BazVar(bool const fail) {
+  ASSIGN_VAR_OR_RETURN(int, n, FooOr(fail));
+  return n;
+}
+
+TEST(UtilitiesTest, AssignVarOrReturn) {
+  EXPECT_THAT(BazVar(false), IsOkAndHolds(42));
+  EXPECT_THAT(BazVar(true), StatusIs(absl::StatusCode::kAborted));
+}
 
 }  // namespace
