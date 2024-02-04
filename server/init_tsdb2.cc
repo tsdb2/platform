@@ -1,11 +1,11 @@
 #include "server/init_tsdb2.h"
 
+#include "absl/debugging/failure_signal_handler.h"
 #include "absl/flags/parse.h"
 #include "absl/log/initialize.h"
 #include "absl/synchronization/notification.h"
 #include "http/http_node.h"
 #include "net/sockets.h"
-#include "server/crash.h"
 
 namespace tsdb2 {
 namespace init {
@@ -21,7 +21,7 @@ absl::Notification init_done;
 
 void InitServer(int argc, char* argv[]) {
   absl::InitializeLog();
-  InstallCrashHandler();
+  absl::InstallFailureSignalHandler(absl::FailureSignalHandlerOptions());
   absl::ParseCommandLine(argc, argv);
   SelectServer::GetInstance()->StartOrDie();
   HttpNode::GetDefault();

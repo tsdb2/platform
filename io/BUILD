@@ -10,6 +10,7 @@ cc_test(
     srcs = ["fd_test.cc"],
     deps = [
         ":fd",
+        "//common:testing",
         "@com_google_absl//absl/hash",
         "@com_google_googletest//:gtest_main",
     ],

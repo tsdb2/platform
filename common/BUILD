@@ -37,11 +37,12 @@ cc_library(
     srcs = ["testing.cc"],
     hdrs = ["testing.h"],
     deps = [
-        "//server:crash",
+        "@com_google_absl//absl/debugging:failure_signal_handler",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest",
     ],
+    alwayslink = True,
 )
 
 cc_library(
@@ -57,6 +58,7 @@ cc_test(
     srcs = ["buffer_test.cc"],
     deps = [
         ":buffer",
+        ":testing",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -73,6 +75,7 @@ cc_library(
     hdrs = ["flat_container_testing.h"],
     visibility = ["//visibility:private"],
     deps = [
+        ":testing",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -94,6 +97,7 @@ cc_test(
         ":fixed",
         ":flat_container_testing",
         ":flat_set",
+        ":testing",
         "@com_google_absl//absl/hash",
         "@com_google_googletest//:gtest_main",
     ],
@@ -115,6 +119,7 @@ cc_test(
     deps = [
         ":flat_container_testing",
         ":flat_map",
+        ":testing",
         "@com_google_absl//absl/hash",
         "@com_google_googletest//:gtest_main",
     ],
@@ -136,6 +141,7 @@ cc_test(
     deps = [
         ":fingerprint",
         ":flat_set",
+        ":testing",
         "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest_main",
     ],
@@ -151,6 +157,7 @@ cc_test(
     srcs = ["reffed_ptr_test.cc"],
     deps = [
         ":reffed_ptr",
+        ":testing",
         "@com_google_absl//absl/hash",
         "@com_google_googletest//:gtest_main",
     ],
@@ -170,6 +177,7 @@ cc_test(
     deps = [
         ":ref_count",
         ":reffed_ptr",
+        ":testing",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -184,6 +192,7 @@ cc_test(
     srcs = ["sequence_number_test.cc"],
     deps = [
         ":sequence_number",
+        ":testing",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -202,6 +211,7 @@ cc_test(
     srcs = ["simple_condition_test.cc"],
     deps = [
         ":simple_condition",
+        ":testing",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -221,6 +231,7 @@ cc_test(
     deps = [
         ":blocking_ref_counted",
         ":reffed_ptr",
+        ":testing",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -240,6 +251,7 @@ cc_test(
     srcs = ["overridable_test.cc"],
     deps = [
         ":overridable",
+        ":testing",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -254,6 +266,7 @@ cc_test(
     srcs = ["no_destructor_test.cc"],
     deps = [
         ":no_destructor",
+        ":testing",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -276,6 +289,7 @@ cc_test(
     deps = [
         ":scoped_override",
         ":singleton",
+        ":testing",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -292,6 +306,7 @@ cc_test(
     deps = [
         ":overridable",
         ":scoped_override",
+        ":testing",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -311,6 +326,7 @@ cc_test(
     srcs = ["clock_test.cc"],
     deps = [
         ":clock",
+        ":testing",
         "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest_main",
     ],
@@ -339,6 +355,7 @@ cc_test(
     srcs = ["mock_clock_test.cc"],
     deps = [
         ":mock_clock",
+        ":testing",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
