@@ -19,6 +19,7 @@ TEST(BufferTest, Empty) {
   Buffer buffer;
   EXPECT_EQ(buffer.capacity(), 0);
   EXPECT_EQ(buffer.size(), 0);
+  EXPECT_TRUE(buffer.empty());
   EXPECT_EQ(buffer.get(), nullptr);
   EXPECT_EQ(buffer.as_byte_array(), nullptr);
   EXPECT_EQ(buffer.as_char_array(), nullptr);
@@ -29,6 +30,7 @@ TEST(BufferTest, Preallocated) {
   Buffer buffer{42};
   EXPECT_EQ(buffer.capacity(), 42);
   EXPECT_EQ(buffer.size(), 0);
+  EXPECT_TRUE(buffer.empty());
   EXPECT_NE(buffer.get(), nullptr);
   EXPECT_EQ(buffer.get(), buffer.as_byte_array());
   EXPECT_EQ(buffer.get(), buffer.as_char_array());
@@ -43,6 +45,7 @@ TEST(BufferTest, TakeOwnership) {
   Buffer buffer{data, size, 2};
   EXPECT_EQ(buffer.capacity(), size);
   EXPECT_EQ(buffer.size(), 2);
+  EXPECT_FALSE(buffer.empty());
   EXPECT_EQ(buffer.get(), data);
   EXPECT_EQ(buffer.get(), buffer.as_byte_array());
   EXPECT_EQ(buffer.get(), buffer.as_char_array());
@@ -54,6 +57,7 @@ TEST(BufferTest, CopyFromCaller) {
   Buffer buffer{kData.data(), kData.size()};
   EXPECT_EQ(buffer.capacity(), kData.size());
   EXPECT_EQ(buffer.size(), kData.size());
+  EXPECT_FALSE(buffer.empty());
   EXPECT_NE(buffer.get(), kData.data());
   EXPECT_EQ(buffer.get(), buffer.as_byte_array());
   EXPECT_EQ(buffer.get(), buffer.as_char_array());
@@ -112,18 +116,22 @@ TEST(BufferTest, MoveConstruct) {
   Buffer b1{data, size, 3};
   ASSERT_EQ(b1.capacity(), size);
   ASSERT_EQ(b1.size(), 3);
+  ASSERT_FALSE(b1.empty());
   ASSERT_EQ(b1.get(), data);
   {
     Buffer b2{std::move(b1)};
     EXPECT_EQ(b1.capacity(), 0);
     EXPECT_EQ(b1.size(), 0);
+    EXPECT_TRUE(b1.empty());
     EXPECT_EQ(b1.get(), nullptr);
     EXPECT_EQ(b2.capacity(), size);
     EXPECT_EQ(b2.size(), 3);
+    EXPECT_FALSE(b2.empty());
     EXPECT_EQ(b2.get(), data);
   }
   EXPECT_EQ(b1.capacity(), 0);
   EXPECT_EQ(b1.size(), 0);
+  EXPECT_TRUE(b1.empty());
   EXPECT_EQ(b1.get(), nullptr);
 }
 
@@ -136,19 +144,23 @@ TEST(BufferTest, MoveAssign) {
   Buffer b1;
   ASSERT_EQ(b1.capacity(), 0);
   ASSERT_EQ(b1.size(), 0);
+  ASSERT_TRUE(b1.empty());
   ASSERT_EQ(b1.get(), nullptr);
   {
     Buffer b2{data, size, 3};
     b1 = std::move(b2);
     EXPECT_EQ(b1.capacity(), size);
     EXPECT_EQ(b1.size(), 3);
+    EXPECT_FALSE(b1.empty());
     EXPECT_EQ(b1.get(), data);
     EXPECT_EQ(b2.capacity(), 0);
     EXPECT_EQ(b2.size(), 0);
+    EXPECT_TRUE(b2.empty());
     EXPECT_EQ(b2.get(), nullptr);
   }
   EXPECT_EQ(b1.capacity(), size);
   EXPECT_EQ(b1.size(), 3);
+  EXPECT_FALSE(b1.empty());
   EXPECT_EQ(b1.get(), data);
   EXPECT_EQ(data[0], 12);
   EXPECT_EQ(data[1], 34);
@@ -163,6 +175,7 @@ TEST(BufferTest, AppendInt) {
   b.Append<int>(123);
   EXPECT_EQ(b.capacity(), capacity);
   EXPECT_EQ(b.size(), offset + sizeof(int));
+  EXPECT_FALSE(b.empty());
   EXPECT_EQ(b.get(), data);
   EXPECT_EQ(b.at<int>(offset), 123);
 }
@@ -175,6 +188,7 @@ TEST(BufferTest, AppendLongLong) {
   b.Append<long long>(456);
   EXPECT_EQ(b.capacity(), capacity);
   EXPECT_EQ(b.size(), offset + sizeof(long long));
+  EXPECT_FALSE(b.empty());
   EXPECT_EQ(b.get(), data);
   EXPECT_EQ(b.at<long long>(offset), 456);
 }
@@ -183,17 +197,21 @@ TEST(BufferTest, AppendBuffer) {
   Buffer b1{sizeof(uintptr_t) * 2};
   b1.Append<uintptr_t>(123456789);
   ASSERT_EQ(b1.size(), sizeof(uintptr_t));
+  ASSERT_FALSE(b1.empty());
   {
     Buffer b2{sizeof(uintptr_t)};
     b2.Append<uintptr_t>(987654321);
     b1.Append(b2);
     EXPECT_EQ(b1.size(), sizeof(uintptr_t) * 2);
+    EXPECT_FALSE(b1.empty());
     EXPECT_EQ(b1.at<uintptr_t>(0), 123456789);
     EXPECT_EQ(b1.at<uintptr_t>(sizeof(uintptr_t)), 987654321);
     EXPECT_EQ(b2.size(), sizeof(uintptr_t));
+    EXPECT_FALSE(b2.empty());
     EXPECT_EQ(b2.at<uintptr_t>(0), 987654321);
   }
   EXPECT_EQ(b1.size(), sizeof(uintptr_t) * 2);
+  EXPECT_FALSE(b1.empty());
   EXPECT_EQ(b1.at<uintptr_t>(0), 123456789);
   EXPECT_EQ(b1.at<uintptr_t>(sizeof(uintptr_t)), 987654321);
 }
@@ -217,6 +235,7 @@ TEST(BufferTest, NotFull) {
   buffer.Append<uint32_t>(42);
   ASSERT_EQ(buffer.capacity(), 10);
   ASSERT_EQ(buffer.size(), 4);
+  ASSERT_FALSE(buffer.empty());
   EXPECT_FALSE(buffer.is_full());
 }
 
@@ -226,6 +245,7 @@ TEST(BufferTest, Full) {
   buffer.Append<uint16_t>(42);
   ASSERT_EQ(buffer.capacity(), 10);
   ASSERT_EQ(buffer.size(), 10);
+  ASSERT_FALSE(buffer.empty());
   EXPECT_TRUE(buffer.is_full());
 }
 
@@ -233,10 +253,13 @@ TEST(BufferTest, Advance) {
   Buffer buffer{10};
   ASSERT_EQ(buffer.capacity(), 10);
   ASSERT_EQ(buffer.size(), 0);
+  ASSERT_TRUE(buffer.empty());
   buffer.Advance(3);
   EXPECT_EQ(buffer.size(), 3);
+  EXPECT_FALSE(buffer.empty());
   buffer.Advance(4);
   EXPECT_EQ(buffer.size(), 7);
+  EXPECT_FALSE(buffer.empty());
 }
 
 TEST(BufferTest, AdvanceOverflow) {
@@ -251,6 +274,7 @@ TEST(BufferTest, MemCpy) {
   buffer.MemCpy(kData.data(), kData.size());
   EXPECT_EQ(buffer.capacity(), 20);
   EXPECT_EQ(buffer.size(), 4 + kData.size());
+  EXPECT_FALSE(buffer.empty());
   EXPECT_EQ(buffer.at<uint32_t>(0), 42);
   EXPECT_EQ(std::strncmp(kData.data(), buffer.as_char_array() + 4, kData.size()), 0);
 }
@@ -265,10 +289,12 @@ TEST(BufferTest, Release) {
     Buffer buffer{data, size, 3};
     ASSERT_EQ(buffer.capacity(), size);
     ASSERT_EQ(buffer.size(), 3);
+    ASSERT_FALSE(buffer.empty());
     ASSERT_EQ(buffer.get(), data);
     EXPECT_EQ(buffer.Release(), data);
     EXPECT_EQ(buffer.capacity(), 0);
     EXPECT_EQ(buffer.size(), 0);
+    ASSERT_TRUE(buffer.empty());
     EXPECT_EQ(buffer.get(), nullptr);
   }
   EXPECT_EQ(data[0], 12);

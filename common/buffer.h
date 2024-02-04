@@ -58,6 +58,9 @@ class Buffer {
   // Returns the size of the buffer, in bytes.
   size_t size() const { return length_; }
 
+  // True iff `size` equals 0.
+  bool empty() const { return !length_; }
+
   // Returns a pointer to the buffer.
   void* get() { return data_; }
   void const* get() const { return data_; }

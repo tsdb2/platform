@@ -55,8 +55,59 @@ class SocketTest : public ::testing::Test {
   explicit SocketTest() { select_server_->StartOrDie(); }
 
  protected:
+  static Socket::ReadCallback ReadCallbackAdapter(
+      absl::AnyInvocable<void(absl::StatusOr<Buffer>)> callback,
+      absl::Status result = absl::OkStatus()) {
+    return [status = std::move(result),
+            callback = std::move(callback)](absl::StatusOr<Buffer> status_or_buffer) mutable {
+      absl::Status result = status_or_buffer.ok() ? status : status_or_buffer.status();
+      callback(std::move(status_or_buffer));
+      return result;
+    };
+  }
+
+  static Socket::WriteCallback WriteCallbackAdapter(absl::AnyInvocable<void(absl::Status)> callback,
+                                                    absl::Status result = absl::OkStatus()) {
+    return
+        [result = std::move(result), callback = std::move(callback)](absl::Status status) mutable {
+          callback(status);
+          return status.ok() ? status : result;
+        };
+  }
+
+  static void TransferData(reffed_ptr<Socket> const& client_socket,
+                           reffed_ptr<Socket> const& server_socket, std::string_view data);
+
+  static uint16_t const port_;
   SelectServer* const select_server_ = SelectServer::GetInstance();
 };
+
+void SocketTest::TransferData(reffed_ptr<Socket> const& client_socket,
+                              reffed_ptr<Socket> const& server_socket,
+                              std::string_view const data) {
+  absl::Notification write_notification;
+  Buffer buffer{data.size()};
+  buffer.MemCpy(data.data(), data.size());
+  ASSERT_OK(client_socket->Write(std::move(buffer), WriteCallbackAdapter([&](absl::Status status) {
+                                   ASSERT_FALSE(write_notification.HasBeenNotified());
+                                   ASSERT_OK(status);
+                                   write_notification.Notify();
+                                 })));
+  absl::Notification read_notification;
+  ASSERT_OK(server_socket->Read(
+      data.size(), ReadCallbackAdapter([&](absl::StatusOr<Buffer> status_or_buffer) {
+        ASSERT_FALSE(read_notification.HasBeenNotified());
+        ASSERT_OK(status_or_buffer);
+        auto const& buffer = status_or_buffer.value();
+        ASSERT_EQ(buffer.size(), data.size());
+        ASSERT_EQ(data, std::string_view(buffer.as_char_array(), buffer.size()));
+        read_notification.Notify();
+      })));
+  write_notification.WaitForNotification();
+  read_notification.WaitForNotification();
+}
+
+uint16_t const SocketTest::port_ = GetNewPort();
 
 TEST_F(SocketTest, InvalidAcceptCallback) {
   EXPECT_THAT(select_server_->CreateSocket<ListenerSocket<Socket>>(kInetSocketTag, "", GetNewPort(),
@@ -168,62 +219,8 @@ class TestInetConnection {
   reffed_ptr<Socket> client_socket_;
 };
 
-class ConnectedSocketTest : public SocketTest, public ::testing::WithParamInterface<SocketOptions> {
- protected:
-  static Socket::ReadCallback ReadCallbackAdapter(
-      absl::AnyInvocable<void(absl::StatusOr<Buffer>)> callback,
-      absl::Status result = absl::OkStatus()) {
-    return [status = std::move(result),
-            callback = std::move(callback)](absl::StatusOr<Buffer> status_or_buffer) mutable {
-      absl::Status result = status_or_buffer.ok() ? status : status_or_buffer.status();
-      callback(std::move(status_or_buffer));
-      return result;
-    };
-  }
-
-  static Socket::WriteCallback WriteCallbackAdapter(absl::AnyInvocable<void(absl::Status)> callback,
-                                                    absl::Status result = absl::OkStatus()) {
-    return
-        [result = std::move(result), callback = std::move(callback)](absl::Status status) mutable {
-          callback(status);
-          return status.ok() ? status : result;
-        };
-  }
-
-  static void TransferData(reffed_ptr<Socket> const& client_socket,
-                           reffed_ptr<Socket> const& server_socket, std::string_view data);
-
-  static uint16_t const port_;
-};
-
-void ConnectedSocketTest::TransferData(reffed_ptr<Socket> const& client_socket,
-                                       reffed_ptr<Socket> const& server_socket,
-                                       std::string_view const data) {
-  absl::Notification write_notification;
-  Buffer buffer{data.size()};
-  buffer.MemCpy(data.data(), data.size());
-  ASSERT_OK(client_socket->Write(std::move(buffer), WriteCallbackAdapter([&](absl::Status status) {
-                                   ASSERT_FALSE(write_notification.HasBeenNotified());
-                                   ASSERT_OK(status);
-                                   write_notification.Notify();
-                                 })));
-  absl::Notification read_notification;
-  ASSERT_OK(server_socket->Read(
-      data.size(), ReadCallbackAdapter([&](absl::StatusOr<Buffer> status_or_buffer) {
-        ASSERT_FALSE(read_notification.HasBeenNotified());
-        ASSERT_OK(status_or_buffer);
-        auto const& buffer = status_or_buffer.value();
-        ASSERT_EQ(buffer.size(), data.size());
-        ASSERT_EQ(data, std::string_view(buffer.as_char_array(), buffer.size()));
-        read_notification.Notify();
-      })));
-  write_notification.WaitForNotification();
-  read_notification.WaitForNotification();
-}
-
-uint16_t const ConnectedSocketTest::port_ = GetNewPort();
-
-class SocketSettingsTest : public ConnectedSocketTest {};
+class SocketSettingsTest : public SocketTest,
+                           public ::testing::WithParamInterface<SocketOptions> {};
 
 TEST_P(SocketSettingsTest, Settings) {
   SocketOptions const& options = GetParam();
@@ -267,9 +264,9 @@ INSTANTIATE_TEST_SUITE_P(SocketSettingsTest, SocketSettingsTest,
                                  .ip_tos = IPTOS_THROUGHPUT + (3 << 5),
                              }));
 
-class InetSocketTest : public ConnectedSocketTest {};
+class TransferTest : public SocketTest, public ::testing::WithParamInterface<SocketOptions> {};
 
-TEST_P(InetSocketTest, InetSocket) {
+TEST_P(TransferTest, InetSocket) {
   TestInetConnection connection{select_server_, GetParam()};
   auto const& server_socket = connection.server_socket();
   auto const& client_socket = connection.client_socket();
@@ -277,25 +274,46 @@ TEST_P(InetSocketTest, InetSocket) {
   TransferData(server_socket, client_socket, "dolor sit amet");
 }
 
-INSTANTIATE_TEST_SUITE_P(InetSocketTest, InetSocketTest,
+INSTANTIATE_TEST_SUITE_P(TransferTest, TransferTest,
                          ::testing::Values(SocketOptions{.keep_alive = false},
                                            SocketOptions{.keep_alive = true}));
 
-class HangUpTest : public ConnectedSocketTest {};
-
-TEST_F(HangUpTest, ClientHangUp) {
+TEST_F(SocketTest, ReadValidation) {
   TestInetConnection connection{select_server_, SocketOptions()};
+  EXPECT_THAT(connection.server_socket()->Read(
+                  0, ReadCallbackAdapter([](absl::StatusOr<Buffer>) { FAIL(); })),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(connection.server_socket()->Read(10, nullptr),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST_F(SocketTest, WriteValidation) {
+  TestInetConnection connection{select_server_, SocketOptions()};
+  EXPECT_THAT(connection.server_socket()->Write(Buffer(10),
+                                                WriteCallbackAdapter([](absl::Status) { FAIL(); })),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  Buffer buffer{10};
+  buffer.Advance(10);
+  EXPECT_THAT(connection.server_socket()->Write(std::move(buffer), nullptr),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST_F(SocketTest, ClientHangUp) {
+  TestInetConnection connection{select_server_, SocketOptions()};
+  auto const& server_socket = connection.server_socket();
   absl::Notification done;
-  ASSERT_OK(connection.server_socket()->Read(
+  ASSERT_OK(server_socket->Read(
       10, ReadCallbackAdapter([&](absl::StatusOr<Buffer> const status_or_buffer) {
         EXPECT_THAT(status_or_buffer, Not(IsOk()));
         done.Notify();
       })));
   connection.client_socket().reset();
   done.WaitForNotification();
+  EXPECT_THAT(server_socket->Read(10, ReadCallbackAdapter([](absl::StatusOr<Buffer>) { FAIL(); })),
+              Not(IsOk()));
 }
 
-TEST_F(HangUpTest, ServerHangUp) {
+TEST_F(SocketTest, ServerHangUp) {
   TestInetConnection connection{select_server_, SocketOptions()};
   absl::Notification done;
   ASSERT_OK(connection.client_socket()->Read(
@@ -307,9 +325,7 @@ TEST_F(HangUpTest, ServerHangUp) {
   done.WaitForNotification();
 }
 
-class CancelTest : public ConnectedSocketTest {};
-
-TEST_F(CancelTest, CancelRead) {
+TEST_F(SocketTest, CancelRead) {
   TestInetConnection connection{select_server_, SocketOptions()};
   auto const& server_socket = connection.server_socket();
   absl::Notification done;
@@ -320,8 +336,7 @@ TEST_F(CancelTest, CancelRead) {
       })));
   EXPECT_TRUE(server_socket->CancelRead());
   done.WaitForNotification();
-  EXPECT_THAT(server_socket->Read(
-                  10, ReadCallbackAdapter([](absl::StatusOr<Buffer> status_or_buffer) { FAIL(); })),
+  EXPECT_THAT(server_socket->Read(10, ReadCallbackAdapter([](absl::StatusOr<Buffer>) { FAIL(); })),
               Not(IsOk()));
 }
 

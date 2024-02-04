@@ -151,6 +151,9 @@ absl::StatusOr<uint8_t> Socket::ip_tos() const {
 }
 
 absl::Status Socket::Read(size_t const length, ReadCallback callback) {
+  if (!length) {
+    return absl::InvalidArgumentError("the number of bytes to read must be at least 1");
+  }
   if (!callback) {
     return absl::InvalidArgumentError("the read callback must not be empty");
   }
@@ -196,6 +199,9 @@ bool Socket::CancelRead() {
 }
 
 absl::Status Socket::Write(Buffer buffer, WriteCallback callback) {
+  if (buffer.empty()) {
+    return absl::InvalidArgumentError("the buffer to write must not be empty");
+  }
   if (!callback) {
     return absl::InvalidArgumentError("the write callback must not be empty");
   }
