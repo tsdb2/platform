@@ -33,7 +33,7 @@
 #include "common/utilities.h"
 #include "io/fd.h"
 
-ABSL_FLAG(uint16_t, select_server_num_workers, 10, "Number of I/O worker threads.");
+ABSL_FLAG(uint16_t, num_io_workers, 10, "Number of I/O worker threads.");
 
 namespace tsdb2 {
 namespace net {
@@ -470,7 +470,7 @@ void SelectServer::StartOrDie() {
     epoll_fd_ = epoll_create1(EPOLL_CLOEXEC);
     CHECK_GE(epoll_fd_, 0) << "epoll_create1() failed, errno=" << errno;
   }
-  auto const num_workers = absl::GetFlag(FLAGS_select_server_num_workers);
+  auto const num_workers = absl::GetFlag(FLAGS_num_io_workers);
   CHECK_GT(num_workers, 0) << "SelectServer needs at least 1 worker, but " << num_workers
                            << " were specified in --select_server_num_workers";
   workers_.reserve(num_workers);
