@@ -499,7 +499,7 @@ class SelectServer {
 
   ::tsdb2::common::reffed_ptr<BaseSocket> LookupSocket(int fd) ABSL_LOCKS_EXCLUDED(mutex_);
 
-  void KillSocket(int fd) ABSL_LOCKS_EXCLUDED(mutex_, dead_mutex_);
+  void KillSocket(int fd) ABSL_LOCKS_EXCLUDED(mutex_);
 
   std::unique_ptr<BaseSocket> DestroySocket(BaseSocket const& socket);
 
@@ -507,9 +507,7 @@ class SelectServer {
 
   absl::Mutex mutable mutex_;
   SocketSet sockets_ ABSL_GUARDED_BY(mutex_);
-
-  absl::Mutex mutable dead_mutex_;
-  DeadSocketSet dead_sockets_ ABSL_GUARDED_BY(dead_mutex_);
+  DeadSocketSet dead_sockets_ ABSL_GUARDED_BY(mutex_);
 
   int volatile epoll_fd_ = -1;
   std::vector<std::thread> workers_;

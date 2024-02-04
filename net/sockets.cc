@@ -490,36 +490,29 @@ reffed_ptr<BaseSocket> SelectServer::LookupSocket(int const fd) {
 }
 
 void SelectServer::KillSocket(int const fd) {
-  std::unique_ptr<BaseSocket> socket;
-  absl::MutexLock lock1{&dead_mutex_};
   epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, nullptr);
   {
-    absl::MutexLock lock2{&mutex_};
+    absl::MutexLock lock{&mutex_};
     auto node = sockets_.extract(fd);
     if (node) {
-      socket = std::unique_ptr<BaseSocket>(node.value().release());
+      dead_sockets_.emplace(node.value().release());
+      return;
     }
   }
-  if (!socket) {
-    LOG(ERROR) << "file descriptor " << fd << " not found among live sockets!";
-    return;
-  }
-  dead_sockets_.emplace(std::move(socket));
+  LOG(ERROR) << "file descriptor " << fd << " not found among live sockets!";
 }
 
 std::unique_ptr<BaseSocket> SelectServer::DestroySocket(BaseSocket const& socket) {
-  absl::MutexLock lock1{&dead_mutex_};
-  auto node = dead_sockets_.extract(&socket);
-  if (node) {
-    return std::unique_ptr<BaseSocket>(node.value().release());
+  absl::MutexLock lock{&mutex_};
+  auto const it1 = dead_sockets_.find(&socket);
+  if (it1 != dead_sockets_.end() && !(*it1)->is_referenced()) {
+    return std::unique_ptr<BaseSocket>(dead_sockets_.extract(it1).value().release());
   }
-  absl::MutexLock lock2{&mutex_};
-  auto const it = sockets_.find(&socket);
-  if (it != sockets_.end() && !(*it)->is_referenced()) {
-    return std::unique_ptr<BaseSocket>(sockets_.extract(it).value().release());
-  } else {
-    return nullptr;
+  auto const it2 = sockets_.find(&socket);
+  if (it2 != sockets_.end() && !(*it2)->is_referenced()) {
+    return std::unique_ptr<BaseSocket>(sockets_.extract(it2).value().release());
   }
+  return nullptr;
 }
 
 void SelectServer::WorkerLoop() {
