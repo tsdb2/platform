@@ -160,21 +160,22 @@ class flat_map {
     return *this;
   }
 
+  // As specified by the standard, all comparison operators intentionally ignore the user-provided
+  // comparator. For operators `==` and `!=` this allows for faster comparisons, as using a
+  // less-than comparator would require comparing each pair twice (A!=B iff (A<B)||(B<A)). Other
+  // operators ignore the user-provided comparator for consistency with `==` and `!=`.
+
   friend bool operator==(flat_map const& lhs, flat_map const& rhs) {
-    return !(lhs < rhs) && !(rhs < lhs);
+    return lhs.rep() == rhs.rep();
   }
 
-  friend bool operator!=(flat_map const& lhs, flat_map const& rhs) { return !(lhs == rhs); }
-
-  friend bool operator<(flat_map const& lhs, flat_map const& rhs) {
-    return std::lexicographical_compare(lhs.begin(), lhs.end(), rhs.begin(), rhs.end(),
-                                        generic_compare(lhs.comp_));
+  friend bool operator!=(flat_map const& lhs, flat_map const& rhs) {
+    return lhs.rep() != rhs.rep();
   }
 
+  friend bool operator<(flat_map const& lhs, flat_map const& rhs) { return lhs.rep() < rhs.rep(); }
   friend bool operator<=(flat_map const& lhs, flat_map const& rhs) { return !(rhs < lhs); }
-
   friend bool operator>(flat_map const& lhs, flat_map const& rhs) { return rhs < lhs; }
-
   friend bool operator>=(flat_map const& lhs, flat_map const& rhs) { return !(lhs < rhs); }
 
   T& at(Key const& key) {

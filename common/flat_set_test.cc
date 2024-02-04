@@ -221,10 +221,10 @@ TYPED_TEST_P(FlatSetWithRepresentationTest, ReverseCompareLHSLessThanRHS) {
   flat_set<TestKey, ReverseTestCompare, TypeParam> fs2{-3, 4, -1, 1, 5, -3};
   EXPECT_FALSE(fs1 == fs2);
   EXPECT_TRUE(fs1 != fs2);
-  EXPECT_TRUE(fs1 < fs2);
-  EXPECT_TRUE(fs1 <= fs2);
-  EXPECT_FALSE(fs1 > fs2);
-  EXPECT_FALSE(fs1 >= fs2);
+  EXPECT_FALSE(fs1 < fs2);
+  EXPECT_FALSE(fs1 <= fs2);
+  EXPECT_TRUE(fs1 > fs2);
+  EXPECT_TRUE(fs1 >= fs2);
 }
 
 TYPED_TEST_P(FlatSetWithRepresentationTest, ReverseCompareLHSGreaterThanRHS) {
@@ -232,10 +232,10 @@ TYPED_TEST_P(FlatSetWithRepresentationTest, ReverseCompareLHSGreaterThanRHS) {
   flat_set<TestKey, ReverseTestCompare, TypeParam> fs2{-2, -3, 4, -1, -2, 1, 5, -3};
   EXPECT_FALSE(fs1 == fs2);
   EXPECT_TRUE(fs1 != fs2);
-  EXPECT_FALSE(fs1 < fs2);
-  EXPECT_FALSE(fs1 <= fs2);
-  EXPECT_TRUE(fs1 > fs2);
-  EXPECT_TRUE(fs1 >= fs2);
+  EXPECT_TRUE(fs1 < fs2);
+  EXPECT_TRUE(fs1 <= fs2);
+  EXPECT_FALSE(fs1 > fs2);
+  EXPECT_FALSE(fs1 >= fs2);
 }
 
 TYPED_TEST_P(FlatSetWithRepresentationTest, CopyConstruct) {
