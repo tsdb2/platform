@@ -28,6 +28,7 @@ namespace {
 using ::testing::AllOf;
 using ::testing::Field;
 using ::testing::Not;
+using ::testing::Property;
 using ::testing::status::IsOk;
 using ::testing::status::IsOkAndHolds;
 using ::testing::status::StatusIs;
@@ -338,6 +339,46 @@ TEST_F(SocketTest, CancelRead) {
   done.WaitForNotification();
   EXPECT_THAT(server_socket->Read(10, ReadCallbackAdapter([](absl::StatusOr<Buffer>) { FAIL(); })),
               Not(IsOk()));
+}
+
+TEST_F(SocketTest, TwoChunks) {
+  TestInetConnection connection{select_server_, SocketOptions()};
+  auto const& server_socket = connection.server_socket();
+  auto const& client_socket = connection.client_socket();
+  std::string_view constexpr kChunk1 = "01234567890123456789";
+  std::string_view constexpr kChunk2 = "987654321098765432109876543210";
+  absl::Notification read_notification;
+  absl::Notification write_notification;
+  ASSERT_OK(server_socket->Read(
+      20, ReadCallbackAdapter([&](absl::StatusOr<Buffer> const status_or_buffer) {
+        ASSERT_THAT(status_or_buffer, IsOkAndHolds(Property(&Buffer::size, 20)));
+        auto const& buffer = status_or_buffer.value();
+        std::string_view const chunk1{buffer.as_char_array(), buffer.size()};
+        EXPECT_EQ(chunk1, kChunk1);
+        EXPECT_OK(server_socket->Read(
+            30, ReadCallbackAdapter([&](absl::StatusOr<Buffer> const status_or_buffer) {
+              EXPECT_THAT(status_or_buffer, IsOkAndHolds(Property(&Buffer::size, 30)));
+              auto const& buffer = status_or_buffer.value();
+              std::string_view const chunk2{buffer.as_char_array(), buffer.size()};
+              EXPECT_EQ(chunk2, kChunk2);
+              read_notification.Notify();
+            })));
+      })));
+  Buffer buffer1{kChunk1.size()};
+  buffer1.MemCpy(kChunk1.data(), kChunk1.size());
+  ASSERT_OK(client_socket->Write(
+      std::move(buffer1), WriteCallbackAdapter([&](absl::Status const status) {
+        ASSERT_OK(status);
+        Buffer buffer2{kChunk2.size()};
+        buffer2.MemCpy(kChunk2.data(), kChunk2.size());
+        EXPECT_OK(client_socket->Write(std::move(buffer2),
+                                       WriteCallbackAdapter([&](absl::Status const status) {
+                                         EXPECT_OK(status);
+                                         write_notification.Notify();
+                                       })));
+      })));
+  read_notification.WaitForNotification();
+  write_notification.WaitForNotification();
 }
 
 }  // namespace

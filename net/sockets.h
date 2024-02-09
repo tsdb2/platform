@@ -108,9 +108,9 @@ class BaseSocket : public ::tsdb2::common::RefCounted {
 
   static absl::Status ConfigureInetSocket(FD const& fd, SocketOptions const& options);
 
-  void CloseFD(bool attempt_shutdown) ABSL_SHARED_LOCKS_REQUIRED(mutex_);
+  void CloseFD(bool attempt_shutdown);
 
-  void OnLastUnref() override ABSL_LOCKS_EXCLUDED(mutex_);
+  void OnLastUnref() override;
 
   virtual void OnError() = 0;
   virtual void OnInput() = 0;
@@ -124,7 +124,7 @@ class BaseSocket : public ::tsdb2::common::RefCounted {
 
  protected:
   absl::Mutex mutable mutex_;
-  FD fd_ ABSL_GUARDED_BY(mutex_);
+  FD fd_;
 
  private:
   BaseSocket(BaseSocket const&) = delete;
@@ -186,6 +186,8 @@ class Socket : public BaseSocket {
   // operation is successful `callback` will receive a `Buffer` object of the specified `length`,
   // otherwise it will receive an error status.
   //
+  // REQUIRES: `length` must be greater than zero.
+  //
   // REQUIRES: `callback` must not be empty. The caller must always be notified of the end of a read
   // operation, otherwise it wouldn't know when it's okay to start the next.
   //
@@ -195,16 +197,18 @@ class Socket : public BaseSocket {
   //
   // It usually doesn't make sense to issue multiple concurrent reads on the same socket, but if you
   // absolutely must then a read queue must be managed by the caller.
-  absl::Status Read(size_t length, ReadCallback callback) ABSL_LOCKS_EXCLUDED(mutex_);
+  absl::Status Read(size_t length, ReadCallback callback);
 
   // Cancels the read operation currently in progress, if any. Returns true iff a read operation was
   // in progress and cancelled. The callback function of the cancelled operation will be invoked
   // with an error status.
-  bool CancelRead() ABSL_LOCKS_EXCLUDED(mutex_);
+  bool CancelRead();
 
   // Starts an asynchronous write operation. `Socket` takes ownership of the provided `Buffer` and
   // takes care of deleting it as soon as it's no longer needed. Upon completion, `callback` will be
   // invoked with a status.
+  //
+  // REQUIRES: `buffer.size()` must be greater than zero.
   //
   // REQUIRES: `callback` must not be empty. The caller must always be notified of the end of a
   // write operation, otherwise it wouldn't know when it's okay to start the next.
@@ -215,12 +219,12 @@ class Socket : public BaseSocket {
   //
   // It usually doesn't make sense to issue multiple concurrent writes on the same socket, but if
   // you absolutely must then a write queue must be managed by the caller.
-  absl::Status Write(Buffer buffer, WriteCallback callback) ABSL_LOCKS_EXCLUDED(mutex_);
+  absl::Status Write(Buffer buffer, WriteCallback callback);
 
   // Cancels the write operation currently in progress, if any. Returns true iff a write operation
   // was in progress and cancelled. The callback function of the cancelled operation will be invoked
   // with an error status.
-  bool CancelWrite() ABSL_LOCKS_EXCLUDED(mutex_);
+  bool CancelWrite();
 
  protected:
   struct ConnectedTag {};
@@ -236,8 +240,8 @@ class Socket : public BaseSocket {
       : BaseSocket(parent, std::move(fd)), connect_status_(std::move(callback)) {}
 
   void OnError() override;
-  void OnInput() override ABSL_LOCKS_EXCLUDED(mutex_);
-  void OnOutput() override ABSL_LOCKS_EXCLUDED(mutex_);
+  void OnInput() override;
+  void OnOutput() override;
 
  private:
   friend class SelectServer;
@@ -309,27 +313,20 @@ class Socket : public BaseSocket {
                                         std::string_view option_name) const
       ABSL_SHARED_LOCKS_REQUIRED(mutex_);
 
-  absl::Status CloseLocked(absl::Status status) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  absl::Status CloseLocked(absl::Status status);
+  absl::Status MaybeClose(absl::Status status);
 
-  absl::Status MaybeCloseLocked(absl::Status status) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
-    if (status.ok()) {
-      return status;
-    } else {
-      return CloseLocked(std::move(status));
-    }
-  }
+  void MaybeFinalizeConnect();
 
-  void MaybeFinalizeConnect() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  void AbortRead(absl::Status status);
+  void AbortReadAndClose(absl::Status status);
 
-  void AbortRead(absl::Status status) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
-  void AbortReadAndClose(absl::Status status) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  absl::Status FinalizeWrite(absl::Status status);
+  absl::Status FinalizeWriteOrClose(absl::Status status);
 
-  absl::Status FinalizeWrite(absl::Status status) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
-  void FinalizeWriteOrClose(absl::Status status) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
-
-  std::optional<ConnectStatus> connect_status_ ABSL_GUARDED_BY(mutex_) = std::nullopt;
-  std::optional<ReadStatus> read_status_ ABSL_GUARDED_BY(mutex_) = std::nullopt;
-  std::optional<WriteStatus> write_status_ ABSL_GUARDED_BY(mutex_) = std::nullopt;
+  std::optional<ConnectStatus> connect_status_ = std::nullopt;
+  std::optional<ReadStatus> read_status_ = std::nullopt;
+  std::optional<WriteStatus> write_status_ = std::nullopt;
 };
 
 // A listener socket for unencrypted connections.
@@ -414,11 +411,9 @@ class ListenerSocket : public BaseSocket {
       SelectServer* parent, UnixDomainSocketTag const& tag, std::string_view socket_name,
       AcceptCallback callback);
 
-  void CloseFD() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
-    BaseSocket::CloseFD(/*attempt_shutdown=*/false);
-  }
+  void CloseFD() { BaseSocket::CloseFD(/*attempt_shutdown=*/false); }
 
-  absl::StatusOr<std::vector<FD>> AcceptAll() ABSL_LOCKS_EXCLUDED(mutex_);
+  absl::StatusOr<std::vector<FD>> AcceptAll();
 
   std::string const address_;
   uint16_t const port_;

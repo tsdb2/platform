@@ -27,6 +27,24 @@ cc_test(
 )
 
 cc_library(
+    name = "mutex_lock",
+    hdrs = ["mutex_lock.h"],
+    deps = [
+        "@com_google_absl//absl/synchronization",
+    ],
+)
+
+cc_test(
+    name = "mutex_lock_test",
+    srcs = ["mutex_lock_test.cc"],
+    deps = [
+        ":mutex_lock",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "fixed",
     hdrs = ["fixed.h"],
 )
