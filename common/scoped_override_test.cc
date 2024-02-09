@@ -10,9 +10,10 @@
 
 namespace {
 
+using tsdb2::common::Overridable;
+using tsdb2::common::ScopedOverride;
+
 using ::testing::_;
-using ::tsdb2::common::Overridable;
-using ::tsdb2::common::ScopedOverride;
 
 class TestClass {
  public:

@@ -7,7 +7,7 @@
 
 namespace {
 
-using ::tsdb2::common::NoDestructor;
+using tsdb2::common::NoDestructor;
 
 class TestClass final {
  public:

@@ -12,8 +12,9 @@
 
 namespace {
 
+using tsdb2::common::Buffer;
+
 using ::testing::_;
-using ::tsdb2::common::Buffer;
 
 TEST(BufferTest, Empty) {
   Buffer buffer;

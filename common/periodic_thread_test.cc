@@ -7,8 +7,8 @@
 
 namespace {
 
-using ::tsdb2::common::MockClock;
-using ::tsdb2::common::PeriodicClosure;
+using tsdb2::common::MockClock;
+using tsdb2::common::PeriodicClosure;
 
 class PeriodicThreadTest : public ::testing::Test {
  public:

@@ -40,13 +40,13 @@ namespace http {
 
 namespace {
 
-using ::tsdb2::common::Buffer;
-using ::tsdb2::common::reffed_ptr;
-using ::tsdb2::net::kInetSocketTag;
-using ::tsdb2::net::ListenerSocket;
-using ::tsdb2::net::SelectServer;
-using ::tsdb2::net::Socket;
-using ::tsdb2::net::SocketOptions;
+using tsdb2::common::Buffer;
+using tsdb2::common::reffed_ptr;
+using tsdb2::net::kInetSocketTag;
+using tsdb2::net::ListenerSocket;
+using tsdb2::net::SelectServer;
+using tsdb2::net::Socket;
+using tsdb2::net::SocketOptions;
 
 }  // namespace
 

@@ -8,10 +8,11 @@
 
 namespace {
 
+using tsdb2::common::kConstructorArgs;
+using tsdb2::common::ScopedOverride;
+using tsdb2::common::Singleton;
+
 using ::testing::_;
-using ::tsdb2::common::kConstructorArgs;
-using ::tsdb2::common::ScopedOverride;
-using ::tsdb2::common::Singleton;
 
 class TestSingleton final {
  public:

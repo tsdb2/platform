@@ -14,9 +14,9 @@
 
 namespace {
 
-using ::tsdb2::common::MockClock;
-using ::tsdb2::common::Scheduler;
-using ::tsdb2::common::SimpleCondition;
+using tsdb2::common::MockClock;
+using tsdb2::common::Scheduler;
+using tsdb2::common::SimpleCondition;
 
 class SchedulerTest : public ::testing::TestWithParam<int> {
  protected:

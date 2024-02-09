@@ -17,18 +17,19 @@
 
 namespace {
 
+using tsdb2::common::fixed_flat_set_of;
+using tsdb2::common::flat_set;
+using tsdb2::testing::OtherTestKey;
+using tsdb2::testing::ReverseTestCompare;
+using tsdb2::testing::TestCompare;
+using tsdb2::testing::TestKey;
+using tsdb2::testing::TestKeyEq;
+using tsdb2::testing::TestRepresentation;
+using tsdb2::testing::TransparentTestCompare;
+
 using ::testing::_;
 using ::testing::ElementsAre;
 using ::testing::Pair;
-using ::tsdb2::common::fixed_flat_set_of;
-using ::tsdb2::common::flat_set;
-using ::tsdb2::testing::OtherTestKey;
-using ::tsdb2::testing::ReverseTestCompare;
-using ::tsdb2::testing::TestCompare;
-using ::tsdb2::testing::TestKey;
-using ::tsdb2::testing::TestKeyEq;
-using ::tsdb2::testing::TestRepresentation;
-using ::tsdb2::testing::TransparentTestCompare;
 
 template <typename FlatSet, typename... Inner>
 class TestKeysMatcher;
@@ -40,7 +41,7 @@ class TestKeysMatcher<flat_set<Key, Compare, Representation>, Inner...>
   using is_gtest_matcher = void;
 
   using FlatSet = flat_set<Key, Compare, Representation>;
-  using Tuple = std::tuple<::tsdb2::common::FixedT<TestKey, Inner>...>;
+  using Tuple = std::tuple<tsdb2::common::FixedT<TestKey, Inner>...>;
 
   explicit TestKeysMatcher(Inner&&... inner) : inner_{std::forward<Inner>(inner)...} {}
   ~TestKeysMatcher() override = default;
@@ -48,7 +49,7 @@ class TestKeysMatcher<flat_set<Key, Compare, Representation>, Inner...>
   bool MatchAndExplain(FlatSet const& value,
                        ::testing::MatchResultListener* const listener) const override {
     auto it = value.begin();
-    Tuple values{TestKey(::tsdb2::common::FixedV<Inner>(*it++))...};
+    Tuple values{TestKey(tsdb2::common::FixedV<Inner>(*it++))...};
     return ::testing::MatcherCast<Tuple>(inner_).MatchAndExplain(values, listener);
   }
 

@@ -363,8 +363,8 @@ constexpr auto fixed_flat_set_of(internal::EmptyInitializerList, Compare&& comp 
 namespace std {
 
 template <typename Key, typename Compare, typename Representation>
-void swap(::tsdb2::common::flat_set<Key, Compare, Representation>& lhs,
-          ::tsdb2::common::flat_set<Key, Compare, Representation>& rhs) {
+void swap(tsdb2::common::flat_set<Key, Compare, Representation>& lhs,
+          tsdb2::common::flat_set<Key, Compare, Representation>& rhs) {
   lhs.swap(rhs);
 }
 

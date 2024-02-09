@@ -7,8 +7,8 @@
 
 namespace {
 
-using ::tsdb2::common::ReaderMutexLock;
-using ::tsdb2::common::WriterMutexLock;
+using tsdb2::common::ReaderMutexLock;
+using tsdb2::common::WriterMutexLock;
 
 TEST(WriterMutexLockTest, ScopedLock) {
   absl::Mutex mutex;

@@ -531,8 +531,8 @@ constexpr auto fixed_flat_map_of(internal::EmptyInitializerList, Compare&& comp 
 namespace std {
 
 template <typename Key, typename T, typename Compare, typename Representation>
-void swap(::tsdb2::common::flat_map<Key, T, Compare, Representation>& lhs,
-          ::tsdb2::common::flat_map<Key, T, Compare, Representation>& rhs) {
+void swap(tsdb2::common::flat_map<Key, T, Compare, Representation>& lhs,
+          tsdb2::common::flat_map<Key, T, Compare, Representation>& rhs) {
   lhs.swap(rhs);
 }
 

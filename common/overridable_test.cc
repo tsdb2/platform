@@ -8,8 +8,9 @@
 
 namespace {
 
+using tsdb2::common::Overridable;
+
 using ::testing::_;
-using ::tsdb2::common::Overridable;
 
 class TestClass {
  public:

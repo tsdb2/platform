@@ -32,7 +32,7 @@ class HttpConnection : public Socket {
   static bool constexpr kIsListener = false;
 
   static absl::StatusOr<std::unique_ptr<HttpConnection>> Create(
-      ::tsdb2::net::SelectServer* const parent, ::tsdb2::net::FD fd) {
+      tsdb2::net::SelectServer* const parent, tsdb2::net::FD fd) {
     std::unique_ptr<HttpConnection> connection{new HttpConnection(parent, std::move(fd))};
     auto preface_status = connection->ServerPreface();
     if (preface_status.ok()) {
@@ -43,17 +43,17 @@ class HttpConnection : public Socket {
   }
 
  private:
-  explicit HttpConnection(::tsdb2::net::SelectServer* const parent, ::tsdb2::net::FD fd)
+  explicit HttpConnection(tsdb2::net::SelectServer* const parent, tsdb2::net::FD fd)
       : Socket(parent, Socket::kConnectedTag, std::move(fd)) {}
 
-  absl::Status ReadClientPreface(absl::StatusOr<::tsdb2::net::Buffer> status_or_buffer);
+  absl::Status ReadClientPreface(absl::StatusOr<tsdb2::net::Buffer> status_or_buffer);
 
   absl::Status ServerPreface();
 };
 
 template <typename Socket>
 absl::Status HttpConnection<Socket>::ReadClientPreface(
-    absl::StatusOr<::tsdb2::net::Buffer> status_or_buffer) {
+    absl::StatusOr<tsdb2::net::Buffer> status_or_buffer) {
   if (!status_or_buffer.ok()) {
     return status_or_buffer.status();
   }
@@ -78,7 +78,7 @@ absl::Status HttpConnection<Socket>::ServerPreface() {
       .reserved = 0,
       .stream_id = 0,
   };
-  return this->Write(::tsdb2::net::Buffer(&header, kFrameHeaderSize),
+  return this->Write(tsdb2::net::Buffer(&header, kFrameHeaderSize),
                      [](absl::Status) { return absl::OkStatus(); });
 }
 
@@ -90,12 +90,12 @@ class HttpNode {
  public:
   // Constructs an HTTP server bound to the specified address and listening on the specified port.
   // If the address is an empty string the server will bind to `INADDR6_ANY`.
-  static absl::StatusOr<std::unique_ptr<HttpNode>> Create(
-      std::string_view address, uint16_t port, ::tsdb2::net::SocketOptions const& options);
+  static absl::StatusOr<std::unique_ptr<HttpNode>> Create(std::string_view address, uint16_t port,
+                                                          tsdb2::net::SocketOptions const& options);
 
   // Shorthand for `Create("", port, options)`.
   static absl::StatusOr<std::unique_ptr<HttpNode>> Create(
-      uint16_t const port, ::tsdb2::net::SocketOptions const& options) {
+      uint16_t const port, tsdb2::net::SocketOptions const& options) {
     return Create("", port, options);
   }
 
@@ -124,13 +124,12 @@ class HttpNode {
   explicit HttpNode() = default;
 
   absl::Status Listen(std::string_view address, uint16_t port,
-                      ::tsdb2::net::SocketOptions const& options);
+                      tsdb2::net::SocketOptions const& options);
 
-  void AcceptCallback(
-      absl::StatusOr<::tsdb2::common::reffed_ptr<HttpConnection<::tsdb2::net::Socket>>>
-          status_or_socket);
+  void AcceptCallback(absl::StatusOr<tsdb2::common::reffed_ptr<HttpConnection<tsdb2::net::Socket>>>
+                          status_or_socket);
 
-  ::tsdb2::common::reffed_ptr<::tsdb2::net::ListenerSocket<HttpConnection<::tsdb2::net::Socket>>>
+  tsdb2::common::reffed_ptr<tsdb2::net::ListenerSocket<HttpConnection<tsdb2::net::Socket>>>
       listener_;
 
   absl::Notification termination_;

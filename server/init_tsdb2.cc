@@ -10,8 +10,8 @@
 namespace tsdb2 {
 namespace init {
 
-using ::tsdb2::http::HttpNode;
-using ::tsdb2::net::SelectServer;
+using tsdb2::http::HttpNode;
+using tsdb2::net::SelectServer;
 
 namespace {
 

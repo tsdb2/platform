@@ -48,8 +48,8 @@
 namespace tsdb2 {
 namespace net {
 
-using ::tsdb2::common::Buffer;
-using ::tsdb2::io::FD;
+using tsdb2::common::Buffer;
+using tsdb2::io::FD;
 
 inline constexpr char kLocalHost[] = "::1";
 
@@ -93,7 +93,7 @@ struct SocketOptions {
 class SelectServer;
 
 // Base class for all socket types.
-class BaseSocket : public ::tsdb2::common::RefCounted {
+class BaseSocket : public tsdb2::common::RefCounted {
  public:
   explicit BaseSocket(SelectServer* const parent, FD fd)
       : parent_(parent), initial_fd_(*fd), hash_(absl::HashOf(*fd)), fd_(std::move(fd)) {}
@@ -335,7 +335,7 @@ class Socket : public BaseSocket {
 //
 //   auto const listener = SelectServer::GetInstance()->CreateSocket<ListenerSocket>(
 //       kUnixDomainSocketTag, socket_name,
-//       [&](absl::StatusOr<::tsdb2::common::reffed_ptr<Socket>> status_or_socket) {
+//       [&](absl::StatusOr<tsdb2::common::reffed_ptr<Socket>> status_or_socket) {
 //         if (!status_or_socket.ok()) {
 //           // There was an error other than EAGAIN / EWOULDBLOCK.
 //         } else {
@@ -347,7 +347,7 @@ class Socket : public BaseSocket {
 //
 //   auto const listener = SelectServer::GetInstance()->CreateSocket<ListenerSocket>(
 //       kInetSocketTag, address, port,
-//       [&](absl::StatusOr<::tsdb2::common::reffed_ptr<Socket>> status_or_socket) {
+//       [&](absl::StatusOr<tsdb2::common::reffed_ptr<Socket>> status_or_socket) {
 //         if (!status_or_socket.ok()) {
 //           // There was an error other than EAGAIN / EWOULDBLOCK.
 //         } else {
@@ -363,11 +363,11 @@ class Socket : public BaseSocket {
 template <typename Socket>
 class ListenerSocket : public BaseSocket {
  public:
-  static_assert(std::is_base_of_v<::tsdb2::net::Socket, Socket>,
+  static_assert(std::is_base_of_v<tsdb2::net::Socket, Socket>,
                 "The socket type created by ListenerSocket must be a subclass of Socket");
 
-  using AcceptCallback = absl::AnyInvocable<void(
-      absl::StatusOr<::tsdb2::common::reffed_ptr<Socket>> status_or_socket)>;
+  using AcceptCallback =
+      absl::AnyInvocable<void(absl::StatusOr<tsdb2::common::reffed_ptr<Socket>> status_or_socket)>;
 
   static bool constexpr kIsListener = true;
 
@@ -441,7 +441,7 @@ class SelectServer {
   //
   // REQUIRES: `StartOrDie()` must have been completed.
   template <typename SocketType, typename... Args>
-  absl::StatusOr<::tsdb2::common::reffed_ptr<SocketType>> CreateSocket(Args&&... args)
+  absl::StatusOr<tsdb2::common::reffed_ptr<SocketType>> CreateSocket(Args&&... args)
       ABSL_LOCKS_EXCLUDED(mutex_);
 
  private:
@@ -492,7 +492,7 @@ class SelectServer {
   // complexities.
   ~SelectServer() = delete;
 
-  ::tsdb2::common::reffed_ptr<BaseSocket> LookupSocket(int fd) ABSL_LOCKS_EXCLUDED(mutex_);
+  tsdb2::common::reffed_ptr<BaseSocket> LookupSocket(int fd) ABSL_LOCKS_EXCLUDED(mutex_);
 
   void KillSocket(int fd) ABSL_LOCKS_EXCLUDED(mutex_);
 
@@ -632,7 +632,7 @@ absl::StatusOr<std::vector<FD>> ListenerSocket<Socket>::AcceptAll() {
 }
 
 template <typename SocketType, typename... Args>
-absl::StatusOr<::tsdb2::common::reffed_ptr<SocketType>> SelectServer::CreateSocket(Args&&... args) {
+absl::StatusOr<tsdb2::common::reffed_ptr<SocketType>> SelectServer::CreateSocket(Args&&... args) {
   static_assert(std::is_base_of_v<BaseSocket, SocketType>,
                 "SocketType must be a subclass of BaseSocket");
   if (epoll_fd_ < 0) {
@@ -643,7 +643,7 @@ absl::StatusOr<::tsdb2::common::reffed_ptr<SocketType>> SelectServer::CreateSock
     return status_or_socket.status();
   }
   std::unique_ptr<SocketType> socket = std::move(status_or_socket).value();
-  ::tsdb2::common::reffed_ptr<SocketType> ptr{socket.get()};
+  tsdb2::common::reffed_ptr<SocketType> ptr{socket.get()};
   int const fd = socket->initial_fd();
   {
     absl::MutexLock lock{&mutex_};

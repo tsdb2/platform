@@ -10,8 +10,8 @@
 
 namespace {
 
-using ::tsdb2::common::BlockingRefCounted;
-using ::tsdb2::common::reffed_ptr;
+using tsdb2::common::BlockingRefCounted;
+using tsdb2::common::reffed_ptr;
 
 class TestObject {
  public:

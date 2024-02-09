@@ -41,7 +41,7 @@ namespace net {
 
 namespace {
 
-using ::tsdb2::common::reffed_ptr;
+using tsdb2::common::reffed_ptr;
 
 size_t constexpr kMaxEvents = 1024;
 
@@ -159,7 +159,7 @@ absl::Status Socket::Read(size_t const length, ReadCallback callback) {
     return absl::InvalidArgumentError("the read callback must not be empty");
   }
   Buffer buffer{length};
-  ::tsdb2::common::MutexLock lock{&mutex_};
+  tsdb2::common::MutexLock lock{&mutex_};
   if (!fd_) {
     return absl::FailedPreconditionError("this socket has been shut down");
   }
@@ -207,7 +207,7 @@ absl::Status Socket::Write(Buffer buffer, WriteCallback callback) {
   if (!callback) {
     return absl::InvalidArgumentError("the write callback must not be empty");
   }
-  ::tsdb2::common::MutexLock lock{&mutex_};
+  tsdb2::common::MutexLock lock{&mutex_};
   if (!fd_) {
     return absl::FailedPreconditionError("this socket has been shut down");
   }
@@ -254,7 +254,7 @@ void Socket::OnError() {
 }
 
 void Socket::OnInput() {
-  ::tsdb2::common::MutexLock lock{&mutex_};
+  tsdb2::common::MutexLock lock{&mutex_};
   MaybeFinalizeConnect();
   while (fd_ && read_status_) {
     auto& buffer = read_status_->buffer;

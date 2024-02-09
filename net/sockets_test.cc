@@ -25,6 +25,18 @@
 
 namespace {
 
+using tsdb2::common::Buffer;
+using tsdb2::common::reffed_ptr;
+using tsdb2::common::SimpleCondition;
+using tsdb2::net::KeepAliveParams;
+using tsdb2::net::kInetSocketTag;
+using tsdb2::net::kLocalHost;
+using tsdb2::net::kUnixDomainSocketTag;
+using tsdb2::net::ListenerSocket;
+using tsdb2::net::SelectServer;
+using tsdb2::net::Socket;
+using tsdb2::net::SocketOptions;
+
 using ::testing::AllOf;
 using ::testing::Field;
 using ::testing::Not;
@@ -32,17 +44,6 @@ using ::testing::Property;
 using ::testing::status::IsOk;
 using ::testing::status::IsOkAndHolds;
 using ::testing::status::StatusIs;
-using ::tsdb2::common::Buffer;
-using ::tsdb2::common::reffed_ptr;
-using ::tsdb2::common::SimpleCondition;
-using ::tsdb2::net::KeepAliveParams;
-using ::tsdb2::net::kInetSocketTag;
-using ::tsdb2::net::kLocalHost;
-using ::tsdb2::net::kUnixDomainSocketTag;
-using ::tsdb2::net::ListenerSocket;
-using ::tsdb2::net::SelectServer;
-using ::tsdb2::net::Socket;
-using ::tsdb2::net::SocketOptions;
 
 uint16_t GetNewPort() {
   std::random_device rd;

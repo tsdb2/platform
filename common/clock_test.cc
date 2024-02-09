@@ -8,7 +8,7 @@
 
 namespace {
 
-using ::tsdb2::common::RealClock;
+using tsdb2::common::RealClock;
 
 TEST(ClockTest, TimeNow) {
   auto const now = absl::Now();

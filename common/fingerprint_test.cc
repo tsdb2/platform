@@ -37,9 +37,9 @@ class TestClass {
 
 namespace {
 
-using ::tsdb2::common::FingerprintOf;
-using ::tsdb2::common::flat_map;
-using ::tsdb2::common::flat_set;
+using tsdb2::common::FingerprintOf;
+using tsdb2::common::flat_map;
+using tsdb2::common::flat_set;
 
 auto constexpr kInt8Fingerprint = FingerprintOf(int8_t{42});
 auto constexpr kInt16Fingerprint = FingerprintOf(int16_t{42});
