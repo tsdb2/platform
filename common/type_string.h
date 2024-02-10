@@ -16,7 +16,7 @@ struct TypeStringMatcher {
   static std::string_view constexpr value{array, sizeof...(ch)};
 };
 
-namespace internal {
+namespace type_string_internal {
 
 template <typename Matcher, char ch>
 struct Append;
@@ -62,11 +62,11 @@ struct Scan<str, offset, first, rest...> {
   using Matcher = typename Scan<str, offset + 1, str[offset], first, rest...>::Matcher;
 };
 
-}  // namespace internal
+}  // namespace type_string_internal
 
 template <char const str[]>
 struct TypeString {
-  using Matcher = typename internal::Scan<str, 0>::Matcher;
+  using Matcher = typename type_string_internal::Scan<str, 0>::Matcher;
 };
 
 template <char const str[]>
