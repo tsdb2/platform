@@ -27,6 +27,20 @@ cc_test(
 )
 
 cc_library(
+    name = "type_string",
+    hdrs = ["type_string.h"],
+)
+
+cc_test(
+    name = "type_string_test",
+    srcs = ["type_string_test.cc"],
+    deps = [
+        ":type_string",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "mutex_lock",
     hdrs = ["mutex_lock.h"],
     deps = [
