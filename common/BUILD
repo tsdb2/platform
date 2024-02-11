@@ -6,6 +6,11 @@ cc_library(
 )
 
 cc_library(
+    name = "preprocessor",
+    hdrs = ["preprocessor.h"],
+)
+
+cc_library(
     name = "utilities",
     hdrs = ["utilities.h"],
     deps = [
@@ -175,6 +180,26 @@ cc_test(
         ":flat_set",
         ":testing",
         "@com_google_absl//absl/types:span",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "json",
+    hdrs = ["json.h"],
+    deps = [
+        ":preprocessor",
+        ":type_string",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "json_test",
+    srcs = ["json_test.cc"],
+    deps = [
+        ":json",
         "@com_google_googletest//:gtest_main",
     ],
 )
