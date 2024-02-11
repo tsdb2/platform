@@ -10,7 +10,7 @@ namespace common {
 template <char const... ch>
 struct TypeStringMatcher {
  private:
-  static char constexpr array[] = {ch...};
+  static char constexpr array[sizeof...(ch) + 1] = {ch..., 0};
 
  public:
   static std::string_view constexpr value{array, sizeof...(ch)};

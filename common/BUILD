@@ -192,6 +192,7 @@ cc_library(
         ":type_string",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -200,6 +201,7 @@ cc_test(
     srcs = ["json_test.cc"],
     deps = [
         ":json",
+        ":testing",
         "@com_google_googletest//:gtest_main",
     ],
 )
