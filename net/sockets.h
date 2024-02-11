@@ -228,10 +228,10 @@ class Socket : public BaseSocket {
 
  protected:
   struct ConnectedTag {};
-  static inline ConnectedTag constexpr kConnectedTag;
+  static inline ConnectedTag constexpr kConnectedTag{};
 
   struct ConnectingTag {};
-  static inline ConnectingTag constexpr kConnectingTag;
+  static inline ConnectingTag constexpr kConnectingTag{};
 
   explicit Socket(SelectServer* const parent, ConnectedTag const&, FD fd)
       : BaseSocket(parent, std::move(fd)) {}

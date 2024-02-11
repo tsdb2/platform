@@ -28,14 +28,14 @@ char constexpr kFieldName6[] = "consectetur";
 char constexpr kFieldName7[] = "adipisci";
 char constexpr kFieldName8[] = "elit";
 
-using FooBar = json::Object<json::Field<int, kFieldName1>, json::Field<bool, kFieldName2>,
-                            json::Field<std::string, kFieldName3>, json::Field<double, kFieldName4>,
-                            json::Field<std::vector<int>, kFieldName5>,
-                            json::Field<std::tuple<int, bool, std::string>, kFieldName6>,
-                            json::Field<std::variant<std::string, double, int>, kFieldName7>,
-                            json::Field<std::optional<double>, kFieldName8>>;
-
 TEST(JsonTest, FieldAccess) {
+  using FooBar =
+      json::Object<json::Field<int, kFieldName1>, json::Field<bool, kFieldName2>,
+                   json::Field<std::string, kFieldName3>, json::Field<double, kFieldName4>,
+                   json::Field<std::vector<int>, kFieldName5>,
+                   json::Field<std::tuple<int, bool, std::string>, kFieldName6>,
+                   json::Field<std::variant<std::string, double, int>, kFieldName7>,
+                   json::Field<std::optional<double>, kFieldName8>>;
   FooBar object;
   object.get<kFieldName1>() = 42;
   object.get<kFieldName2>() = true;

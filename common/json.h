@@ -54,42 +54,50 @@ class Object<internal::FieldImpl<Type, TypeStringMatcher<name...>>, OtherFields.
   }
 
  protected:
-  template <typename FieldName>
+  template <typename FieldName, typename Dummy = void>
   struct Getter;
 
-  template <>
-  struct Getter<TypeStringMatcher<name...>> {
-    explicit ABSL_ATTRIBUTE_ALWAYS_INLINE Getter(Object& obj) : value(obj.value_) {}
-    ABSL_ATTRIBUTE_ALWAYS_INLINE Type& operator()() const { return value; }
-    Type& value;
-  };
-
-  template <char... field_name>
-  struct Getter<TypeStringMatcher<field_name...>>
-      : public Object<OtherFields...>::template Getter<TypeStringMatcher<field_name...>> {
-    explicit ABSL_ATTRIBUTE_ALWAYS_INLINE Getter(Object& obj)
-        : Object<OtherFields...>::template Getter<TypeStringMatcher<field_name...>>(obj) {}
-  };
-
-  template <typename FieldName>
+  template <typename FieldName, typename Dummy = void>
   struct ConstGetter;
-
-  template <>
-  struct ConstGetter<TypeStringMatcher<name...>> {
-    explicit ABSL_ATTRIBUTE_ALWAYS_INLINE ConstGetter(Object const& obj) : value(obj.value_) {}
-    ABSL_ATTRIBUTE_ALWAYS_INLINE Type const& operator()() const { return value; }
-    Type const& value;
-  };
-
-  template <char... field_name>
-  struct ConstGetter<TypeStringMatcher<field_name...>>
-      : public Object<OtherFields...>::template ConstGetter<TypeStringMatcher<field_name...>> {
-    explicit ABSL_ATTRIBUTE_ALWAYS_INLINE ConstGetter(Object const& obj)
-        : Object<OtherFields...>::template ConstGetter<TypeStringMatcher<field_name...>>(obj) {}
-  };
 
  private:
   Type value_;
+};
+
+template <typename Type, char... name, typename... OtherFields>
+template <typename Dummy>
+struct Object<internal::FieldImpl<Type, TypeStringMatcher<name...>>,
+              OtherFields...>::Getter<TypeStringMatcher<name...>, Dummy> {
+  explicit ABSL_ATTRIBUTE_ALWAYS_INLINE Getter(Object& obj) : value(obj.value_) {}
+  ABSL_ATTRIBUTE_ALWAYS_INLINE Type& operator()() const { return value; }
+  Type& value;
+};
+
+template <typename Type, char... name, typename... OtherFields>
+template <typename Dummy, char... field_name>
+struct Object<internal::FieldImpl<Type, TypeStringMatcher<name...>>,
+              OtherFields...>::Getter<TypeStringMatcher<field_name...>, Dummy>
+    : public Object<OtherFields...>::template Getter<TypeStringMatcher<field_name...>> {
+  explicit ABSL_ATTRIBUTE_ALWAYS_INLINE Getter(Object& obj)
+      : Object<OtherFields...>::template Getter<TypeStringMatcher<field_name...>>(obj) {}
+};
+
+template <typename Type, char... name, typename... OtherFields>
+template <typename Dummy>
+struct Object<internal::FieldImpl<Type, TypeStringMatcher<name...>>,
+              OtherFields...>::ConstGetter<TypeStringMatcher<name...>, Dummy> {
+  explicit ABSL_ATTRIBUTE_ALWAYS_INLINE ConstGetter(Object const& obj) : value(obj.value_) {}
+  ABSL_ATTRIBUTE_ALWAYS_INLINE Type const& operator()() const { return value; }
+  Type const& value;
+};
+
+template <typename Type, char... name, typename... OtherFields>
+template <typename Dummy, char... field_name>
+struct Object<internal::FieldImpl<Type, TypeStringMatcher<name...>>,
+              OtherFields...>::ConstGetter<TypeStringMatcher<field_name...>, Dummy>
+    : public Object<OtherFields...>::template ConstGetter<TypeStringMatcher<field_name...>> {
+  explicit ABSL_ATTRIBUTE_ALWAYS_INLINE ConstGetter(Object const& obj)
+      : Object<OtherFields...>::template ConstGetter<TypeStringMatcher<field_name...>>(obj) {}
 };
 
 #define _TSDB2_JSON_GET_FIELD_NAME(Type, name) name
