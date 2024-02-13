@@ -30,4 +30,9 @@ TEST(TypeStringTest, Value) {
   EXPECT_EQ(TypeStringT<kString2>::value, kString2);
 }
 
+TEST(TypeStringTest, Macro) {
+  EXPECT_TRUE((std::is_same_v<TypeStringT<kString1>, TSDB2_TYPE_STRING("lorem")>));
+  EXPECT_TRUE((std::is_same_v<TypeStringT<kString2>, TSDB2_TYPE_STRING("ipsum")>));
+}
+
 }  // namespace
