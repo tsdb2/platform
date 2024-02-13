@@ -14,6 +14,7 @@ char constexpr kString2[] = "ipsum";
 
 TEST(TypeStringTest, Expansion) {
   EXPECT_TRUE((std::is_same_v<TypeStringT<kString1>, TypeStringMatcher<'l', 'o', 'r', 'e', 'm'>>));
+  EXPECT_TRUE((std::is_same_v<TypeStringT<kString2>, TypeStringMatcher<'i', 'p', 's', 'u', 'm'>>));
 }
 
 TEST(TypeStringTest, Match) {
