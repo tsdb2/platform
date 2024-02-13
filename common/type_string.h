@@ -123,7 +123,8 @@ using TypeStringT = typename TypeString<str>::Matcher;
 namespace type_string_internal {
 
 template <size_t length>
-constexpr char CharAt(char const array[], size_t const index) {
+inline constexpr char CharAt(char const (&array)[length], size_t const index) {
+  static_assert(length <= 81, "TSDB2_TYPE_STRING supports at most 80 characters");
   return index < length ? array[index] : 0;
 }
 
@@ -150,88 +151,88 @@ using RemovePaddingT = typename RemovePadding<ch...>::Matcher;
 
 }  // namespace type_string_internal
 
-#define TSDB2_TYPE_STRING(string)                                                \
-  ::tsdb2::common::type_string_internal::RemovePaddingT<                         \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 79), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 78), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 77), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 76), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 75), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 74), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 73), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 72), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 71), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 70), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 69), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 68), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 67), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 66), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 65), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 64), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 63), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 62), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 61), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 60), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 59), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 58), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 57), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 56), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 55), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 54), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 53), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 52), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 51), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 50), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 49), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 48), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 47), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 46), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 45), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 44), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 43), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 42), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 41), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 40), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 39), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 38), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 37), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 36), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 35), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 34), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 33), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 32), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 31), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 30), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 29), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 28), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 27), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 26), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 25), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 24), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 23), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 22), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 21), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 20), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 19), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 18), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 17), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 16), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 15), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 14), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 13), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 12), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 11), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 10), \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 9),  \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 8),  \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 7),  \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 6),  \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 5),  \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 4),  \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 3),  \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 2),  \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 1),  \
-      ::tsdb2::common::type_string_internal::CharAt<sizeof(string)>(string, 0)>
+#define TSDB2_TYPE_STRING(string)                                \
+  ::tsdb2::common::type_string_internal::RemovePaddingT<         \
+      ::tsdb2::common::type_string_internal::CharAt(string, 79), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 78), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 77), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 76), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 75), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 74), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 73), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 72), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 71), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 70), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 69), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 68), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 67), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 66), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 65), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 64), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 63), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 62), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 61), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 60), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 59), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 58), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 57), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 56), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 55), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 54), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 53), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 52), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 51), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 50), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 49), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 48), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 47), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 46), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 45), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 44), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 43), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 42), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 41), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 40), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 39), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 38), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 37), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 36), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 35), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 34), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 33), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 32), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 31), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 30), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 29), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 28), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 27), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 26), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 25), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 24), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 23), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 22), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 21), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 20), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 19), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 18), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 17), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 16), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 15), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 14), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 13), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 12), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 11), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 10), \
+      ::tsdb2::common::type_string_internal::CharAt(string, 9),  \
+      ::tsdb2::common::type_string_internal::CharAt(string, 8),  \
+      ::tsdb2::common::type_string_internal::CharAt(string, 7),  \
+      ::tsdb2::common::type_string_internal::CharAt(string, 6),  \
+      ::tsdb2::common::type_string_internal::CharAt(string, 5),  \
+      ::tsdb2::common::type_string_internal::CharAt(string, 4),  \
+      ::tsdb2::common::type_string_internal::CharAt(string, 3),  \
+      ::tsdb2::common::type_string_internal::CharAt(string, 2),  \
+      ::tsdb2::common::type_string_internal::CharAt(string, 1),  \
+      ::tsdb2::common::type_string_internal::CharAt(string, 0)>
 
 }  // namespace common
 }  // namespace tsdb2
