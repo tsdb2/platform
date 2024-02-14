@@ -28,15 +28,18 @@ char constexpr kFieldName6[] = "consectetur";
 char constexpr kFieldName7[] = "adipisci";
 char constexpr kFieldName8[] = "elit";
 
+using TestObject = json::Object<                                       //
+    json::Field<int, kFieldName1>,                                     //
+    json::Field<bool, kFieldName2>,                                    //
+    json::Field<std::string, kFieldName3>,                             //
+    json::Field<double, kFieldName4>,                                  //
+    json::Field<std::vector<int>, kFieldName5>,                        //
+    json::Field<std::tuple<int, bool, std::string>, kFieldName6>,      //
+    json::Field<std::variant<std::string, double, int>, kFieldName7>,  //
+    json::Field<std::optional<double>, kFieldName8>>;                  //
+
 TEST(JsonTest, FieldAccess) {
-  using FooBar =
-      json::Object<json::Field<int, kFieldName1>, json::Field<bool, kFieldName2>,
-                   json::Field<std::string, kFieldName3>, json::Field<double, kFieldName4>,
-                   json::Field<std::vector<int>, kFieldName5>,
-                   json::Field<std::tuple<int, bool, std::string>, kFieldName6>,
-                   json::Field<std::variant<std::string, double, int>, kFieldName7>,
-                   json::Field<std::optional<double>, kFieldName8>>;
-  FooBar object;
+  TestObject object;
   object.get<kFieldName1>() = 42;
   object.get<kFieldName2>() = true;
   object.get<kFieldName3>() = "foobar";
@@ -45,7 +48,7 @@ TEST(JsonTest, FieldAccess) {
   object.get<kFieldName6>() = std::make_tuple(43, false, "barbaz");
   object.get<kFieldName7>() = "hello";
   object.get<kFieldName8>() = 2.71;
-  FooBar const& ref = object;
+  TestObject const& ref = object;
   EXPECT_EQ(ref.get<kFieldName1>(), 42);
   EXPECT_EQ(ref.get<kFieldName2>(), true);
   EXPECT_EQ(ref.get<kFieldName3>(), "foobar");
@@ -54,6 +57,21 @@ TEST(JsonTest, FieldAccess) {
   EXPECT_THAT(ref.get<kFieldName6>(), FieldsAre(43, false, "barbaz"));
   EXPECT_THAT(ref.get<kFieldName7>(), VariantWith<std::string>("hello"));
   EXPECT_THAT(ref.get<kFieldName8>(), Optional<double>(2.71));
+}
+
+TEST(JsonTest, Stringify) {
+  TestObject object;
+  object.get<kFieldName1>() = 42;
+  object.get<kFieldName2>() = true;
+  object.get<kFieldName3>() = "foobar";
+  object.get<kFieldName4>() = 3.14;
+  object.get<kFieldName5>() = std::vector<int>{1, 2, 3};
+  object.get<kFieldName6>() = std::make_tuple(43, false, "barbaz");
+  object.get<kFieldName7>() = "hello";
+  object.get<kFieldName8>() = 2.71;
+  EXPECT_EQ(
+      json::Stringify(object),
+      R"json({"lorem":42,"ipsum":true,"dolor":"foobar","sit":3.14,"amet":[1,2,3],"consectetur":[43,false,"barbaz"],"adipisci":"hello","elit":2.71})json");
 }
 
 JSON_OBJECT(                    //

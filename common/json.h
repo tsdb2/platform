@@ -1,17 +1,107 @@
 #ifndef __TSDB2_COMMON_JSON_H__
 #define __TSDB2_COMMON_JSON_H__
 
+#include <array>
+#include <cstddef>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
+#include <type_traits>
 #include <utility>
+#include <variant>
+#include <vector>
 
 #include "absl/base/attributes.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
+#include "absl/strings/escaping.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/strip.h"
 #include "common/preprocessor.h"
 #include "common/type_string.h"
+
+std::string Tsdb2JsonStringify(std::string_view const value) {
+  return absl::StrCat("\"", absl::CEscape(value), "\"");
+}
+
+std::string Tsdb2JsonStringify(bool const value) { return value ? "true" : "false"; }
+
+template <typename Integer>
+std::string Tsdb2JsonStringify(Integer const value,
+                               std::enable_if_t<std::is_integral_v<Integer>, bool> = true) {
+  return absl::StrCat(value);
+}
+
+template <typename Float>
+std::string Tsdb2JsonStringify(Float const value,
+                               std::enable_if_t<std::is_floating_point_v<Float>, bool> = true) {
+  return absl::StrCat(value);
+}
+
+std::string Tsdb2JsonStringify(std::nullptr_t) { return "null"; }
+
+template <typename Pointee>
+std::string Tsdb2JsonStringify(Pointee const* const value) {
+  if (value) {
+    return Tsdb2JsonStringify(*value);
+  } else {
+    return "null";
+  }
+}
+
+template <typename Element>
+std::string Tsdb2JsonStringify(std::vector<Element> const& elements) {
+  std::vector<std::string> strings;
+  strings.reserve(elements.size());
+  for (auto const& element : elements) {
+    strings.emplace_back(Tsdb2JsonStringify(element));
+  }
+  return absl::StrCat("[", absl::StrJoin(strings, ","), "]");
+}
+
+template <typename Element, size_t count>
+std::string Tsdb2JsonStringify(std::array<Element, count> const& elements) {
+  std::vector<std::string> strings;
+  strings.reserve(count);
+  for (auto const& element : elements) {
+    strings.emplace_back(Tsdb2JsonStringify(element));
+  }
+  return absl::StrCat("[", absl::StrJoin(strings, ","), "]");
+}
+
+template <typename... Elements>
+std::string Tsdb2JsonStringify(std::tuple<Elements...> const& elements) {
+  auto const strings = std::apply(
+      [](Elements const&... elements) {
+        return std::array<std::string, sizeof...(Elements)>{Tsdb2JsonStringify(elements)...};
+      },
+      elements);
+  return absl::StrCat("[", absl::StrJoin(strings, ","), "]");
+}
+
+template <typename First, typename Second>
+std::string Tsdb2JsonStringify(std::pair<First, Second> const& pair) {
+  auto first = Tsdb2JsonStringify(pair.first);
+  auto second = Tsdb2JsonStringify(pair.second);
+  return absl::StrCat("[", std::move(first), ",", std::move(second), "]");
+}
+
+template <typename Value>
+std::string Tsdb2JsonStringify(std::optional<Value> const& value) {
+  if (value) {
+    return Tsdb2JsonStringify(*value);
+  } else {
+    return "null";
+  }
+}
+
+template <typename... Variants>
+std::string Tsdb2JsonStringify(std::variant<Variants...> const& value) {
+  return std::visit([](auto const& variant) { return Tsdb2JsonStringify(variant); }, value);
+}
 
 namespace tsdb2 {
 namespace common {
@@ -37,7 +127,10 @@ template <typename... Fields>
 class Object;
 
 template <>
-class Object<> {};
+class Object<> {
+ protected:
+  void StringifyInternal(std::vector<std::string>*) const {}
+};
 
 template <typename Type, char... name, typename... OtherFields>
 class Object<internal::FieldImpl<Type, TypeStringMatcher<name...>>, OtherFields...>
@@ -53,12 +146,27 @@ class Object<internal::FieldImpl<Type, TypeStringMatcher<name...>>, OtherFields.
     return ConstGetter<TypeStringT<field_name>>(*this)();
   }
 
+  std::string Stringify() const {
+    std::vector<std::string> fields;
+    fields.reserve(sizeof...(OtherFields) + 1);
+    StringifyInternal(&fields);
+    return absl::StrCat("{", absl::StrJoin(fields, ","), "}");
+  }
+
+  friend std::string Tsdb2JsonStringify(Object const& value) { return value.Stringify(); }
+
  protected:
   template <typename FieldName, typename Dummy = void>
   struct Getter;
 
   template <typename FieldName, typename Dummy = void>
   struct ConstGetter;
+
+  void StringifyInternal(std::vector<std::string>* const fields) const {
+    fields->emplace_back(absl::StrCat("\"", absl::CEscape(TypeStringMatcher<name...>::value),
+                                      "\":", Tsdb2JsonStringify(value_)));
+    Object<OtherFields...>::StringifyInternal(fields);
+  }
 
  private:
   Type value_;
@@ -195,6 +303,11 @@ absl::StatusOr<bool> Parser::Read<bool>() {
 template <typename Value>
 absl::StatusOr<Value> Parse(std::string_view const input) {
   return internal::Parser(input).Parse<Value>();
+}
+
+template <typename Value>
+std::string Stringify(Value&& value) {
+  return Tsdb2JsonStringify(std::forward<Value>(value));
 }
 
 }  // namespace json
