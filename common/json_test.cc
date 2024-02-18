@@ -4,6 +4,7 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include "common/testing.h"
@@ -17,6 +18,7 @@ using ::testing::ElementsAre;
 using ::testing::FieldsAre;
 using ::testing::Not;
 using ::testing::Optional;
+using ::testing::Pair;
 using ::testing::status::IsOk;
 using ::testing::status::IsOkAndHolds;
 
@@ -196,6 +198,103 @@ TEST(JsonTest, ParseString) {
               IsOkAndHolds("lorem \"ipsum\""));
   EXPECT_THAT(json::Parse<std::string>(" \"lorem \\\"ipsum\\\"\" "),
               IsOkAndHolds("lorem \"ipsum\""));
+}
+
+TEST(JsonTest, ParseOptional) {
+  EXPECT_THAT(json::Parse<std::optional<std::string>>("null"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(json::Parse<std::optional<std::string>>(" null"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(json::Parse<std::optional<std::string>>("null "), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(json::Parse<std::optional<std::string>>(" null "), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(json::Parse<std::optional<bool>>("null"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(json::Parse<std::optional<std::string>>("\"lorem \\\"ipsum\\\"\""),
+              IsOkAndHolds(Optional<std::string>("lorem \"ipsum\"")));
+  EXPECT_THAT(json::Parse<std::optional<bool>>("true"), IsOkAndHolds(Optional(true)));
+  EXPECT_THAT(json::Parse<std::optional<bool>>(" true"), IsOkAndHolds(Optional(true)));
+  EXPECT_THAT(json::Parse<std::optional<bool>>("true "), IsOkAndHolds(Optional(true)));
+  EXPECT_THAT(json::Parse<std::optional<bool>>(" true "), IsOkAndHolds(Optional(true)));
+}
+
+TEST(JsonTest, ParsePair) {
+  EXPECT_THAT((json::Parse<std::pair<int, std::string>>("")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::pair<int, std::string>>("42")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::pair<int, std::string>>("[")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::pair<int, std::string>>("[]")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::pair<int, std::string>>("[42]")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::pair<int, std::string>>("[\"lorem ipsum\"]")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::pair<int, std::string>>("[42,]")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::pair<int, std::string>>("[42,\"lorem \\\"ipsum\\\"\"]")),
+              IsOkAndHolds(Pair(42, "lorem \"ipsum\"")));
+  EXPECT_THAT((json::Parse<std::pair<int, std::string>>("[\"lorem \\\"ipsum\\\"\",42]")),
+              Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::pair<std::string, int>>("[\"dolor \\\"amet\\\"\", -43]")),
+              IsOkAndHolds(Pair("dolor \"amet\"", -43)));
+  EXPECT_THAT((json::Parse<std::pair<std::string, int>>("[\"dolor \\\"amet\\\"\", - 43]")),
+              Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::pair<int, std::string>>(" [42,\"lorem\"]")),
+              IsOkAndHolds(Pair(42, "lorem")));
+  EXPECT_THAT((json::Parse<std::pair<int, std::string>>("[ 42,\"lorem\"]")),
+              IsOkAndHolds(Pair(42, "lorem")));
+  EXPECT_THAT((json::Parse<std::pair<int, std::string>>("[42 ,\"lorem\"]")),
+              IsOkAndHolds(Pair(42, "lorem")));
+  EXPECT_THAT((json::Parse<std::pair<int, std::string>>("[42, \"lorem\"]")),
+              IsOkAndHolds(Pair(42, "lorem")));
+  EXPECT_THAT((json::Parse<std::pair<int, std::string>>("[42,\"lorem\" ]")),
+              IsOkAndHolds(Pair(42, "lorem")));
+  EXPECT_THAT((json::Parse<std::pair<int, std::string>>("[42,\"lorem\"] ")),
+              IsOkAndHolds(Pair(42, "lorem")));
+  EXPECT_THAT((json::Parse<std::pair<int, std::string>>(" [ 42 , \"lorem\" ] ")),
+              IsOkAndHolds(Pair(42, "lorem")));
+}
+
+TEST(JsonTest, ParseTuple) {
+  EXPECT_THAT((json::Parse<std::tuple<>>("")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::tuple<>>("[")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::tuple<>>("[]")), IsOkAndHolds(std::make_tuple()));
+  EXPECT_THAT((json::Parse<std::tuple<>>(" []")), IsOkAndHolds(std::make_tuple()));
+  EXPECT_THAT((json::Parse<std::tuple<>>("[ ]")), IsOkAndHolds(std::make_tuple()));
+  EXPECT_THAT((json::Parse<std::tuple<>>("[] ")), IsOkAndHolds(std::make_tuple()));
+  EXPECT_THAT((json::Parse<std::tuple<>>(" [ ] ")), IsOkAndHolds(std::make_tuple()));
+  EXPECT_THAT((json::Parse<std::tuple<int>>("")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::tuple<int>>("[")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::tuple<int>>("[]")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::tuple<int>>("[42]")), IsOkAndHolds(FieldsAre(42)));
+  EXPECT_THAT((json::Parse<std::tuple<int>>(" [43]")), IsOkAndHolds(FieldsAre(43)));
+  EXPECT_THAT((json::Parse<std::tuple<int>>("[ 44]")), IsOkAndHolds(FieldsAre(44)));
+  EXPECT_THAT((json::Parse<std::tuple<int>>("[45 ]")), IsOkAndHolds(FieldsAre(45)));
+  EXPECT_THAT((json::Parse<std::tuple<int>>("[46] ")), IsOkAndHolds(FieldsAre(46)));
+  EXPECT_THAT((json::Parse<std::tuple<int>>(" [ 47 ] ")), IsOkAndHolds(FieldsAre(47)));
+  EXPECT_THAT((json::Parse<std::tuple<int>>("[-48]")), IsOkAndHolds(FieldsAre(-48)));
+  EXPECT_THAT((json::Parse<std::tuple<int>>("[- 48]")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::tuple<std::string, int>>("")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::tuple<std::string, int>>("[")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::tuple<std::string, int>>("[]")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::tuple<std::string, int>>("[\"lorem\"]")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::tuple<std::string, int>>("[\"lorem\",")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::tuple<std::string, int>>("[\"lorem\",]")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::tuple<std::string, int>>("[\"lorem\",42]")),
+              IsOkAndHolds(FieldsAre("lorem", 42)));
+  EXPECT_THAT((json::Parse<std::tuple<int, std::string>>("[43,\"ipsum\"]")),
+              IsOkAndHolds(FieldsAre(43, "ipsum")));
+  EXPECT_THAT((json::Parse<std::tuple<std::string, int>>("[\"lorem\",42,")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::tuple<std::string, int>>("[\"lorem\",42,]")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::tuple<std::string, int>>(" [\"lorem\",42]")),
+              IsOkAndHolds(FieldsAre("lorem", 42)));
+  EXPECT_THAT((json::Parse<std::tuple<std::string, int>>("[ \"lorem\",42]")),
+              IsOkAndHolds(FieldsAre("lorem", 42)));
+  EXPECT_THAT((json::Parse<std::tuple<std::string, int>>("[\"lorem\" ,42]")),
+              IsOkAndHolds(FieldsAre("lorem", 42)));
+  EXPECT_THAT((json::Parse<std::tuple<std::string, int>>("[\"lorem\", 42]")),
+              IsOkAndHolds(FieldsAre("lorem", 42)));
+  EXPECT_THAT((json::Parse<std::tuple<std::string, int>>("[\"lorem\",42 ]")),
+              IsOkAndHolds(FieldsAre("lorem", 42)));
+  EXPECT_THAT((json::Parse<std::tuple<std::string, int>>("[\"lorem\",42] ")),
+              IsOkAndHolds(FieldsAre("lorem", 42)));
+  EXPECT_THAT((json::Parse<std::tuple<std::string, int>>(" [ \"lorem\" , 42 ] ")),
+              IsOkAndHolds(FieldsAre("lorem", 42)));
+  EXPECT_THAT((json::Parse<std::tuple<bool, int, std::string, int>>("[true, 42, \"lorem\", 43]")),
+              IsOkAndHolds(FieldsAre(true, 42, "lorem", 43)));
+  EXPECT_THAT((json::Parse<std::tuple<bool, int, std::string, int>>("[false, 43, \"ipsum\", 42]")),
+              IsOkAndHolds(FieldsAre(false, 43, "ipsum", 42)));
 }
 
 JSON_OBJECT(                    //

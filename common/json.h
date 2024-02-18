@@ -402,6 +402,12 @@ class Parser {
   template <typename Inner>
   absl::Status ReadTo(std::optional<Inner>* result);
 
+  template <typename First, typename Second>
+  absl::Status ReadTo(std::pair<First, Second>* result);
+
+  template <typename... Elements>
+  absl::Status ReadTo(std::tuple<Elements...>* result);
+
   std::string_view input_;
 };
 
@@ -569,13 +575,59 @@ absl::Status Parser::ReadTo(Float* const result) {
 
 template <typename Inner>
 absl::Status Parser::ReadTo(std::optional<Inner>* const result) {
+  ConsumeWhitespace();
   if (absl::ConsumePrefix(&input_, "null")) {
     *result = std::nullopt;
     return absl::OkStatus();
   } else {
-    result->emplace();
-    return ReadTo<Inner>(&result->value());
+    auto& inner = result->emplace();
+    return ReadTo(&inner);
   }
+}
+
+template <typename First, typename Second>
+absl::Status Parser::ReadTo(std::pair<First, Second>* const result) {
+  ConsumeWhitespace();
+  if (!absl::ConsumePrefix(&input_, "[")) {
+    return InvalidSyntaxError();
+  }
+  RETURN_IF_ERROR(ReadTo(&(result->first)));
+  ConsumeWhitespace();
+  if (!absl::ConsumePrefix(&input_, ",")) {
+    return InvalidSyntaxError();
+  }
+  RETURN_IF_ERROR(ReadTo(&(result->second)));
+  ConsumeWhitespace();
+  if (!absl::ConsumePrefix(&input_, "]")) {
+    return InvalidSyntaxError();
+  }
+  return absl::OkStatus();
+}
+
+template <typename... Elements>
+absl::Status Parser::ReadTo(std::tuple<Elements...>* const result) {
+  ConsumeWhitespace();
+  if (!absl::ConsumePrefix(&input_, "[")) {
+    return InvalidSyntaxError();
+  }
+  RETURN_IF_ERROR(std::apply(
+      [this](auto&... elements) {
+        bool first = true;
+        auto status = absl::OkStatus();
+        static_cast<void>(
+            (((first ? !(first = false) : (ConsumeWhitespace(), absl::ConsumePrefix(&input_, ",")))
+                  ? (status = ReadTo(&elements))
+                  : (status = InvalidSyntaxError()))
+                 .ok() &&
+             ...));
+        return status;
+      },
+      *result));
+  ConsumeWhitespace();
+  if (!absl::ConsumePrefix(&input_, "]")) {
+    return InvalidSyntaxError();
+  }
+  return absl::OkStatus();
 }
 
 }  // namespace internal
