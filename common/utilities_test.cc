@@ -1,11 +1,15 @@
 #include "common/utilities.h"
 
+#include <cstdint>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "common/testing.h"
 #include "gtest/gtest.h"
 
 namespace {
+
+using tsdb2::util::IsIntegralStrictV;
 
 using ::testing::status::IsOk;
 using ::testing::status::IsOkAndHolds;
@@ -66,6 +70,20 @@ absl::StatusOr<int> BazVar(bool const fail) {
 TEST(UtilitiesTest, AssignVarOrReturn) {
   EXPECT_THAT(BazVar(false), IsOkAndHolds(42));
   EXPECT_THAT(BazVar(true), StatusIs(absl::StatusCode::kAborted));
+}
+
+TEST(UtilitiesTest, IsIntegralStrict) {
+  enum class E { k1, k2, k3 };
+  EXPECT_FALSE(IsIntegralStrictV<E>);
+  EXPECT_FALSE(IsIntegralStrictV<bool>);
+  EXPECT_TRUE(IsIntegralStrictV<int8_t>);
+  EXPECT_TRUE(IsIntegralStrictV<int16_t>);
+  EXPECT_TRUE(IsIntegralStrictV<int32_t>);
+  EXPECT_TRUE(IsIntegralStrictV<int64_t>);
+  EXPECT_TRUE(IsIntegralStrictV<uint8_t>);
+  EXPECT_TRUE(IsIntegralStrictV<uint16_t>);
+  EXPECT_TRUE(IsIntegralStrictV<uint32_t>);
+  EXPECT_TRUE(IsIntegralStrictV<uint64_t>);
 }
 
 }  // namespace

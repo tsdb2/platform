@@ -1,11 +1,23 @@
 #ifndef __TSDB2_COMMON_UTILITIES_H__
 #define __TSDB2_COMMON_UTILITIES_H__
 
+#include <type_traits>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 
 namespace tsdb2 {
 namespace util {
+
+// Like `std::is_integral` but excludes booleans.
+template <typename Type>
+using IsIntegralStrict =
+    std::conjunction<std::is_integral<Type>, std::negation<std::is_same<Type, bool>>>;
+
+// Like `std::is_integral_v` but excludes booleans.
+template <typename Type>
+inline bool constexpr IsIntegralStrictV = IsIntegralStrict<Type>::value;
+
 namespace internal {
 
 inline absl::Status ReturnIfError_GetStatus(absl::Status const& status) { return status; }
@@ -16,6 +28,7 @@ inline absl::Status ReturnIfError_GetStatus(absl::StatusOr<T> const& status_or) 
 }
 
 }  // namespace internal
+
 }  // namespace util
 }  // namespace tsdb2
 
@@ -41,7 +54,7 @@ inline absl::Status ReturnIfError_GetStatus(absl::StatusOr<T> const& status_or) 
     if (!status.ok()) {                                                \
       return ::tsdb2::util::internal::ReturnIfError_GetStatus(status); \
     }                                                                  \
-  } while (false);
+  } while (false)
 
 // Evaluates the right-hand side assuming it returns an `absl::StatusOr`. If the returned status is
 // OK the wrapped value is assigned to the left-hand side, otherwise returns prematurely with the
@@ -67,7 +80,7 @@ inline absl::Status ReturnIfError_GetStatus(absl::StatusOr<T> const& status_or) 
     } else {                                      \
       return std::move(status_or_value).status(); \
     }                                             \
-  } while (false);
+  } while (false)
 
 // Declares a new variable with the given `type` and `name`, evaluates the provided `expression`
 // assuming it returns an `absl::StatusOr`, then if the returned status is OK the wrapped value is

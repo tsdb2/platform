@@ -2,6 +2,7 @@
 #define __TSDB2_COMMON_JSON_H__
 
 #include <array>
+#include <cctype>
 #include <cstddef>
 #include <optional>
 #include <string>
@@ -22,6 +23,7 @@
 #include "absl/strings/strip.h"
 #include "common/preprocessor.h"
 #include "common/type_string.h"
+#include "common/utilities.h"
 
 std::string Tsdb2JsonStringify(std::string_view const value) {
   return absl::StrCat("\"", absl::CEscape(value), "\"");
@@ -30,8 +32,8 @@ std::string Tsdb2JsonStringify(std::string_view const value) {
 std::string Tsdb2JsonStringify(bool const value) { return value ? "true" : "false"; }
 
 template <typename Integer>
-std::string Tsdb2JsonStringify(Integer const value,
-                               std::enable_if_t<std::is_integral_v<Integer>, bool> = true) {
+std::string Tsdb2JsonStringify(
+    Integer const value, std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>, bool> = true) {
   return absl::StrCat(value);
 }
 
@@ -261,41 +263,73 @@ class Parser {
     input_.remove_prefix(offset);
   }
 
-  template <typename Value>
-  absl::StatusOr<Value> Read();
+  absl::Status ReadTo(bool* result);
+
+  template <typename Integer,
+            std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>, bool> = true>
+  absl::Status ReadTo(Integer* result);
 
   std::string_view input_;
 };
 
 template <typename Value>
 absl::StatusOr<Value> Parser::Parse() {
-  auto status_or_value = Read<Value>();
-  if (!status_or_value.ok()) {
-    return std::move(status_or_value).status();
-  }
+  Value value;
+  RETURN_IF_ERROR(ReadTo(&value));
   ConsumeWhitespace();
   if (!input_.empty()) {
     return InvalidSyntaxError();
   }
-  return status_or_value;
+  return value;
 }
 
-template <>
-absl::StatusOr<bool> Parser::Read<bool>() {
+absl::Status Parser::ReadTo(bool* const result) {
   ConsumeWhitespace();
   if (absl::ConsumePrefix(&input_, "true")) {
     if (!input_.empty() && absl::ascii_isalnum(input_[0])) {
       return InvalidSyntaxError();
     }
-    return true;
+    *result = true;
+    return absl::OkStatus();
   } else if (absl::ConsumePrefix(&input_, "false")) {
     if (!input_.empty() && absl::ascii_isalnum(input_[0])) {
       return InvalidSyntaxError();
     }
-    return false;
+    *result = false;
+    return absl::OkStatus();
   } else {
     return InvalidSyntaxError();
   }
+}
+
+template <typename Integer, std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>, bool>>
+absl::Status Parser::ReadTo(Integer* const result) {
+  ConsumeWhitespace();
+  if (input_.empty()) {
+    return InvalidSyntaxError();
+  }
+  int sign = 1;
+  if (absl::ConsumePrefix(&input_, "-")) {
+    if constexpr (!std::is_signed_v<Integer>) {
+      return InvalidSyntaxError();
+    }
+    sign = -1;
+  }
+  if (input_.empty() || !std::isdigit(input_[0])) {
+    return InvalidSyntaxError();
+  }
+  Integer number = input_[0] - '0';
+  input_.remove_prefix(1);
+  if (!number) {
+    *result = 0;
+    return absl::OkStatus();
+  }
+  while (!input_.empty() && std::isdigit(input_[0])) {
+    number = number * 10 + (input_[0] - '0');
+    input_.remove_prefix(1);
+  }
+  *result = number * sign;
+  return absl::OkStatus();
 }
 
 }  // namespace internal

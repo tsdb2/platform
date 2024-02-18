@@ -15,8 +15,10 @@ namespace json = tsdb2::json;
 
 using ::testing::ElementsAre;
 using ::testing::FieldsAre;
+using ::testing::Not;
 using ::testing::Optional;
 using ::testing::VariantWith;
+using ::testing::status::IsOk;
 using ::testing::status::IsOkAndHolds;
 
 char constexpr kFieldName1[] = "lorem";
@@ -74,6 +76,55 @@ TEST(JsonTest, Stringify) {
       R"json({"lorem":42,"ipsum":true,"dolor":"foobar","sit":3.14,"amet":[1,2,3],"consectetur":[43,false,"barbaz"],"adipisci":"hello","elit":2.71})json");
 }
 
+TEST(JsonTest, ParseBool) {
+  EXPECT_THAT(json::Parse<bool>(""), Not(IsOk()));
+  EXPECT_THAT(json::Parse<bool>(" "), Not(IsOk()));
+  EXPECT_THAT(json::Parse<bool>("true"), IsOkAndHolds(true));
+  EXPECT_THAT(json::Parse<bool>(" true"), IsOkAndHolds(true));
+  EXPECT_THAT(json::Parse<bool>("true "), IsOkAndHolds(true));
+  EXPECT_THAT(json::Parse<bool>(" true "), IsOkAndHolds(true));
+  EXPECT_THAT(json::Parse<bool>("truesuffix"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<bool>("false"), IsOkAndHolds(false));
+  EXPECT_THAT(json::Parse<bool>(" false"), IsOkAndHolds(false));
+  EXPECT_THAT(json::Parse<bool>("falsesuffix"), Not(IsOk()));
+}
+
+TEST(JsonTest, ParseUnsignedInteger) {
+  EXPECT_THAT(json::Parse<unsigned int>(""), Not(IsOk()));
+  EXPECT_THAT(json::Parse<unsigned int>(" "), Not(IsOk()));
+  EXPECT_THAT(json::Parse<unsigned int>("-3"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<unsigned int>("abc"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<unsigned int>("0"), IsOkAndHolds(0));
+  EXPECT_THAT(json::Parse<unsigned int>(" 0"), IsOkAndHolds(0));
+  EXPECT_THAT(json::Parse<unsigned int>("0 "), IsOkAndHolds(0));
+  EXPECT_THAT(json::Parse<unsigned int>(" 0 "), IsOkAndHolds(0));
+  EXPECT_THAT(json::Parse<unsigned int>("03"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<unsigned int>("314"), IsOkAndHolds(314));
+  EXPECT_THAT(json::Parse<unsigned int>(" 314"), IsOkAndHolds(314));
+  EXPECT_THAT(json::Parse<unsigned int>("314 "), IsOkAndHolds(314));
+  EXPECT_THAT(json::Parse<unsigned int>(" 314 "), IsOkAndHolds(314));
+}
+
+TEST(JsonTest, ParseSignedInteger) {
+  EXPECT_THAT(json::Parse<signed int>(""), Not(IsOk()));
+  EXPECT_THAT(json::Parse<signed int>(" "), Not(IsOk()));
+  EXPECT_THAT(json::Parse<signed int>("abc"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<signed int>("0"), IsOkAndHolds(0));
+  EXPECT_THAT(json::Parse<signed int>(" 0"), IsOkAndHolds(0));
+  EXPECT_THAT(json::Parse<signed int>("0 "), IsOkAndHolds(0));
+  EXPECT_THAT(json::Parse<signed int>(" 0 "), IsOkAndHolds(0));
+  EXPECT_THAT(json::Parse<signed int>("02"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<signed int>("271"), IsOkAndHolds(271));
+  EXPECT_THAT(json::Parse<signed int>(" 271"), IsOkAndHolds(271));
+  EXPECT_THAT(json::Parse<signed int>("271 "), IsOkAndHolds(271));
+  EXPECT_THAT(json::Parse<signed int>(" 271 "), IsOkAndHolds(271));
+  EXPECT_THAT(json::Parse<signed int>("-271"), IsOkAndHolds(-271));
+  EXPECT_THAT(json::Parse<signed int>(" -271"), IsOkAndHolds(-271));
+  EXPECT_THAT(json::Parse<signed int>("-271 "), IsOkAndHolds(-271));
+  EXPECT_THAT(json::Parse<signed int>(" -271 "), IsOkAndHolds(-271));
+  EXPECT_THAT(json::Parse<signed int>("- 271"), Not(IsOk()));
+}
+
 JSON_OBJECT(                    //
     BarBaz,                     //
     (int, lorem),               //
@@ -94,17 +145,6 @@ TEST(MacroJsonTest, FieldNames) {
   EXPECT_EQ(kBarBaz_sit_FieldName, std::string_view("sit"));
   EXPECT_EQ(kBarBaz_amet_FieldName, std::string_view("amet"));
   // TODO
-}
-
-TEST(MacroJsonTest, ParseBool) {
-  EXPECT_THAT(json::Parse<bool>("true"), IsOkAndHolds(true));
-  EXPECT_THAT(json::Parse<bool>(" true"), IsOkAndHolds(true));
-  EXPECT_THAT(json::Parse<bool>("true "), IsOkAndHolds(true));
-  EXPECT_THAT(json::Parse<bool>(" true "), IsOkAndHolds(true));
-  EXPECT_THAT(json::Parse<bool>("false"), IsOkAndHolds(false));
-  EXPECT_THAT(json::Parse<bool>(" false"), IsOkAndHolds(false));
-  EXPECT_THAT(json::Parse<bool>("false "), IsOkAndHolds(false));
-  EXPECT_THAT(json::Parse<bool>(" false "), IsOkAndHolds(false));
 }
 
 }  // namespace
