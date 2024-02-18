@@ -12,7 +12,7 @@
 //   * bool,
 //   * all signed and unsigned integer types,
 //   * all floating point types,
-//   * std::string / std::string_view / char*,
+//   * std::string,
 //   * std::optional (serializes "null" if empty),
 //   * std::variant,
 //   * std::pair,
@@ -22,7 +22,8 @@
 //   * std::set / std::unordered_set / absl::flat_hash_set / tsdb2::common::flat_set,
 //   * std::map / std::unordered_map / absl::flat_hash_map / tsdb2::common::flat_map,
 //   * tsdb2::json::Object,
-//   * data types managed by pointer.
+//   * data types managed by raw pointer, std::unique_ptr, std::shared_ptr, or
+//     tsdb2::common::reffed_ptr (serializes "null" if the pointer is null).
 //
 // Example:
 //
@@ -49,6 +50,7 @@
 #include <cstdint>
 #include <limits>
 #include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -70,6 +72,7 @@
 #include "absl/strings/strip.h"
 #include "common/flat_map.h"
 #include "common/preprocessor.h"
+#include "common/reffed_ptr.h"
 #include "common/type_string.h"
 #include "common/utilities.h"
 
@@ -79,15 +82,13 @@ inline std::string Tsdb2JsonStringify(std::string_view const value) {
 
 inline std::string Tsdb2JsonStringify(bool const value) { return value ? "true" : "false"; }
 
-template <typename Integer>
-inline std::string Tsdb2JsonStringify(
-    Integer const value, std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>, bool> = true) {
+template <typename Integer, std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>, bool> = true>
+inline std::string Tsdb2JsonStringify(Integer const value) {
   return absl::StrCat(value);
 }
 
-template <typename Float>
-inline std::string Tsdb2JsonStringify(
-    Float const value, std::enable_if_t<std::is_floating_point_v<Float>, bool> = true) {
+template <typename Float, std::enable_if_t<std::is_floating_point_v<Float>, bool> = true>
+inline std::string Tsdb2JsonStringify(Float const value) {
   return absl::StrCat(value);
 }
 
@@ -95,6 +96,33 @@ inline std::string Tsdb2JsonStringify(std::nullptr_t) { return "null"; }
 
 template <typename Pointee>
 inline std::string Tsdb2JsonStringify(Pointee const* const value) {
+  if (value) {
+    return Tsdb2JsonStringify(*value);
+  } else {
+    return "null";
+  }
+}
+
+template <typename Pointee>
+inline std::string Tsdb2JsonStringify(std::unique_ptr<Pointee> const& value) {
+  if (value) {
+    return Tsdb2JsonStringify(*value);
+  } else {
+    return "null";
+  }
+}
+
+template <typename Pointee>
+inline std::string Tsdb2JsonStringify(std::shared_ptr<Pointee> const& value) {
+  if (value) {
+    return Tsdb2JsonStringify(*value);
+  } else {
+    return "null";
+  }
+}
+
+template <typename Pointee>
+inline std::string Tsdb2JsonStringify(tsdb2::common::reffed_ptr<Pointee> const& value) {
   if (value) {
     return Tsdb2JsonStringify(*value);
   } else {
@@ -134,9 +162,9 @@ inline std::string Tsdb2JsonStringify(std::tuple<Elements...> const& elements) {
 
 template <typename First, typename Second>
 inline std::string Tsdb2JsonStringify(std::pair<First, Second> const& pair) {
-  auto first = Tsdb2JsonStringify(pair.first);
-  auto second = Tsdb2JsonStringify(pair.second);
-  return absl::StrCat("[", std::move(first), ",", std::move(second), "]");
+  auto const first = Tsdb2JsonStringify(pair.first);
+  auto const second = Tsdb2JsonStringify(pair.second);
+  return absl::StrCat("[", first, ",", second, "]");
 }
 
 template <typename Value>
@@ -343,7 +371,21 @@ class Parser {
 
   static bool IsDigit(char const ch) { return ch >= '0' && ch <= '9'; }
 
-  bool PeekDigit() const { return !input_.empty() && IsDigit(input_[0]); }
+  static bool IsHexDigit(char const ch) {
+    return (ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'F') || (ch >= 'a' && ch <= 'f');
+  }
+
+  static uint8_t ParseHexDigit(char const ch) {
+    if (ch >= '0' && ch <= '9') {
+      return ch - '0';
+    } else if (ch >= 'A' && ch <= 'F') {
+      return ch - 'A' + 10;
+    } else {
+      return ch - 'a' + 10;
+    }
+  }
+
+  bool PeekDigit() const { return !input_.empty() && IsDigit(input_.front()); }
 
   void ConsumeWhitespace() {
     size_t offset = 0;
@@ -362,6 +404,8 @@ class Parser {
   template <typename Float, std::enable_if_t<std::is_floating_point_v<Float>, bool> = true>
   absl::Status ReadTo(Float* result);
 
+  absl::Status ReadTo(std::string* result);
+
   std::string_view input_;
 };
 
@@ -374,19 +418,6 @@ absl::StatusOr<Value> Parser::Parse() {
     return InvalidSyntaxError();
   }
   return value;
-}
-
-absl::Status Parser::ReadTo(bool* const result) {
-  ConsumeWhitespace();
-  if (absl::ConsumePrefix(&input_, "true")) {
-    *result = true;
-    return absl::OkStatus();
-  } else if (absl::ConsumePrefix(&input_, "false")) {
-    *result = false;
-    return absl::OkStatus();
-  } else {
-    return InvalidSyntaxError();
-  }
 }
 
 template <typename Integer, std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>, bool>>
@@ -405,7 +436,7 @@ absl::Status Parser::ReadTo(Integer* const result) {
   if (!PeekDigit()) {
     return InvalidSyntaxError();
   }
-  uint8_t digit = input_[0] - '0';
+  uint8_t digit = input_.front() - '0';
   input_.remove_prefix(1);
   *result = digit;
   if (!digit) {
@@ -417,7 +448,7 @@ absl::Status Parser::ReadTo(Integer* const result) {
       return InvalidFormatError();
     }
     *result *= 10;
-    digit = input_[0] - '0';
+    digit = input_.front() - '0';
     if (*result > kMax - digit) {
       return InvalidFormatError();
     }
@@ -441,7 +472,7 @@ absl::Status Parser::ReadTo(Float* const result) {
   if (!PeekDigit()) {
     return InvalidSyntaxError();
   }
-  uint8_t digit = input_[0] - '0';
+  uint8_t digit = input_.front() - '0';
   input_.remove_prefix(1);
   if (!digit) {
     *result = sign * 0.0;
@@ -454,7 +485,7 @@ absl::Status Parser::ReadTo(Float* const result) {
       return InvalidFormatError();
     }
     mantissa *= 10;
-    digit = input_[0] - '0';
+    digit = input_.front() - '0';
     if (mantissa > kMaxMantissa - digit) {
       return InvalidFormatError();
     }
@@ -471,7 +502,7 @@ absl::Status Parser::ReadTo(Float* const result) {
       return InvalidFormatError();
     }
     mantissa *= 10;
-    digit = input_[0] - '0';
+    digit = input_.front() - '0';
     if (mantissa > kMaxMantissa - digit) {
       return InvalidFormatError();
     }
@@ -483,7 +514,7 @@ absl::Status Parser::ReadTo(Float* const result) {
         return InvalidFormatError();
       }
       mantissa *= 10;
-      digit = input_[0] - '0';
+      digit = input_.front() - '0';
       if (mantissa > kMaxMantissa - digit) {
         return InvalidFormatError();
       }
@@ -502,7 +533,7 @@ absl::Status Parser::ReadTo(Float* const result) {
     if (!PeekDigit()) {
       return InvalidSyntaxError();
     }
-    exponent = exponent_sign * (input_[0] - '0');
+    exponent = exponent_sign * (input_.front() - '0');
     input_.remove_prefix(1);
     static int constexpr kMinExponent = std::numeric_limits<Float>::min_exponent10;
     static int constexpr kMaxExponent = std::numeric_limits<Float>::max_exponent10;
@@ -519,7 +550,7 @@ absl::Status Parser::ReadTo(Float* const result) {
         }
       }
       exponent *= 10;
-      int8_t const digit = input_[0] - '0';
+      int8_t const digit = input_.front() - '0';
       input_.remove_prefix(1);
       if (exponent_sign < 0) {
         if (exponent < min_exponent - digit) {

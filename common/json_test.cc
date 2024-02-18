@@ -89,6 +89,11 @@ TEST(JsonTest, ParseBool) {
   EXPECT_THAT(json::Parse<bool>("falsesuffix"), Not(IsOk()));
 }
 
+TEST(JsonTest, StringifyBool) {
+  EXPECT_EQ(json::Stringify(true), "true");
+  EXPECT_EQ(json::Stringify(false), "false");
+}
+
 TEST(JsonTest, ParseUnsignedInteger) {
   EXPECT_THAT(json::Parse<unsigned int>(""), Not(IsOk()));
   EXPECT_THAT(json::Parse<unsigned int>(" "), Not(IsOk()));
@@ -103,6 +108,13 @@ TEST(JsonTest, ParseUnsignedInteger) {
   EXPECT_THAT(json::Parse<unsigned int>(" 314"), IsOkAndHolds(314));
   EXPECT_THAT(json::Parse<unsigned int>("314 "), IsOkAndHolds(314));
   EXPECT_THAT(json::Parse<unsigned int>(" 314 "), IsOkAndHolds(314));
+}
+
+TEST(JsonTest, StringifyUnsignedInteger) {
+  EXPECT_EQ(json::Stringify<uint8_t>(42), "42");
+  EXPECT_EQ(json::Stringify<uint16_t>(43), "43");
+  EXPECT_EQ(json::Stringify<uint32_t>(44), "44");
+  EXPECT_EQ(json::Stringify<uint64_t>(45), "45");
 }
 
 TEST(JsonTest, ParseSignedInteger) {
@@ -124,6 +136,17 @@ TEST(JsonTest, ParseSignedInteger) {
   EXPECT_THAT(json::Parse<signed int>("-271 "), IsOkAndHolds(-271));
   EXPECT_THAT(json::Parse<signed int>(" -271 "), IsOkAndHolds(-271));
   EXPECT_THAT(json::Parse<signed int>("- 271"), Not(IsOk()));
+}
+
+TEST(JsonTest, StringifySignedInteger) {
+  EXPECT_EQ(json::Stringify<int8_t>(42), "42");
+  EXPECT_EQ(json::Stringify<int16_t>(43), "43");
+  EXPECT_EQ(json::Stringify<int32_t>(44), "44");
+  EXPECT_EQ(json::Stringify<int64_t>(45), "45");
+  EXPECT_EQ(json::Stringify<int8_t>(-46), "-46");
+  EXPECT_EQ(json::Stringify<int16_t>(-47), "-47");
+  EXPECT_EQ(json::Stringify<int32_t>(-48), "-48");
+  EXPECT_EQ(json::Stringify<int64_t>(-49), "-49");
 }
 
 TEST(JsonTest, ParseFloat) {
@@ -156,6 +179,29 @@ TEST(JsonTest, ParseFloat) {
   EXPECT_THAT(json::Parse<double>("123.456E12"), IsOkAndHolds(123456000000000));
   EXPECT_THAT(json::Parse<double>("-123.456e12"), IsOkAndHolds(-123456000000000));
   EXPECT_THAT(json::Parse<double>("-123.456E12"), IsOkAndHolds(-123456000000000));
+  EXPECT_THAT(json::Parse<double>(" -123.456e+12"), IsOkAndHolds(-123456000000000));
+  EXPECT_THAT(json::Parse<double>("-123.456e+12 "), IsOkAndHolds(-123456000000000));
+  EXPECT_THAT(json::Parse<double>(" -123.456e+12 "), IsOkAndHolds(-123456000000000));
+}
+
+// TODO: StringifyFloat test?
+
+TEST(JsonTest, ParseString) {
+  EXPECT_THAT(json::Parse<std::string>(""), Not(IsOk()));
+  EXPECT_THAT(json::Parse<std::string>(" "), Not(IsOk()));
+  EXPECT_THAT(json::Parse<std::string>("\""), Not(IsOk()));
+  EXPECT_THAT(json::Parse<std::string>("\"\""), IsOkAndHolds(""));
+  EXPECT_THAT(json::Parse<std::string>("\"lorem ipsum\""), IsOkAndHolds("lorem ipsum"));
+  EXPECT_THAT(json::Parse<std::string>("\"lorem \\\"ipsum\\\"\""), IsOkAndHolds("lorem \"ipsum\""));
+  EXPECT_THAT(
+      json::Parse<std::string>("\"a \\\" b \\\\ c \\/ d \\b e \\f f \\n g \\r h \\t i \\u0042\""),
+      IsOkAndHolds("a \" b \\ c / d \b e \f f \n g \r h \t i \u0042"));
+  EXPECT_THAT(json::Parse<std::string>(" \"lorem \\\"ipsum\\\"\""),
+              IsOkAndHolds("lorem \"ipsum\""));
+  EXPECT_THAT(json::Parse<std::string>("\"lorem \\\"ipsum\\\"\" "),
+              IsOkAndHolds("lorem \"ipsum\""));
+  EXPECT_THAT(json::Parse<std::string>(" \"lorem \\\"ipsum\\\"\" "),
+              IsOkAndHolds("lorem \"ipsum\""));
 }
 
 JSON_OBJECT(                    //

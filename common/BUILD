@@ -186,10 +186,13 @@ cc_test(
 
 cc_library(
     name = "json",
+    srcs = ["json.cc"],
     hdrs = ["json.h"],
     deps = [
         ":flat_map",
+        ":flat_set",
         ":preprocessor",
+        ":reffed_ptr",
         ":type_string",
         ":utilities",
         "@com_google_absl//absl/container:flat_hash_map",
