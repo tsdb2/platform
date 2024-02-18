@@ -14,7 +14,6 @@
 //   * all floating point types,
 //   * std::string,
 //   * std::optional (serializes "null" if empty),
-//   * std::variant,
 //   * std::pair,
 //   * std::tuple,
 //   * std::array,
@@ -58,7 +57,6 @@
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "absl/base/attributes.h"
@@ -174,11 +172,6 @@ inline std::string Tsdb2JsonStringify(std::optional<Value> const& value) {
   } else {
     return "null";
   }
-}
-
-template <typename... Variants>
-inline std::string Tsdb2JsonStringify(std::variant<Variants...> const& value) {
-  return std::visit([](auto const& variant) { return Tsdb2JsonStringify(variant); }, value);
 }
 
 template <typename Dictionary>
@@ -406,6 +399,9 @@ class Parser {
 
   absl::Status ReadTo(std::string* result);
 
+  template <typename Inner>
+  absl::Status ReadTo(std::optional<Inner>* result);
+
   std::string_view input_;
 };
 
@@ -569,6 +565,17 @@ absl::Status Parser::ReadTo(Float* const result) {
   *result =
       sign * mantissa * std::pow(static_cast<long double>(10), static_cast<long double>(exponent));
   return absl::OkStatus();
+}
+
+template <typename Inner>
+absl::Status Parser::ReadTo(std::optional<Inner>* const result) {
+  if (absl::ConsumePrefix(&input_, "null")) {
+    *result = std::nullopt;
+    return absl::OkStatus();
+  } else {
+    result->emplace();
+    return ReadTo<Inner>(&result->value());
+  }
 }
 
 }  // namespace internal

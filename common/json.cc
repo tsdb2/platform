@@ -13,6 +13,8 @@ namespace common {
 namespace json {
 namespace internal {
 
+namespace {
+
 auto constexpr kEscapeSequences = fixed_flat_map_of<char, char>({
     {'"', '"'},
     {'\\', '\\'},
@@ -23,6 +25,8 @@ auto constexpr kEscapeSequences = fixed_flat_map_of<char, char>({
     {'r', '\r'},
     {'t', '\t'},
 });
+
+}  // namespace
 
 absl::Status Parser::ReadTo(bool* const result) {
   ConsumeWhitespace();
