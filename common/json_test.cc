@@ -113,6 +113,7 @@ TEST(JsonTest, ParseSignedInteger) {
   EXPECT_THAT(json::Parse<signed int>(" 0"), IsOkAndHolds(0));
   EXPECT_THAT(json::Parse<signed int>("0 "), IsOkAndHolds(0));
   EXPECT_THAT(json::Parse<signed int>(" 0 "), IsOkAndHolds(0));
+  EXPECT_THAT(json::Parse<signed int>("-0"), IsOkAndHolds(0));
   EXPECT_THAT(json::Parse<signed int>("02"), Not(IsOk()));
   EXPECT_THAT(json::Parse<signed int>("271"), IsOkAndHolds(271));
   EXPECT_THAT(json::Parse<signed int>(" 271"), IsOkAndHolds(271));
@@ -123,6 +124,38 @@ TEST(JsonTest, ParseSignedInteger) {
   EXPECT_THAT(json::Parse<signed int>("-271 "), IsOkAndHolds(-271));
   EXPECT_THAT(json::Parse<signed int>(" -271 "), IsOkAndHolds(-271));
   EXPECT_THAT(json::Parse<signed int>("- 271"), Not(IsOk()));
+}
+
+TEST(JsonTest, ParseFloat) {
+  EXPECT_THAT(json::Parse<double>(""), Not(IsOk()));
+  EXPECT_THAT(json::Parse<double>(" "), Not(IsOk()));
+  EXPECT_THAT(json::Parse<double>("abc"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<double>("0"), IsOkAndHolds(0));
+  EXPECT_THAT(json::Parse<double>(" 0"), IsOkAndHolds(0));
+  EXPECT_THAT(json::Parse<double>("0 "), IsOkAndHolds(0));
+  EXPECT_THAT(json::Parse<double>(" 0 "), IsOkAndHolds(0));
+  EXPECT_THAT(json::Parse<double>("-0"), IsOkAndHolds(-0.0));
+  EXPECT_THAT(json::Parse<double>("123"), IsOkAndHolds(123));
+  EXPECT_THAT(json::Parse<double>("-123"), IsOkAndHolds(-123));
+  EXPECT_THAT(json::Parse<double>("- 123"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<double>("123."), Not(IsOk()));
+  EXPECT_THAT(json::Parse<double>("123.e+12"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<double>("123.456"), IsOkAndHolds(123.456));
+  EXPECT_THAT(json::Parse<double>("-123.456"), IsOkAndHolds(-123.456));
+  EXPECT_THAT(json::Parse<double>(".456"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<double>("-.456"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<double>("123456000000000e-12"), IsOkAndHolds(123.456));
+  EXPECT_THAT(json::Parse<double>("123456000000000E-12"), IsOkAndHolds(123.456));
+  EXPECT_THAT(json::Parse<double>("-123456000000000e-12"), IsOkAndHolds(-123.456));
+  EXPECT_THAT(json::Parse<double>("-123456000000000E-12"), IsOkAndHolds(-123.456));
+  EXPECT_THAT(json::Parse<double>("123.456e+12"), IsOkAndHolds(123456000000000));
+  EXPECT_THAT(json::Parse<double>("123.456E+12"), IsOkAndHolds(123456000000000));
+  EXPECT_THAT(json::Parse<double>("-123.456e+12"), IsOkAndHolds(-123456000000000));
+  EXPECT_THAT(json::Parse<double>("-123.456E+12"), IsOkAndHolds(-123456000000000));
+  EXPECT_THAT(json::Parse<double>("123.456e12"), IsOkAndHolds(123456000000000));
+  EXPECT_THAT(json::Parse<double>("123.456E12"), IsOkAndHolds(123456000000000));
+  EXPECT_THAT(json::Parse<double>("-123.456e12"), IsOkAndHolds(-123456000000000));
+  EXPECT_THAT(json::Parse<double>("-123.456E12"), IsOkAndHolds(-123456000000000));
 }
 
 JSON_OBJECT(                    //
