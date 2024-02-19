@@ -381,6 +381,15 @@ TEST(JsonTest, ParseVector) {
               IsOkAndHolds(ElementsAre(42, 43, 44)));
 }
 
+TEST(JsonTest, StringifyVector) {
+  EXPECT_EQ(json::Stringify<std::vector<int>>({}), "[]");
+  EXPECT_EQ(json::Stringify<std::vector<int>>({42}), "[42]");
+  EXPECT_EQ(json::Stringify<std::vector<int>>({42, 43}), "[42,43]");
+  EXPECT_EQ(json::Stringify<std::vector<int>>({44, -75, 93, 43}), "[44,-75,93,43]");
+}
+
+// TODO
+
 JSON_OBJECT(                    //
     BarBaz,                     //
     (int, lorem),               //

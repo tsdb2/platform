@@ -51,16 +51,19 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include "absl/base/attributes.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
@@ -69,6 +72,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/strip.h"
 #include "common/flat_map.h"
+#include "common/flat_set.h"
 #include "common/preprocessor.h"
 #include "common/reffed_ptr.h"
 #include "common/type_string.h"
@@ -174,7 +178,7 @@ inline std::string Tsdb2JsonStringifyDictionary(Dictionary const& dictionary) {
   std::vector<std::string> fields;
   fields.reserve(dictionary.size());
   for (auto const& [key, value] : dictionary) {
-    fields.push_back(absl::StrCat("\"", absl::CEscape(key), "\":", Tsdb2JsonStringify(value)));
+    fields.emplace_back(absl::StrCat("\"", absl::CEscape(key), "\":", Tsdb2JsonStringify(value)));
   }
   return absl::StrCat("{", absl::StrJoin(fields, ","), "}");
 }
@@ -199,6 +203,39 @@ inline std::string Tsdb2JsonStringify(
 template <typename Key, typename Value, typename Compare, typename Representation>
 inline std::string Tsdb2JsonStringify(
     tsdb2::common::flat_map<Key, Value, Compare, Representation> const& value) {
+  return Tsdb2JsonStringifyDictionary(value);
+}
+
+template <typename Set>
+inline std::string Tsdb2JsonStringifySet(Set const& set) {
+  std::vector<std::string> elements;
+  elements.reserve(set.size());
+  for (auto const& element : set) {
+    elements.emplace_back(Tsdb2JsonStringify(element));
+  }
+  return absl::StrCat("{", absl::StrJoin(elements, ","), "}");
+}
+
+template <typename Element, typename Compare, typename Allocator>
+inline std::string Tsdb2JsonStringify(std::set<Element, Compare, Allocator> const& value) {
+  return Tsdb2JsonStringifyDictionary(value);
+}
+
+template <typename Element, typename Hash, typename Equal, typename Allocator>
+inline std::string Tsdb2JsonStringify(
+    std::unordered_set<Element, Hash, Equal, Allocator> const& value) {
+  return Tsdb2JsonStringifyDictionary(value);
+}
+
+template <typename Element, typename Hash, typename Equal, typename Allocator>
+inline std::string Tsdb2JsonStringify(
+    absl::flat_hash_set<Element, Hash, Equal, Allocator> const& value) {
+  return Tsdb2JsonStringifyDictionary(value);
+}
+
+template <typename Element, typename Compare, typename Representation>
+inline std::string Tsdb2JsonStringify(
+    tsdb2::common::flat_set<Element, Compare, Representation> const& value) {
   return Tsdb2JsonStringifyDictionary(value);
 }
 
@@ -409,6 +446,53 @@ class Parser {
   template <typename Element>
   absl::Status ReadTo(std::vector<Element>* result);
 
+  template <typename Set>
+  absl::Status ReadToSet(Set* result);
+
+  template <typename Element, typename Compare, typename Allocator>
+  absl::Status ReadTo(std::set<Element, Compare, Allocator>* const result) {
+    return ReadToSet(result);
+  }
+
+  template <typename Element, typename Hash, typename Equal>
+  absl::Status ReadTo(std::unordered_set<Element, Hash, Equal>* const result) {
+    return ReadToSet(result);
+  }
+
+  template <typename Element, typename Hash, typename Equal>
+  absl::Status ReadTo(absl::flat_hash_set<Element, Hash, Equal>* const result) {
+    return ReadToSet(result);
+  }
+
+  template <typename Element, typename Compare>
+  absl::Status ReadTo(tsdb2::common::flat_set<Element, Compare>* const result) {
+    return ReadToSet(result);
+  }
+
+  template <typename Pointee>
+  absl::Status ReadTo(std::unique_ptr<Pointee>* const result) {
+    if (!*result) {
+      *result = std::make_unique<Pointee>();
+    }
+    return ReadTo(result->get());
+  }
+
+  template <typename Pointee>
+  absl::Status ReadTo(std::shared_ptr<Pointee>* const result) {
+    if (!*result) {
+      *result = std::make_shared<Pointee>();
+    }
+    return ReadTo(result->get());
+  }
+
+  template <typename Pointee>
+  absl::Status ReadTo(tsdb2::common::reffed_ptr<Pointee>* const result) {
+    if (!*result) {
+      *result = tsdb2::common::MakeReffed<Pointee>();
+    }
+    return ReadTo(result->get());
+  }
+
   std::string_view input_;
 };
 
@@ -581,8 +665,10 @@ absl::Status Parser::ReadTo(std::optional<Inner>* const result) {
     *result = std::nullopt;
     return absl::OkStatus();
   } else {
-    auto& inner = result->emplace();
-    return ReadTo(&inner);
+    if (!*result) {
+      result->emplace();
+    }
+    return ReadTo(&(result->value()));
   }
 }
 
@@ -670,6 +756,32 @@ absl::Status Parser::ReadTo(std::vector<Element>* const result) {
   }
   while (!input_.empty()) {
     auto& element = result->emplace_back();
+    RETURN_IF_ERROR(ReadTo(&element));
+    ConsumeWhitespace();
+    if (absl::ConsumePrefix(&input_, ",")) {
+      ConsumeWhitespace();
+    } else if (absl::ConsumePrefix(&input_, "]")) {
+      return absl::OkStatus();
+    } else {
+      return InvalidSyntaxError();
+    }
+  }
+  return InvalidSyntaxError();
+}
+
+template <typename Set>
+absl::Status Parser::ReadToSet(Set* const result) {
+  ConsumeWhitespace();
+  if (!absl::ConsumePrefix(&input_, "[")) {
+    return InvalidSyntaxError();
+  }
+  ConsumeWhitespace();
+  result->clear();
+  if (absl::ConsumePrefix(&input_, "]")) {
+    return absl::OkStatus();
+  }
+  while (!input_.empty()) {
+    auto& element = result->emplace();
     RETURN_IF_ERROR(ReadTo(&element));
     ConsumeWhitespace();
     if (absl::ConsumePrefix(&input_, ",")) {
