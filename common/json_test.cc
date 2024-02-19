@@ -353,6 +353,34 @@ TEST(JsonTest, StringifyStdArray) {
   EXPECT_EQ((json::Stringify<std::array<int, 3>>({75, 44, -93})), "[75,44,-93]");
 }
 
+TEST(JsonTest, ParseVector) {
+  EXPECT_THAT(json::Parse<std::vector<int>>(""), Not(IsOk()));
+  EXPECT_THAT(json::Parse<std::vector<int>>("["), Not(IsOk()));
+  EXPECT_THAT(json::Parse<std::vector<int>>("[]"), IsOkAndHolds(ElementsAre()));
+  EXPECT_THAT(json::Parse<std::vector<int>>(" []"), IsOkAndHolds(ElementsAre()));
+  EXPECT_THAT(json::Parse<std::vector<int>>("[ ]"), IsOkAndHolds(ElementsAre()));
+  EXPECT_THAT(json::Parse<std::vector<int>>("[] "), IsOkAndHolds(ElementsAre()));
+  EXPECT_THAT(json::Parse<std::vector<int>>(" [ ] "), IsOkAndHolds(ElementsAre()));
+  EXPECT_THAT(json::Parse<std::vector<int>>("[,]"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<std::vector<int>>("[42]"), IsOkAndHolds(ElementsAre(42)));
+  EXPECT_THAT(json::Parse<std::vector<int>>("[42,]"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<std::vector<int>>("[,42]"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<std::vector<int>>("[42,43]"), IsOkAndHolds(ElementsAre(42, 43)));
+  EXPECT_THAT(json::Parse<std::vector<int>>(" [42,43]"), IsOkAndHolds(ElementsAre(42, 43)));
+  EXPECT_THAT(json::Parse<std::vector<int>>("[ 42,43]"), IsOkAndHolds(ElementsAre(42, 43)));
+  EXPECT_THAT(json::Parse<std::vector<int>>("[42 ,43]"), IsOkAndHolds(ElementsAre(42, 43)));
+  EXPECT_THAT(json::Parse<std::vector<int>>("[42, 43]"), IsOkAndHolds(ElementsAre(42, 43)));
+  EXPECT_THAT(json::Parse<std::vector<int>>("[42,43 ]"), IsOkAndHolds(ElementsAre(42, 43)));
+  EXPECT_THAT(json::Parse<std::vector<int>>("[42,43] "), IsOkAndHolds(ElementsAre(42, 43)));
+  EXPECT_THAT(json::Parse<std::vector<int>>(" [ 42 , 43 ] "), IsOkAndHolds(ElementsAre(42, 43)));
+  EXPECT_THAT(json::Parse<std::vector<int>>("[42,-43]"), IsOkAndHolds(ElementsAre(42, -43)));
+  EXPECT_THAT(json::Parse<std::vector<int>>("[42,- 43]"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<std::vector<int>>("[42,43,]"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<std::vector<int>>("[42,43,44]"), IsOkAndHolds(ElementsAre(42, 43, 44)));
+  EXPECT_THAT(json::Parse<std::vector<int>>(" [ 42 , 43 , 44 ] "),
+              IsOkAndHolds(ElementsAre(42, 43, 44)));
+}
+
 JSON_OBJECT(                    //
     BarBaz,                     //
     (int, lorem),               //

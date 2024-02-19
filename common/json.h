@@ -406,6 +406,9 @@ class Parser {
   template <typename Element, size_t length>
   absl::Status ReadTo(std::array<Element, length>* result);
 
+  template <typename Element>
+  absl::Status ReadTo(std::vector<Element>* result);
+
   std::string_view input_;
 };
 
@@ -652,6 +655,32 @@ absl::Status Parser::ReadTo(std::array<Element, length>* const result) {
     return InvalidSyntaxError();
   }
   return absl::OkStatus();
+}
+
+template <typename Element>
+absl::Status Parser::ReadTo(std::vector<Element>* const result) {
+  ConsumeWhitespace();
+  if (!absl::ConsumePrefix(&input_, "[")) {
+    return InvalidSyntaxError();
+  }
+  ConsumeWhitespace();
+  result->clear();
+  if (absl::ConsumePrefix(&input_, "]")) {
+    return absl::OkStatus();
+  }
+  while (!input_.empty()) {
+    auto& element = result->emplace_back();
+    RETURN_IF_ERROR(ReadTo(&element));
+    ConsumeWhitespace();
+    if (absl::ConsumePrefix(&input_, ",")) {
+      ConsumeWhitespace();
+    } else if (absl::ConsumePrefix(&input_, "]")) {
+      return absl::OkStatus();
+    } else {
+      return InvalidSyntaxError();
+    }
+  }
+  return InvalidSyntaxError();
 }
 
 }  // namespace internal
