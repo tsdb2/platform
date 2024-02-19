@@ -1,5 +1,6 @@
 #include "common/json.h"
 
+#include <array>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -200,6 +201,12 @@ TEST(JsonTest, ParseString) {
               IsOkAndHolds("lorem \"ipsum\""));
 }
 
+TEST(JsonTest, StringifyString) {
+  EXPECT_EQ(json::Stringify<std::string>("lorem \"ipsum\""), "\"lorem \\\"ipsum\\\"\"");
+  EXPECT_EQ(json::Stringify("lorem \"ipsum\""), "\"lorem \\\"ipsum\\\"\"");
+  // TODO: test escape codes.
+}
+
 TEST(JsonTest, ParseOptional) {
   EXPECT_THAT(json::Parse<std::optional<std::string>>("null"), IsOkAndHolds(std::nullopt));
   EXPECT_THAT(json::Parse<std::optional<std::string>>(" null"), IsOkAndHolds(std::nullopt));
@@ -212,6 +219,13 @@ TEST(JsonTest, ParseOptional) {
   EXPECT_THAT(json::Parse<std::optional<bool>>(" true"), IsOkAndHolds(Optional(true)));
   EXPECT_THAT(json::Parse<std::optional<bool>>("true "), IsOkAndHolds(Optional(true)));
   EXPECT_THAT(json::Parse<std::optional<bool>>(" true "), IsOkAndHolds(Optional(true)));
+}
+
+TEST(JsonTest, StringifyOptional) {
+  EXPECT_EQ(json::Stringify<std::optional<int>>(std::nullopt), "null");
+  EXPECT_EQ(json::Stringify<std::optional<int>>(42), "42");
+  EXPECT_EQ(json::Stringify<std::optional<std::string>>(std::nullopt), "null");
+  EXPECT_EQ(json::Stringify<std::optional<std::string>>("lorem"), "\"lorem\"");
 }
 
 TEST(JsonTest, ParsePair) {
@@ -244,6 +258,11 @@ TEST(JsonTest, ParsePair) {
               IsOkAndHolds(Pair(42, "lorem")));
   EXPECT_THAT((json::Parse<std::pair<int, std::string>>(" [ 42 , \"lorem\" ] ")),
               IsOkAndHolds(Pair(42, "lorem")));
+}
+
+TEST(JsonTest, StringifyPair) {
+  EXPECT_EQ(json::Stringify(std::make_pair(42, "lorem")), "[42,\"lorem\"]");
+  EXPECT_EQ(json::Stringify(std::make_pair("ipsum", 43)), "[\"ipsum\",43]");
 }
 
 TEST(JsonTest, ParseTuple) {
@@ -295,6 +314,43 @@ TEST(JsonTest, ParseTuple) {
               IsOkAndHolds(FieldsAre(true, 42, "lorem", 43)));
   EXPECT_THAT((json::Parse<std::tuple<bool, int, std::string, int>>("[false, 43, \"ipsum\", 42]")),
               IsOkAndHolds(FieldsAre(false, 43, "ipsum", 42)));
+}
+
+TEST(JsonTest, StringifyTuple) {
+  EXPECT_EQ(json::Stringify(std::make_tuple()), "[]");
+  EXPECT_EQ(json::Stringify(std::make_tuple(42)), "[42]");
+  EXPECT_EQ(json::Stringify(std::make_tuple(true, 42)), "[true,42]");
+  EXPECT_EQ(json::Stringify(std::make_tuple(true, "lorem", 42)), "[true,\"lorem\",42]");
+  EXPECT_EQ(json::Stringify(std::make_tuple(true, 42, "lorem", 43)), "[true,42,\"lorem\",43]");
+  EXPECT_EQ(json::Stringify(std::make_tuple(false, 43, "ipsum", 42)), "[false,43,\"ipsum\",42]");
+}
+
+TEST(JsonTest, ParseStdArray) {
+  EXPECT_THAT((json::Parse<std::array<int, 4>>("")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::array<int, 4>>("[")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::array<int, 4>>("[]")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::array<int, 4>>("[42]")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::array<int, 4>>("[42,]")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::array<int, 4>>("[42,43]")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::array<int, 4>>("[42,43,]")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::array<int, 4>>("[1,2,3,4]")),
+              IsOkAndHolds(ElementsAre(1, 2, 3, 4)));
+  EXPECT_THAT((json::Parse<std::array<int, 4>>(" [ 1 , 2 , 3 , 4 ] ")),
+              IsOkAndHolds(ElementsAre(1, 2, 3, 4)));
+  EXPECT_THAT((json::Parse<std::array<int, 4>>("[44,-75,93,43]")),
+              IsOkAndHolds(ElementsAre(44, -75, 93, 43)));
+  EXPECT_THAT((json::Parse<std::array<int, 4>>(" [ 44 , 75 , -93 , 43 ] ")),
+              IsOkAndHolds(ElementsAre(44, 75, -93, 43)));
+  EXPECT_THAT((json::Parse<std::array<int, 4>>(" [ 44 , 75 , - 93 , 43 ] ")), Not(IsOk()));
+  EXPECT_THAT((json::Parse<std::array<int, 3>>("[3,2,1]")), IsOkAndHolds(ElementsAre(3, 2, 1)));
+  EXPECT_THAT((json::Parse<std::array<int, 3>>(" [ 3 , 2 , 1 ] ")),
+              IsOkAndHolds(ElementsAre(3, 2, 1)));
+}
+
+TEST(JsonTest, StringifyStdArray) {
+  EXPECT_EQ((json::Stringify<std::array<int, 4>>({1, 2, 3, 4})), "[1,2,3,4]");
+  EXPECT_EQ((json::Stringify<std::array<int, 4>>({44, -75, 93, 43})), "[44,-75,93,43]");
+  EXPECT_EQ((json::Stringify<std::array<int, 3>>({75, 44, -93})), "[75,44,-93]");
 }
 
 JSON_OBJECT(                    //

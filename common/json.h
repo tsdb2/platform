@@ -21,8 +21,8 @@
 //   * std::set / std::unordered_set / absl::flat_hash_set / tsdb2::common::flat_set,
 //   * std::map / std::unordered_map / absl::flat_hash_map / tsdb2::common::flat_map,
 //   * tsdb2::json::Object,
-//   * data types managed by raw pointer, std::unique_ptr, std::shared_ptr, or
-//     tsdb2::common::reffed_ptr (serializes "null" if the pointer is null).
+//   * data types managed by std::unique_ptr, std::shared_ptr, or tsdb2::common::reffed_ptr
+//     (serializing to "null" if the pointer is null).
 //
 // Example:
 //
@@ -74,6 +74,10 @@
 #include "common/type_string.h"
 #include "common/utilities.h"
 
+inline std::string Tsdb2JsonStringify(char const value[]) {
+  return absl::StrCat("\"", absl::CEscape(value), "\"");
+}
+
 inline std::string Tsdb2JsonStringify(std::string_view const value) {
   return absl::StrCat("\"", absl::CEscape(value), "\"");
 }
@@ -91,15 +95,6 @@ inline std::string Tsdb2JsonStringify(Float const value) {
 }
 
 inline std::string Tsdb2JsonStringify(std::nullptr_t) { return "null"; }
-
-template <typename Pointee>
-inline std::string Tsdb2JsonStringify(Pointee const* const value) {
-  if (value) {
-    return Tsdb2JsonStringify(*value);
-  } else {
-    return "null";
-  }
-}
 
 template <typename Pointee>
 inline std::string Tsdb2JsonStringify(std::unique_ptr<Pointee> const& value) {
@@ -408,6 +403,9 @@ class Parser {
   template <typename... Elements>
   absl::Status ReadTo(std::tuple<Elements...>* result);
 
+  template <typename Element, size_t length>
+  absl::Status ReadTo(std::array<Element, length>* result);
+
   std::string_view input_;
 };
 
@@ -606,6 +604,32 @@ absl::Status Parser::ReadTo(std::pair<First, Second>* const result) {
 
 template <typename... Elements>
 absl::Status Parser::ReadTo(std::tuple<Elements...>* const result) {
+  ConsumeWhitespace();
+  if (!absl::ConsumePrefix(&input_, "[")) {
+    return InvalidSyntaxError();
+  }
+  RETURN_IF_ERROR(std::apply(
+      [this](auto&... elements) {
+        bool first = true;
+        auto status = absl::OkStatus();
+        static_cast<void>(
+            (((first ? !(first = false) : (ConsumeWhitespace(), absl::ConsumePrefix(&input_, ",")))
+                  ? (status = ReadTo(&elements))
+                  : (status = InvalidSyntaxError()))
+                 .ok() &&
+             ...));
+        return status;
+      },
+      *result));
+  ConsumeWhitespace();
+  if (!absl::ConsumePrefix(&input_, "]")) {
+    return InvalidSyntaxError();
+  }
+  return absl::OkStatus();
+}
+
+template <typename Element, size_t length>
+absl::Status Parser::ReadTo(std::array<Element, length>* const result) {
   ConsumeWhitespace();
   if (!absl::ConsumePrefix(&input_, "[")) {
     return InvalidSyntaxError();
