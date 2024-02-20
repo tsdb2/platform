@@ -18,8 +18,10 @@
 //   * std::tuple,
 //   * std::array,
 //   * std::vector,
-//   * std::set / std::unordered_set / absl::flat_hash_set / tsdb2::common::flat_set,
-//   * std::map / std::unordered_map / absl::flat_hash_map / tsdb2::common::flat_map,
+//   * std::set / std::unordered_set / absl::flat_hash_set / absl::node_hash_set /
+//     tsdb2::common::flat_set,
+//   * std::map / std::unordered_map / absl::flat_hash_map / absl::node_hash_map /
+//     tsdb2::common::flat_map,
 //   * tsdb2::json::Object,
 //   * data types managed by std::unique_ptr, std::shared_ptr, or tsdb2::common::reffed_ptr
 //     (serializing to "null" if the pointer is null).
@@ -64,9 +66,10 @@
 #include "absl/base/attributes.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/container/node_hash_map.h"
+#include "absl/container/node_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/ascii.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -394,6 +397,10 @@ class Parser {
     return absl::InvalidArgumentError("invalid format");
   }
 
+  static bool IsWhitespace(char const ch) {
+    return ch == ' ' || ch == '\r' || ch == '\n' || ch == '\t';
+  }
+
   static bool IsDigit(char const ch) { return ch >= '0' && ch <= '9'; }
 
   static bool IsHexDigit(char const ch) {
@@ -414,7 +421,7 @@ class Parser {
 
   void ConsumeWhitespace() {
     size_t offset = 0;
-    while (offset < input_.size() && absl::ascii_isspace(input_[offset])) {
+    while (offset < input_.size() && IsWhitespace(input_[offset])) {
       ++offset;
     }
     input_.remove_prefix(offset);
@@ -781,8 +788,8 @@ absl::Status Parser::ReadToSet(Set* const result) {
     return absl::OkStatus();
   }
   while (!input_.empty()) {
-    auto& element = result->emplace();
-    RETURN_IF_ERROR(ReadTo(&element));
+    auto& [it, unused] = result->emplace();
+    RETURN_IF_ERROR(ReadTo(&*it));
     ConsumeWhitespace();
     if (absl::ConsumePrefix(&input_, ",")) {
       ConsumeWhitespace();

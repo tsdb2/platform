@@ -2,12 +2,16 @@
 
 #include <array>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <tuple>
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_set.h"
+#include "absl/container/node_hash_set.h"
+#include "common/flat_set.h"
 #include "common/testing.h"
 #include "gtest/gtest.h"
 
@@ -84,11 +88,17 @@ TEST(JsonTest, ParseBool) {
   EXPECT_THAT(json::Parse<bool>("false"), IsOkAndHolds(false));
   EXPECT_THAT(json::Parse<bool>(" false"), IsOkAndHolds(false));
   EXPECT_THAT(json::Parse<bool>("falsesuffix"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<bool>("prefixtrue"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<bool>("prefixfalse"), Not(IsOk()));
 }
 
 TEST(JsonTest, StringifyBool) {
   EXPECT_EQ(json::Stringify(true), "true");
   EXPECT_EQ(json::Stringify(false), "false");
+}
+
+TEST(JsonTest, SkipWhitespace) {
+  EXPECT_THAT(json::Parse<bool>(" \r\n\ttrue"), IsOkAndHolds(true));
 }
 
 TEST(JsonTest, ParseUnsignedInteger) {
@@ -181,7 +191,15 @@ TEST(JsonTest, ParseFloat) {
   EXPECT_THAT(json::Parse<double>(" -123.456e+12 "), IsOkAndHolds(-123456000000000));
 }
 
-// TODO: StringifyFloat test?
+TEST(JsonTest, StringifyFloat) {
+  EXPECT_EQ(json::Stringify<float>(3.14), "3.14");
+  EXPECT_EQ(json::Stringify<float>(-3.14), "-3.14");
+  EXPECT_EQ(json::Stringify<double>(2.71), "2.71");
+  EXPECT_EQ(json::Stringify<double>(-2.71), "-2.71");
+  // TODO: debug these two.
+  // EXPECT_EQ(json::Stringify<long double>(1.41), "1.41");
+  // EXPECT_EQ(json::Stringify<long double>(-1.41), "-1.41");
+}
 
 TEST(JsonTest, ParseString) {
   EXPECT_THAT(json::Parse<std::string>(""), Not(IsOk()));
@@ -353,40 +371,51 @@ TEST(JsonTest, StringifyStdArray) {
   EXPECT_EQ((json::Stringify<std::array<int, 3>>({75, 44, -93})), "[75,44,-93]");
 }
 
-TEST(JsonTest, ParseVector) {
-  EXPECT_THAT(json::Parse<std::vector<int>>(""), Not(IsOk()));
-  EXPECT_THAT(json::Parse<std::vector<int>>("["), Not(IsOk()));
-  EXPECT_THAT(json::Parse<std::vector<int>>("[]"), IsOkAndHolds(ElementsAre()));
-  EXPECT_THAT(json::Parse<std::vector<int>>(" []"), IsOkAndHolds(ElementsAre()));
-  EXPECT_THAT(json::Parse<std::vector<int>>("[ ]"), IsOkAndHolds(ElementsAre()));
-  EXPECT_THAT(json::Parse<std::vector<int>>("[] "), IsOkAndHolds(ElementsAre()));
-  EXPECT_THAT(json::Parse<std::vector<int>>(" [ ] "), IsOkAndHolds(ElementsAre()));
-  EXPECT_THAT(json::Parse<std::vector<int>>("[,]"), Not(IsOk()));
-  EXPECT_THAT(json::Parse<std::vector<int>>("[42]"), IsOkAndHolds(ElementsAre(42)));
-  EXPECT_THAT(json::Parse<std::vector<int>>("[42,]"), Not(IsOk()));
-  EXPECT_THAT(json::Parse<std::vector<int>>("[,42]"), Not(IsOk()));
-  EXPECT_THAT(json::Parse<std::vector<int>>("[42,43]"), IsOkAndHolds(ElementsAre(42, 43)));
-  EXPECT_THAT(json::Parse<std::vector<int>>(" [42,43]"), IsOkAndHolds(ElementsAre(42, 43)));
-  EXPECT_THAT(json::Parse<std::vector<int>>("[ 42,43]"), IsOkAndHolds(ElementsAre(42, 43)));
-  EXPECT_THAT(json::Parse<std::vector<int>>("[42 ,43]"), IsOkAndHolds(ElementsAre(42, 43)));
-  EXPECT_THAT(json::Parse<std::vector<int>>("[42, 43]"), IsOkAndHolds(ElementsAre(42, 43)));
-  EXPECT_THAT(json::Parse<std::vector<int>>("[42,43 ]"), IsOkAndHolds(ElementsAre(42, 43)));
-  EXPECT_THAT(json::Parse<std::vector<int>>("[42,43] "), IsOkAndHolds(ElementsAre(42, 43)));
-  EXPECT_THAT(json::Parse<std::vector<int>>(" [ 42 , 43 ] "), IsOkAndHolds(ElementsAre(42, 43)));
-  EXPECT_THAT(json::Parse<std::vector<int>>("[42,-43]"), IsOkAndHolds(ElementsAre(42, -43)));
-  EXPECT_THAT(json::Parse<std::vector<int>>("[42,- 43]"), Not(IsOk()));
-  EXPECT_THAT(json::Parse<std::vector<int>>("[42,43,]"), Not(IsOk()));
-  EXPECT_THAT(json::Parse<std::vector<int>>("[42,43,44]"), IsOkAndHolds(ElementsAre(42, 43, 44)));
-  EXPECT_THAT(json::Parse<std::vector<int>>(" [ 42 , 43 , 44 ] "),
-              IsOkAndHolds(ElementsAre(42, 43, 44)));
+template <typename Value>
+class TypedJsonTest : public ::testing::Test {};
+
+TYPED_TEST_SUITE_P(TypedJsonTest);
+
+TYPED_TEST_P(TypedJsonTest, ParseSequence) {
+  EXPECT_THAT(json::Parse<TypeParam>(""), Not(IsOk()));
+  EXPECT_THAT(json::Parse<TypeParam>("["), Not(IsOk()));
+  EXPECT_THAT(json::Parse<TypeParam>("[]"), IsOkAndHolds(ElementsAre()));
+  EXPECT_THAT(json::Parse<TypeParam>(" []"), IsOkAndHolds(ElementsAre()));
+  EXPECT_THAT(json::Parse<TypeParam>("[ ]"), IsOkAndHolds(ElementsAre()));
+  EXPECT_THAT(json::Parse<TypeParam>("[] "), IsOkAndHolds(ElementsAre()));
+  EXPECT_THAT(json::Parse<TypeParam>(" [ ] "), IsOkAndHolds(ElementsAre()));
+  EXPECT_THAT(json::Parse<TypeParam>("[,]"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<TypeParam>("[42]"), IsOkAndHolds(ElementsAre(42)));
+  EXPECT_THAT(json::Parse<TypeParam>("[42,]"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<TypeParam>("[,42]"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<TypeParam>("[42,43]"), IsOkAndHolds(ElementsAre(42, 43)));
+  EXPECT_THAT(json::Parse<TypeParam>(" [42,43]"), IsOkAndHolds(ElementsAre(42, 43)));
+  EXPECT_THAT(json::Parse<TypeParam>("[ 42,43]"), IsOkAndHolds(ElementsAre(42, 43)));
+  EXPECT_THAT(json::Parse<TypeParam>("[42 ,43]"), IsOkAndHolds(ElementsAre(42, 43)));
+  EXPECT_THAT(json::Parse<TypeParam>("[42, 43]"), IsOkAndHolds(ElementsAre(42, 43)));
+  EXPECT_THAT(json::Parse<TypeParam>("[42,43 ]"), IsOkAndHolds(ElementsAre(42, 43)));
+  EXPECT_THAT(json::Parse<TypeParam>("[42,43] "), IsOkAndHolds(ElementsAre(42, 43)));
+  EXPECT_THAT(json::Parse<TypeParam>(" [ 42 , 43 ] "), IsOkAndHolds(ElementsAre(42, 43)));
+  EXPECT_THAT(json::Parse<TypeParam>("[42,-43]"), IsOkAndHolds(ElementsAre(42, -43)));
+  EXPECT_THAT(json::Parse<TypeParam>("[42,- 43]"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<TypeParam>("[42,43,]"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<TypeParam>("[42,43,44]"), IsOkAndHolds(ElementsAre(42, 43, 44)));
+  EXPECT_THAT(json::Parse<TypeParam>(" [ 42 , 43 , 44 ] "), IsOkAndHolds(ElementsAre(42, 43, 44)));
 }
 
-TEST(JsonTest, StringifyVector) {
-  EXPECT_EQ(json::Stringify<std::vector<int>>({}), "[]");
-  EXPECT_EQ(json::Stringify<std::vector<int>>({42}), "[42]");
-  EXPECT_EQ(json::Stringify<std::vector<int>>({42, 43}), "[42,43]");
-  EXPECT_EQ(json::Stringify<std::vector<int>>({44, -75, 93, 43}), "[44,-75,93,43]");
+TYPED_TEST_P(TypedJsonTest, StringifySequence) {
+  EXPECT_EQ(json::Stringify<TypeParam>({}), "[]");
+  EXPECT_EQ(json::Stringify<TypeParam>({42}), "[42]");
+  EXPECT_EQ(json::Stringify<TypeParam>({42, 43}), "[42,43]");
+  EXPECT_EQ(json::Stringify<TypeParam>({-75, 43, 44, 93}), "[-75,43,44,93]");
 }
+
+REGISTER_TYPED_TEST_SUITE_P(TypedJsonTest, ParseSequence, StringifySequence);
+
+// TODO: test set types.
+using SequenceTypes = ::testing::Types<std::vector<int>>;
+
+INSTANTIATE_TYPED_TEST_SUITE_P(TypedJsonTest, TypedJsonTest, SequenceTypes);
 
 // TODO
 

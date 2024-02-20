@@ -197,6 +197,8 @@ cc_library(
         ":utilities",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/container:node_hash_map",
+        "@com_google_absl//absl/container:node_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -207,8 +209,12 @@ cc_test(
     name = "json_test",
     srcs = ["json_test.cc"],
     deps = [
+        ":flat_set",
         ":json",
         ":testing",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/container:node_hash_map",
+        "@com_google_absl//absl/container:node_hash_set",
         "@com_google_googletest//:gtest_main",
     ],
 )
