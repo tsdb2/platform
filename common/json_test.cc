@@ -396,7 +396,7 @@ TYPED_TEST_P(TypedJsonTest, ParseSequence) {
   EXPECT_THAT(json::Parse<TypeParam>("[42,43 ]"), IsOkAndHolds(ElementsAre(42, 43)));
   EXPECT_THAT(json::Parse<TypeParam>("[42,43] "), IsOkAndHolds(ElementsAre(42, 43)));
   EXPECT_THAT(json::Parse<TypeParam>(" [ 42 , 43 ] "), IsOkAndHolds(ElementsAre(42, 43)));
-  EXPECT_THAT(json::Parse<TypeParam>("[42,-43]"), IsOkAndHolds(ElementsAre(42, -43)));
+  EXPECT_THAT(json::Parse<TypeParam>("[-42,43]"), IsOkAndHolds(ElementsAre(-42, 43)));
   EXPECT_THAT(json::Parse<TypeParam>("[42,- 43]"), Not(IsOk()));
   EXPECT_THAT(json::Parse<TypeParam>("[42,43,]"), Not(IsOk()));
   EXPECT_THAT(json::Parse<TypeParam>("[42,43,44]"), IsOkAndHolds(ElementsAre(42, 43, 44)));
@@ -412,8 +412,12 @@ TYPED_TEST_P(TypedJsonTest, StringifySequence) {
 
 REGISTER_TYPED_TEST_SUITE_P(TypedJsonTest, ParseSequence, StringifySequence);
 
-// TODO: test set types.
-using SequenceTypes = ::testing::Types<std::vector<int>>;
+// TODO: add unordered sets.
+using SequenceTypes = ::testing::Types<  //
+    std::vector<int>,                    //
+    std::set<int>,                       //
+    tsdb2::common::flat_set<int>         //
+    >;
 
 INSTANTIATE_TYPED_TEST_SUITE_P(TypedJsonTest, TypedJsonTest, SequenceTypes);
 

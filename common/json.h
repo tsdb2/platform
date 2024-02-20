@@ -203,6 +203,12 @@ inline std::string Tsdb2JsonStringify(
   return Tsdb2JsonStringifyDictionary(value);
 }
 
+template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
+inline std::string Tsdb2JsonStringify(
+    absl::node_hash_map<Key, Value, Hash, Equal, Allocator> const& value) {
+  return Tsdb2JsonStringifyDictionary(value);
+}
+
 template <typename Key, typename Value, typename Compare, typename Representation>
 inline std::string Tsdb2JsonStringify(
     tsdb2::common::flat_map<Key, Value, Compare, Representation> const& value) {
@@ -216,30 +222,36 @@ inline std::string Tsdb2JsonStringifySet(Set const& set) {
   for (auto const& element : set) {
     elements.emplace_back(Tsdb2JsonStringify(element));
   }
-  return absl::StrCat("{", absl::StrJoin(elements, ","), "}");
+  return absl::StrCat("[", absl::StrJoin(elements, ","), "]");
 }
 
 template <typename Element, typename Compare, typename Allocator>
 inline std::string Tsdb2JsonStringify(std::set<Element, Compare, Allocator> const& value) {
-  return Tsdb2JsonStringifyDictionary(value);
+  return Tsdb2JsonStringifySet(value);
 }
 
 template <typename Element, typename Hash, typename Equal, typename Allocator>
 inline std::string Tsdb2JsonStringify(
     std::unordered_set<Element, Hash, Equal, Allocator> const& value) {
-  return Tsdb2JsonStringifyDictionary(value);
+  return Tsdb2JsonStringifySet(value);
 }
 
 template <typename Element, typename Hash, typename Equal, typename Allocator>
 inline std::string Tsdb2JsonStringify(
     absl::flat_hash_set<Element, Hash, Equal, Allocator> const& value) {
-  return Tsdb2JsonStringifyDictionary(value);
+  return Tsdb2JsonStringifySet(value);
+}
+
+template <typename Element, typename Hash, typename Equal, typename Allocator>
+inline std::string Tsdb2JsonStringify(
+    absl::node_hash_set<Element, Hash, Equal, Allocator> const& value) {
+  return Tsdb2JsonStringifySet(value);
 }
 
 template <typename Element, typename Compare, typename Representation>
 inline std::string Tsdb2JsonStringify(
     tsdb2::common::flat_set<Element, Compare, Representation> const& value) {
-  return Tsdb2JsonStringifyDictionary(value);
+  return Tsdb2JsonStringifySet(value);
 }
 
 namespace tsdb2 {
@@ -453,27 +465,32 @@ class Parser {
   template <typename Element>
   absl::Status ReadTo(std::vector<Element>* result);
 
-  template <typename Set>
+  template <typename Element, typename Set>
   absl::Status ReadToSet(Set* result);
 
   template <typename Element, typename Compare, typename Allocator>
   absl::Status ReadTo(std::set<Element, Compare, Allocator>* const result) {
-    return ReadToSet(result);
+    return ReadToSet<Element>(result);
   }
 
-  template <typename Element, typename Hash, typename Equal>
-  absl::Status ReadTo(std::unordered_set<Element, Hash, Equal>* const result) {
-    return ReadToSet(result);
+  template <typename Element, typename Hash, typename Equal, typename Allocator>
+  absl::Status ReadTo(std::unordered_set<Element, Hash, Equal, Allocator>* const result) {
+    return ReadToSet<Element>(result);
   }
 
-  template <typename Element, typename Hash, typename Equal>
-  absl::Status ReadTo(absl::flat_hash_set<Element, Hash, Equal>* const result) {
-    return ReadToSet(result);
+  template <typename Element, typename Hash, typename Equal, typename Allocator>
+  absl::Status ReadTo(absl::flat_hash_set<Element, Hash, Equal, Allocator>* const result) {
+    return ReadToSet<Element>(result);
+  }
+
+  template <typename Element, typename Hash, typename Equal, typename Allocator>
+  absl::Status ReadTo(absl::node_hash_set<Element, Hash, Equal, Allocator>* const result) {
+    return ReadToSet<Element>(result);
   }
 
   template <typename Element, typename Compare>
   absl::Status ReadTo(tsdb2::common::flat_set<Element, Compare>* const result) {
-    return ReadToSet(result);
+    return ReadToSet<Element>(result);
   }
 
   template <typename Pointee>
@@ -776,7 +793,7 @@ absl::Status Parser::ReadTo(std::vector<Element>* const result) {
   return InvalidSyntaxError();
 }
 
-template <typename Set>
+template <typename Element, typename Set>
 absl::Status Parser::ReadToSet(Set* const result) {
   ConsumeWhitespace();
   if (!absl::ConsumePrefix(&input_, "[")) {
@@ -788,8 +805,9 @@ absl::Status Parser::ReadToSet(Set* const result) {
     return absl::OkStatus();
   }
   while (!input_.empty()) {
-    auto& [it, unused] = result->emplace();
-    RETURN_IF_ERROR(ReadTo(&*it));
+    Element element;
+    RETURN_IF_ERROR(ReadTo(&element));
+    result->emplace(std::move(element));
     ConsumeWhitespace();
     if (absl::ConsumePrefix(&input_, ",")) {
       ConsumeWhitespace();
