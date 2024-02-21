@@ -288,12 +288,17 @@ class Object<internal::FieldImpl<Type, TypeStringMatcher<name...>>, OtherFields.
     : public Object<OtherFields...> {
  public:
   template <char const field_name[]>
-  auto& get() {
+  auto& get() & {
     return Getter<TypeStringT<field_name>>(*this)();
   }
 
   template <char const field_name[]>
-  auto const& get() const {
+  auto&& get() && {
+    return std::move(Getter<TypeStringT<field_name>>(*this)());
+  }
+
+  template <char const field_name[]>
+  auto const& get() const& {
     return ConstGetter<TypeStringT<field_name>>(*this)();
   }
 

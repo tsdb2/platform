@@ -2,6 +2,7 @@
 
 #include <array>
 #include <map>
+#include <memory>
 #include <optional>
 #include <set>
 #include <string>
@@ -30,6 +31,7 @@ using ::testing::FieldsAre;
 using ::testing::Not;
 using ::testing::Optional;
 using ::testing::Pair;
+using ::testing::Pointee;
 using ::testing::UnorderedElementsAre;
 using ::testing::status::IsOk;
 using ::testing::status::IsOkAndHolds;
@@ -41,6 +43,7 @@ char constexpr kFieldName4[] = "sit";
 char constexpr kFieldName5[] = "amet";
 char constexpr kFieldName6[] = "consectetur";
 char constexpr kFieldName7[] = "adipisci";
+char constexpr kFieldName8[] = "elit";
 
 using TestObject = json::Object<                                   //
     json::Field<int, kFieldName1>,                                 //
@@ -49,7 +52,8 @@ using TestObject = json::Object<                                   //
     json::Field<double, kFieldName4>,                              //
     json::Field<std::vector<int>, kFieldName5>,                    //
     json::Field<std::tuple<int, bool, std::string>, kFieldName6>,  //
-    json::Field<std::optional<double>, kFieldName7>>;              //
+    json::Field<std::optional<double>, kFieldName7>,               //
+    json::Field<std::unique_ptr<std::string>, kFieldName8>>;
 
 TEST(JsonTest, FieldAccess) {
   TestObject object;
@@ -60,6 +64,7 @@ TEST(JsonTest, FieldAccess) {
   object.get<kFieldName5>() = std::vector<int>{1, 2, 3};
   object.get<kFieldName6>() = std::make_tuple(43, false, "barbaz");
   object.get<kFieldName7>() = 2.71;
+  object.get<kFieldName8>() = std::make_unique<std::string>("bazqux");
   TestObject const& ref = object;
   EXPECT_EQ(ref.get<kFieldName1>(), 42);
   EXPECT_EQ(ref.get<kFieldName2>(), true);
@@ -68,6 +73,9 @@ TEST(JsonTest, FieldAccess) {
   EXPECT_THAT(ref.get<kFieldName5>(), ElementsAre<int>(1, 2, 3));
   EXPECT_THAT(ref.get<kFieldName6>(), FieldsAre(43, false, "barbaz"));
   EXPECT_THAT(ref.get<kFieldName7>(), Optional<double>(2.71));
+  EXPECT_THAT(ref.get<kFieldName8>(), Pointee(std::string("bazqux")));
+  auto const ptr = std::move(object).get<kFieldName8>();
+  EXPECT_THAT(ptr, Pointee(std::string("bazqux")));
 }
 
 TEST(JsonTest, Stringify) {
@@ -79,9 +87,10 @@ TEST(JsonTest, Stringify) {
   object.get<kFieldName5>() = std::vector<int>{1, 2, 3};
   object.get<kFieldName6>() = std::make_tuple(43, false, "barbaz");
   object.get<kFieldName7>() = 2.71;
+  object.get<kFieldName8>() = std::make_unique<std::string>("bazqux");
   EXPECT_EQ(
       json::Stringify(object),
-      R"json({"lorem":42,"ipsum":true,"dolor":"foobar","sit":3.14,"amet":[1,2,3],"consectetur":[43,false,"barbaz"],"adipisci":2.71})json");
+      R"json({"lorem":42,"ipsum":true,"dolor":"foobar","sit":3.14,"amet":[1,2,3],"consectetur":[43,false,"barbaz"],"adipisci":2.71,"elit":"bazqux"})json");
 }
 
 TEST(JsonTest, ParseBool) {
