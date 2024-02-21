@@ -431,6 +431,14 @@ class Parser {
 
   bool PeekDigit() const { return !input_.empty() && IsDigit(input_.front()); }
 
+  absl::Status ConsumePrefix(std::string_view const prefix) {
+    if (absl::ConsumePrefix(&input_, prefix)) {
+      return absl::OkStatus();
+    } else {
+      return InvalidSyntaxError();
+    }
+  }
+
   void ConsumeWhitespace() {
     size_t offset = 0;
     while (offset < input_.size() && IsWhitespace(input_[offset])) {
@@ -464,6 +472,35 @@ class Parser {
 
   template <typename Element>
   absl::Status ReadTo(std::vector<Element>* result);
+
+  template <typename Element, typename Dictionary>
+  absl::Status ReadToDictionary(Dictionary* result);
+
+  template <typename Element, typename Compare, typename Allocator>
+  absl::Status ReadTo(std::map<std::string, Element, Compare, Allocator>* const result) {
+    return ReadToDictionary<Element>(result);
+  }
+
+  template <typename Element, typename Hash, typename Equal>
+  absl::Status ReadTo(std::unordered_map<std::string, Element, Hash, Equal>* const result) {
+    return ReadToDictionary<Element>(result);
+  }
+
+  template <typename Element, typename Hash, typename Equal>
+  absl::Status ReadTo(absl::flat_hash_map<std::string, Element, Hash, Equal>* const result) {
+    return ReadToDictionary<Element>(result);
+  }
+
+  template <typename Element, typename Hash, typename Equal>
+  absl::Status ReadTo(absl::node_hash_map<std::string, Element, Hash, Equal>* const result) {
+    return ReadToDictionary<Element>(result);
+  }
+
+  template <typename Element, typename Compare, typename Representation>
+  absl::Status ReadTo(
+      tsdb2::common::flat_map<std::string, Element, Compare, Representation>* const result) {
+    return ReadToDictionary<Element>(result);
+  }
 
   template <typename Element, typename Set>
   absl::Status ReadToSet(Set* result);
@@ -699,28 +736,19 @@ absl::Status Parser::ReadTo(std::optional<Inner>* const result) {
 template <typename First, typename Second>
 absl::Status Parser::ReadTo(std::pair<First, Second>* const result) {
   ConsumeWhitespace();
-  if (!absl::ConsumePrefix(&input_, "[")) {
-    return InvalidSyntaxError();
-  }
+  RETURN_IF_ERROR(ConsumePrefix("["));
   RETURN_IF_ERROR(ReadTo(&(result->first)));
   ConsumeWhitespace();
-  if (!absl::ConsumePrefix(&input_, ",")) {
-    return InvalidSyntaxError();
-  }
+  RETURN_IF_ERROR(ConsumePrefix(","));
   RETURN_IF_ERROR(ReadTo(&(result->second)));
   ConsumeWhitespace();
-  if (!absl::ConsumePrefix(&input_, "]")) {
-    return InvalidSyntaxError();
-  }
-  return absl::OkStatus();
+  return ConsumePrefix("]");
 }
 
 template <typename... Elements>
 absl::Status Parser::ReadTo(std::tuple<Elements...>* const result) {
   ConsumeWhitespace();
-  if (!absl::ConsumePrefix(&input_, "[")) {
-    return InvalidSyntaxError();
-  }
+  RETURN_IF_ERROR(ConsumePrefix("["));
   RETURN_IF_ERROR(std::apply(
       [this](auto&... elements) {
         bool first = true;
@@ -735,18 +763,13 @@ absl::Status Parser::ReadTo(std::tuple<Elements...>* const result) {
       },
       *result));
   ConsumeWhitespace();
-  if (!absl::ConsumePrefix(&input_, "]")) {
-    return InvalidSyntaxError();
-  }
-  return absl::OkStatus();
+  return ConsumePrefix("]");
 }
 
 template <typename Element, size_t length>
 absl::Status Parser::ReadTo(std::array<Element, length>* const result) {
   ConsumeWhitespace();
-  if (!absl::ConsumePrefix(&input_, "[")) {
-    return InvalidSyntaxError();
-  }
+  RETURN_IF_ERROR(ConsumePrefix("["));
   RETURN_IF_ERROR(std::apply(
       [this](auto&... elements) {
         bool first = true;
@@ -761,18 +784,13 @@ absl::Status Parser::ReadTo(std::array<Element, length>* const result) {
       },
       *result));
   ConsumeWhitespace();
-  if (!absl::ConsumePrefix(&input_, "]")) {
-    return InvalidSyntaxError();
-  }
-  return absl::OkStatus();
+  return ConsumePrefix("]");
 }
 
 template <typename Element>
 absl::Status Parser::ReadTo(std::vector<Element>* const result) {
   ConsumeWhitespace();
-  if (!absl::ConsumePrefix(&input_, "[")) {
-    return InvalidSyntaxError();
-  }
+  RETURN_IF_ERROR(ConsumePrefix("["));
   ConsumeWhitespace();
   result->clear();
   if (absl::ConsumePrefix(&input_, "]")) {
@@ -793,12 +811,42 @@ absl::Status Parser::ReadTo(std::vector<Element>* const result) {
   return InvalidSyntaxError();
 }
 
+template <typename Element, typename Dictionary>
+absl::Status Parser::ReadToDictionary(Dictionary* const result) {
+  ConsumeWhitespace();
+  RETURN_IF_ERROR(ConsumePrefix("{"));
+  ConsumeWhitespace();
+  result->clear();
+  if (absl::ConsumePrefix(&input_, "}")) {
+    return absl::OkStatus();
+  }
+  while (!input_.empty()) {
+    std::string key;
+    RETURN_IF_ERROR(ReadTo(&key));
+    ConsumeWhitespace();
+    RETURN_IF_ERROR(ConsumePrefix(":"));
+    Element element;
+    RETURN_IF_ERROR(ReadTo(&element));
+    auto const [unused_it, inserted] = result->try_emplace(std::move(key), std::move(element));
+    if (!inserted) {
+      return InvalidFormatError();
+    }
+    ConsumeWhitespace();
+    if (absl::ConsumePrefix(&input_, ",")) {
+      ConsumeWhitespace();
+    } else if (absl::ConsumePrefix(&input_, "}")) {
+      return absl::OkStatus();
+    } else {
+      return InvalidSyntaxError();
+    }
+  }
+  return InvalidSyntaxError();
+}
+
 template <typename Element, typename Set>
 absl::Status Parser::ReadToSet(Set* const result) {
   ConsumeWhitespace();
-  if (!absl::ConsumePrefix(&input_, "[")) {
-    return InvalidSyntaxError();
-  }
+  RETURN_IF_ERROR(ConsumePrefix("["));
   ConsumeWhitespace();
   result->clear();
   if (absl::ConsumePrefix(&input_, "]")) {

@@ -1,16 +1,21 @@
 #include "common/json.h"
 
 #include <array>
+#include <map>
 #include <optional>
 #include <set>
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/container/node_hash_map.h"
 #include "absl/container/node_hash_set.h"
+#include "common/flat_map.h"
 #include "common/flat_set.h"
 #include "common/testing.h"
 #include "gtest/gtest.h"
@@ -19,11 +24,13 @@ namespace {
 
 namespace json = tsdb2::json;
 
+using ::testing::AnyOf;
 using ::testing::ElementsAre;
 using ::testing::FieldsAre;
 using ::testing::Not;
 using ::testing::Optional;
 using ::testing::Pair;
+using ::testing::UnorderedElementsAre;
 using ::testing::status::IsOk;
 using ::testing::status::IsOkAndHolds;
 
@@ -372,11 +379,11 @@ TEST(JsonTest, StringifyStdArray) {
 }
 
 template <typename Value>
-class TypedJsonTest : public ::testing::Test {};
+class TypedJsonSequenceTest : public ::testing::Test {};
 
-TYPED_TEST_SUITE_P(TypedJsonTest);
+TYPED_TEST_SUITE_P(TypedJsonSequenceTest);
 
-TYPED_TEST_P(TypedJsonTest, ParseSequence) {
+TYPED_TEST_P(TypedJsonSequenceTest, ParseSequence) {
   EXPECT_THAT(json::Parse<TypeParam>(""), Not(IsOk()));
   EXPECT_THAT(json::Parse<TypeParam>("["), Not(IsOk()));
   EXPECT_THAT(json::Parse<TypeParam>("[]"), IsOkAndHolds(ElementsAre()));
@@ -403,14 +410,14 @@ TYPED_TEST_P(TypedJsonTest, ParseSequence) {
   EXPECT_THAT(json::Parse<TypeParam>(" [ 42 , 43 , 44 ] "), IsOkAndHolds(ElementsAre(42, 43, 44)));
 }
 
-TYPED_TEST_P(TypedJsonTest, StringifySequence) {
+TYPED_TEST_P(TypedJsonSequenceTest, StringifySequence) {
   EXPECT_EQ(json::Stringify<TypeParam>({}), "[]");
   EXPECT_EQ(json::Stringify<TypeParam>({42}), "[42]");
   EXPECT_EQ(json::Stringify<TypeParam>({42, 43}), "[42,43]");
   EXPECT_EQ(json::Stringify<TypeParam>({-75, 43, 44, 93}), "[-75,43,44,93]");
 }
 
-REGISTER_TYPED_TEST_SUITE_P(TypedJsonTest, ParseSequence, StringifySequence);
+REGISTER_TYPED_TEST_SUITE_P(TypedJsonSequenceTest, ParseSequence, StringifySequence);
 
 // TODO: add unordered sets.
 using SequenceTypes = ::testing::Types<  //
@@ -419,9 +426,98 @@ using SequenceTypes = ::testing::Types<  //
     tsdb2::common::flat_set<int>         //
     >;
 
-INSTANTIATE_TYPED_TEST_SUITE_P(TypedJsonTest, TypedJsonTest, SequenceTypes);
+INSTANTIATE_TYPED_TEST_SUITE_P(TypedJsonSequenceTest, TypedJsonSequenceTest, SequenceTypes);
 
-// TODO
+template <typename Value>
+class TypedJsonDictionaryTest : public ::testing::Test {};
+
+TYPED_TEST_SUITE_P(TypedJsonDictionaryTest);
+
+TYPED_TEST_P(TypedJsonDictionaryTest, ParseDictionary) {
+  EXPECT_THAT(json::Parse<TypeParam>(""), Not(IsOk()));
+  EXPECT_THAT(json::Parse<TypeParam>("{"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<TypeParam>("{}"), IsOkAndHolds(UnorderedElementsAre()));
+  EXPECT_THAT(json::Parse<TypeParam>(" {}"), IsOkAndHolds(UnorderedElementsAre()));
+  EXPECT_THAT(json::Parse<TypeParam>("{ }"), IsOkAndHolds(UnorderedElementsAre()));
+  EXPECT_THAT(json::Parse<TypeParam>("{} "), IsOkAndHolds(UnorderedElementsAre()));
+  EXPECT_THAT(json::Parse<TypeParam>(" { } "), IsOkAndHolds(UnorderedElementsAre()));
+  EXPECT_THAT(json::Parse<TypeParam>("{,}"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<TypeParam>("{\"foo\":42}"),
+              IsOkAndHolds(UnorderedElementsAre(Pair("foo", 42))));
+  EXPECT_THAT(json::Parse<TypeParam>(" {\"foo\":42}"),
+              IsOkAndHolds(UnorderedElementsAre(Pair("foo", 42))));
+  EXPECT_THAT(json::Parse<TypeParam>("{ \"foo\":42}"),
+              IsOkAndHolds(UnorderedElementsAre(Pair("foo", 42))));
+  EXPECT_THAT(json::Parse<TypeParam>("{\"foo\" :42}"),
+              IsOkAndHolds(UnorderedElementsAre(Pair("foo", 42))));
+  EXPECT_THAT(json::Parse<TypeParam>("{\"foo\": 42}"),
+              IsOkAndHolds(UnorderedElementsAre(Pair("foo", 42))));
+  EXPECT_THAT(json::Parse<TypeParam>("{\"foo\":42 }"),
+              IsOkAndHolds(UnorderedElementsAre(Pair("foo", 42))));
+  EXPECT_THAT(json::Parse<TypeParam>("{\"foo\":42} "),
+              IsOkAndHolds(UnorderedElementsAre(Pair("foo", 42))));
+  EXPECT_THAT(json::Parse<TypeParam>(" { \"foo\" : 42 } "),
+              IsOkAndHolds(UnorderedElementsAre(Pair("foo", 42))));
+  EXPECT_THAT(json::Parse<TypeParam>("{\"foo\":42,}"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<TypeParam>("{\"foo\":42,\"bar\":43}"),
+              IsOkAndHolds(UnorderedElementsAre(Pair("foo", 42), Pair("bar", 43))));
+  EXPECT_THAT(json::Parse<TypeParam>(" {\"foo\":42,\"bar\":43}"),
+              IsOkAndHolds(UnorderedElementsAre(Pair("foo", 42), Pair("bar", 43))));
+  EXPECT_THAT(json::Parse<TypeParam>("{ \"foo\":42,\"bar\":43}"),
+              IsOkAndHolds(UnorderedElementsAre(Pair("foo", 42), Pair("bar", 43))));
+  EXPECT_THAT(json::Parse<TypeParam>("{\"foo\" :42,\"bar\":43}"),
+              IsOkAndHolds(UnorderedElementsAre(Pair("foo", 42), Pair("bar", 43))));
+  EXPECT_THAT(json::Parse<TypeParam>("{\"foo\": 42,\"bar\":43}"),
+              IsOkAndHolds(UnorderedElementsAre(Pair("foo", 42), Pair("bar", 43))));
+  EXPECT_THAT(json::Parse<TypeParam>("{\"foo\":42 ,\"bar\":43}"),
+              IsOkAndHolds(UnorderedElementsAre(Pair("foo", 42), Pair("bar", 43))));
+  EXPECT_THAT(json::Parse<TypeParam>("{\"foo\":42, \"bar\":43}"),
+              IsOkAndHolds(UnorderedElementsAre(Pair("foo", 42), Pair("bar", 43))));
+  EXPECT_THAT(json::Parse<TypeParam>("{\"foo\":42,\"bar\" :43}"),
+              IsOkAndHolds(UnorderedElementsAre(Pair("foo", 42), Pair("bar", 43))));
+  EXPECT_THAT(json::Parse<TypeParam>("{\"foo\":42,\"bar\": 43}"),
+              IsOkAndHolds(UnorderedElementsAre(Pair("foo", 42), Pair("bar", 43))));
+  EXPECT_THAT(json::Parse<TypeParam>("{\"foo\":42,\"bar\":43 }"),
+              IsOkAndHolds(UnorderedElementsAre(Pair("foo", 42), Pair("bar", 43))));
+  EXPECT_THAT(json::Parse<TypeParam>("{\"foo\":42,\"bar\":43} "),
+              IsOkAndHolds(UnorderedElementsAre(Pair("foo", 42), Pair("bar", 43))));
+  EXPECT_THAT(json::Parse<TypeParam>(" { \"foo\" : 42 , \"bar\" : 43 } "),
+              IsOkAndHolds(UnorderedElementsAre(Pair("foo", 42), Pair("bar", 43))));
+  EXPECT_THAT(json::Parse<TypeParam>("{\"foo\":42,\"bar\":43,}"), Not(IsOk()));
+  EXPECT_THAT(
+      json::Parse<TypeParam>("{\"foo\":42,\"bar\":43,\"baz\":44}"),
+      IsOkAndHolds(UnorderedElementsAre(Pair("foo", 42), Pair("bar", 43), Pair("baz", 44))));
+  EXPECT_THAT(
+      json::Parse<TypeParam>(" { \"foo\" : 42 , \"bar\" : 43 , \"baz\" : 44 } "),
+      IsOkAndHolds(UnorderedElementsAre(Pair("foo", 42), Pair("bar", 43), Pair("baz", 44))));
+  EXPECT_THAT(json::Parse<TypeParam>("{\"foo\":42,\"bar\":43,\"foo\":44}"), Not(IsOk()));
+}
+
+TYPED_TEST_P(TypedJsonDictionaryTest, StringifyDictionary) {
+  EXPECT_THAT(json::Stringify<TypeParam>({}), "{}");
+  EXPECT_THAT(json::Stringify<TypeParam>({{"foo", 42}}), "{\"foo\":42}");
+  EXPECT_THAT(json::Stringify<TypeParam>({{"lorem", 123}, {"ipsum", 456}}),
+              AnyOf("{\"lorem\":123,\"ipsum\":456}", "{\"ipsum\":456,\"lorem\":123}"));
+  EXPECT_THAT(json::Stringify<TypeParam>({{"lorem", 123}, {"ipsum", 456}, {"dolor", 789}}),
+              AnyOf("{\"lorem\":123,\"ipsum\":456,\"dolor\":789}",
+                    "{\"lorem\":123,\"dolor\":789,\"ipsum\":456}",
+                    "{\"ipsum\":456,\"lorem\":123,\"dolor\":789}",
+                    "{\"ipsum\":456,\"dolor\":789,\"lorem\":123}",
+                    "{\"dolor\":789,\"lorem\":123,\"ipsum\":456}",
+                    "{\"dolor\":789,\"ipsum\":456,\"lorem\":123}"));
+}
+
+REGISTER_TYPED_TEST_SUITE_P(TypedJsonDictionaryTest, ParseDictionary, StringifyDictionary);
+
+using DictionaryTypes = ::testing::Types<      //
+    std::map<std::string, int>,                //
+    std::unordered_map<std::string, int>,      //
+    absl::flat_hash_map<std::string, int>,     //
+    absl::node_hash_map<std::string, int>,     //
+    tsdb2::common::flat_map<std::string, int>  //
+    >;
+
+INSTANTIATE_TYPED_TEST_SUITE_P(TypedJsonDictionaryTest, TypedJsonDictionaryTest, DictionaryTypes);
 
 JSON_OBJECT(                    //
     BarBaz,                     //
