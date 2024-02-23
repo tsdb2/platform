@@ -279,7 +279,15 @@ class Object;
 
 template <>
 class Object<> {
+ public:
+  void Clear() {}
+
+  std::string Stringify() const { return "{}"; }
+
+  friend std::string Tsdb2JsonStringify(Object const& value) { return value.Stringify(); }
+
  protected:
+  void ClearInternal() {}
   void StringifyInternal(std::vector<std::string>*) const {}
 };
 
@@ -302,6 +310,8 @@ class Object<internal::FieldImpl<Type, TypeStringMatcher<name...>>, OtherFields.
     return ConstGetter<TypeStringT<field_name>>(*this)();
   }
 
+  void Clear() { ClearInternal(); }
+
   std::string Stringify() const {
     std::vector<std::string> fields;
     fields.reserve(sizeof...(OtherFields) + 1);
@@ -317,6 +327,11 @@ class Object<internal::FieldImpl<Type, TypeStringMatcher<name...>>, OtherFields.
 
   template <typename FieldName, typename Dummy = void>
   struct ConstGetter;
+
+  void ClearInternal() {
+    Object<OtherFields...>::ClearInternal();
+    value_ = Type();
+  }
 
   void StringifyInternal(std::vector<std::string>* const fields) const {
     fields->emplace_back(absl::StrCat("\"", absl::CEscape(TypeStringMatcher<name...>::value),
@@ -478,6 +493,9 @@ class Parser {
   template <typename Element>
   absl::Status ReadTo(std::vector<Element>* result);
 
+  template <typename... Fields>
+  absl::Status ReadTo(Object<Fields...>* result);
+
   template <typename Element, typename Dictionary>
   absl::Status ReadToDictionary(Dictionary* result);
 
@@ -505,8 +523,7 @@ class Parser {
   }
 
   template <typename Element, typename Compare, typename Representation>
-  absl::Status ReadTo(
-      tsdb2::common::flat_map<std::string, Element, Compare, Representation>* const result) {
+  absl::Status ReadTo(flat_map<std::string, Element, Compare, Representation>* const result) {
     return ReadToDictionary<Element>(result);
   }
 
@@ -534,7 +551,7 @@ class Parser {
   }
 
   template <typename Element, typename Compare, typename Representation>
-  absl::Status ReadTo(tsdb2::common::flat_set<Element, Compare, Representation>* const result) {
+  absl::Status ReadTo(flat_set<Element, Compare, Representation>* const result) {
     return ReadToSet<Element>(result);
   }
 
@@ -815,6 +832,28 @@ absl::Status Parser::ReadTo(std::vector<Element>* const result) {
     } else {
       return InvalidSyntaxError();
     }
+  }
+  return InvalidSyntaxError();
+}
+
+template <typename... Fields>
+absl::Status Parser::ReadTo(Object<Fields...>* const result) {
+  ConsumeWhitespace();
+  RETURN_IF_ERROR(ConsumePrefix("{"));
+  ConsumeWhitespace();
+  result->Clear();
+  flat_set<std::string> keys;
+  // keys.reserve(sizeof...(Fields));
+  while (!input_.empty()) {
+    std::string key;
+    RETURN_IF_ERROR(ReadTo(&key));
+    auto const [unused_it, inserted] = keys.emplace(key);
+    if (!inserted) {
+      return InvalidFormatError();  // duplicate key
+    }
+    ConsumeWhitespace();
+    RETURN_IF_ERROR(ConsumePrefix(":"));
+    // TODO
   }
   return InvalidSyntaxError();
 }

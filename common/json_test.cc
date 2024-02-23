@@ -78,6 +78,33 @@ TEST(JsonTest, FieldAccess) {
   EXPECT_THAT(ptr, Pointee(std::string("bazqux")));
 }
 
+TEST(JsonTest, Clear) {
+  TestObject object;
+  object.get<kFieldName1>() = 42;
+  object.get<kFieldName2>() = true;
+  object.get<kFieldName3>() = "foobar";
+  object.get<kFieldName4>() = 3.14;
+  object.get<kFieldName5>() = std::vector<int>{1, 2, 3};
+  object.get<kFieldName6>() = std::make_tuple(43, false, "barbaz");
+  object.get<kFieldName7>() = 2.71;
+  object.get<kFieldName8>() = std::make_unique<std::string>("bazqux");
+  object.Clear();
+  EXPECT_EQ(object.get<kFieldName1>(), 0);
+  EXPECT_EQ(object.get<kFieldName2>(), false);
+  EXPECT_EQ(object.get<kFieldName3>(), "");
+  EXPECT_EQ(object.get<kFieldName4>(), 0.0);
+  EXPECT_EQ(object.get<kFieldName5>(), std::vector<int>());
+  EXPECT_EQ(object.get<kFieldName6>(), (std::tuple<int, bool, std::string>()));
+  EXPECT_EQ(object.get<kFieldName7>(), std::nullopt);
+  EXPECT_EQ(object.get<kFieldName8>(), nullptr);
+}
+
+TEST(JsonTest, StringifyEmpty) {
+  json::Object<> object;
+  EXPECT_EQ(object.Stringify(), "{}");
+  EXPECT_EQ(json::Stringify(object), "{}");
+}
+
 TEST(JsonTest, Stringify) {
   TestObject object;
   object.get<kFieldName1>() = 42;
@@ -89,8 +116,9 @@ TEST(JsonTest, Stringify) {
   object.get<kFieldName7>() = 2.71;
   object.get<kFieldName8>() = std::make_unique<std::string>("bazqux");
   EXPECT_EQ(
-      json::Stringify(object),
+      object.Stringify(),
       R"json({"lorem":42,"ipsum":true,"dolor":"foobar","sit":3.14,"amet":[1,2,3],"consectetur":[43,false,"barbaz"],"adipisci":2.71,"elit":"bazqux"})json");
+  EXPECT_EQ(json::Stringify(object), object.Stringify());
 }
 
 TEST(JsonTest, ParseBool) {
