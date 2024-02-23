@@ -486,18 +486,21 @@ class Parser {
     return ReadToDictionary<Element>(result);
   }
 
-  template <typename Element, typename Hash, typename Equal>
-  absl::Status ReadTo(std::unordered_map<std::string, Element, Hash, Equal>* const result) {
+  template <typename Element, typename Hash, typename Equal, typename Allocator>
+  absl::Status ReadTo(
+      std::unordered_map<std::string, Element, Hash, Equal, Allocator>* const result) {
     return ReadToDictionary<Element>(result);
   }
 
-  template <typename Element, typename Hash, typename Equal>
-  absl::Status ReadTo(absl::flat_hash_map<std::string, Element, Hash, Equal>* const result) {
+  template <typename Element, typename Hash, typename Equal, typename Allocator>
+  absl::Status ReadTo(
+      absl::flat_hash_map<std::string, Element, Hash, Equal, Allocator>* const result) {
     return ReadToDictionary<Element>(result);
   }
 
-  template <typename Element, typename Hash, typename Equal>
-  absl::Status ReadTo(absl::node_hash_map<std::string, Element, Hash, Equal>* const result) {
+  template <typename Element, typename Hash, typename Equal, typename Allocator>
+  absl::Status ReadTo(
+      absl::node_hash_map<std::string, Element, Hash, Equal, Allocator>* const result) {
     return ReadToDictionary<Element>(result);
   }
 
@@ -530,8 +533,8 @@ class Parser {
     return ReadToSet<Element>(result);
   }
 
-  template <typename Element, typename Compare>
-  absl::Status ReadTo(tsdb2::common::flat_set<Element, Compare>* const result) {
+  template <typename Element, typename Compare, typename Representation>
+  absl::Status ReadTo(tsdb2::common::flat_set<Element, Compare, Representation>* const result) {
     return ReadToSet<Element>(result);
   }
 
