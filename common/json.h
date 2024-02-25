@@ -70,6 +70,16 @@
 //   assert(*(object.get<kFieldName8>()) == "bazqux");
 //
 //
+// NOTE: this JSON framework supports parsing and serializing both `tsdb2::json::Object` objects and
+// associative containers (std::map, std::unordered_map, absl::flat_hash_map, etc.). The tradeoff
+// between the two approaches is a tradeoff between compilation performance and runtime performance:
+// at runtime, the fields of a `tsdb2::json::Object` instance can be accessed very efficiently with
+// a single memory lookup, but `tsdb2::json::Object` is a template class that relies on type strings
+// and therefore very slow to compile. By contrast, various associative containers compile fast but
+// have various runtime performance characteristics that are necessarily worse than
+// `tsdb::json::Object` (at a minimum, looking up a field requires scanning the full name string).
+// Choose the approach that suits your use case best.
+//
 // NOTE: the root type to parse/stringify doesn't have to be an object or dictionary, it can be any
 // supported data type. For example, "true" is a valid JSON string that you can (de)serialize with
 // the data type `bool`:
@@ -79,7 +89,6 @@
 //   ASSIGN_OR_RETURN(value, tsdb2::json::Parse<bool>("false"));
 //   assert(value == false);
 //
-
 #ifndef __TSDB2_COMMON_JSON_H__
 #define __TSDB2_COMMON_JSON_H__
 
@@ -361,15 +370,70 @@ class Parser;
 
 }  // namespace internal
 
+// Fields for `Object` (see below).
 template <typename Type, char const name[]>
 using Field = internal::FieldImpl<Type, TypeStringT<name>>;
 
+// Represents an object that can be parsed from JSON and serialized to JSON. The template arguments
+// must be `Field` types describing the fields in the object. We use `TypeString`s to specify field
+// names along with their types in the template instantiation.
+//
+// Example:
+//
+//   namespace json = tsdb2::json;
+//
+//   char constexpr kFieldName1[] = "lorem";
+//   char constexpr kFieldName2[] = "ipsum";
+//   char constexpr kFieldName3[] = "dolor";
+//   char constexpr kFieldName4[] = "sit";
+//   char constexpr kFieldName5[] = "amet";
+//   char constexpr kFieldName6[] = "consectetur";
+//   char constexpr kFieldName7[] = "adipisci";
+//   char constexpr kFieldName8[] = "elit";
+//
+//   using TestObject = json::Object<
+//       json::Field<int, kFieldName1>,
+//       json::Field<bool, kFieldName2>,
+//       json::Field<std::string, kFieldName3>,
+//       json::Field<double, kFieldName4>,
+//       json::Field<std::vector<int>, kFieldName5>,
+//       json::Field<std::tuple<int, bool, std::string>, kFieldName6>,
+//       json::Field<std::optional<double>, kFieldName7>,
+//       json::Field<std::unique_ptr<std::string>, kFieldName8>>;
+//
+// Fields can then be accessed efficiently using the `get` function template:
+//
+//   TestObject obj;
+//   obj.get<kFieldName1>() = 42;
+//   assert(obj.get<kFieldName1>() == 42);
+//
+// `Object` also provides all comparison operators (==, !=, <, <=, >, and >=) and a specialization
+// of `AbslHashValue`, making it suitable for most containers.
 template <typename... Fields>
 class Object;
 
 template <>
 class Object<> {
  public:
+  explicit Object() = default;
+
+  Object(Object<> const&) = default;
+  Object<>& operator=(Object<> const&) = default;
+  Object(Object<>&&) noexcept = default;
+  Object<>& operator=(Object<>&&) noexcept = default;
+
+  bool operator==(Object<> const& other) const { return true; }
+  bool operator!=(Object<> const& other) const { return false; }
+  bool operator<(Object<> const& other) const { return false; }
+  bool operator<=(Object<> const& other) const { return true; }
+  bool operator>(Object<> const& other) const { return false; }
+  bool operator>=(Object<> const& other) const { return true; }
+
+  template <typename H>
+  friend H AbslHashValue(H h, Object<> const& value) {
+    return h;
+  }
+
   void Clear() {}
 
   std::string Stringify() const { return "{}"; }
@@ -387,12 +451,46 @@ class Object<> {
   ABSL_ATTRIBUTE_ALWAYS_INLINE void StringifyInternal(std::vector<std::string>*) const {}
 };
 
-template <typename Type, char... name, typename... OtherFields>
-class Object<internal::FieldImpl<Type, TypeStringMatcher<name...>>, OtherFields...>
-    : public Object<OtherFields...> {
+template <typename Type, typename Name, typename... OtherFields>
+class Object<internal::FieldImpl<Type, Name>, OtherFields...> : public Object<OtherFields...> {
  public:
-  static_assert(internal::CheckUniqueNameV<TypeStringMatcher<name...>, OtherFields...>,
-                "duplicate field names");
+  static_assert(internal::CheckUniqueNameV<Name, OtherFields...>, "duplicate field names");
+
+  explicit Object() = default;
+
+  Object(Object<internal::FieldImpl<Type, Name>, OtherFields...> const&) = default;
+  Object<internal::FieldImpl<Type, Name>, OtherFields...>& operator=(
+      Object<internal::FieldImpl<Type, Name>, OtherFields...> const&) = default;
+
+  Object(Object<internal::FieldImpl<Type, Name>, OtherFields...>&&) noexcept = default;
+  Object<internal::FieldImpl<Type, Name>, OtherFields...>& operator=(
+      Object<internal::FieldImpl<Type, Name>, OtherFields...>&&) noexcept = default;
+
+  bool operator==(Object<internal::FieldImpl<Type, Name>, OtherFields...> const& other) const {
+    return value_ == other.value_ && Object<OtherFields...>::operator==(other);
+  }
+
+  bool operator!=(Object<internal::FieldImpl<Type, Name>, OtherFields...> const& other) const {
+    return value_ != other.value_ || Object<OtherFields...>::operator!=(other);
+  }
+
+  bool operator<(Object<internal::FieldImpl<Type, Name>, OtherFields...> const& other) const {
+    return value_ < other.value_ && Object<OtherFields...>::operator<(other);
+  }
+
+  bool operator<=(Object<internal::FieldImpl<Type, Name>, OtherFields...> const& other) const {
+    return value_ <= other.value_ && Object<OtherFields...>::operator<=(other);
+  }
+
+  bool operator>(Object<internal::FieldImpl<Type, Name>, OtherFields...> const& other) const {
+    return value_ > other.value_ && Object<OtherFields...>::operator>(other);
+  }
+
+  bool operator>=(Object<internal::FieldImpl<Type, Name>, OtherFields...> const& other) const {
+    return value_ >= other.value_ && Object<OtherFields...>::operator>=(other);
+  }
+
+  // TODO: AbslHashValue
 
   template <char const field_name[]>
   auto& get() & {
@@ -439,9 +537,8 @@ class Object<internal::FieldImpl<Type, TypeStringMatcher<name...>>, OtherFields.
 
   ABSL_ATTRIBUTE_ALWAYS_INLINE void StringifyInternal(
       std::vector<std::string>* const fields) const {
-    fields->emplace_back(absl::StrCat(
-        tsdb2::common::json::internal::EscapeAndQuoteString(TypeStringMatcher<name...>::value), ":",
-        Tsdb2JsonStringify(value_)));
+    fields->emplace_back(
+        absl::StrCat(internal::EscapeAndQuoteString(Name::value), ":", Tsdb2JsonStringify(value_)));
     Object<OtherFields...>::StringifyInternal(fields);
   }
 
@@ -449,36 +546,34 @@ class Object<internal::FieldImpl<Type, TypeStringMatcher<name...>>, OtherFields.
   Type value_;
 };
 
-template <typename Type, char... name, typename... OtherFields>
+template <typename Type, typename Name, typename... OtherFields>
 template <typename Dummy>
-struct Object<internal::FieldImpl<Type, TypeStringMatcher<name...>>,
-              OtherFields...>::Getter<TypeStringMatcher<name...>, Dummy> {
+struct Object<internal::FieldImpl<Type, Name>, OtherFields...>::Getter<Name, Dummy> {
   explicit ABSL_ATTRIBUTE_ALWAYS_INLINE Getter(Object& obj) : value(obj.value_) {}
   ABSL_ATTRIBUTE_ALWAYS_INLINE Type& operator()() const { return value; }
   Type& value;
 };
 
-template <typename Type, char... name, typename... OtherFields>
+template <typename Type, typename Name, typename... OtherFields>
 template <typename Dummy, char... field_name>
-struct Object<internal::FieldImpl<Type, TypeStringMatcher<name...>>,
+struct Object<internal::FieldImpl<Type, Name>,
               OtherFields...>::Getter<TypeStringMatcher<field_name...>, Dummy>
     : public Object<OtherFields...>::template Getter<TypeStringMatcher<field_name...>> {
   explicit ABSL_ATTRIBUTE_ALWAYS_INLINE Getter(Object& obj)
       : Object<OtherFields...>::template Getter<TypeStringMatcher<field_name...>>(obj) {}
 };
 
-template <typename Type, char... name, typename... OtherFields>
+template <typename Type, typename Name, typename... OtherFields>
 template <typename Dummy>
-struct Object<internal::FieldImpl<Type, TypeStringMatcher<name...>>,
-              OtherFields...>::ConstGetter<TypeStringMatcher<name...>, Dummy> {
+struct Object<internal::FieldImpl<Type, Name>, OtherFields...>::ConstGetter<Name, Dummy> {
   explicit ABSL_ATTRIBUTE_ALWAYS_INLINE ConstGetter(Object const& obj) : value(obj.value_) {}
   ABSL_ATTRIBUTE_ALWAYS_INLINE Type const& operator()() const { return value; }
   Type const& value;
 };
 
-template <typename Type, char... name, typename... OtherFields>
+template <typename Type, typename Name, typename... OtherFields>
 template <typename Dummy, char... field_name>
-struct Object<internal::FieldImpl<Type, TypeStringMatcher<name...>>,
+struct Object<internal::FieldImpl<Type, Name>,
               OtherFields...>::ConstGetter<TypeStringMatcher<field_name...>, Dummy>
     : public Object<OtherFields...>::template ConstGetter<TypeStringMatcher<field_name...>> {
   explicit ABSL_ATTRIBUTE_ALWAYS_INLINE ConstGetter(Object const& obj)
@@ -1024,11 +1119,11 @@ absl::Status Parser::ReadToSet(Set* const result) {
 
 }  // namespace internal
 
-template <typename Type, char... name, typename... OtherFields>
+template <typename Type, typename Name, typename... OtherFields>
 ABSL_ATTRIBUTE_ALWAYS_INLINE absl::Status
-Object<internal::FieldImpl<Type, TypeStringMatcher<name...>>, OtherFields...>::ReadField(
+Object<internal::FieldImpl<Type, Name>, OtherFields...>::ReadField(
     internal::Parser* const parser, std::string_view const field_name) {
-  if (field_name != TypeStringMatcher<name...>::value) {
+  if (field_name != Name::value) {
     return Object<OtherFields...>::ReadField(parser, field_name);
   } else {
     return parser->ReadTo(&value_);

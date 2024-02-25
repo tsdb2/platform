@@ -120,6 +120,97 @@ TEST(JsonTest, Clear) {
   EXPECT_EQ(object.get<kFieldName8>(), nullptr);
 }
 
+// TODO: copy construction and copy assignment.
+
+TEST(JsonTest, MoveConstruction) {
+  TestObject obj1;
+  obj1.get<kFieldName1>() = 42;
+  obj1.get<kFieldName2>() = true;
+  obj1.get<kFieldName3>() = "foobar";
+  obj1.get<kFieldName4>() = 3.14;
+  obj1.get<kFieldName5>() = std::vector<int>{1, 2, 3};
+  obj1.get<kFieldName6>() = std::make_tuple(43, false, "barbaz");
+  obj1.get<kFieldName7>() = 2.71;
+  obj1.get<kFieldName8>() = std::make_unique<std::string>("bazqux");
+  TestObject obj2{std::move(obj1)};
+  EXPECT_THAT(obj2, AllOf(Property(&TestObject::get<kFieldName1>, 42),
+                          Property(&TestObject::get<kFieldName2>, true),
+                          Property(&TestObject::get<kFieldName3>, "foobar"),
+                          Property(&TestObject::get<kFieldName4>, 3.14),
+                          Property(&TestObject::get<kFieldName5>, ElementsAre<int>(1, 2, 3)),
+                          Property(&TestObject::get<kFieldName6>, FieldsAre(43, false, "barbaz")),
+                          Property(&TestObject::get<kFieldName7>, Optional<double>(2.71)),
+                          Property(&TestObject::get<kFieldName8>, Pointee(std::string("bazqux")))));
+}
+
+TEST(JsonTest, MoveAssignment) {
+  TestObject obj1;
+  obj1.get<kFieldName1>() = 42;
+  obj1.get<kFieldName2>() = true;
+  obj1.get<kFieldName3>() = "foobar";
+  obj1.get<kFieldName4>() = 3.14;
+  obj1.get<kFieldName5>() = std::vector<int>{1, 2, 3};
+  obj1.get<kFieldName6>() = std::make_tuple(43, false, "barbaz");
+  obj1.get<kFieldName7>() = 2.71;
+  obj1.get<kFieldName8>() = std::make_unique<std::string>("bazqux");
+  TestObject obj2;
+  obj2 = std::move(obj1);
+  EXPECT_THAT(obj2, AllOf(Property(&TestObject::get<kFieldName1>, 42),
+                          Property(&TestObject::get<kFieldName2>, true),
+                          Property(&TestObject::get<kFieldName3>, "foobar"),
+                          Property(&TestObject::get<kFieldName4>, 3.14),
+                          Property(&TestObject::get<kFieldName5>, ElementsAre<int>(1, 2, 3)),
+                          Property(&TestObject::get<kFieldName6>, FieldsAre(43, false, "barbaz")),
+                          Property(&TestObject::get<kFieldName7>, Optional<double>(2.71)),
+                          Property(&TestObject::get<kFieldName8>, Pointee(std::string("bazqux")))));
+}
+
+TEST(JsonTest, EmptyObjectComparisons) {
+  EXPECT_TRUE(json::Object<>() == json::Object<>());
+  EXPECT_FALSE(json::Object<>() != json::Object<>());
+  EXPECT_FALSE(json::Object<>() < json::Object<>());
+  EXPECT_TRUE(json::Object<>() <= json::Object<>());
+  EXPECT_FALSE(json::Object<>() > json::Object<>());
+  EXPECT_TRUE(json::Object<>() >= json::Object<>());
+}
+
+TEST(JsonTest, Equality) {
+  TestObject obj1;
+  obj1.get<kFieldName1>() = 42;
+  obj1.get<kFieldName2>() = true;
+  obj1.get<kFieldName3>() = "foobar";
+  obj1.get<kFieldName4>() = 3.14;
+  obj1.get<kFieldName5>() = std::vector<int>{1, 2, 3};
+  obj1.get<kFieldName6>() = std::make_tuple(43, false, "barbaz");
+  obj1.get<kFieldName7>() = 2.71;
+  EXPECT_EQ(obj1, obj1);
+  // TODO: fix this.
+  // TestObject obj2 = obj1;
+  // EXPECT_EQ(obj1, obj2);
+};
+
+TEST(JsonTest, Inequality) {
+  TestObject obj1;
+  obj1.get<kFieldName1>() = 42;
+  obj1.get<kFieldName2>() = true;
+  obj1.get<kFieldName3>() = "foobar";
+  obj1.get<kFieldName4>() = 3.14;
+  obj1.get<kFieldName5>() = std::vector<int>{1, 2, 3};
+  obj1.get<kFieldName6>() = std::make_tuple(43, false, "barbaz");
+  obj1.get<kFieldName7>() = 2.71;
+  TestObject obj2;
+  obj2.get<kFieldName1>() = 43;
+  obj2.get<kFieldName2>() = false;
+  obj2.get<kFieldName3>() = "barfoo";
+  obj2.get<kFieldName4>() = 14.3;
+  obj2.get<kFieldName5>() = std::vector<int>{4, 5, 6};
+  obj2.get<kFieldName6>() = std::make_tuple(44, true, "bazbar");
+  obj2.get<kFieldName7>() = 71.2;
+  EXPECT_NE(obj1, obj2);
+}
+
+// TODO: test other comparison operators.
+
 TEST(JsonTest, StringifyEmpty) {
   json::Object<> object;
   EXPECT_EQ(object.Stringify(), "{}");

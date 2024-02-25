@@ -83,10 +83,10 @@ std::string EscapeAndQuoteString(std::string_view const input) {
 
 absl::Status Parser::ReadTo(bool* const result) {
   ConsumeWhitespace();
-  if (absl::ConsumePrefix(&input_, "true")) {
+  if (ConsumePrefix("true").ok()) {
     *result = true;
     return absl::OkStatus();
-  } else if (absl::ConsumePrefix(&input_, "false")) {
+  } else if (ConsumePrefix("false").ok()) {
     *result = false;
     return absl::OkStatus();
   } else {
@@ -96,7 +96,7 @@ absl::Status Parser::ReadTo(bool* const result) {
 
 absl::Status Parser::ReadTo(std::string* const result) {
   ConsumeWhitespace();
-  if (!absl::ConsumePrefix(&input_, "\"")) {
+  if (!ConsumePrefix("\"").ok()) {
     return InvalidSyntaxError();
   }
   size_t offset = 0;
