@@ -18,9 +18,9 @@
 //   * std::tuple,
 //   * std::array,
 //   * std::vector,
-//   * std::set / std::unordered_set / absl::flat_hash_set / absl::node_hash_set /
+//   * std::set / std::unordered_set / absl::btree_set / absl::flat_hash_set / absl::node_hash_set /
 //     tsdb2::common::flat_set,
-//   * std::map / std::unordered_map / absl::flat_hash_map / absl::node_hash_map /
+//   * std::map / std::unordered_map / absl::btree_map / absl::flat_hash_map / absl::node_hash_map /
 //     tsdb2::common::flat_map,
 //   * tsdb2::json::Object,
 //   * data types managed by std::unique_ptr, std::shared_ptr, or tsdb2::common::reffed_ptr
@@ -28,7 +28,46 @@
 //
 // Example:
 //
-//   // TODO
+//   char constexpr kFieldName1[] = "lorem";
+//   char constexpr kFieldName2[] = "ipsum";
+//   char constexpr kFieldName3[] = "dolor";
+//   char constexpr kFieldName4[] = "sit";
+//   char constexpr kFieldName5[] = "amet";
+//   char constexpr kFieldName6[] = "consectetur";
+//   char constexpr kFieldName7[] = "adipisci";
+//   char constexpr kFieldName8[] = "elit";
+//
+//   using TestObject = json::Object<
+//       json::Field<int, kFieldName1>,
+//       json::Field<bool, kFieldName2>,
+//       json::Field<std::string, kFieldName3>,
+//       json::Field<double, kFieldName4>,
+//       json::Field<std::vector<int>, kFieldName5>,
+//       json::Field<std::tuple<int, bool, std::string>, kFieldName6>,
+//       json::Field<std::optional<double>, kFieldName7>,
+//       json::Field<std::unique_ptr<std::string>, kFieldName8>>;
+//
+//   auto const status_or_object = tsdb2::json::Parse<TestObject>(R"json({
+//         "lorem": 42,
+//         "ipsum": true,
+//         "dolor": "foobar",
+//         "sit": 3.14,
+//         "amet": [1, 2, 3],
+//         "consectetur": [43, false, "barbaz"],
+//         "adipisci": 2.71,
+//         "elit": "bazqux"
+//       })json");
+//   assert(status_or_object.ok());
+//
+//   auto const& object = status_or_object.value();
+//   assert(object.get<kFieldName1>() == 42);
+//   assert(object.get<kFieldName2>() == true);
+//   assert(object.get<kFieldName3>() == "foobar");
+//   assert(object.get<kFieldName4>() == 3.14);
+//   assert(object.get<kFieldName5>() == std::vector<int>{1, 2, 3});
+//   assert(object.get<kFieldName6>() == std::make_tuple(43, false, std::string("barbaz")));
+//   assert(object.get<kFieldName7>().value() == 2.71);
+//   assert(*(object.get<kFieldName8>()) == "bazqux");
 //
 //
 // NOTE: the root type to parse/stringify doesn't have to be an object or dictionary, it can be any
@@ -64,6 +103,8 @@
 #include <vector>
 
 #include "absl/base/attributes.h"
+#include "absl/container/btree_map.h"
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/node_hash_map.h"
@@ -197,6 +238,12 @@ inline std::string Tsdb2JsonStringify(
   return Tsdb2JsonStringifyDictionary(value);
 }
 
+template <typename Key, typename Value, typename Compare, typename Allocator>
+inline std::string Tsdb2JsonStringify(
+    absl::btree_map<Key, Value, Compare, Allocator> const& value) {
+  return Tsdb2JsonStringifyDictionary(value);
+}
+
 template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
 inline std::string Tsdb2JsonStringify(
     absl::flat_hash_map<Key, Value, Hash, Equal, Allocator> const& value) {
@@ -236,6 +283,11 @@ inline std::string Tsdb2JsonStringify(
   return Tsdb2JsonStringifySet(value);
 }
 
+template <typename Element, typename Compare, typename Allocator>
+inline std::string Tsdb2JsonStringify(absl::btree_set<Element, Compare, Allocator> const& value) {
+  return Tsdb2JsonStringifySet(value);
+}
+
 template <typename Element, typename Hash, typename Equal, typename Allocator>
 inline std::string Tsdb2JsonStringify(
     absl::flat_hash_set<Element, Hash, Equal, Allocator> const& value) {
@@ -269,6 +321,8 @@ struct FieldImpl<Type, TypeStringMatcher<ch...>> {
   static std::string_view constexpr name = Name::value;
 };
 
+class Parser;
+
 }  // namespace internal
 
 template <typename Type, char const name[]>
@@ -287,8 +341,14 @@ class Object<> {
   friend std::string Tsdb2JsonStringify(Object const& value) { return value.Stringify(); }
 
  protected:
-  void ClearInternal() {}
-  void StringifyInternal(std::vector<std::string>*) const {}
+  ABSL_ATTRIBUTE_ALWAYS_INLINE void ClearInternal() {}
+
+  ABSL_ATTRIBUTE_ALWAYS_INLINE absl::Status ReadField(internal::Parser* const parser,
+                                                      std::string_view const field_name) {
+    return absl::OkStatus();
+  }
+
+  ABSL_ATTRIBUTE_ALWAYS_INLINE void StringifyInternal(std::vector<std::string>*) const {}
 };
 
 template <typename Type, char... name, typename... OtherFields>
@@ -322,18 +382,24 @@ class Object<internal::FieldImpl<Type, TypeStringMatcher<name...>>, OtherFields.
   friend std::string Tsdb2JsonStringify(Object const& value) { return value.Stringify(); }
 
  protected:
+  friend class internal::Parser;
+
   template <typename FieldName, typename Dummy = void>
   struct Getter;
 
   template <typename FieldName, typename Dummy = void>
   struct ConstGetter;
 
-  void ClearInternal() {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE void ClearInternal() {
     Object<OtherFields...>::ClearInternal();
     value_ = Type();
   }
 
-  void StringifyInternal(std::vector<std::string>* const fields) const {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE absl::Status ReadField(internal::Parser* const parser,
+                                                      std::string_view const field_name);
+
+  ABSL_ATTRIBUTE_ALWAYS_INLINE void StringifyInternal(
+      std::vector<std::string>* const fields) const {
     fields->emplace_back(absl::StrCat("\"", absl::CEscape(TypeStringMatcher<name...>::value),
                                       "\":", Tsdb2JsonStringify(value_)));
     Object<OtherFields...>::StringifyInternal(fields);
@@ -419,6 +485,9 @@ class Parser {
   absl::StatusOr<Value> Parse();
 
  private:
+  template <typename... Fields>
+  friend class ::tsdb2::common::json::Object;
+
   absl::Status InvalidSyntaxError() const {
     // TODO: include row and column numbers in the error message.
     return absl::InvalidArgumentError("invalid JSON syntax");
@@ -510,6 +579,11 @@ class Parser {
     return ReadToDictionary<Element>(result);
   }
 
+  template <typename Element, typename Compare, typename Allocator>
+  absl::Status ReadTo(absl::btree_map<std::string, Element, Compare, Allocator>* const result) {
+    return ReadToDictionary<Element>(result);
+  }
+
   template <typename Element, typename Hash, typename Equal, typename Allocator>
   absl::Status ReadTo(
       absl::flat_hash_map<std::string, Element, Hash, Equal, Allocator>* const result) {
@@ -540,6 +614,11 @@ class Parser {
     return ReadToSet<Element>(result);
   }
 
+  template <typename Element, typename Compare, typename Allocator>
+  absl::Status ReadTo(absl::btree_set<Element, Compare, Allocator>* const result) {
+    return ReadToSet<Element>(result);
+  }
+
   template <typename Element, typename Hash, typename Equal, typename Allocator>
   absl::Status ReadTo(absl::flat_hash_set<Element, Hash, Equal, Allocator>* const result) {
     return ReadToSet<Element>(result);
@@ -557,25 +636,34 @@ class Parser {
 
   template <typename Pointee>
   absl::Status ReadTo(std::unique_ptr<Pointee>* const result) {
-    if (!*result) {
-      *result = std::make_unique<Pointee>();
+    ConsumeWhitespace();
+    *result = nullptr;
+    if (ConsumePrefix("null").ok()) {
+      return absl::OkStatus();
     }
+    *result = std::make_unique<Pointee>();
     return ReadTo(result->get());
   }
 
   template <typename Pointee>
   absl::Status ReadTo(std::shared_ptr<Pointee>* const result) {
-    if (!*result) {
-      *result = std::make_shared<Pointee>();
+    ConsumeWhitespace();
+    *result = nullptr;
+    if (ConsumePrefix("null").ok()) {
+      return absl::OkStatus();
     }
+    *result = std::make_shared<Pointee>();
     return ReadTo(result->get());
   }
 
   template <typename Pointee>
   absl::Status ReadTo(tsdb2::common::reffed_ptr<Pointee>* const result) {
-    if (!*result) {
-      *result = tsdb2::common::MakeReffed<Pointee>();
+    ConsumeWhitespace();
+    *result = nullptr;
+    if (ConsumePrefix("null").ok()) {
+      return absl::OkStatus();
     }
+    *result = tsdb2::common::MakeReffed<Pointee>();
     return ReadTo(result->get());
   }
 
@@ -843,7 +931,7 @@ absl::Status Parser::ReadTo(Object<Fields...>* const result) {
   ConsumeWhitespace();
   result->Clear();
   flat_set<std::string> keys;
-  // keys.reserve(sizeof...(Fields));
+  // TODO: keys.reserve(sizeof...(Fields));
   while (!input_.empty()) {
     std::string key;
     RETURN_IF_ERROR(ReadTo(&key));
@@ -853,7 +941,16 @@ absl::Status Parser::ReadTo(Object<Fields...>* const result) {
     }
     ConsumeWhitespace();
     RETURN_IF_ERROR(ConsumePrefix(":"));
-    // TODO
+    RETURN_IF_ERROR(result->ReadField(this, key));
+    ConsumeWhitespace();
+    if (absl::ConsumePrefix(&input_, ",")) {
+      ConsumeWhitespace();
+    } else if (absl::ConsumePrefix(&input_, "}")) {
+      // TODO: check that we got all fields.
+      return absl::OkStatus();
+    } else {
+      return InvalidSyntaxError();
+    }
   }
   return InvalidSyntaxError();
 }
@@ -916,6 +1013,17 @@ absl::Status Parser::ReadToSet(Set* const result) {
 }
 
 }  // namespace internal
+
+template <typename Type, char... name, typename... OtherFields>
+ABSL_ATTRIBUTE_ALWAYS_INLINE absl::Status
+Object<internal::FieldImpl<Type, TypeStringMatcher<name...>>, OtherFields...>::ReadField(
+    internal::Parser* const parser, std::string_view const field_name) {
+  if (field_name != TypeStringMatcher<name...>::value) {
+    return Object<OtherFields...>::ReadField(parser, field_name);
+  } else {
+    return parser->ReadTo(&value_);
+  }
+}
 
 template <typename Value>
 absl::StatusOr<Value> Parse(std::string_view const input) {

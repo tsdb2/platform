@@ -12,6 +12,8 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/btree_map.h"
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/node_hash_map.h"
@@ -25,13 +27,16 @@ namespace {
 
 namespace json = tsdb2::json;
 
+using ::testing::AllOf;
 using ::testing::AnyOf;
 using ::testing::ElementsAre;
+using ::testing::Eq;
 using ::testing::FieldsAre;
 using ::testing::Not;
 using ::testing::Optional;
 using ::testing::Pair;
 using ::testing::Pointee;
+using ::testing::Property;
 using ::testing::UnorderedElementsAre;
 using ::testing::status::IsOk;
 using ::testing::status::IsOkAndHolds;
@@ -66,14 +71,14 @@ TEST(JsonTest, FieldAccess) {
   object.get<kFieldName7>() = 2.71;
   object.get<kFieldName8>() = std::make_unique<std::string>("bazqux");
   TestObject const& ref = object;
-  EXPECT_EQ(ref.get<kFieldName1>(), 42);
-  EXPECT_EQ(ref.get<kFieldName2>(), true);
-  EXPECT_EQ(ref.get<kFieldName3>(), "foobar");
-  EXPECT_EQ(ref.get<kFieldName4>(), 3.14);
-  EXPECT_THAT(ref.get<kFieldName5>(), ElementsAre<int>(1, 2, 3));
-  EXPECT_THAT(ref.get<kFieldName6>(), FieldsAre(43, false, "barbaz"));
-  EXPECT_THAT(ref.get<kFieldName7>(), Optional<double>(2.71));
-  EXPECT_THAT(ref.get<kFieldName8>(), Pointee(std::string("bazqux")));
+  EXPECT_THAT(ref, AllOf(Property(&TestObject::get<kFieldName1>, 42),
+                         Property(&TestObject::get<kFieldName2>, true),
+                         Property(&TestObject::get<kFieldName3>, "foobar"),
+                         Property(&TestObject::get<kFieldName4>, 3.14),
+                         Property(&TestObject::get<kFieldName5>, ElementsAre<int>(1, 2, 3)),
+                         Property(&TestObject::get<kFieldName6>, FieldsAre(43, false, "barbaz")),
+                         Property(&TestObject::get<kFieldName7>, Optional<double>(2.71)),
+                         Property(&TestObject::get<kFieldName8>, Pointee(std::string("bazqux")))));
   auto const ptr = std::move(object).get<kFieldName8>();
   EXPECT_THAT(ptr, Pointee(std::string("bazqux")));
 }
@@ -103,6 +108,52 @@ TEST(JsonTest, StringifyEmpty) {
   json::Object<> object;
   EXPECT_EQ(object.Stringify(), "{}");
   EXPECT_EQ(json::Stringify(object), "{}");
+}
+
+TEST(JsonTest, Parse) {
+  TestObject object;
+  EXPECT_THAT(
+      json::Parse<TestObject>(
+          R"({"lorem":42,"ipsum":true,"dolor":"foobar","sit":3.14,"amet":[1,2,3],"consectetur":[43,false,"barbaz"],"adipisci":2.71,"elit":"bazqux"})"),
+      IsOkAndHolds(AllOf(Property(&TestObject::get<kFieldName1>, 42),
+                         Property(&TestObject::get<kFieldName2>, true),
+                         Property(&TestObject::get<kFieldName3>, "foobar"),
+                         Property(&TestObject::get<kFieldName4>, 3.14),
+                         Property(&TestObject::get<kFieldName5>, ElementsAre(1, 2, 3)),
+                         Property(&TestObject::get<kFieldName6>, FieldsAre(43, false, "barbaz")),
+                         Property(&TestObject::get<kFieldName7>, Optional(2.71)),
+                         Property(&TestObject::get<kFieldName8>, Pointee(std::string("bazqux"))))));
+  EXPECT_THAT(
+      json::Parse<TestObject>(
+          R"({"lorem":43,"ipsum":false,"dolor":"barfoo","sit":14.3,"amet":[4,5,6],"consectetur":[42,true,"bazbar"],"adipisci":71.2,"elit":null})"),
+      IsOkAndHolds(AllOf(Property(&TestObject::get<kFieldName1>, 43),
+                         Property(&TestObject::get<kFieldName2>, false),
+                         Property(&TestObject::get<kFieldName3>, "barfoo"),
+                         Property(&TestObject::get<kFieldName4>, 14.3),
+                         Property(&TestObject::get<kFieldName5>, ElementsAre(4, 5, 6)),
+                         Property(&TestObject::get<kFieldName6>, FieldsAre(42, true, "bazbar")),
+                         Property(&TestObject::get<kFieldName7>, Optional(71.2)),
+                         Property(&TestObject::get<kFieldName8>, Eq(nullptr)))));
+  EXPECT_THAT(
+      json::Parse<TestObject>(
+          R"json({
+            "lorem": 42,
+            "ipsum": true,
+            "dolor": "foobar",
+            "sit": 3.14,
+            "amet": [1, 2, 3],
+            "consectetur": [43, false, "barbaz"],
+            "adipisci": 2.71,
+            "elit": "bazqux"
+          })json"),
+      IsOkAndHolds(AllOf(Property(&TestObject::get<kFieldName1>, 42),
+                         Property(&TestObject::get<kFieldName2>, true),
+                         Property(&TestObject::get<kFieldName3>, "foobar"),
+                         Property(&TestObject::get<kFieldName4>, 3.14),
+                         Property(&TestObject::get<kFieldName5>, ElementsAre(1, 2, 3)),
+                         Property(&TestObject::get<kFieldName6>, FieldsAre(43, false, "barbaz")),
+                         Property(&TestObject::get<kFieldName7>, Optional(2.71)),
+                         Property(&TestObject::get<kFieldName8>, Pointee(std::string("bazqux"))))));
 }
 
 TEST(JsonTest, Stringify) {
@@ -415,43 +466,105 @@ TEST(JsonTest, StringifyStdArray) {
   EXPECT_EQ((json::Stringify<std::array<int, 3>>({75, 44, -93})), "[75,44,-93]");
 }
 
+template <typename Sequence>
+struct MaybeOrderedElementsAre;
+
+template <typename Element>
+struct MaybeOrderedElementsAre<std::vector<Element>> {
+  template <typename... Args>
+  auto operator()(Args&&... args) const {
+    return ElementsAre(std::forward<Args>(args)...);
+  }
+};
+
+template <typename Element>
+struct MaybeOrderedElementsAre<std::set<Element>> {
+  template <typename... Args>
+  auto operator()(Args&&... args) const {
+    return ElementsAre(std::forward<Args>(args)...);
+  }
+};
+
+template <typename Element>
+struct MaybeOrderedElementsAre<std::unordered_set<Element>> {
+  template <typename... Args>
+  auto operator()(Args&&... args) const {
+    return UnorderedElementsAre(std::forward<Args>(args)...);
+  }
+};
+
+template <typename Element>
+struct MaybeOrderedElementsAre<absl::btree_set<Element>> {
+  template <typename... Args>
+  auto operator()(Args&&... args) const {
+    return ElementsAre(std::forward<Args>(args)...);
+  }
+};
+
+template <typename Element>
+struct MaybeOrderedElementsAre<absl::flat_hash_set<Element>> {
+  template <typename... Args>
+  auto operator()(Args&&... args) const {
+    return UnorderedElementsAre(std::forward<Args>(args)...);
+  }
+};
+
+template <typename Element>
+struct MaybeOrderedElementsAre<absl::node_hash_set<Element>> {
+  template <typename... Args>
+  auto operator()(Args&&... args) const {
+    return UnorderedElementsAre(std::forward<Args>(args)...);
+  }
+};
+
+template <typename Element>
+struct MaybeOrderedElementsAre<tsdb2::common::flat_set<Element>> {
+  template <typename... Args>
+  auto operator()(Args&&... args) const {
+    return ElementsAre(std::forward<Args>(args)...);
+  }
+};
+
 template <typename Value>
 class TypedJsonSequenceTest : public ::testing::Test {};
 
 TYPED_TEST_SUITE_P(TypedJsonSequenceTest);
 
 TYPED_TEST_P(TypedJsonSequenceTest, ParseSequence) {
+  auto const elements_are = MaybeOrderedElementsAre<TypeParam>();
   EXPECT_THAT(json::Parse<TypeParam>(""), Not(IsOk()));
   EXPECT_THAT(json::Parse<TypeParam>("["), Not(IsOk()));
-  EXPECT_THAT(json::Parse<TypeParam>("[]"), IsOkAndHolds(ElementsAre()));
-  EXPECT_THAT(json::Parse<TypeParam>(" []"), IsOkAndHolds(ElementsAre()));
-  EXPECT_THAT(json::Parse<TypeParam>("[ ]"), IsOkAndHolds(ElementsAre()));
-  EXPECT_THAT(json::Parse<TypeParam>("[] "), IsOkAndHolds(ElementsAre()));
-  EXPECT_THAT(json::Parse<TypeParam>(" [ ] "), IsOkAndHolds(ElementsAre()));
+  EXPECT_THAT(json::Parse<TypeParam>("[]"), IsOkAndHolds(elements_are()));
+  EXPECT_THAT(json::Parse<TypeParam>(" []"), IsOkAndHolds(elements_are()));
+  EXPECT_THAT(json::Parse<TypeParam>("[ ]"), IsOkAndHolds(elements_are()));
+  EXPECT_THAT(json::Parse<TypeParam>("[] "), IsOkAndHolds(elements_are()));
+  EXPECT_THAT(json::Parse<TypeParam>(" [ ] "), IsOkAndHolds(elements_are()));
   EXPECT_THAT(json::Parse<TypeParam>("[,]"), Not(IsOk()));
-  EXPECT_THAT(json::Parse<TypeParam>("[42]"), IsOkAndHolds(ElementsAre(42)));
+  EXPECT_THAT(json::Parse<TypeParam>("[42]"), IsOkAndHolds(elements_are(42)));
   EXPECT_THAT(json::Parse<TypeParam>("[42,]"), Not(IsOk()));
   EXPECT_THAT(json::Parse<TypeParam>("[,42]"), Not(IsOk()));
-  EXPECT_THAT(json::Parse<TypeParam>("[42,43]"), IsOkAndHolds(ElementsAre(42, 43)));
-  EXPECT_THAT(json::Parse<TypeParam>(" [42,43]"), IsOkAndHolds(ElementsAre(42, 43)));
-  EXPECT_THAT(json::Parse<TypeParam>("[ 42,43]"), IsOkAndHolds(ElementsAre(42, 43)));
-  EXPECT_THAT(json::Parse<TypeParam>("[42 ,43]"), IsOkAndHolds(ElementsAre(42, 43)));
-  EXPECT_THAT(json::Parse<TypeParam>("[42, 43]"), IsOkAndHolds(ElementsAre(42, 43)));
-  EXPECT_THAT(json::Parse<TypeParam>("[42,43 ]"), IsOkAndHolds(ElementsAre(42, 43)));
-  EXPECT_THAT(json::Parse<TypeParam>("[42,43] "), IsOkAndHolds(ElementsAre(42, 43)));
-  EXPECT_THAT(json::Parse<TypeParam>(" [ 42 , 43 ] "), IsOkAndHolds(ElementsAre(42, 43)));
-  EXPECT_THAT(json::Parse<TypeParam>("[-42,43]"), IsOkAndHolds(ElementsAre(-42, 43)));
+  EXPECT_THAT(json::Parse<TypeParam>("[42,43]"), IsOkAndHolds(elements_are(42, 43)));
+  EXPECT_THAT(json::Parse<TypeParam>(" [42,43]"), IsOkAndHolds(elements_are(42, 43)));
+  EXPECT_THAT(json::Parse<TypeParam>("[ 42,43]"), IsOkAndHolds(elements_are(42, 43)));
+  EXPECT_THAT(json::Parse<TypeParam>("[42 ,43]"), IsOkAndHolds(elements_are(42, 43)));
+  EXPECT_THAT(json::Parse<TypeParam>("[42, 43]"), IsOkAndHolds(elements_are(42, 43)));
+  EXPECT_THAT(json::Parse<TypeParam>("[42,43 ]"), IsOkAndHolds(elements_are(42, 43)));
+  EXPECT_THAT(json::Parse<TypeParam>("[42,43] "), IsOkAndHolds(elements_are(42, 43)));
+  EXPECT_THAT(json::Parse<TypeParam>(" [ 42 , 43 ] "), IsOkAndHolds(elements_are(42, 43)));
+  EXPECT_THAT(json::Parse<TypeParam>("[-42,43]"), IsOkAndHolds(elements_are(-42, 43)));
   EXPECT_THAT(json::Parse<TypeParam>("[42,- 43]"), Not(IsOk()));
   EXPECT_THAT(json::Parse<TypeParam>("[42,43,]"), Not(IsOk()));
-  EXPECT_THAT(json::Parse<TypeParam>("[42,43,44]"), IsOkAndHolds(ElementsAre(42, 43, 44)));
-  EXPECT_THAT(json::Parse<TypeParam>(" [ 42 , 43 , 44 ] "), IsOkAndHolds(ElementsAre(42, 43, 44)));
+  EXPECT_THAT(json::Parse<TypeParam>("[42,43,44]"), IsOkAndHolds(elements_are(42, 43, 44)));
+  EXPECT_THAT(json::Parse<TypeParam>(" [ 42 , 43 , 44 ] "), IsOkAndHolds(elements_are(42, 43, 44)));
 }
 
 TYPED_TEST_P(TypedJsonSequenceTest, StringifySequence) {
   EXPECT_EQ(json::Stringify<TypeParam>({}), "[]");
   EXPECT_EQ(json::Stringify<TypeParam>({42}), "[42]");
-  EXPECT_EQ(json::Stringify<TypeParam>({42, 43}), "[42,43]");
-  EXPECT_EQ(json::Stringify<TypeParam>({-75, 43, 44, 93}), "[-75,43,44,93]");
+  EXPECT_THAT(json::Stringify<TypeParam>({42, 43}), AnyOf("[42,43]", "[43,42]"));
+  EXPECT_THAT(json::Stringify<TypeParam>({-75, 44, 93}),
+              AnyOf("[-75,44,93]", "[-75,93,44]", "[44,-75,93]", "[44,93,-75]", "[93,-75,44]",
+                    "[93,44,-75]"));
 }
 
 REGISTER_TYPED_TEST_SUITE_P(TypedJsonSequenceTest, ParseSequence, StringifySequence);
@@ -460,6 +573,10 @@ REGISTER_TYPED_TEST_SUITE_P(TypedJsonSequenceTest, ParseSequence, StringifySeque
 using SequenceTypes = ::testing::Types<  //
     std::vector<int>,                    //
     std::set<int>,                       //
+    std::unordered_set<int>,             //
+    absl::btree_set<int>,                //
+    absl::flat_hash_set<int>,            //
+    absl::node_hash_set<int>,            //
     tsdb2::common::flat_set<int>         //
     >;
 
@@ -549,6 +666,7 @@ REGISTER_TYPED_TEST_SUITE_P(TypedJsonDictionaryTest, ParseDictionary, StringifyD
 using DictionaryTypes = ::testing::Types<      //
     std::map<std::string, int>,                //
     std::unordered_map<std::string, int>,      //
+    absl::btree_map<std::string, int>,         //
     absl::flat_hash_map<std::string, int>,     //
     absl::node_hash_map<std::string, int>,     //
     tsdb2::common::flat_map<std::string, int>  //
