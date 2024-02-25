@@ -222,6 +222,7 @@ class flat_map {
 
   bool empty() const noexcept { return rep_.empty(); }
   size_t size() const noexcept { return rep_.size(); }
+  size_t capacity() const noexcept { return rep_.capacity(); }
   size_t max_size() const noexcept { return rep_.max_size(); }
 
   template <typename H>
@@ -428,6 +429,8 @@ class flat_map {
   }
 
   // TODO: merge methods.
+
+  void reserve(size_type const count) { rep_.reserve(count); }
 
   Representation const& rep() const { return rep_; }
 

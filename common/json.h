@@ -941,7 +941,7 @@ absl::Status Parser::ReadTo(Object<Fields...>* const result) {
   ConsumeWhitespace();
   result->Clear();
   flat_set<std::string> keys;
-  // TODO: keys.reserve(sizeof...(Fields));
+  keys.reserve(sizeof...(Fields));
   while (!input_.empty()) {
     std::string key;
     RETURN_IF_ERROR(ReadTo(&key));

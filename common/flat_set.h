@@ -151,6 +151,7 @@ class flat_set {
 
   bool empty() const noexcept { return rep_.empty(); }
   size_type size() const noexcept { return rep_.size(); }
+  size_type capacity() const noexcept { return rep_.capacity(); }
   size_type max_size() const noexcept { return rep_.max_size(); }
 
   template <typename H>
@@ -265,6 +266,8 @@ class flat_set {
   }
 
   // TODO: merge methods.
+
+  void reserve(size_type const count) { rep_.reserve(count); }
 
   Representation const& rep() const { return rep_; }
 

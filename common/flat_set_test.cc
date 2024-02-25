@@ -29,6 +29,7 @@ using tsdb2::testing::TransparentTestCompare;
 
 using ::testing::_;
 using ::testing::ElementsAre;
+using ::testing::Ge;
 using ::testing::Pair;
 
 template <typename FlatSet, typename... Inner>
@@ -629,6 +630,50 @@ REGISTER_TYPED_TEST_SUITE_P(
 using RepresentationTypes = ::testing::Types<std::vector<TestKey>, std::deque<TestKey>>;
 INSTANTIATE_TYPED_TEST_SUITE_P(FlatSetWithRepresentationTest, FlatSetWithRepresentationTest,
                                RepresentationTypes);
+
+TEST(FlatSetCapacityTest, InitialCapacity) {
+  flat_set<int> fs;
+  EXPECT_EQ(fs.capacity(), 0);
+  EXPECT_EQ(fs.size(), 0);
+}
+
+TEST(FlatSetCapacityTest, CapacityAfterInsert) {
+  flat_set<int> fs;
+  fs.insert(2);
+  fs.insert(3);
+  fs.insert(1);
+  EXPECT_THAT(fs.capacity(), Ge(3));
+  EXPECT_EQ(fs.size(), 3);
+}
+
+TEST(FlatSetCapacityTest, Reserve) {
+  flat_set<int> fs;
+  fs.reserve(3);
+  EXPECT_EQ(fs.capacity(), 3);
+  EXPECT_EQ(fs.size(), 0);
+}
+
+TEST(FlatSetCapacityTest, ReserveAndInsert) {
+  flat_set<int> fs;
+  fs.reserve(3);
+  fs.insert(2);
+  fs.insert(3);
+  fs.insert(1);
+  EXPECT_EQ(fs.capacity(), 3);
+  EXPECT_THAT(fs, ElementsAre(1, 2, 3));
+}
+
+TEST(FlatSetCapacityTest, InsertMoreThanReserved) {
+  flat_set<int> fs;
+  fs.reserve(3);
+  fs.insert(2);
+  fs.insert(3);
+  fs.insert(1);
+  fs.insert(5);
+  fs.insert(4);
+  EXPECT_THAT(fs.capacity(), Ge(5));
+  EXPECT_THAT(fs, ElementsAre(1, 2, 3, 4, 5));
+}
 
 TEST(FixedFlatSetTest, Empty) {
   auto constexpr fs = fixed_flat_set_of<int>({});

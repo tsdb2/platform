@@ -30,6 +30,7 @@ using tsdb2::testing::TransparentTestCompare;
 
 using ::testing::_;
 using ::testing::ElementsAre;
+using ::testing::Ge;
 using ::testing::Pair;
 
 template <typename FlatMap, typename... Inner>
@@ -1099,6 +1100,51 @@ using RepresentationTypes =
     ::testing::Types<std::vector<RepresentationElement>, std::deque<RepresentationElement>>;
 INSTANTIATE_TYPED_TEST_SUITE_P(FlatMapWithRepresentationTest, FlatMapWithRepresentationTest,
                                RepresentationTypes);
+
+TEST(FlatMapCapacityTest, InitialCapacity) {
+  flat_map<int, std::string> fm;
+  EXPECT_EQ(fm.capacity(), 0);
+  EXPECT_EQ(fm.size(), 0);
+}
+
+TEST(FlatMapCapacityTest, CapacityAfterInsert) {
+  flat_map<int, std::string> fm;
+  fm.try_emplace(2, "lorem");
+  fm.try_emplace(3, "ipsum");
+  fm.try_emplace(1, "dolor");
+  EXPECT_THAT(fm.capacity(), Ge(3));
+  EXPECT_THAT(fm, ElementsAre(Pair(1, "dolor"), Pair(2, "lorem"), Pair(3, "ipsum")));
+}
+
+TEST(FlatMapCapacityTest, Reserve) {
+  flat_map<int, std::string> fm;
+  fm.reserve(3);
+  EXPECT_EQ(fm.capacity(), 3);
+  EXPECT_EQ(fm.size(), 0);
+}
+
+TEST(FlatMapCapacityTest, ReserveAndInsert) {
+  flat_map<int, std::string> fm;
+  fm.reserve(3);
+  fm.try_emplace(2, "lorem");
+  fm.try_emplace(3, "ipsum");
+  fm.try_emplace(1, "dolor");
+  EXPECT_EQ(fm.capacity(), 3);
+  EXPECT_THAT(fm, ElementsAre(Pair(1, "dolor"), Pair(2, "lorem"), Pair(3, "ipsum")));
+}
+
+TEST(FlatMapCapacityTest, InsertMoreThanReserved) {
+  flat_map<int, std::string> fm;
+  fm.reserve(3);
+  fm.try_emplace(2, "lorem");
+  fm.try_emplace(3, "ipsum");
+  fm.try_emplace(1, "dolor");
+  fm.try_emplace(5, "amet");
+  fm.try_emplace(4, "consectetur");
+  EXPECT_THAT(fm.capacity(), Ge(5));
+  EXPECT_THAT(fm, ElementsAre(Pair(1, "dolor"), Pair(2, "lorem"), Pair(3, "ipsum"),
+                              Pair(4, "consectetur"), Pair(5, "amet")));
+}
 
 template <typename Key, typename T, typename Compare = std::less<Key>, typename... Inner>
 auto FixedValuesAre(Inner&&... inner) {
