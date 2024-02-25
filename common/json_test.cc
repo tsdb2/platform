@@ -168,7 +168,7 @@ TEST(JsonTest, Stringify) {
   object.get<kFieldName8>() = std::make_unique<std::string>("bazqux");
   EXPECT_EQ(
       object.Stringify(),
-      R"json({"lorem":42,"ipsum":true,"dolor":"foobar","sit":3.14,"amet":[1,2,3],"consectetur":[43,false,"barbaz"],"adipisci":2.71,"elit":"bazqux"})json");
+      R"({"lorem":42,"ipsum":true,"dolor":"foobar","sit":3.14,"amet":[1,2,3],"consectetur":[43,false,"barbaz"],"adipisci":2.71,"elit":"bazqux"})");
   EXPECT_EQ(json::Stringify(object), object.Stringify());
 }
 
@@ -317,7 +317,8 @@ TEST(JsonTest, ParseString) {
 TEST(JsonTest, StringifyString) {
   EXPECT_EQ(json::Stringify<std::string>("lorem \"ipsum\""), "\"lorem \\\"ipsum\\\"\"");
   EXPECT_EQ(json::Stringify("lorem \"ipsum\""), "\"lorem \\\"ipsum\\\"\"");
-  // TODO: test escape codes.
+  EXPECT_EQ(json::Stringify("a \" b \\ c / d \b e \f f \n g \r h \t i \x84"),
+            "\"a \\\" b \\\\ c / d \\b e \\f f \\n g \\r h \\t i \\u0084\"");
 }
 
 TEST(JsonTest, ParseOptional) {

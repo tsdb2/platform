@@ -18,10 +18,10 @@
 //   * std::tuple,
 //   * std::array,
 //   * std::vector,
-//   * std::set / std::unordered_set / absl::btree_set / absl::flat_hash_set / absl::node_hash_set /
-//     tsdb2::common::flat_set,
-//   * std::map / std::unordered_map / absl::btree_map / absl::flat_hash_map / absl::node_hash_map /
-//     tsdb2::common::flat_map,
+//   * std::set / std::unordered_set / tsdb2::common::flat_set / absl::btree_set /
+//     absl::flat_hash_set / absl::node_hash_set,
+//   * std::map / std::unordered_map / tsdb2::common::flat_map / absl::btree_map /
+//     absl::flat_hash_map / absl::node_hash_map,
 //   * tsdb2::json::Object,
 //   * data types managed by std::unique_ptr, std::shared_ptr, or tsdb2::common::reffed_ptr
 //     (serializing to "null" if the pointer is null).
@@ -111,7 +111,6 @@
 #include "absl/container/node_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/strip.h"
@@ -121,12 +120,24 @@
 #include "common/type_string.h"
 #include "common/utilities.h"
 
+namespace tsdb2 {
+namespace common {
+namespace json {
+namespace internal {
+
+std::string EscapeAndQuoteString(std::string_view input);
+
+}  // namespace internal
+}  // namespace json
+}  // namespace common
+}  // namespace tsdb2
+
 inline std::string Tsdb2JsonStringify(char const value[]) {
-  return absl::StrCat("\"", absl::CEscape(value), "\"");
+  return tsdb2::common::json::internal::EscapeAndQuoteString(value);
 }
 
 inline std::string Tsdb2JsonStringify(std::string_view const value) {
-  return absl::StrCat("\"", absl::CEscape(value), "\"");
+  return tsdb2::common::json::internal::EscapeAndQuoteString(value);
 }
 
 inline std::string Tsdb2JsonStringify(bool const value) { return value ? "true" : "false"; }
@@ -221,7 +232,8 @@ inline std::string Tsdb2JsonStringifyDictionary(Dictionary const& dictionary) {
   std::vector<std::string> fields;
   fields.reserve(dictionary.size());
   for (auto const& [key, value] : dictionary) {
-    fields.emplace_back(absl::StrCat("\"", absl::CEscape(key), "\":", Tsdb2JsonStringify(value)));
+    fields.emplace_back(absl::StrCat(tsdb2::common::json::internal::EscapeAndQuoteString(key), ":",
+                                     Tsdb2JsonStringify(value)));
   }
   return absl::StrCat("{", absl::StrJoin(fields, ","), "}");
 }
@@ -399,8 +411,9 @@ class Object<internal::FieldImpl<Type, TypeStringMatcher<name...>>, OtherFields.
 
   ABSL_ATTRIBUTE_ALWAYS_INLINE void StringifyInternal(
       std::vector<std::string>* const fields) const {
-    fields->emplace_back(absl::StrCat("\"", absl::CEscape(TypeStringMatcher<name...>::value),
-                                      "\":", Tsdb2JsonStringify(value_)));
+    fields->emplace_back(absl::StrCat(
+        tsdb2::common::json::internal::EscapeAndQuoteString(TypeStringMatcher<name...>::value), ":",
+        Tsdb2JsonStringify(value_)));
     Object<OtherFields...>::StringifyInternal(fields);
   }
 

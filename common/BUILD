@@ -210,6 +210,7 @@ cc_library(
         ":flat_map",
         ":flat_set",
         ":reffed_ptr",
+        ":to_array",
         ":type_string",
         ":utilities",
         "@com_google_absl//absl/container:btree",
