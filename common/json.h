@@ -117,7 +117,6 @@
 #include "absl/strings/strip.h"
 #include "common/flat_map.h"
 #include "common/flat_set.h"
-#include "common/preprocessor.h"
 #include "common/reffed_ptr.h"
 #include "common/type_string.h"
 #include "common/utilities.h"
@@ -444,36 +443,6 @@ struct Object<internal::FieldImpl<Type, TypeStringMatcher<name...>>,
   explicit ABSL_ATTRIBUTE_ALWAYS_INLINE ConstGetter(Object const& obj)
       : Object<OtherFields...>::template ConstGetter<TypeStringMatcher<field_name...>>(obj) {}
 };
-
-#define _TSDB2_JSON_GET_FIELD_NAME(Type, name) name
-
-#define _TSDB2_JSON_FIELD_NAME_SYMBOL(ObjectName, field_name) \
-  TSDB2_PP_CAT(k, TSDB2_PP_CAT(ObjectName, TSDB2_PP_CAT(_, TSDB2_PP_CAT(field_name, _FieldName))))
-
-#define _TSDB2_JSON_FIELD_NAME_IMPL(ObjectName, field_name)                       \
-  static char constexpr _TSDB2_JSON_FIELD_NAME_SYMBOL(ObjectName, field_name)[] = \
-      TSDB2_PP_STRINGIFY(field_name);
-
-#define _TSDB2_JSON_FIELD_NAME(ObjectName, field) \
-  _TSDB2_JSON_FIELD_NAME_IMPL(ObjectName, _TSDB2_JSON_GET_FIELD_NAME field)
-
-#define _TSDB2_JSON_FIELD_NAMES(ObjectName, ...) \
-  TSDB2_PP_FOR_EACH(_TSDB2_JSON_FIELD_NAME, ObjectName, __VA_ARGS__)
-
-#define _TSDB2_JSON_FIELD_IMPL(Type, name) Type name;
-#define _TSDB2_JSON_FIELD(_, field) _TSDB2_JSON_FIELD_IMPL field
-#define _TSDB2_JSON_FIELDS(...) TSDB2_PP_FOR_EACH(_TSDB2_JSON_FIELD, _, __VA_ARGS__)
-
-#define _TSDB2_JSON_OBJECT(Name, ...)                          \
-  _TSDB2_JSON_FIELD_NAMES(Name, __VA_ARGS__)                   \
-  struct Name {                                                \
-    friend std::string Tsdb2JsonStringify(Name const& value) { \
-      return absl::StrCat("{", /* TODO */ "}");                \
-    }                                                          \
-    _TSDB2_JSON_FIELDS(__VA_ARGS__)                            \
-  };
-
-#define JSON_OBJECT _TSDB2_JSON_OBJECT
 
 namespace internal {
 

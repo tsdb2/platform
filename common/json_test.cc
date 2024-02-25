@@ -674,25 +674,4 @@ using DictionaryTypes = ::testing::Types<      //
 
 INSTANTIATE_TYPED_TEST_SUITE_P(TypedJsonDictionaryTest, TypedJsonDictionaryTest, DictionaryTypes);
 
-JSON_OBJECT(                    //
-    BarBaz,                     //
-    (int, lorem),               //
-    (bool, ipsum),              //
-    (std::string, dolor),       //
-    (double, sit),              //
-    (std::vector<int>, amet));  //
-
-// ...
-// ((std::tuple<int, bool, std::string>), consectetur),   //
-// (std::optional<double>, adipisci));                    //
-
-TEST(MacroJsonTest, FieldNames) {
-  EXPECT_EQ(kBarBaz_lorem_FieldName, std::string_view("lorem"));
-  EXPECT_EQ(kBarBaz_ipsum_FieldName, std::string_view("ipsum"));
-  EXPECT_EQ(kBarBaz_dolor_FieldName, std::string_view("dolor"));
-  EXPECT_EQ(kBarBaz_sit_FieldName, std::string_view("sit"));
-  EXPECT_EQ(kBarBaz_amet_FieldName, std::string_view("amet"));
-  // TODO
-}
-
 }  // namespace
