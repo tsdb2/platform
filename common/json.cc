@@ -54,8 +54,7 @@ auto constexpr kEscapedCharacterByCode = fixed_flat_map_of<char, char>({
 
 std::string EscapeAndQuoteString(std::string_view const input) {
   size_t size = 3;  // start by counting the two quote characters and the NUL terminator
-  for (size_t i = 0; i < input.size(); ++i) {
-    char const ch = input[i];
+  for (char const ch : input) {
     if (ch < 0) {
       size += 6;
     } else if (kEscapeCodeByCharacter.contains(ch)) {
@@ -67,8 +66,7 @@ std::string EscapeAndQuoteString(std::string_view const input) {
   std::string result;
   result.reserve(size);
   result += '"';
-  for (size_t i = 0; i < input.size(); ++i) {
-    char const ch = input[i];
+  for (char const ch : input) {
     if (ch < 0) {
       // TODO: we should actually implement UTF-8 to UTF-16 transcoding.
       result += "\\u00";
