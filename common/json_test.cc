@@ -21,11 +21,14 @@
 #include "common/flat_map.h"
 #include "common/flat_set.h"
 #include "common/testing.h"
+#include "common/type_string.h"
 #include "gtest/gtest.h"
 
 namespace {
 
 namespace json = tsdb2::json;
+
+using tsdb2::common::TypeStringT;
 
 using ::testing::AllOf;
 using ::testing::AnyOf;
@@ -59,6 +62,19 @@ using TestObject = json::Object<                                   //
     json::Field<std::tuple<int, bool, std::string>, kFieldName6>,  //
     json::Field<std::optional<double>, kFieldName7>,               //
     json::Field<std::unique_ptr<std::string>, kFieldName8>>;
+
+TEST(JsonTest, CheckUniqueName) {
+  using json::internal::CheckUniqueNameV;
+  EXPECT_TRUE((CheckUniqueNameV<TypeStringT<kFieldName1>>));
+  EXPECT_TRUE((CheckUniqueNameV<TypeStringT<kFieldName1>, json::Field<int, kFieldName2>>));
+  EXPECT_FALSE((CheckUniqueNameV<TypeStringT<kFieldName1>, json::Field<int, kFieldName1>>));
+  EXPECT_TRUE((CheckUniqueNameV<TypeStringT<kFieldName1>, json::Field<int, kFieldName2>,
+                                json::Field<int, kFieldName3>>));
+  EXPECT_FALSE((CheckUniqueNameV<TypeStringT<kFieldName1>, json::Field<int, kFieldName1>,
+                                 json::Field<int, kFieldName3>>));
+  EXPECT_FALSE((CheckUniqueNameV<TypeStringT<kFieldName1>, json::Field<int, kFieldName2>,
+                                 json::Field<int, kFieldName1>>));
+}
 
 TEST(JsonTest, FieldAccess) {
   TestObject object;

@@ -332,6 +332,31 @@ struct FieldImpl<Type, TypeStringMatcher<ch...>> {
   static std::string_view constexpr name = Name::value;
 };
 
+// Checks that none of `Fields` has the same name as `Name`. `Fields` are `FieldImpl`s and `Name`
+// must be a `TypeStringMatcher`.
+//
+// This is used by `Object` to make sure there aren't duplicate names.
+template <typename Name, typename... Fields>
+struct CheckUniqueName;
+
+template <char... name>
+struct CheckUniqueName<TypeStringMatcher<name...>> {
+  static inline bool constexpr value = true;
+};
+
+template <typename Name, typename Type, typename... OtherFields>
+struct CheckUniqueName<Name, FieldImpl<Type, Name>, OtherFields...> {
+  static inline bool constexpr value = false;
+};
+
+template <typename FieldName, typename Type, typename Name, typename... OtherFields>
+struct CheckUniqueName<FieldName, FieldImpl<Type, Name>, OtherFields...> {
+  static inline bool constexpr value = CheckUniqueName<FieldName, OtherFields...>::value;
+};
+
+template <typename Name, typename... Fields>
+inline bool constexpr CheckUniqueNameV = CheckUniqueName<Name, Fields...>::value;
+
 class Parser;
 
 }  // namespace internal
@@ -366,6 +391,9 @@ template <typename Type, char... name, typename... OtherFields>
 class Object<internal::FieldImpl<Type, TypeStringMatcher<name...>>, OtherFields...>
     : public Object<OtherFields...> {
  public:
+  static_assert(internal::CheckUniqueNameV<TypeStringMatcher<name...>, OtherFields...>,
+                "duplicate field names");
+
   template <char const field_name[]>
   auto& get() & {
     return Getter<TypeStringT<field_name>>(*this)();

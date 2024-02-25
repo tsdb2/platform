@@ -232,6 +232,7 @@ cc_test(
         ":flat_set",
         ":json",
         ":testing",
+        ":type_string",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
