@@ -18,6 +18,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/node_hash_map.h"
 #include "absl/container/node_hash_set.h"
+#include "absl/hash/hash.h"
 #include "common/flat_map.h"
 #include "common/flat_set.h"
 #include "common/testing.h"
@@ -210,6 +211,59 @@ TEST(JsonTest, Inequality) {
 }
 
 // TODO: test other comparison operators.
+
+TEST(JsonTest, HashEmptyObject) {
+  json::Object<> obj1, obj2;
+  EXPECT_EQ(absl::HashOf(obj1), absl::HashOf(obj1));
+  EXPECT_EQ(absl::HashOf(obj1), absl::HashOf(obj2));
+}
+
+TEST(JsonTest, HashOneField) {
+  json::Object<json::Field<int, kFieldName1>> obj1, obj2;
+  obj1.get<kFieldName1>() = 42;
+  obj2.get<kFieldName1>() = 43;
+  EXPECT_EQ(absl::HashOf(obj1), absl::HashOf(obj1));
+  EXPECT_NE(absl::HashOf(obj1), absl::HashOf(obj2));
+}
+
+TEST(JsonTest, HashTwoFieldsAllEqual) {
+  json::Object<                       //
+      json::Field<int, kFieldName1>,  //
+      json::Field<int, kFieldName2>>
+      obj1, obj2;
+  obj1.get<kFieldName1>() = 42;
+  obj1.get<kFieldName2>() = 43;
+  obj2.get<kFieldName1>() = 42;
+  obj2.get<kFieldName2>() = 43;
+  EXPECT_EQ(absl::HashOf(obj1), absl::HashOf(obj1));
+  EXPECT_EQ(absl::HashOf(obj1), absl::HashOf(obj2));
+}
+
+TEST(JsonTest, HashTwoFieldsFirstEqual) {
+  json::Object<                       //
+      json::Field<int, kFieldName1>,  //
+      json::Field<int, kFieldName2>>
+      obj1, obj2;
+  obj1.get<kFieldName1>() = 42;
+  obj1.get<kFieldName2>() = 43;
+  obj2.get<kFieldName1>() = 42;
+  obj2.get<kFieldName2>() = 44;
+  EXPECT_EQ(absl::HashOf(obj1), absl::HashOf(obj1));
+  EXPECT_NE(absl::HashOf(obj1), absl::HashOf(obj2));
+}
+
+TEST(JsonTest, HashTwoFieldsAllDifferent) {
+  json::Object<                       //
+      json::Field<int, kFieldName1>,  //
+      json::Field<int, kFieldName2>>
+      obj1, obj2;
+  obj1.get<kFieldName1>() = 42;
+  obj1.get<kFieldName2>() = 43;
+  obj2.get<kFieldName1>() = 44;
+  obj2.get<kFieldName2>() = 45;
+  EXPECT_EQ(absl::HashOf(obj1), absl::HashOf(obj1));
+  EXPECT_NE(absl::HashOf(obj1), absl::HashOf(obj2));
+}
 
 TEST(JsonTest, StringifyEmpty) {
   json::Object<> object;

@@ -338,7 +338,7 @@ struct FieldImpl;
 template <typename Type, char... ch>
 struct FieldImpl<Type, TypeStringMatcher<ch...>> {
   using Name = TypeStringMatcher<ch...>;
-  static std::string_view constexpr name = Name::value;
+  static inline std::string_view constexpr name = Name::value;
 };
 
 // Checks that none of `Fields` has the same name as `Name`. `Fields` are `FieldImpl`s and `Name`
@@ -490,7 +490,12 @@ class Object<internal::FieldImpl<Type, Name>, OtherFields...> : public Object<Ot
     return value_ >= other.value_ && Object<OtherFields...>::operator>=(other);
   }
 
-  // TODO: AbslHashValue
+  template <typename H>
+  friend H AbslHashValue(H h,
+                         Object<internal::FieldImpl<Type, Name>, OtherFields...> const& value) {
+    return H::combine(std::move(h), value.value_,
+                      ConstGetter<typename OtherFields::Name>(value)()...);
+  }
 
   template <char const field_name[]>
   auto& get() & {
