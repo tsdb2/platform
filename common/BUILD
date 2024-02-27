@@ -209,7 +209,6 @@ cc_library(
     deps = [
         ":flat_map",
         ":flat_set",
-        ":reffed_ptr",
         ":to_array",
         ":type_string",
         ":utilities",

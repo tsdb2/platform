@@ -4,6 +4,8 @@
 #include <array>
 #include <cstddef>
 #include <cstdlib>
+#include <functional>
+#include <string>
 #include <type_traits>
 #include <utility>
 
@@ -23,6 +25,19 @@ struct SortedDeduplicatedContainer {};
 inline SortedDeduplicatedContainer constexpr kSortedDeduplicatedContainer;
 
 namespace internal {
+
+template <typename Key>
+struct DefaultCompare {
+  using Type = std::less<Key>;
+};
+
+template <>
+struct DefaultCompare<std::string> {
+  using Type = std::less<void>;
+};
+
+template <typename Key>
+using DefaultCompareT = typename DefaultCompare<Key>::Type;
 
 template <typename Compare, typename IsTransparent = void>
 struct key_arg {

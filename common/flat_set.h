@@ -26,7 +26,7 @@
 namespace tsdb2 {
 namespace common {
 
-template <typename Key, typename Compare = std::less<Key>,
+template <typename Key, typename Compare = internal::DefaultCompareT<Key>,
           typename Representation = std::vector<Key>>
 class flat_set {
  public:

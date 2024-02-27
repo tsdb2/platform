@@ -23,8 +23,8 @@
 //   * std::map / std::unordered_map / tsdb2::common::flat_map / absl::btree_map /
 //     absl::flat_hash_map / absl::node_hash_map,
 //   * tsdb2::json::Object,
-//   * data types managed by std::unique_ptr, std::shared_ptr, or tsdb2::common::reffed_ptr
-//     (serializing to "null" if the pointer is null).
+//   * data types managed by std::unique_ptr or std::shared_ptr (serializing to "null" if the
+//     pointer is null).
 //
 // Example:
 //
@@ -125,7 +125,6 @@
 #include "absl/strings/strip.h"
 #include "common/flat_map.h"
 #include "common/flat_set.h"
-#include "common/reffed_ptr.h"
 #include "common/type_string.h"
 #include "common/utilities.h"
 
@@ -174,15 +173,6 @@ inline std::string Tsdb2JsonStringify(std::unique_ptr<Pointee> const& value) {
 
 template <typename Pointee>
 inline std::string Tsdb2JsonStringify(std::shared_ptr<Pointee> const& value) {
-  if (value) {
-    return Tsdb2JsonStringify(*value);
-  } else {
-    return "null";
-  }
-}
-
-template <typename Pointee>
-inline std::string Tsdb2JsonStringify(tsdb2::common::reffed_ptr<Pointee> const& value) {
   if (value) {
     return Tsdb2JsonStringify(*value);
   } else {
@@ -441,6 +431,8 @@ class Object<> {
   friend std::string Tsdb2JsonStringify(Object const& value) { return value.Stringify(); }
 
  protected:
+  friend class internal::Parser;
+
   ABSL_ATTRIBUTE_ALWAYS_INLINE void ClearInternal() {}
 
   ABSL_ATTRIBUTE_ALWAYS_INLINE absl::Status ReadField(internal::Parser* const parser,
@@ -748,7 +740,7 @@ class Parser {
   absl::Status ReadTo(std::unique_ptr<Pointee>* const result) {
     ConsumeWhitespace();
     *result = nullptr;
-    if (ConsumePrefix("null").ok()) {
+    if (absl::ConsumePrefix(&input_, "null")) {
       return absl::OkStatus();
     }
     *result = std::make_unique<Pointee>();
@@ -759,21 +751,10 @@ class Parser {
   absl::Status ReadTo(std::shared_ptr<Pointee>* const result) {
     ConsumeWhitespace();
     *result = nullptr;
-    if (ConsumePrefix("null").ok()) {
+    if (absl::ConsumePrefix(&input_, "null")) {
       return absl::OkStatus();
     }
     *result = std::make_shared<Pointee>();
-    return ReadTo(result->get());
-  }
-
-  template <typename Pointee>
-  absl::Status ReadTo(tsdb2::common::reffed_ptr<Pointee>* const result) {
-    ConsumeWhitespace();
-    *result = nullptr;
-    if (ConsumePrefix("null").ok()) {
-      return absl::OkStatus();
-    }
-    *result = tsdb2::common::MakeReffed<Pointee>();
     return ReadTo(result->get());
   }
 
@@ -1035,12 +1016,55 @@ absl::Status Parser::ReadTo(std::vector<Element>* const result) {
 }
 
 template <typename... Fields>
+struct CheckFieldPresence;
+
+template <>
+struct CheckFieldPresence<> {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool operator()(flat_set<std::string> const&) const { return true; }
+};
+
+template <typename Type, typename Name, typename... OtherFields>
+struct CheckFieldPresence<FieldImpl<Type, Name>, OtherFields...> {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool operator()(flat_set<std::string> const& keys) const {
+    return keys.contains(Name::value) && CheckFieldPresence<OtherFields...>()(keys);
+  }
+};
+
+template <typename OptionalType, typename Name, typename... OtherFields>
+struct CheckFieldPresence<FieldImpl<std::optional<OptionalType>, Name>, OtherFields...> {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool operator()(flat_set<std::string> const& keys) const {
+    return CheckFieldPresence<OtherFields...>()(keys);
+  }
+};
+
+template <typename OptionalType, typename Name, typename... OtherFields>
+struct CheckFieldPresence<FieldImpl<std::unique_ptr<OptionalType>, Name>, OtherFields...> {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool operator()(flat_set<std::string> const& keys) const {
+    return CheckFieldPresence<OtherFields...>()(keys);
+  }
+};
+
+template <typename OptionalType, typename Name, typename... OtherFields>
+struct CheckFieldPresence<FieldImpl<std::shared_ptr<OptionalType>, Name>, OtherFields...> {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool operator()(flat_set<std::string> const& keys) const {
+    return CheckFieldPresence<OtherFields...>()(keys);
+  }
+};
+
+template <typename... Fields>
 absl::Status Parser::ReadTo(Object<Fields...>* const result) {
   ConsumeWhitespace();
   RETURN_IF_ERROR(ConsumePrefix("{"));
   ConsumeWhitespace();
   result->Clear();
   flat_set<std::string> keys;
+  if (absl::ConsumePrefix(&input_, "}")) {
+    if (CheckFieldPresence<Fields...>()(keys)) {
+      return absl::OkStatus();
+    } else {
+      return InvalidFormatError();
+    }
+  }
   keys.reserve(sizeof...(Fields));
   while (!input_.empty()) {
     std::string key;
@@ -1056,8 +1080,11 @@ absl::Status Parser::ReadTo(Object<Fields...>* const result) {
     if (absl::ConsumePrefix(&input_, ",")) {
       ConsumeWhitespace();
     } else if (absl::ConsumePrefix(&input_, "}")) {
-      // TODO: check that we got all fields.
-      return absl::OkStatus();
+      if (CheckFieldPresence<Fields...>()(keys)) {
+        return absl::OkStatus();
+      } else {
+        return InvalidFormatError();
+      }
     } else {
       return InvalidSyntaxError();
     }

@@ -294,6 +294,52 @@ TEST(JsonTest, HashTwoFieldsAllDifferent) {
   EXPECT_NE(absl::HashOf(obj1), absl::HashOf(obj2));
 }
 
+TEST(JsonTest, ParseEmpty) {
+  EXPECT_THAT(json::Parse<json::Object<>>("{"), Not(IsOk()));
+  EXPECT_OK(json::Parse<json::Object<>>("{}"));
+  EXPECT_OK(json::Parse<json::Object<>>(" {}"));
+  EXPECT_OK(json::Parse<json::Object<>>("{ }"));
+  EXPECT_OK(json::Parse<json::Object<>>("{} "));
+  EXPECT_OK(json::Parse<json::Object<>>(" { } "));
+}
+
+TEST(JsonTest, ParseEmptyWithOptionals) {
+  using Object = json::Object<                         //
+      json::Field<std::optional<int>, kFieldName1>,    //
+      json::Field<std::unique_ptr<int>, kFieldName2>,  //
+      json::Field<std::shared_ptr<int>, kFieldName3>   //
+      >;
+  EXPECT_THAT(json::Parse<Object>("{"), Not(IsOk()));
+  EXPECT_OK(json::Parse<Object>("{}"));
+  EXPECT_OK(json::Parse<Object>(" {}"));
+  EXPECT_OK(json::Parse<Object>("{ }"));
+  EXPECT_OK(json::Parse<Object>("{} "));
+  EXPECT_OK(json::Parse<Object>(" { } "));
+}
+
+TEST(JsonTest, ParseEmptyWithMissingFields) {
+  using Object1 = json::Object<                      //
+      json::Field<std::optional<int>, kFieldName1>,  //
+      json::Field<int, kFieldName2>                  //
+      >;
+  using Object2 = json::Object<                     //
+      json::Field<int, kFieldName1>,                //
+      json::Field<std::optional<int>, kFieldName2>  //
+      >;
+  using Object3 = json::Object<       //
+      json::Field<int, kFieldName1>,  //
+      json::Field<int, kFieldName2>   //
+      >;
+  EXPECT_THAT(json::Parse<Object1>("{"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<Object1>("{}"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<Object2>("{}"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<Object3>("{}"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<Object1>(" {}"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<Object1>("{ }"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<Object1>("{} "), Not(IsOk()));
+  EXPECT_THAT(json::Parse<Object1>(" { } "), Not(IsOk()));
+}
+
 TEST(JsonTest, StringifyEmpty) {
   json::Object<> object;
   EXPECT_EQ(object.Stringify(), "{}");
@@ -325,17 +371,39 @@ TEST(JsonTest, Parse) {
                          Property(&TestObject1::get<kFieldName7>, FieldsAre(42, true, "bazbar")),
                          Property(&TestObject1::get<kFieldName8>, Optional(71.2)))));
   EXPECT_THAT(
-      json::Parse<TestObject1>(
-          R"json({
-            "lorem": 42,
-            "ipsum": true,
-            "dolor": "foobar",
-            "sit": 3.14,
-            "amet": [1, 2, 3],
-            "consectetur": [4, 5, 6, 7],
-            "adipisci": [43, false, "barbaz"],
-            "elit": 2.71
-          })json"),
+      json::Parse<TestObject1>(R"json({
+        "lorem": 42,
+        "ipsum": true,
+        "dolor": "foobar",
+        "sit": 3.14,
+        "amet": [1, 2, 3],
+        "consectetur": [4, 5, 6, 7],
+        "adipisci": [43, false, "barbaz"],
+        "elit": 2.71
+      })json"),
+      IsOkAndHolds(AllOf(Property(&TestObject1::get<kFieldName1>, 42),
+                         Property(&TestObject1::get<kFieldName2>, true),
+                         Property(&TestObject1::get<kFieldName3>, "foobar"),
+                         Property(&TestObject1::get<kFieldName4>, 3.14),
+                         Property(&TestObject1::get<kFieldName5>, ElementsAre(1, 2, 3)),
+                         Property(&TestObject1::get<kFieldName6>, ElementsAre(4, 5, 6, 7)),
+                         Property(&TestObject1::get<kFieldName7>, FieldsAre(43, false, "barbaz")),
+                         Property(&TestObject1::get<kFieldName8>, Optional(2.71)))));
+}
+
+TEST(JsonTest, UnorderedFields) {
+  TestObject1 object;
+  EXPECT_THAT(
+      json::Parse<TestObject1>(R"json({
+        "ipsum": true,
+        "elit": 2.71,
+        "adipisci": [43, false, "barbaz"],
+        "consectetur": [4, 5, 6, 7],
+        "amet": [1, 2, 3],
+        "sit": 3.14,
+        "dolor": "foobar",
+        "lorem": 42
+      })json"),
       IsOkAndHolds(AllOf(Property(&TestObject1::get<kFieldName1>, 42),
                          Property(&TestObject1::get<kFieldName2>, true),
                          Property(&TestObject1::get<kFieldName3>, "foobar"),

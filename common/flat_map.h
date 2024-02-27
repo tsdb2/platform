@@ -32,7 +32,7 @@
 namespace tsdb2 {
 namespace common {
 
-template <typename Key, typename T, typename Compare = std::less<Key>,
+template <typename Key, typename T, typename Compare = internal::DefaultCompareT<Key>,
           typename Representation = std::vector<std::pair<Key, T>>>
 class flat_map {
  public:
