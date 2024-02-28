@@ -203,43 +203,92 @@ TEST(JsonTest, EmptyObjectComparisons) {
   EXPECT_TRUE(json::Object<>() >= json::Object<>());
 }
 
-TEST(JsonTest, Equality) {
-  TestObject1 obj1;
+TEST(JsonTest, CompareOneField) {
+  json::Object<json::Field<int, kFieldName1>> obj1, obj2;
   obj1.get<kFieldName1>() = 42;
-  obj1.get<kFieldName2>() = true;
-  obj1.get<kFieldName3>() = "foobar";
-  obj1.get<kFieldName4>() = 3.14;
-  obj1.get<kFieldName5>() = {1, 2, 3};
-  obj1.get<kFieldName6>() = {4, 5, 6, 7};
-  obj1.get<kFieldName7>() = std::make_tuple(43, false, "barbaz");
-  obj1.get<kFieldName8>() = 2.71;
-  EXPECT_EQ(obj1, obj1);
-  TestObject1 obj2 = obj1;
-  EXPECT_EQ(obj1, obj2);
-};
-
-TEST(JsonTest, Inequality) {
-  TestObject1 obj1;
-  obj1.get<kFieldName1>() = 42;
-  obj1.get<kFieldName2>() = true;
-  obj1.get<kFieldName3>() = "foobar";
-  obj1.get<kFieldName4>() = 3.14;
-  obj1.get<kFieldName5>() = {1, 2, 3};
-  obj1.get<kFieldName6>() = {4, 5, 6, 7};
-  obj1.get<kFieldName7>() = std::make_tuple(43, false, "barbaz");
-  obj1.get<kFieldName8>() = 2.71;
-  TestObject1 obj2;
   obj2.get<kFieldName1>() = 43;
-  obj2.get<kFieldName2>() = false;
-  obj2.get<kFieldName3>() = "barfoo";
-  obj2.get<kFieldName5>() = {5, 6, 7};
-  obj2.get<kFieldName6>() = {1, 2, 3, 4};
-  obj2.get<kFieldName7>() = std::make_tuple(44, true, "bazbar");
-  obj2.get<kFieldName8>() = 71.2;
-  EXPECT_NE(obj1, obj2);
+  EXPECT_TRUE(obj1 == obj1);
+  EXPECT_FALSE(obj1 == obj2);
+  EXPECT_FALSE(obj1 != obj1);
+  EXPECT_TRUE(obj1 != obj2);
+  EXPECT_FALSE(obj1 < obj1);
+  EXPECT_TRUE(obj1 < obj2);
+  EXPECT_TRUE(obj1 <= obj1);
+  EXPECT_TRUE(obj1 <= obj2);
+  EXPECT_FALSE(obj1 > obj1);
+  EXPECT_FALSE(obj1 > obj2);
+  EXPECT_TRUE(obj1 >= obj1);
+  EXPECT_FALSE(obj1 >= obj2);
 }
 
-// TODO: test other comparison operators.
+TEST(JsonTest, CompareTwoFieldsFirstEqual) {
+  json::Object<                       //
+      json::Field<int, kFieldName1>,  //
+      json::Field<int, kFieldName2>>
+      obj1, obj2;
+  obj1.get<kFieldName1>() = 42;
+  obj1.get<kFieldName2>() = 123;
+  obj2.get<kFieldName1>() = 42;
+  obj2.get<kFieldName2>() = 456;
+  EXPECT_TRUE(obj1 == obj1);
+  EXPECT_FALSE(obj1 == obj2);
+  EXPECT_FALSE(obj1 != obj1);
+  EXPECT_TRUE(obj1 != obj2);
+  EXPECT_FALSE(obj1 < obj1);
+  EXPECT_TRUE(obj1 < obj2);
+  EXPECT_TRUE(obj1 <= obj1);
+  EXPECT_TRUE(obj1 <= obj2);
+  EXPECT_FALSE(obj1 > obj1);
+  EXPECT_FALSE(obj1 > obj2);
+  EXPECT_TRUE(obj1 >= obj1);
+  EXPECT_FALSE(obj1 >= obj2);
+}
+
+TEST(JsonTest, CompareTwoFieldsSecondEqual) {
+  json::Object<                       //
+      json::Field<int, kFieldName1>,  //
+      json::Field<int, kFieldName2>>
+      obj1, obj2;
+  obj1.get<kFieldName1>() = 42;
+  obj1.get<kFieldName2>() = 123;
+  obj2.get<kFieldName1>() = 43;
+  obj2.get<kFieldName2>() = 456;
+  EXPECT_TRUE(obj1 == obj1);
+  EXPECT_FALSE(obj1 == obj2);
+  EXPECT_FALSE(obj1 != obj1);
+  EXPECT_TRUE(obj1 != obj2);
+  EXPECT_FALSE(obj1 < obj1);
+  EXPECT_TRUE(obj1 < obj2);
+  EXPECT_TRUE(obj1 <= obj1);
+  EXPECT_TRUE(obj1 <= obj2);
+  EXPECT_FALSE(obj1 > obj1);
+  EXPECT_FALSE(obj1 > obj2);
+  EXPECT_TRUE(obj1 >= obj1);
+  EXPECT_FALSE(obj1 >= obj2);
+}
+
+TEST(JsonTest, CompareTwoFieldsAllDifferent) {
+  json::Object<                       //
+      json::Field<int, kFieldName1>,  //
+      json::Field<int, kFieldName2>>
+      obj1, obj2;
+  obj1.get<kFieldName1>() = 42;
+  obj1.get<kFieldName2>() = 123;
+  obj2.get<kFieldName1>() = 43;
+  obj2.get<kFieldName2>() = 123;
+  EXPECT_TRUE(obj1 == obj1);
+  EXPECT_FALSE(obj1 == obj2);
+  EXPECT_FALSE(obj1 != obj1);
+  EXPECT_TRUE(obj1 != obj2);
+  EXPECT_FALSE(obj1 < obj1);
+  EXPECT_TRUE(obj1 < obj2);
+  EXPECT_TRUE(obj1 <= obj1);
+  EXPECT_TRUE(obj1 <= obj2);
+  EXPECT_FALSE(obj1 > obj1);
+  EXPECT_FALSE(obj1 > obj2);
+  EXPECT_TRUE(obj1 >= obj1);
+  EXPECT_FALSE(obj1 >= obj2);
+}
 
 TEST(JsonTest, HashEmptyObject) {
   json::Object<> obj1, obj2;

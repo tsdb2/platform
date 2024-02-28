@@ -467,19 +467,20 @@ class Object<internal::FieldImpl<Type, Name>, OtherFields...> : public Object<Ot
   }
 
   bool operator<(Object<internal::FieldImpl<Type, Name>, OtherFields...> const& other) const {
-    return value_ < other.value_ && Object<OtherFields...>::operator<(other);
+    return value_ < other.value_ ||
+           (value_ == other.value_ && Object<OtherFields...>::operator<(other));
   }
 
   bool operator<=(Object<internal::FieldImpl<Type, Name>, OtherFields...> const& other) const {
-    return value_ <= other.value_ && Object<OtherFields...>::operator<=(other);
+    return !(other < *this);
   }
 
   bool operator>(Object<internal::FieldImpl<Type, Name>, OtherFields...> const& other) const {
-    return value_ > other.value_ && Object<OtherFields...>::operator>(other);
+    return other < *this;
   }
 
   bool operator>=(Object<internal::FieldImpl<Type, Name>, OtherFields...> const& other) const {
-    return value_ >= other.value_ && Object<OtherFields...>::operator>=(other);
+    return !(*this < other);
   }
 
   template <typename H>
