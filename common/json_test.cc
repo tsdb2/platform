@@ -36,6 +36,7 @@ using ::testing::AnyOf;
 using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::FieldsAre;
+using ::testing::IsEmpty;
 using ::testing::Not;
 using ::testing::Optional;
 using ::testing::Pair;
@@ -70,6 +71,14 @@ using TestObject2 = json::Object<                            //
     json::Field<std::shared_ptr<std::string>, kFieldName3>,  //
     json::Field<std::map<std::string, int>, kFieldName4>,    //
     json::Field<std::pair<int, int>, kFieldName5>            //
+    >;
+
+// This is like `TestObject2` but without std::unique_ptr so that we can use it to test copies.
+using TestObject3 = json::Object<                            //
+    json::Field<std::shared_ptr<std::string>, kFieldName1>,  //
+    json::Field<TestObject1, kFieldName2>,                   //
+    json::Field<std::map<std::string, int>, kFieldName3>,    //
+    json::Field<std::pair<int, int>, kFieldName4>            //
     >;
 
 TEST(JsonTest, CheckUniqueName) {
@@ -128,70 +137,198 @@ TEST(JsonTest, NestedFieldAccess) {
 }
 
 TEST(JsonTest, Clear) {
-  TestObject1 object;
-  object.get<kFieldName1>() = 42;
-  object.get<kFieldName2>() = true;
-  object.get<kFieldName3>() = "foobar";
-  object.get<kFieldName4>() = 3.14;
-  object.get<kFieldName5>() = {1, 2, 3};
-  object.get<kFieldName6>() = {4, 5, 6, 7};
-  object.get<kFieldName7>() = std::make_tuple(43, false, "barbaz");
-  object.get<kFieldName8>() = 2.71;
+  TestObject2 object;
+  TestObject1& inner = object.get<kFieldName2>();
+  object.get<kFieldName1>() = std::make_unique<std::string>("foobar");
+  inner.get<kFieldName1>() = 42;
+  inner.get<kFieldName2>() = true;
+  inner.get<kFieldName3>() = "foobar";
+  inner.get<kFieldName4>() = 3.14;
+  inner.get<kFieldName5>() = {1, 2, 3};
+  inner.get<kFieldName6>() = {4, 5, 6, 7};
+  inner.get<kFieldName7>() = std::make_tuple(43, false, "barbaz");
+  inner.get<kFieldName8>() = 2.71;
+  object.get<kFieldName3>() = std::make_shared<std::string>("barbaz");
+  object.get<kFieldName4>() = {{"foo", 42}, {"bar", 43}, {"baz", 44}};
+  object.get<kFieldName5>() = std::make_pair(12, 34);
   object.Clear();
-  EXPECT_THAT(object,
-              AllOf(Property(&TestObject1::get<kFieldName1>, 0),
-                    Property(&TestObject1::get<kFieldName2>, false),
-                    Property(&TestObject1::get<kFieldName3>, ""),
-                    Property(&TestObject1::get<kFieldName4>, 0.0),
-                    Property(&TestObject1::get<kFieldName5>, ElementsAre(0, 0, 0)),
-                    Property(&TestObject1::get<kFieldName6>, ElementsAre()),
-                    Property(&TestObject1::get<kFieldName7>, std::tuple<int, bool, std::string>()),
-                    Property(&TestObject1::get<kFieldName8>, std::nullopt)));
+  EXPECT_FALSE(object.get<kFieldName1>());
+  EXPECT_THAT(
+      object,
+      AllOf(
+          Property(&TestObject2::get<kFieldName2>, Property(&TestObject1::get<kFieldName1>, 0)),
+          Property(&TestObject2::get<kFieldName2>, Property(&TestObject1::get<kFieldName2>, false)),
+          Property(&TestObject2::get<kFieldName2>, Property(&TestObject1::get<kFieldName3>, "")),
+          Property(&TestObject2::get<kFieldName2>, Property(&TestObject1::get<kFieldName4>, 0.0)),
+          Property(&TestObject2::get<kFieldName2>,
+                   Property(&TestObject1::get<kFieldName5>, ElementsAre(0, 0, 0))),
+          Property(&TestObject2::get<kFieldName2>,
+                   Property(&TestObject1::get<kFieldName6>, IsEmpty())),
+          Property(&TestObject2::get<kFieldName2>,
+                   Property(&TestObject1::get<kFieldName7>, std::tuple<int, bool, std::string>())),
+          Property(&TestObject2::get<kFieldName2>,
+                   Property(&TestObject1::get<kFieldName8>, std::nullopt)),
+          Property(&TestObject2::get<kFieldName3>, nullptr),
+          Property(&TestObject2::get<kFieldName4>, IsEmpty()),
+          Property(&TestObject2::get<kFieldName5>, Pair(0, 0))));
 }
 
-// TODO: copy construction and copy assignment.
+TEST(JsonTest, CopyConstruction) {
+  TestObject3 obj1;
+  TestObject1& inner = obj1.get<kFieldName2>();
+  obj1.get<kFieldName1>() = std::make_shared<std::string>("foobar");
+  inner.get<kFieldName1>() = 42;
+  inner.get<kFieldName2>() = true;
+  inner.get<kFieldName3>() = "foobar";
+  inner.get<kFieldName4>() = 3.14;
+  inner.get<kFieldName5>() = {1, 2, 3};
+  inner.get<kFieldName6>() = {4, 5, 6, 7};
+  inner.get<kFieldName7>() = std::make_tuple(43, false, "barbaz");
+  inner.get<kFieldName8>() = 2.71;
+  obj1.get<kFieldName3>() = {{"foo", 42}, {"bar", 43}, {"baz", 44}};
+  obj1.get<kFieldName4>() = std::make_pair(12, 34);
+  TestObject3 obj2{obj1};
+  EXPECT_THAT(
+      obj2,
+      AllOf(
+          Property(&TestObject3::get<kFieldName1>, Pointee(std::string("foobar"))),
+          Property(&TestObject3::get<kFieldName2>, Property(&TestObject1::get<kFieldName1>, 42)),
+          Property(&TestObject3::get<kFieldName2>, Property(&TestObject1::get<kFieldName2>, true)),
+          Property(&TestObject3::get<kFieldName2>,
+                   Property(&TestObject1::get<kFieldName3>, "foobar")),
+          Property(&TestObject3::get<kFieldName2>, Property(&TestObject1::get<kFieldName4>, 3.14)),
+          Property(&TestObject3::get<kFieldName2>,
+                   Property(&TestObject1::get<kFieldName5>, ElementsAre(1, 2, 3))),
+          Property(&TestObject3::get<kFieldName2>,
+                   Property(&TestObject1::get<kFieldName6>, ElementsAre(4, 5, 6, 7))),
+          Property(&TestObject3::get<kFieldName2>,
+                   Property(&TestObject1::get<kFieldName7>,
+                            FieldsAre(43, false, std::string("barbaz")))),
+          Property(&TestObject3::get<kFieldName2>,
+                   Property(&TestObject1::get<kFieldName8>, Optional(2.71))),
+          Property(&TestObject3::get<kFieldName3>,
+                   UnorderedElementsAre(Pair("foo", 42), Pair("bar", 43), Pair("baz", 44))),
+          Property(&TestObject3::get<kFieldName4>, Pair(12, 34))));
+}
+
+TEST(JsonTest, CopyAssignment) {
+  TestObject3 obj1;
+  TestObject1& inner = obj1.get<kFieldName2>();
+  obj1.get<kFieldName1>() = std::make_shared<std::string>("foobar");
+  inner.get<kFieldName1>() = 42;
+  inner.get<kFieldName2>() = true;
+  inner.get<kFieldName3>() = "foobar";
+  inner.get<kFieldName4>() = 3.14;
+  inner.get<kFieldName5>() = {1, 2, 3};
+  inner.get<kFieldName6>() = {4, 5, 6, 7};
+  inner.get<kFieldName7>() = std::make_tuple(43, false, "barbaz");
+  inner.get<kFieldName8>() = 2.71;
+  obj1.get<kFieldName3>() = {{"foo", 42}, {"bar", 43}, {"baz", 44}};
+  obj1.get<kFieldName4>() = std::make_pair(12, 34);
+  TestObject3 obj2;
+  obj2 = obj1;
+  EXPECT_THAT(
+      obj2,
+      AllOf(
+          Property(&TestObject3::get<kFieldName1>, Pointee(std::string("foobar"))),
+          Property(&TestObject3::get<kFieldName2>, Property(&TestObject1::get<kFieldName1>, 42)),
+          Property(&TestObject3::get<kFieldName2>, Property(&TestObject1::get<kFieldName2>, true)),
+          Property(&TestObject3::get<kFieldName2>,
+                   Property(&TestObject1::get<kFieldName3>, "foobar")),
+          Property(&TestObject3::get<kFieldName2>, Property(&TestObject1::get<kFieldName4>, 3.14)),
+          Property(&TestObject3::get<kFieldName2>,
+                   Property(&TestObject1::get<kFieldName5>, ElementsAre(1, 2, 3))),
+          Property(&TestObject3::get<kFieldName2>,
+                   Property(&TestObject1::get<kFieldName6>, ElementsAre(4, 5, 6, 7))),
+          Property(&TestObject3::get<kFieldName2>,
+                   Property(&TestObject1::get<kFieldName7>,
+                            FieldsAre(43, false, std::string("barbaz")))),
+          Property(&TestObject3::get<kFieldName2>,
+                   Property(&TestObject1::get<kFieldName8>, Optional(2.71))),
+          Property(&TestObject3::get<kFieldName3>,
+                   UnorderedElementsAre(Pair("foo", 42), Pair("bar", 43), Pair("baz", 44))),
+          Property(&TestObject3::get<kFieldName4>, Pair(12, 34))));
+}
 
 TEST(JsonTest, MoveConstruction) {
-  TestObject1 obj1;
-  obj1.get<kFieldName1>() = 42;
-  obj1.get<kFieldName2>() = true;
-  obj1.get<kFieldName3>() = "foobar";
-  obj1.get<kFieldName4>() = 3.14;
-  obj1.get<kFieldName5>() = {1, 2, 3};
-  obj1.get<kFieldName6>() = {4, 5, 6, 7};
-  obj1.get<kFieldName7>() = std::make_tuple(43, false, "barbaz");
-  obj1.get<kFieldName8>() = 2.71;
-  TestObject1 obj2{std::move(obj1)};
-  EXPECT_THAT(obj2, AllOf(Property(&TestObject1::get<kFieldName1>, 42),
-                          Property(&TestObject1::get<kFieldName2>, true),
-                          Property(&TestObject1::get<kFieldName3>, "foobar"),
-                          Property(&TestObject1::get<kFieldName4>, 3.14),
-                          Property(&TestObject1::get<kFieldName5>, ElementsAre<int>(1, 2, 3)),
-                          Property(&TestObject1::get<kFieldName6>, ElementsAre<int>(4, 5, 6, 7)),
-                          Property(&TestObject1::get<kFieldName7>, FieldsAre(43, false, "barbaz")),
-                          Property(&TestObject1::get<kFieldName8>, Optional<double>(2.71))));
+  TestObject2 obj1;
+  TestObject1& inner = obj1.get<kFieldName2>();
+  obj1.get<kFieldName1>() = std::make_unique<std::string>("foobar");
+  inner.get<kFieldName1>() = 42;
+  inner.get<kFieldName2>() = true;
+  inner.get<kFieldName3>() = "foobar";
+  inner.get<kFieldName4>() = 3.14;
+  inner.get<kFieldName5>() = {1, 2, 3};
+  inner.get<kFieldName6>() = {4, 5, 6, 7};
+  inner.get<kFieldName7>() = std::make_tuple(43, false, "barbaz");
+  inner.get<kFieldName8>() = 2.71;
+  obj1.get<kFieldName3>() = std::make_shared<std::string>("barbaz");
+  obj1.get<kFieldName4>() = {{"foo", 42}, {"bar", 43}, {"baz", 44}};
+  obj1.get<kFieldName5>() = std::make_pair(12, 34);
+  TestObject2 obj2{std::move(obj1)};
+  EXPECT_THAT(
+      obj2,
+      AllOf(
+          Property(&TestObject2::get<kFieldName1>, Pointee(std::string("foobar"))),
+          Property(&TestObject2::get<kFieldName2>, Property(&TestObject1::get<kFieldName1>, 42)),
+          Property(&TestObject2::get<kFieldName2>, Property(&TestObject1::get<kFieldName2>, true)),
+          Property(&TestObject2::get<kFieldName2>,
+                   Property(&TestObject1::get<kFieldName3>, "foobar")),
+          Property(&TestObject2::get<kFieldName2>, Property(&TestObject1::get<kFieldName4>, 3.14)),
+          Property(&TestObject2::get<kFieldName2>,
+                   Property(&TestObject1::get<kFieldName5>, ElementsAre(1, 2, 3))),
+          Property(&TestObject2::get<kFieldName2>,
+                   Property(&TestObject1::get<kFieldName6>, ElementsAre(4, 5, 6, 7))),
+          Property(&TestObject2::get<kFieldName2>,
+                   Property(&TestObject1::get<kFieldName7>,
+                            FieldsAre(43, false, std::string("barbaz")))),
+          Property(&TestObject2::get<kFieldName2>,
+                   Property(&TestObject1::get<kFieldName8>, Optional(2.71))),
+          Property(&TestObject2::get<kFieldName3>, Pointee(std::string("barbaz"))),
+          Property(&TestObject2::get<kFieldName4>,
+                   UnorderedElementsAre(Pair("foo", 42), Pair("bar", 43), Pair("baz", 44))),
+          Property(&TestObject2::get<kFieldName5>, Pair(12, 34))));
 }
 
 TEST(JsonTest, MoveAssignment) {
-  TestObject1 obj1;
-  obj1.get<kFieldName1>() = 42;
-  obj1.get<kFieldName2>() = true;
-  obj1.get<kFieldName3>() = "foobar";
-  obj1.get<kFieldName4>() = 3.14;
-  obj1.get<kFieldName5>() = {1, 2, 3};
-  obj1.get<kFieldName6>() = {4, 5, 6, 7};
-  obj1.get<kFieldName7>() = std::make_tuple(43, false, "barbaz");
-  obj1.get<kFieldName8>() = 2.71;
-  TestObject1 obj2;
+  TestObject2 obj1;
+  TestObject1& inner = obj1.get<kFieldName2>();
+  obj1.get<kFieldName1>() = std::make_unique<std::string>("foobar");
+  inner.get<kFieldName1>() = 42;
+  inner.get<kFieldName2>() = true;
+  inner.get<kFieldName3>() = "foobar";
+  inner.get<kFieldName4>() = 3.14;
+  inner.get<kFieldName5>() = {1, 2, 3};
+  inner.get<kFieldName6>() = {4, 5, 6, 7};
+  inner.get<kFieldName7>() = std::make_tuple(43, false, "barbaz");
+  inner.get<kFieldName8>() = 2.71;
+  obj1.get<kFieldName3>() = std::make_shared<std::string>("barbaz");
+  obj1.get<kFieldName4>() = {{"foo", 42}, {"bar", 43}, {"baz", 44}};
+  obj1.get<kFieldName5>() = std::make_pair(12, 34);
+  TestObject2 obj2;
   obj2 = std::move(obj1);
-  EXPECT_THAT(obj2, AllOf(Property(&TestObject1::get<kFieldName1>, 42),
-                          Property(&TestObject1::get<kFieldName2>, true),
-                          Property(&TestObject1::get<kFieldName3>, "foobar"),
-                          Property(&TestObject1::get<kFieldName4>, 3.14),
-                          Property(&TestObject1::get<kFieldName5>, ElementsAre<int>(1, 2, 3)),
-                          Property(&TestObject1::get<kFieldName6>, ElementsAre<int>(4, 5, 6, 7)),
-                          Property(&TestObject1::get<kFieldName7>, FieldsAre(43, false, "barbaz")),
-                          Property(&TestObject1::get<kFieldName8>, Optional<double>(2.71))));
+  EXPECT_THAT(
+      obj2,
+      AllOf(
+          Property(&TestObject2::get<kFieldName1>, Pointee(std::string("foobar"))),
+          Property(&TestObject2::get<kFieldName2>, Property(&TestObject1::get<kFieldName1>, 42)),
+          Property(&TestObject2::get<kFieldName2>, Property(&TestObject1::get<kFieldName2>, true)),
+          Property(&TestObject2::get<kFieldName2>,
+                   Property(&TestObject1::get<kFieldName3>, "foobar")),
+          Property(&TestObject2::get<kFieldName2>, Property(&TestObject1::get<kFieldName4>, 3.14)),
+          Property(&TestObject2::get<kFieldName2>,
+                   Property(&TestObject1::get<kFieldName5>, ElementsAre(1, 2, 3))),
+          Property(&TestObject2::get<kFieldName2>,
+                   Property(&TestObject1::get<kFieldName6>, ElementsAre(4, 5, 6, 7))),
+          Property(&TestObject2::get<kFieldName2>,
+                   Property(&TestObject1::get<kFieldName7>,
+                            FieldsAre(43, false, std::string("barbaz")))),
+          Property(&TestObject2::get<kFieldName2>,
+                   Property(&TestObject1::get<kFieldName8>, Optional(2.71))),
+          Property(&TestObject2::get<kFieldName3>, Pointee(std::string("barbaz"))),
+          Property(&TestObject2::get<kFieldName4>,
+                   UnorderedElementsAre(Pair("foo", 42), Pair("bar", 43), Pair("baz", 44))),
+          Property(&TestObject2::get<kFieldName5>, Pair(12, 34))));
 }
 
 TEST(JsonTest, EmptyObjectComparisons) {
@@ -898,11 +1035,11 @@ TYPED_TEST_SUITE_P(TypedJsonDictionaryTest);
 TYPED_TEST_P(TypedJsonDictionaryTest, ParseDictionary) {
   EXPECT_THAT(json::Parse<TypeParam>(""), Not(IsOk()));
   EXPECT_THAT(json::Parse<TypeParam>("{"), Not(IsOk()));
-  EXPECT_THAT(json::Parse<TypeParam>("{}"), IsOkAndHolds(UnorderedElementsAre()));
-  EXPECT_THAT(json::Parse<TypeParam>(" {}"), IsOkAndHolds(UnorderedElementsAre()));
-  EXPECT_THAT(json::Parse<TypeParam>("{ }"), IsOkAndHolds(UnorderedElementsAre()));
-  EXPECT_THAT(json::Parse<TypeParam>("{} "), IsOkAndHolds(UnorderedElementsAre()));
-  EXPECT_THAT(json::Parse<TypeParam>(" { } "), IsOkAndHolds(UnorderedElementsAre()));
+  EXPECT_THAT(json::Parse<TypeParam>("{}"), IsOkAndHolds(IsEmpty()));
+  EXPECT_THAT(json::Parse<TypeParam>(" {}"), IsOkAndHolds(IsEmpty()));
+  EXPECT_THAT(json::Parse<TypeParam>("{ }"), IsOkAndHolds(IsEmpty()));
+  EXPECT_THAT(json::Parse<TypeParam>("{} "), IsOkAndHolds(IsEmpty()));
+  EXPECT_THAT(json::Parse<TypeParam>(" { } "), IsOkAndHolds(IsEmpty()));
   EXPECT_THAT(json::Parse<TypeParam>("{,}"), Not(IsOk()));
   EXPECT_THAT(json::Parse<TypeParam>("{\"foo\":42}"),
               IsOkAndHolds(UnorderedElementsAre(Pair("foo", 42))));
