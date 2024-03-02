@@ -17,7 +17,7 @@ namespace common {
 //
 // Example:
 //
-//   std::vector<int> v{3, 2, 1};
+//   std::vector<int> v{3, 1, 2};
 //   std::sort(v.begin(), v.end());
 //   flat_set<int> fs{kSortedDeduplicatedContainer, std::move(v)};
 //

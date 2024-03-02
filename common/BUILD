@@ -168,6 +168,7 @@ cc_library(
     deps = [
         ":flat_map",
         "@com_google_absl//absl/base",
+        "@com_google_absl//absl/strings",
     ],
 )
 
