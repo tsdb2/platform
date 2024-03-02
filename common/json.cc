@@ -81,12 +81,102 @@ std::string EscapeAndQuoteString(std::string_view const input) {
   return result;
 }
 
+absl::Status Parser::SkipStringPartial() {
+  // TODO: this code is not UTF-8 aware.
+  for (size_t i = 0; i < input_.size(); ++i) {
+    switch (input_[i]) {
+      case '\\':
+        if (++i >= input_.size()) {
+          return InvalidSyntaxError();
+        }
+        if (input_[i] != 'u') {
+          if (kEscapedCharacterByCode.contains(input_[i])) {
+            break;
+          } else {
+            return InvalidSyntaxError();
+          }
+        }
+        if (i + 4 >= input_.size() || !IsHexDigit(input_[i + 1]) || !IsHexDigit(input_[i + 2]) ||
+            !IsHexDigit(input_[i + 3]) || !IsHexDigit(input_[i + 4])) {
+          return InvalidSyntaxError();
+        }
+        break;
+      case '"':
+        input_.remove_prefix(i + 1);
+        return absl::OkStatus();
+    }
+  }
+  return InvalidSyntaxError();
+}
+
+absl::Status Parser::SkipObjectPartial() {
+  ConsumeWhitespace();
+  if (ConsumePrefix("}")) {
+    return absl::OkStatus();
+  }
+  RETURN_IF_ERROR(RequirePrefix("\""));
+  RETURN_IF_ERROR(SkipStringPartial());
+  ConsumeWhitespace();
+  RETURN_IF_ERROR(RequirePrefix(":"));
+  RETURN_IF_ERROR(SkipValue());
+  ConsumeWhitespace();
+  while (ConsumePrefix(",")) {
+    ConsumeWhitespace();
+    RETURN_IF_ERROR(RequirePrefix("\""));
+    RETURN_IF_ERROR(SkipStringPartial());
+    ConsumeWhitespace();
+    RETURN_IF_ERROR(RequirePrefix(":"));
+    RETURN_IF_ERROR(SkipValue());
+    ConsumeWhitespace();
+  }
+  return RequirePrefix("}");
+}
+
+absl::Status Parser::SkipArrayPartial() {
+  ConsumeWhitespace();
+  if (ConsumePrefix("]")) {
+    return absl::OkStatus();
+  }
+  RETURN_IF_ERROR(SkipValue());
+  ConsumeWhitespace();
+  while (ConsumePrefix(",")) {
+    RETURN_IF_ERROR(SkipValue());
+    ConsumeWhitespace();
+  }
+  return RequirePrefix("]");
+}
+
+absl::Status Parser::SkipValue() {
+  ConsumeWhitespace();
+  if (ConsumePrefix("null")) {
+    return absl::OkStatus();
+  }
+  if (ConsumePrefix("true")) {
+    return absl::OkStatus();
+  }
+  if (ConsumePrefix("false")) {
+    return absl::OkStatus();
+  }
+  if (ConsumePrefix("\"")) {
+    return SkipStringPartial();
+  }
+  if (ConsumePrefix("{")) {
+    return SkipObjectPartial();
+  }
+  if (ConsumePrefix("[")) {
+    return SkipArrayPartial();
+  }
+  // If none of the above prefixes were found then it must be a number.
+  long double value;
+  return ReadTo(&value);
+}
+
 absl::Status Parser::ReadTo(bool* const result) {
   ConsumeWhitespace();
-  if (absl::ConsumePrefix(&input_, "true")) {
+  if (ConsumePrefix("true")) {
     *result = true;
     return absl::OkStatus();
-  } else if (absl::ConsumePrefix(&input_, "false")) {
+  } else if (ConsumePrefix("false")) {
     *result = false;
     return absl::OkStatus();
   } else {
@@ -96,7 +186,7 @@ absl::Status Parser::ReadTo(bool* const result) {
 
 absl::Status Parser::ReadTo(std::string* const result) {
   ConsumeWhitespace();
-  if (!absl::ConsumePrefix(&input_, "\"")) {
+  if (!ConsumePrefix("\"")) {
     return InvalidSyntaxError();
   }
   size_t offset = 0;

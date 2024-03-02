@@ -436,9 +436,7 @@ class Object<> {
   ABSL_ATTRIBUTE_ALWAYS_INLINE void ClearInternal() {}
 
   ABSL_ATTRIBUTE_ALWAYS_INLINE absl::Status ReadField(internal::Parser* const parser,
-                                                      std::string_view const field_name) {
-    return absl::OkStatus();
-  }
+                                                      std::string_view const field_name);
 
   ABSL_ATTRIBUTE_ALWAYS_INLINE void StringifyInternal(std::vector<std::string>*) const {}
 };
@@ -623,8 +621,12 @@ class Parser {
 
   bool PeekDigit() const { return !input_.empty() && IsDigit(input_.front()); }
 
-  absl::Status ConsumePrefix(std::string_view const prefix) {
-    if (absl::ConsumePrefix(&input_, prefix)) {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool ConsumePrefix(std::string_view const prefix) {
+    return absl::ConsumePrefix(&input_, prefix);
+  }
+
+  absl::Status RequirePrefix(std::string_view const prefix) {
+    if (ConsumePrefix(prefix)) {
       return absl::OkStatus();
     } else {
       return InvalidSyntaxError();
@@ -638,6 +640,11 @@ class Parser {
     }
     input_.remove_prefix(offset);
   }
+
+  absl::Status SkipStringPartial();
+  absl::Status SkipObjectPartial();
+  absl::Status SkipArrayPartial();
+  absl::Status SkipValue();
 
   absl::Status ReadTo(bool* result);
 
@@ -741,7 +748,7 @@ class Parser {
   absl::Status ReadTo(std::unique_ptr<Pointee>* const result) {
     ConsumeWhitespace();
     *result = nullptr;
-    if (absl::ConsumePrefix(&input_, "null")) {
+    if (ConsumePrefix("null")) {
       return absl::OkStatus();
     }
     *result = std::make_unique<Pointee>();
@@ -752,7 +759,7 @@ class Parser {
   absl::Status ReadTo(std::shared_ptr<Pointee>* const result) {
     ConsumeWhitespace();
     *result = nullptr;
-    if (absl::ConsumePrefix(&input_, "null")) {
+    if (ConsumePrefix("null")) {
       return absl::OkStatus();
     }
     *result = std::make_shared<Pointee>();
@@ -780,7 +787,7 @@ absl::Status Parser::ReadTo(Integer* const result) {
     return InvalidSyntaxError();
   }
   int sign = 1;
-  if (absl::ConsumePrefix(&input_, "-")) {
+  if (ConsumePrefix("-")) {
     if constexpr (!std::is_signed_v<Integer>) {
       return InvalidSyntaxError();
     }
@@ -819,7 +826,7 @@ absl::Status Parser::ReadTo(Float* const result) {
     return InvalidSyntaxError();
   }
   int sign = 1;
-  if (absl::ConsumePrefix(&input_, "-")) {
+  if (ConsumePrefix("-")) {
     sign = -1;
   }
   if (!PeekDigit()) {
@@ -846,7 +853,7 @@ absl::Status Parser::ReadTo(Float* const result) {
     mantissa += digit;
   }
   int64_t fractional_digits = 0;
-  if (absl::ConsumePrefix(&input_, ".")) {
+  if (ConsumePrefix(".")) {
     if (!PeekDigit()) {
       return InvalidSyntaxError();
     }
@@ -876,12 +883,12 @@ absl::Status Parser::ReadTo(Float* const result) {
     }
   }
   int exponent = 0;
-  if (absl::ConsumePrefix(&input_, "E") || absl::ConsumePrefix(&input_, "e")) {
+  if (ConsumePrefix("E") || ConsumePrefix("e")) {
     int exponent_sign = 1;
-    if (absl::ConsumePrefix(&input_, "-")) {
+    if (ConsumePrefix("-")) {
       exponent_sign = -1;
     } else {
-      absl::ConsumePrefix(&input_, "+");
+      ConsumePrefix("+");
     }
     if (!PeekDigit()) {
       return InvalidSyntaxError();
@@ -927,7 +934,7 @@ absl::Status Parser::ReadTo(Float* const result) {
 template <typename Inner>
 absl::Status Parser::ReadTo(std::optional<Inner>* const result) {
   ConsumeWhitespace();
-  if (absl::ConsumePrefix(&input_, "null")) {
+  if (ConsumePrefix("null")) {
     *result = std::nullopt;
     return absl::OkStatus();
   } else {
@@ -941,73 +948,71 @@ absl::Status Parser::ReadTo(std::optional<Inner>* const result) {
 template <typename First, typename Second>
 absl::Status Parser::ReadTo(std::pair<First, Second>* const result) {
   ConsumeWhitespace();
-  RETURN_IF_ERROR(ConsumePrefix("["));
+  RETURN_IF_ERROR(RequirePrefix("["));
   RETURN_IF_ERROR(ReadTo(&(result->first)));
   ConsumeWhitespace();
-  RETURN_IF_ERROR(ConsumePrefix(","));
+  RETURN_IF_ERROR(RequirePrefix(","));
   RETURN_IF_ERROR(ReadTo(&(result->second)));
   ConsumeWhitespace();
-  return ConsumePrefix("]");
+  return RequirePrefix("]");
 }
 
 template <typename... Elements>
 absl::Status Parser::ReadTo(std::tuple<Elements...>* const result) {
   ConsumeWhitespace();
-  RETURN_IF_ERROR(ConsumePrefix("["));
+  RETURN_IF_ERROR(RequirePrefix("["));
   RETURN_IF_ERROR(std::apply(
       [this](auto&... elements) {
         bool first = true;
         auto status = absl::OkStatus();
-        static_cast<void>(
-            (((first ? !(first = false) : (ConsumeWhitespace(), absl::ConsumePrefix(&input_, ",")))
-                  ? (status = ReadTo(&elements))
-                  : (status = InvalidSyntaxError()))
-                 .ok() &&
-             ...));
+        static_cast<void>((((first ? !(first = false) : (ConsumeWhitespace(), ConsumePrefix(",")))
+                                ? (status = ReadTo(&elements))
+                                : (status = InvalidSyntaxError()))
+                               .ok() &&
+                           ...));
         return status;
       },
       *result));
   ConsumeWhitespace();
-  return ConsumePrefix("]");
+  return RequirePrefix("]");
 }
 
 template <typename Element, size_t length>
 absl::Status Parser::ReadTo(std::array<Element, length>* const result) {
   ConsumeWhitespace();
-  RETURN_IF_ERROR(ConsumePrefix("["));
+  RETURN_IF_ERROR(RequirePrefix("["));
   RETURN_IF_ERROR(std::apply(
       [this](auto&... elements) {
         bool first = true;
         auto status = absl::OkStatus();
-        static_cast<void>(
-            (((first ? !(first = false) : (ConsumeWhitespace(), absl::ConsumePrefix(&input_, ",")))
-                  ? (status = ReadTo(&elements))
-                  : (status = InvalidSyntaxError()))
-                 .ok() &&
-             ...));
+        static_cast<void>((((first ? !(first = false) : (ConsumeWhitespace(), ConsumePrefix(",")))
+                                ? (status = ReadTo(&elements))
+                                : (status = InvalidSyntaxError()))
+                               .ok() &&
+                           ...));
         return status;
       },
       *result));
   ConsumeWhitespace();
-  return ConsumePrefix("]");
+  return RequirePrefix("]");
 }
 
 template <typename Element>
 absl::Status Parser::ReadTo(std::vector<Element>* const result) {
   ConsumeWhitespace();
-  RETURN_IF_ERROR(ConsumePrefix("["));
+  RETURN_IF_ERROR(RequirePrefix("["));
   ConsumeWhitespace();
   result->clear();
-  if (absl::ConsumePrefix(&input_, "]")) {
+  if (ConsumePrefix("]")) {
     return absl::OkStatus();
   }
   while (!input_.empty()) {
     auto& element = result->emplace_back();
     RETURN_IF_ERROR(ReadTo(&element));
     ConsumeWhitespace();
-    if (absl::ConsumePrefix(&input_, ",")) {
+    if (ConsumePrefix(",")) {
       ConsumeWhitespace();
-    } else if (absl::ConsumePrefix(&input_, "]")) {
+    } else if (ConsumePrefix("]")) {
       return absl::OkStatus();
     } else {
       return InvalidSyntaxError();
@@ -1016,6 +1021,13 @@ absl::Status Parser::ReadTo(std::vector<Element>* const result) {
   return InvalidSyntaxError();
 }
 
+// Used by the object parsing algorithm at the end of parsing to check that all non-optional fields
+// have been found in the input. The specializations provide `operator()` implementations returning
+// true iff all required fields have been found. The `keys` argument is the set of keys found in the
+// JSON input.
+//
+// Optional fields are defined as those with type `std::optional`, `std::unique_ptr`, or
+// `std::shared_ptr`.
 template <typename... Fields>
 struct CheckFieldPresence;
 
@@ -1055,11 +1067,11 @@ struct CheckFieldPresence<FieldImpl<std::shared_ptr<OptionalType>, Name>, OtherF
 template <typename... Fields>
 absl::Status Parser::ReadTo(Object<Fields...>* const result) {
   ConsumeWhitespace();
-  RETURN_IF_ERROR(ConsumePrefix("{"));
+  RETURN_IF_ERROR(RequirePrefix("{"));
   ConsumeWhitespace();
   result->Clear();
   flat_set<std::string> keys;
-  if (absl::ConsumePrefix(&input_, "}")) {
+  if (ConsumePrefix("}")) {
     if (CheckFieldPresence<Fields...>()(keys)) {
       return absl::OkStatus();
     } else {
@@ -1075,12 +1087,12 @@ absl::Status Parser::ReadTo(Object<Fields...>* const result) {
       return InvalidFormatError();  // duplicate key
     }
     ConsumeWhitespace();
-    RETURN_IF_ERROR(ConsumePrefix(":"));
+    RETURN_IF_ERROR(RequirePrefix(":"));
     RETURN_IF_ERROR(result->ReadField(this, key));
     ConsumeWhitespace();
-    if (absl::ConsumePrefix(&input_, ",")) {
+    if (ConsumePrefix(",")) {
       ConsumeWhitespace();
-    } else if (absl::ConsumePrefix(&input_, "}")) {
+    } else if (ConsumePrefix("}")) {
       if (CheckFieldPresence<Fields...>()(keys)) {
         return absl::OkStatus();
       } else {
@@ -1096,17 +1108,17 @@ absl::Status Parser::ReadTo(Object<Fields...>* const result) {
 template <typename Element, typename Dictionary>
 absl::Status Parser::ReadToDictionary(Dictionary* const result) {
   ConsumeWhitespace();
-  RETURN_IF_ERROR(ConsumePrefix("{"));
+  RETURN_IF_ERROR(RequirePrefix("{"));
   ConsumeWhitespace();
   result->clear();
-  if (absl::ConsumePrefix(&input_, "}")) {
+  if (ConsumePrefix("}")) {
     return absl::OkStatus();
   }
   while (!input_.empty()) {
     std::string key;
     RETURN_IF_ERROR(ReadTo(&key));
     ConsumeWhitespace();
-    RETURN_IF_ERROR(ConsumePrefix(":"));
+    RETURN_IF_ERROR(RequirePrefix(":"));
     Element element;
     RETURN_IF_ERROR(ReadTo(&element));
     auto const [unused_it, inserted] = result->try_emplace(std::move(key), std::move(element));
@@ -1114,9 +1126,9 @@ absl::Status Parser::ReadToDictionary(Dictionary* const result) {
       return InvalidFormatError();
     }
     ConsumeWhitespace();
-    if (absl::ConsumePrefix(&input_, ",")) {
+    if (ConsumePrefix(",")) {
       ConsumeWhitespace();
-    } else if (absl::ConsumePrefix(&input_, "}")) {
+    } else if (ConsumePrefix("}")) {
       return absl::OkStatus();
     } else {
       return InvalidSyntaxError();
@@ -1128,10 +1140,10 @@ absl::Status Parser::ReadToDictionary(Dictionary* const result) {
 template <typename Element, typename Set>
 absl::Status Parser::ReadToSet(Set* const result) {
   ConsumeWhitespace();
-  RETURN_IF_ERROR(ConsumePrefix("["));
+  RETURN_IF_ERROR(RequirePrefix("["));
   ConsumeWhitespace();
   result->clear();
-  if (absl::ConsumePrefix(&input_, "]")) {
+  if (ConsumePrefix("]")) {
     return absl::OkStatus();
   }
   while (!input_.empty()) {
@@ -1139,9 +1151,9 @@ absl::Status Parser::ReadToSet(Set* const result) {
     RETURN_IF_ERROR(ReadTo(&element));
     result->emplace(std::move(element));
     ConsumeWhitespace();
-    if (absl::ConsumePrefix(&input_, ",")) {
+    if (ConsumePrefix(",")) {
       ConsumeWhitespace();
-    } else if (absl::ConsumePrefix(&input_, "]")) {
+    } else if (ConsumePrefix("]")) {
       return absl::OkStatus();
     } else {
       return InvalidSyntaxError();
@@ -1151,6 +1163,11 @@ absl::Status Parser::ReadToSet(Set* const result) {
 }
 
 }  // namespace internal
+
+ABSL_ATTRIBUTE_ALWAYS_INLINE absl::Status Object<>::ReadField(internal::Parser* const parser,
+                                                              std::string_view const field_name) {
+  return parser->SkipValue();
+}
 
 template <typename Type, typename Name, typename... OtherFields>
 ABSL_ATTRIBUTE_ALWAYS_INLINE absl::Status

@@ -600,6 +600,116 @@ TEST(JsonTest, UnorderedFields) {
                          Property(&TestObject1::get<kFieldName8>, Optional(2.71)))));
 }
 
+TEST(JsonTest, SkipNull) {
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":null})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo": null})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":null })"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo": null })"));
+}
+
+TEST(JsonTest, SkipBool) {
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":true})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo": true})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":true })"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo": true })"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":false})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo": false})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":false })"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo": false })"));
+}
+
+TEST(JsonTest, SkipString) {
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":""})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo": ""})"));
+  EXPECT_OK(
+      json::Parse<json::Object<>>(R"({"foo":"a \" b \\ c / d \b e \f f \n g \r h \t i \u0042"})"));
+  EXPECT_THAT(json::Parse<json::Object<>>(R"({"foo":"\x"})"), Not(IsOk()));
+  EXPECT_THAT(json::Parse<json::Object<>>(R"({"foo":"\ugggg"})"), Not(IsOk()));
+}
+
+TEST(JsonTest, SkipObject) {
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":{}})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo": {}})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":{ }})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo": { }})"));
+  EXPECT_THAT(json::Parse<json::Object<>>(R"({"foo":{"bar"}})"), Not(IsOk()));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":{"bar":null}})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo": {"bar":null}})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":{ "bar":null}})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":{"bar" :null}})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":{"bar": null}})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":{"bar":null }})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo": { "bar" : null }})"));
+  EXPECT_THAT(json::Parse<json::Object<>>(R"({"foo":{"bar":null,}})"), Not(IsOk()));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":{"bar":true,"baz":false}})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":{"bar":true ,"baz":false}})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":{"bar":true, "baz":false}})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":{"bar":true,"baz" :false}})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":{"bar":true,"baz": false}})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":{"bar":true,"baz":false }})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":{"bar":true , "baz" : false }})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":{"bar":true,"baz":false,"qux":null}})"));
+}
+
+TEST(JsonTest, SkipArray) {
+  EXPECT_THAT(json::Parse<json::Object<>>(R"({"foo":[})"), Not(IsOk()));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":[]})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo": []})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":[ ]})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo": [ ]})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":[1]})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo": [1]})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":[ 1]})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":[1 ]})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo": [ 1 ]})"));
+  EXPECT_THAT(json::Parse<json::Object<>>(R"({"foo":[1,]})"), Not(IsOk()));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":[1,2]})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":[1 ,2]})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":[1, 2]})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":[1,2 ]})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo": [ 1 , 2 ]})"));
+  EXPECT_THAT(json::Parse<json::Object<>>(R"({"foo":[1,2,]})"), Not(IsOk()));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo":[1,2,3]})"));
+  EXPECT_OK(json::Parse<json::Object<>>(R"({"foo": [ 1 , 2 , 3 ] })"));
+}
+
+TEST(JsonTest, ParseObjectWithExtraFields) {
+  TestObject1 object;
+  EXPECT_THAT(
+      json::Parse<TestObject1>(R"json({
+        "extra1": false,
+        "ipsum": true,
+        "extra": null,
+        "elit": 2.71,
+        "extra3": "foo \\ bar \"baz\"",
+        "adipisci": [43, false, "barbaz"],
+        "extra4": {
+          "matrix": [
+            [1, 0, 0, 0],
+            [0, 1, 0, 0],
+            [0, 0, 0, 1],
+            [0, 0, 1, 0]
+          ]
+        },
+        "consectetur": [4, 5, 6, 7],
+        "extra5": [44, true, "bazqux"],
+        "amet": [1, 2, 3],
+        "extra6": [45, null, "quxfoo", {"foo": null}],
+        "sit": 3.14,
+        "extra7": -12.34e56,
+        "dolor": "foobar",
+        "lorem": 42
+      })json"),
+      IsOkAndHolds(AllOf(Property(&TestObject1::get<kFieldName1>, 42),
+                         Property(&TestObject1::get<kFieldName2>, true),
+                         Property(&TestObject1::get<kFieldName3>, "foobar"),
+                         Property(&TestObject1::get<kFieldName4>, 3.14),
+                         Property(&TestObject1::get<kFieldName5>, ElementsAre(1, 2, 3)),
+                         Property(&TestObject1::get<kFieldName6>, ElementsAre(4, 5, 6, 7)),
+                         Property(&TestObject1::get<kFieldName7>, FieldsAre(43, false, "barbaz")),
+                         Property(&TestObject1::get<kFieldName8>, Optional(2.71)))));
+}
+
 TEST(JsonTest, Stringify) {
   TestObject1 object;
   object.get<kFieldName1>() = 42;
