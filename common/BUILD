@@ -167,7 +167,6 @@ cc_library(
     hdrs = ["trie_set.h"],
     deps = [
         ":flat_map",
-        "@com_google_absl//absl/base",
         "@com_google_absl//absl/strings",
     ],
 )

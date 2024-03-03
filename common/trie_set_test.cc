@@ -15,6 +15,9 @@ TEST(TrieSetTest, Foo) {
   EXPECT_FALSE(ts.contains("consectetur"));
   EXPECT_FALSE(ts.contains("adipisci"));
   EXPECT_FALSE(ts.contains("elit"));
+  EXPECT_EQ(ts.erase("adipisci"), 0);
+  EXPECT_EQ(ts.erase("dolor"), 1);
+  EXPECT_EQ(ts.erase("dolor"), 0);
 }
 
 // TODO
