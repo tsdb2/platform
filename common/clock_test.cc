@@ -4,6 +4,7 @@
 
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace {

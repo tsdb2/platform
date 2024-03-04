@@ -3,6 +3,7 @@
 #include "absl/time/time.h"
 #include "common/mock_clock.h"
 #include "common/testing.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace {

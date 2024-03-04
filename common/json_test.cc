@@ -23,6 +23,7 @@
 #include "common/flat_set.h"
 #include "common/testing.h"
 #include "common/type_string.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace {

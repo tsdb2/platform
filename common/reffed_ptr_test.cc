@@ -3,6 +3,7 @@
 #include <utility>
 
 #include "absl/hash/hash.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace {

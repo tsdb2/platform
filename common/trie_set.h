@@ -5,7 +5,9 @@
 #include <cstddef>
 #include <functional>
 #include <initializer_list>
+#include <iterator>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -22,6 +24,8 @@ template <typename Allocator = std::allocator<std::string>>
 class trie_set {
  private:
   class Node;
+  class Iterator;
+
   using NodeEntry = std::pair<std::string, Node>;
   using EntryAllocator =
       typename std::allocator_traits<Allocator>::template rebind_alloc<NodeEntry>;
@@ -39,8 +43,10 @@ class trie_set {
   using const_reference = value_type const&;
   using pointer = typename std::allocator_traits<allocator_type>::pointer;
   using const_pointer = typename std::allocator_traits<allocator_type>::const_pointer;
-
-  // TODO: iterator type aliases
+  using iterator = Iterator;
+  using const_iterator = Iterator;
+  using reverse_iterator = std::reverse_iterator<iterator>;
+  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
   class node_type {
    public:
@@ -62,14 +68,18 @@ class trie_set {
     typename NodeSet::node_type node_;
   };
 
-  // TODO: insert_return_type
+  struct insert_return_type {
+    iterator position;
+    bool inserted;
+    node_type node;
+  };
 
   trie_set() = default;
 
   template <typename InputIt>
   trie_set(InputIt first, InputIt last) {
     for (auto it = first; it != last; ++it) {
-      root_.Insert(*it);
+      root().Insert(*it);
       ++size_;
     }
   }
@@ -79,7 +89,7 @@ class trie_set {
 
   trie_set(std::initializer_list<std::string> const init) {
     for (auto const& element : init) {
-      root_.Insert(element);
+      root().Insert(element);
     }
     size_ = init.size();
   }
@@ -89,40 +99,42 @@ class trie_set {
 
   trie_set& operator=(std::initializer_list<std::string> const init) {
     for (auto const& element : init) {
-      root_.Insert(element);
+      root().Insert(element);
     }
     size_ = init.size();
     return *this;
   }
 
-  // TODO: iterations
+  iterator begin() noexcept { return Iterator(roots_); }
+  const_iterator begin() const noexcept { return Iterator(roots_); }
+  const_iterator cbegin() const noexcept { return Iterator(roots_); }
+  iterator end() noexcept { return Iterator(); }
+  const_iterator end() const noexcept { return Iterator(); }
+  const_iterator cend() const noexcept { return Iterator(); }
 
-  [[nodiscard]] bool empty() const noexcept { return root_.IsEmpty(); }
+  // TODO: reverse iterations
+
+  [[nodiscard]] bool empty() const noexcept { return root().IsEmpty(); }
 
   size_type size() const noexcept { return size_; }
 
-  size_type max_size() const noexcept { return root_.children_.max_size(); }
+  size_type max_size() const noexcept { return root().children_.max_size(); }
 
   void clear() noexcept {
-    root_.Clear();
+    root().Clear();
     size_ = 0;
   }
 
   // TODO
 
-  bool contains(std::string_view const key) const { return root_.Contains(key); }
+  bool contains(std::string_view const key) const { return root().Contains(key); }
 
   // TODO
 
-  size_type erase(std::string_view const key) {
-    if (root_.Remove(key)) {
-      return 1;
-    } else {
-      return 0;
-    }
-  }
+  size_type erase(std::string_view const key) { return root().Remove(key) ? 1 : 0; }
 
  private:
+  // A trie node. This is the core implementation of the trie.
   class Node {
    public:
     explicit Node(bool const leaf) : leaf_(leaf) {}
@@ -216,17 +228,139 @@ class trie_set {
     // TODO
 
    private:
-    friend class node_type;
+    friend class Iterator;
 
     bool leaf_;
     NodeSet children_;
   };
 
-  Node root_{/*leaf=*/false};
+  // Iterator implementation satisfying the requirements of LegacyBidirectionalIterator.
+  class Iterator {
+   public:
+    // Constructs the "begin" iterator.
+    // REQUIRES: `roots` must not be empty.
+    explicit Iterator(NodeSet const& roots) {
+      frames_.push_back({
+          .pos = roots.begin(),
+          .end = roots.end(),
+      });
+      auto const& root = roots.begin()->second;
+      if (!root.leaf_) {
+        Advance();
+      }
+    }
+
+    // Constructs the "end" iterator.
+    explicit Iterator() = default;
+
+    Iterator(Iterator const&) = default;
+    Iterator& operator=(Iterator const&) = default;
+    Iterator(Iterator&&) noexcept = default;
+    Iterator& operator=(Iterator&&) noexcept = default;
+
+    friend bool operator==(Iterator const& lhs, Iterator const& rhs) {
+      return lhs.frames_ == rhs.frames_;
+    }
+
+    friend bool operator!=(Iterator const& lhs, Iterator const& rhs) {
+      return lhs.frames_ != rhs.frames_;
+    }
+
+    std::string operator*() const {
+      size_t size = 0;
+      for (auto const& frame : frames_) {
+        size += frame.pos->first.size();
+      }
+      std::string key;
+      key.reserve(size);
+      for (auto const& frame : frames_) {
+        key += frame.pos->first;
+      }
+      return key;
+    }
+
+    Iterator& operator++() {
+      Advance();
+      return *this;
+    }
+
+    Iterator operator++(int) {
+      Iterator result = *this;
+      Advance();
+      return result;
+    }
+
+    // TODO: operator--
+
+    void swap(Iterator& other) { frames_.swap(other.frames_); }
+    friend void swap(Iterator& lhs, Iterator& rhs) { lhs.swap(rhs); }
+
+   private:
+    struct StateFrame {
+      friend bool operator==(StateFrame const& lhs, StateFrame const& rhs) {
+        if (lhs.pos != lhs.end) {
+          return rhs.pos != rhs.end && lhs.pos->first == rhs.pos->first;
+        } else {
+          return rhs.pos == rhs.end;
+        }
+      }
+
+      friend bool operator!=(StateFrame const& lhs, StateFrame const& rhs) { return !(lhs == rhs); }
+
+      typename NodeSet::const_iterator pos;
+      typename NodeSet::const_iterator end;
+    };
+
+    void NextNode() {
+      auto const& frame = frames_.back();
+      auto const& node = frame.pos->second;
+      auto begin = node.children_.begin();
+      auto end = node.children_.end();
+      if (begin != end) {
+        frames_.push_back({
+            .pos = std::move(begin),
+            .end = std::move(end),
+        });
+      } else {
+        do {
+          auto& frame = frames_.back();
+          if (++frame.pos != frame.end) {
+            return;
+          } else {
+            frames_.pop_back();
+          }
+        } while (!frames_.empty());
+      }
+    }
+
+    void Advance() {
+      while (NextNode(), !frames_.empty()) {
+        auto const& frame = frames_.back();
+        auto const& node = frame.pos->second;
+        if (node.leaf_) {
+          return;
+        }
+      }
+    }
+
+    std::vector<StateFrame> frames_;
+  };
+
+  // Returns the root node of the tree (see the comment on `roots_` below).
+  Node& root() { return roots_.begin()->second; }
+  Node const& root() const { return roots_.begin()->second; }
+
+  // To facilitate the implementation of the iterator advancement algorithm we maintain a list of
+  // roots rather than a single root so that we can always rely on `NodeSet` iterators at every
+  // level of recursion, but in reality `roots_` must always contain exactly one element, the real
+  // root. The empty string we're using here as a key is irrelevant.
+  NodeSet roots_{{"", Node(/*leaf=*/false)}};
+
+  // Number of strings in the trie.
   size_type size_ = 0;
 };
 
 }  // namespace common
 }  // namespace tsdb2
 
-#endif  //
+#endif  // __TSDB2_COMMON_TRIE_SET_H__

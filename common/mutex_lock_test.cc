@@ -3,6 +3,7 @@
 #include <thread>
 
 #include "absl/synchronization/mutex.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace {

@@ -14,6 +14,7 @@
 #include "absl/types/span.h"
 #include "common/flat_map.h"
 #include "common/flat_set.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace foo {

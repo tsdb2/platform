@@ -6,6 +6,7 @@
 
 #include "absl/synchronization/notification.h"
 #include "common/reffed_ptr.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace {

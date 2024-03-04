@@ -5,6 +5,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "common/testing.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace {
