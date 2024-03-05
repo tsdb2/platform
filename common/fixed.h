@@ -16,9 +16,17 @@ template <typename T, typename Unused>
 using FixedT = typename Fixed<T, Unused>::type;
 
 template <typename Unused, typename T>
-T FixedV(T&& t) {
+constexpr T FixedV(T&& t) {
   return Fixed<T, Unused>::value(std::forward<T>(t));
 }
+
+template <typename Unused>
+struct FixedTrue {
+  static inline bool constexpr value = true;
+};
+
+template <typename Unused>
+inline bool constexpr FixedTrueV = FixedTrue<Unused>::value;
 
 }  // namespace common
 }  // namespace tsdb2

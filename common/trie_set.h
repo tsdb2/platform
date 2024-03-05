@@ -7,8 +7,8 @@
 #include <initializer_list>
 #include <iterator>
 #include <memory>
-#include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -20,6 +20,16 @@ namespace common {
 
 // trie_set is a set of strings implemented as a compressed trie, aka a radix tree. The provided API
 // is similar to std::set<std::string>.
+//
+// Notable differences between std::set<std::string> and trie_set:
+//
+//  * Inserting nodes is not supported. That is because, by definition, a trie node doesn't have all
+//    the information about its key, so it wouldn't make sense to reinsert it under a completely
+//    different key prefix.
+//  * For the same reasons above, retrieving the full key of a node is not supported by `node_type`.
+//    Once extracted, a trie node can only be destroyed.
+//  * TODO
+//
 template <typename Allocator = std::allocator<std::string>>
 class trie_set {
  private:
@@ -50,13 +60,17 @@ class trie_set {
 
   class node_type {
    public:
+    explicit node_type() = default;
+
     node_type(node_type&&) noexcept = default;
     node_type& operator=(node_type&&) noexcept = default;
 
     [[nodiscard]] bool empty() const { return node_.empty(); }
     explicit operator bool() const noexcept { return node_.operator bool(); }
 
-    // TODO: value() getter
+    allocator_type get_allocator() const noexcept {
+      return allocator_traits::select_on_container_copy_construction(node_.get_allocator());
+    }
 
     void swap(node_type& other) noexcept { node_.swap(other.node_); }
     friend void swap(node_type& lhs, node_type& rhs) noexcept { lhs.swap(rhs); }
@@ -68,41 +82,76 @@ class trie_set {
     typename NodeSet::node_type node_;
   };
 
-  struct insert_return_type {
-    iterator position;
-    bool inserted;
-    node_type node;
-  };
-
   trie_set() = default;
 
+  explicit trie_set(allocator_type const& alloc)
+      : alloc_(allocator_traits::select_on_container_copy_construction(alloc)) {}
+
   template <typename InputIt>
-  trie_set(InputIt first, InputIt last) {
+  trie_set(InputIt first, InputIt last, allocator_type const& alloc = allocator_type())
+      : alloc_(allocator_traits::select_on_container_copy_construction(alloc)) {
+    auto& root_node = root();
     for (auto it = first; it != last; ++it) {
-      root().Insert(*it);
+      root_node.Insert(*it);
       ++size_;
     }
   }
 
-  trie_set(trie_set const& other) = default;
-  trie_set(trie_set&& other) noexcept = default;
+  trie_set(trie_set const& other)
+      : alloc_(allocator_traits::select_on_container_copy_construction(other.alloc_)),
+        roots_(other.roots_),
+        size_(other.size_) {}
 
-  trie_set(std::initializer_list<std::string> const init) {
+  trie_set(trie_set const& other, allocator_type const& alloc)
+      : alloc_(allocator_traits::select_on_container_copy_construction(alloc)),
+        roots_(other.roots_),
+        size_(other.size_) {}
+
+  trie_set(trie_set&& other) noexcept
+      : alloc_(allocator_traits::select_on_container_copy_construction(other.alloc_)),
+        roots_(std::move(other.roots_)),
+        size_(other.size_) {}
+
+  trie_set(trie_set&& other, allocator_type const& alloc) noexcept
+      : alloc_(allocator_traits::select_on_container_copy_construction(alloc)),
+        roots_(std::move(other.roots_)),
+        size_(other.size_) {}
+
+  trie_set(std::initializer_list<std::string> const init,
+           allocator_type const& alloc = allocator_type())
+      : alloc_(allocator_traits::select_on_container_copy_construction(alloc)) {
+    auto& root_node = root();
     for (auto const& element : init) {
-      root().Insert(element);
+      root_node.Insert(element);
     }
     size_ = init.size();
   }
 
-  trie_set& operator=(trie_set const& other) = default;
-  trie_set& operator=(trie_set&& other) noexcept = default;
+  trie_set& operator=(trie_set const& other) {
+    alloc_ = allocator_traits::select_on_container_copy_construction(other.alloc_);
+    roots_ = other.roots_;
+    size_ = other.size_;
+    return *this;
+  }
+
+  trie_set& operator=(trie_set&& other) noexcept {
+    alloc_ = std::move(other.alloc_);
+    roots_ = std::move(other.roots_);
+    size_ = other.size_;
+    return *this;
+  }
 
   trie_set& operator=(std::initializer_list<std::string> const init) {
+    auto& root_node = root();
     for (auto const& element : init) {
-      root().Insert(element);
+      root_node.Insert(element);
     }
     size_ = init.size();
     return *this;
+  }
+
+  allocator_type get_allocator() const noexcept {
+    return allocator_traits::select_on_container_copy_construction(alloc_);
   }
 
   iterator begin() noexcept { return Iterator(roots_); }
@@ -137,12 +186,16 @@ class trie_set {
   // A trie node. This is the core implementation of the trie.
   class Node {
    public:
-    explicit Node(bool const leaf) : leaf_(leaf) {}
+    explicit Node(bool const leaf, allocator_type const& alloc) : leaf_(leaf), children_(alloc) {}
 
     Node(Node const& other) = default;
     Node& operator=(Node const& other) = default;
     Node(Node&& other) noexcept = default;
     Node& operator=(Node&& other) noexcept = default;
+
+    allocator_type get_allocator() const noexcept {
+      return allocator_traits::select_on_container_copy_construction(children_.get_allocator());
+    }
 
     bool IsEmpty() const { return !leaf_ && children_.empty(); }
 
@@ -175,7 +228,7 @@ class trie_set {
       }
       auto const it = children_.lower_bound(value.substr(0, 1));
       if (it == children_.end()) {
-        children_.try_emplace(std::string(value), /*leaf=*/true);
+        children_.try_emplace(std::string(value), /*leaf=*/true, children_.get_allocator());
         return true;
       }
       auto& [key, node] = *it;
@@ -186,12 +239,12 @@ class trie_set {
       }
       // `i` is now the length of the longest common prefix.
       if (i == 0) {
-        children_.try_emplace(std::string(value), /*leaf=*/true);
+        children_.try_emplace(std::string(value), /*leaf=*/true, children_.get_allocator());
         return true;
       }
       if (i < key.size()) {
         Node child = std::move(node);
-        node = Node(/*leaf=*/false);
+        node = Node(/*leaf=*/false, children_.get_allocator());
         node.children_.try_emplace(key.substr(i), std::move(child));
         key = key.substr(0, i);
       }
@@ -224,8 +277,6 @@ class trie_set {
       }
       return result;
     }
-
-    // TODO
 
    private:
     friend class Iterator;
@@ -350,11 +401,13 @@ class trie_set {
   Node& root() { return roots_.begin()->second; }
   Node const& root() const { return roots_.begin()->second; }
 
+  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS EntryAllocator alloc_;
+
   // To facilitate the implementation of the iterator advancement algorithm we maintain a list of
   // roots rather than a single root so that we can always rely on `NodeSet` iterators at every
   // level of recursion, but in reality `roots_` must always contain exactly one element, the real
   // root. The empty string we're using here as a key is irrelevant.
-  NodeSet roots_{{"", Node(/*leaf=*/false)}};
+  NodeSet roots_{{"", Node(/*leaf=*/false, alloc_)}};
 
   // Number of strings in the trie.
   size_type size_ = 0;

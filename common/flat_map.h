@@ -19,9 +19,11 @@
 #include <cstdint>
 #include <functional>
 #include <initializer_list>
+#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -133,8 +135,27 @@ class flat_map {
 
   explicit constexpr flat_map(Compare const& comp) : comp_(comp) {}
 
+  template <typename Alias = Representation,
+            std::enable_if_t<internal::HasAllocatorV<Alias>, bool> = true>
+  explicit constexpr flat_map(Compare const& comp, typename Alias::allocator_type const& alloc)
+      : comp_(comp), rep_(alloc) {}
+
+  template <typename Alias = Representation,
+            std::enable_if_t<internal::HasAllocatorV<Alias>, bool> = true>
+  explicit constexpr flat_map(typename Alias::allocator_type const& alloc) : rep_(alloc) {}
+
   template <class InputIt>
-  flat_map(InputIt first, InputIt last, Compare const& comp = Compare()) {
+  flat_map(InputIt first, InputIt last, Compare const& comp = Compare()) : comp_(comp) {
+    for (; first != last; ++first) {
+      insert(*first);
+    }
+  }
+
+  template <class InputIt, typename Alias = Representation,
+            std::enable_if_t<internal::HasAllocatorV<Alias>, bool> = true>
+  flat_map(InputIt first, InputIt last, Compare const& comp,
+           typename Alias::allocator_type const& alloc)
+      : comp_(comp), rep_(alloc) {
     for (; first != last; ++first) {
       insert(*first);
     }
@@ -145,8 +166,28 @@ class flat_map {
   flat_map(flat_map&& other) noexcept = default;
   flat_map& operator=(flat_map&& other) noexcept = default;
 
+  template <typename Alias = Representation,
+            std::enable_if_t<internal::HasAllocatorV<Alias>, bool> = true>
+  flat_map(flat_map const& other, typename Alias::allocator_type const& alloc)
+      : comp_(other.comp_), rep_(other.rep_, alloc) {}
+
+  template <typename Alias = Representation,
+            std::enable_if_t<internal::HasAllocatorV<Alias>, bool> = true>
+  flat_map(flat_map&& other, typename Alias::allocator_type const& alloc)
+      : comp_(std::move(other.comp_)), rep_(std::move(other.rep_), alloc) {}
+
   flat_map(std::initializer_list<value_type> const init, Compare const& comp = Compare())
       : comp_(comp) {
+    for (auto& [key, value] : init) {
+      try_emplace(key, value);
+    }
+  }
+
+  template <typename Alias = Representation,
+            std::enable_if_t<internal::HasAllocatorV<Alias>, bool> = true>
+  flat_map(std::initializer_list<value_type> const init, Compare const& comp,
+           typename Alias::allocator_type const& alloc)
+      : comp_(comp), rep_(alloc) {
     for (auto& [key, value] : init) {
       try_emplace(key, value);
     }
@@ -158,6 +199,13 @@ class flat_map {
       try_emplace(key, value);
     }
     return *this;
+  }
+
+  template <typename Alias = Representation,
+            std::enable_if_t<internal::HasAllocatorV<Alias>, bool> = true>
+  typename Alias::allocator_type get_allocator() const {
+    return std::allocator_traits<typename Alias::allocator_type>::
+        select_on_container_copy_construction(rep_.get_allocator());
   }
 
   // As specified by the standard, all comparison operators intentionally ignore the user-provided

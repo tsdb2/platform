@@ -51,6 +51,19 @@ struct key_arg<Compare, std::void_t<typename Compare::is_transparent>> {
   using type = KeyArg;
 };
 
+// `HasAllocator` is used in SFINAE to determine whether the underlying representation of a flat
+// container uses allocators. For example, std::vector uses allocators but std::array doesn't. Based
+// on this condition, flat containers will or will not add extra members such as `get_allocator`.
+template <typename Representation, typename = void>
+struct HasAllocator : public std::false_type {};
+
+template <typename Representation>
+struct HasAllocator<Representation, std::void_t<typename Representation::allocator_type>>
+    : public std::true_type {};
+
+template <typename Representation>
+inline bool constexpr HasAllocatorV = HasAllocator<Representation>::value;
+
 struct EmptyInitializerList {
   constexpr EmptyInitializerList() = default;
 };
