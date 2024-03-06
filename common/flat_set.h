@@ -3,6 +3,8 @@
 // for read-mostly use cases and/or small-ish data structures. In those cases, being allocated in a
 // single heap block makes the data much more cache-friendly and efficient. For any uses cases with
 // large (but still read-mostly) datasets, you may want to use std::deque instead of std::vector.
+//
+// TODO: replace with `std::flat_set` when we have C++23.
 
 #ifndef __TSDB2_COMMON_FLAT_SET_H__
 #define __TSDB2_COMMON_FLAT_SET_H__
@@ -90,8 +92,27 @@ class flat_set {
 
   explicit constexpr flat_set(Compare const& comp) : comp_(comp) {}
 
+  template <typename Alias = Representation,
+            std::enable_if_t<internal::HasAllocatorV<Alias>, bool> = true>
+  explicit flat_set(Compare const& comp, typename Alias::allocator_type const& alloc)
+      : comp_(comp), rep_(alloc) {}
+
+  template <typename Alias = Representation,
+            std::enable_if_t<internal::HasAllocatorV<Alias>, bool> = true>
+  explicit flat_set(typename Alias::allocator_type const& alloc) : rep_(alloc) {}
+
   template <typename InputIt>
   explicit flat_set(InputIt first, InputIt last, Compare const& comp = Compare()) : comp_(comp) {
+    for (; first != last; ++first) {
+      insert(*first);
+    }
+  }
+
+  template <typename InputIt, typename Alias = Representation,
+            std::enable_if_t<internal::HasAllocatorV<Alias>, bool> = true>
+  explicit flat_set(InputIt first, InputIt last, Compare const& comp,
+                    typename Alias::allocator_type const& alloc)
+      : comp_(comp), rep_(alloc) {
     for (; first != last; ++first) {
       insert(*first);
     }
@@ -102,8 +123,28 @@ class flat_set {
   flat_set(flat_set&& other) noexcept = default;
   flat_set& operator=(flat_set&& other) noexcept = default;
 
+  template <typename Alias = Representation,
+            std::enable_if_t<internal::HasAllocatorV<Alias>, bool> = true>
+  flat_set(flat_set const& other, typename Alias::allocator_type const& alloc)
+      : comp_(other.comp_), rep_(other.rep_, alloc) {}
+
+  template <typename Alias = Representation,
+            std::enable_if_t<internal::HasAllocatorV<Alias>, bool> = true>
+  flat_set(flat_set&& other, typename Alias::allocator_type const& alloc)
+      : comp_(std::move(other.comp_)), rep_(std::move(other.rep_), alloc) {}
+
   flat_set(std::initializer_list<value_type> const init, Compare const& comp = Compare())
       : comp_(comp) {
+    for (auto& value : init) {
+      insert(value);
+    }
+  }
+
+  template <typename Alias = Representation,
+            std::enable_if_t<internal::HasAllocatorV<Alias>, bool> = true>
+  flat_set(std::initializer_list<value_type> const init, Compare const& comp,
+           typename Alias::allocator_type const& alloc)
+      : comp_(comp), rep_(alloc) {
     for (auto& value : init) {
       insert(value);
     }
@@ -115,6 +156,13 @@ class flat_set {
       insert(value);
     }
     return *this;
+  }
+
+  template <typename Alias = Representation,
+            std::enable_if_t<internal::HasAllocatorV<Alias>, bool> = true>
+  typename Alias::allocator_type get_allocator() const {
+    return std::allocator_traits<typename Alias::allocator_type>::
+        select_on_container_copy_construction(rep_.get_allocator());
   }
 
   // As specified by the standard, all comparison operators intentionally ignore the user-provided

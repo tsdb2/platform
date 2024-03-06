@@ -21,6 +21,7 @@ using tsdb2::common::fixed_flat_set_of;
 using tsdb2::common::flat_set;
 using tsdb2::testing::OtherTestKey;
 using tsdb2::testing::ReverseTestCompare;
+using tsdb2::testing::TestAllocator;
 using tsdb2::testing::TestCompare;
 using tsdb2::testing::TestKey;
 using tsdb2::testing::TestKeyEq;
@@ -31,6 +32,7 @@ using ::testing::_;
 using ::testing::ElementsAre;
 using ::testing::Ge;
 using ::testing::Pair;
+using ::testing::Property;
 
 template <typename FlatSet, typename... Inner>
 class TestKeysMatcher;
@@ -183,6 +185,11 @@ TYPED_TEST_P(FlatSetWithRepresentationTest, Deduplication) {
   flat_set<TestKey, TestCompare, TypeParam> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
   flat_set<TestKey, TestCompare, TypeParam> fs2{-3, -2, -1, 1, 4, 5};
   EXPECT_EQ(fs1, fs2);
+}
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, GetAllocator) {
+  flat_set<TestKey, TestCompare, TypeParam> fs;
+  EXPECT_TRUE((std::is_same_v<typename TypeParam::allocator_type, decltype(fs.get_allocator())>));
 }
 
 TYPED_TEST_P(FlatSetWithRepresentationTest, CompareEqual) {
@@ -614,7 +621,7 @@ TYPED_TEST_P(FlatSetWithRepresentationTest, ConstUpperBoundInclusive) {
 
 REGISTER_TYPED_TEST_SUITE_P(
     FlatSetWithRepresentationTest, Construct, ConstructWithIterators, ConstructWithInitializerList,
-    AssignInitializerList, Deduplication, CompareEqual, CompareLHSLessThanRHS,
+    AssignInitializerList, Deduplication, GetAllocator, CompareEqual, CompareLHSLessThanRHS,
     CompareLHSGreaterThanRHS, ReverseCompareLHSLessThanRHS, ReverseCompareLHSGreaterThanRHS,
     CopyConstruct, Copy, MoveConstruct, Move, Empty, NotEmpty, Hash, Clear, Insert, MoveInsert,
     InsertCollision, MoveInsertCollision, InsertFromIterators, InsertFromInitializerList,
@@ -627,9 +634,59 @@ REGISTER_TYPED_TEST_SUITE_P(
     ConstLowerBoundInclusive, UpperBoundExclusive, ConstUpperBoundExclusive, UpperBoundInclusive,
     ConstUpperBoundInclusive);
 
-using RepresentationTypes = ::testing::Types<std::vector<TestKey>, std::deque<TestKey>>;
+using RepresentationTypes = ::testing::Types<std::vector<TestKey>, std::deque<TestKey>,
+                                             std::vector<TestKey, TestAllocator<TestKey>>>;
 INSTANTIATE_TYPED_TEST_SUITE_P(FlatSetWithRepresentationTest, FlatSetWithRepresentationTest,
                                RepresentationTypes);
+
+TEST(FlatSetWithAllocatorTest, DefaultAllocator) {
+  flat_set<int, std::less<int>, std::vector<int, TestAllocator<int>>> fs;
+  EXPECT_THAT(fs.get_allocator(), Property(&TestAllocator<int>::tag, 0));
+}
+
+TEST(FlatSetWithAllocatorTest, CustomAllocator) {
+  TestAllocator<int> alloc{42};
+  flat_set<int, std::less<int>, std::vector<int, TestAllocator<int>>> fs{alloc};
+  EXPECT_THAT(fs.get_allocator(), Property(&TestAllocator<int>::tag, 42));
+}
+
+TEST(FlatSetWithAllocatorTest, CustomComparatorAndAllocator) {
+  std::less<int> comp;
+  TestAllocator<int> alloc{42};
+  flat_set<int, std::less<int>, std::vector<int, TestAllocator<int>>> fs{comp, alloc};
+  EXPECT_THAT(fs.get_allocator(), Property(&TestAllocator<int>::tag, 42));
+}
+
+TEST(FlatSetWithAllocatorTest, IteratorsAndAllocator) {
+  std::vector<int> v{1, 2, 3};
+  std::less<int> comp;
+  TestAllocator<int> alloc{42};
+  flat_set<int, std::less<int>, std::vector<int, TestAllocator<int>>> fs{v.begin(), v.end(), comp,
+                                                                         alloc};
+  EXPECT_THAT(fs, ElementsAre(1, 2, 3));
+  EXPECT_THAT(fs.get_allocator(), Property(&TestAllocator<int>::tag, 42));
+}
+
+TEST(FlatSetWithAllocatorTest, InitializerListAndAllocator) {
+  TestAllocator<int> alloc{42};
+  flat_set<int, std::less<int>, std::vector<int, TestAllocator<int>>> fs{{1, 2, 3}, alloc};
+  EXPECT_THAT(fs, ElementsAre(1, 2, 3));
+  EXPECT_THAT(fs.get_allocator(), Property(&TestAllocator<int>::tag, 42));
+}
+
+TEST(FlatSetWithAllocatorTest, CopyAllocator) {
+  TestAllocator<int> alloc{42};
+  flat_set<int, std::less<int>, std::vector<int, TestAllocator<int>>> fs1{alloc};
+  auto fs2 = fs1;
+  EXPECT_THAT(fs2.get_allocator(), Property(&TestAllocator<int>::tag, 42));
+}
+
+TEST(FlatSetWithAllocatorTest, MoveAllocator) {
+  TestAllocator<int> alloc{42};
+  flat_set<int, std::less<int>, std::vector<int, TestAllocator<int>>> fs1{alloc};
+  auto fs2 = std::move(fs1);
+  EXPECT_THAT(fs2.get_allocator(), Property(&TestAllocator<int>::tag, 42));
+}
 
 TEST(FlatSetCapacityTest, InitialCapacity) {
   flat_set<int> fs;

@@ -1,7 +1,9 @@
 #ifndef __TSDB2_COMMON_FLAT_CONTAINER_TESTING_H__
 #define __TSDB2_COMMON_FLAT_CONTAINER_TESTING_H__
 
+#include <cstdlib>
 #include <deque>
+#include <memory>
 #include <ostream>
 #include <string>
 #include <type_traits>
@@ -53,6 +55,45 @@ struct TransparentTestCompare {
   bool operator()(LHS const& lhs, RHS const& rhs) const {
     return lhs.field < rhs.field;
   }
+};
+
+template <typename T>
+class TestAllocator {
+ public:
+  using value_type = T;
+  using size_type = size_t;
+  using difference_type = ptrdiff_t;
+  using propagate_on_container_move_assignment = std::true_type;
+  using is_always_equal = std::true_type;
+
+  explicit TestAllocator() = default;
+  explicit TestAllocator(int const tag) : tag_(tag) {}
+
+  TestAllocator(TestAllocator const&) = default;
+  TestAllocator& operator=(TestAllocator const&) = default;
+  TestAllocator(TestAllocator&&) noexcept = default;
+  TestAllocator& operator=(TestAllocator&&) noexcept = default;
+
+  int tag() const { return tag_; }
+
+  [[nodiscard]] value_type* allocate(size_t const n) {
+    return static_cast<value_type*>(::malloc(n * sizeof(value_type)));
+  }
+
+  void deallocate(value_type* const ptr, size_t const) { ::free(ptr); }
+
+  template <typename T2>
+  bool operator==(TestAllocator<T2> const&) noexcept {
+    return true;
+  }
+
+  template <typename T2>
+  bool operator!=(TestAllocator<T2> const&) noexcept {
+    return false;
+  }
+
+ private:
+  int tag_ = 0;
 };
 
 using TestRepresentation = std::deque<TestKey>;

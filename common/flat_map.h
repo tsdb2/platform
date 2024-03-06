@@ -9,6 +9,10 @@
 // disallow changing the keys, so all `flat_map` iterators are always constant. Modifications to the
 // mapped values are still possible by other means, e.g. the subscript operator, `insert_or_assign`,
 // etc.
+//
+// NOTE: C++23 has `std::flat_map` but we don't necessarily want to replace our own implementation
+// with that because `std::flat_map` uses two separate underlying containers, one for the keys and
+// one for the values, resulting in lower cache friendliness.
 
 #ifndef __TSDB2_COMMON_FLAT_MAP_H__
 #define __TSDB2_COMMON_FLAT_MAP_H__
@@ -137,12 +141,12 @@ class flat_map {
 
   template <typename Alias = Representation,
             std::enable_if_t<internal::HasAllocatorV<Alias>, bool> = true>
-  explicit constexpr flat_map(Compare const& comp, typename Alias::allocator_type const& alloc)
+  explicit flat_map(Compare const& comp, typename Alias::allocator_type const& alloc)
       : comp_(comp), rep_(alloc) {}
 
   template <typename Alias = Representation,
             std::enable_if_t<internal::HasAllocatorV<Alias>, bool> = true>
-  explicit constexpr flat_map(typename Alias::allocator_type const& alloc) : rep_(alloc) {}
+  explicit flat_map(typename Alias::allocator_type const& alloc) : rep_(alloc) {}
 
   template <class InputIt>
   flat_map(InputIt first, InputIt last, Compare const& comp = Compare()) : comp_(comp) {
