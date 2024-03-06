@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <deque>
 #include <functional>
+#include <memory>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -32,6 +33,9 @@ using ::testing::_;
 using ::testing::ElementsAre;
 using ::testing::Ge;
 using ::testing::Pair;
+using ::testing::Property;
+
+using TestAllocator = tsdb2::testing::TestAllocator<std::pair<int, int>>;
 
 template <typename FlatMap, typename... Inner>
 class TestValuesMatcher;
@@ -256,6 +260,11 @@ TYPED_TEST_P(FlatMapWithRepresentationTest, Deduplication) {
       {-2, "lorem"}, {-3, "ipsum"}, {4, "dolor"}, {-1, "sit"}, {1, "consectetur"}, {5, "adipisci"},
   };
   EXPECT_EQ(fm1, fm2);
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, GetAllocator) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> fm;
+  EXPECT_TRUE((std::is_same_v<typename TypeParam::allocator_type, decltype(fm.get_allocator())>));
 }
 
 TYPED_TEST_P(FlatMapWithRepresentationTest, CompareEqual) {
@@ -1079,7 +1088,7 @@ TYPED_TEST_P(FlatMapWithRepresentationTest, ConstUpperBoundInclusive) {
 
 REGISTER_TYPED_TEST_SUITE_P(
     FlatMapWithRepresentationTest, Construct, ConstructWithIterators, ConstructWithInitializerList,
-    AssignInitializerList, Deduplication, CompareEqual, CompareLHSLessThanRHS,
+    AssignInitializerList, Deduplication, GetAllocator, CompareEqual, CompareLHSLessThanRHS,
     CompareLHSGreaterThanRHS, ReverseCompareLHSLessThanRHS, ReverseCompareLHSGreaterThanRHS, At,
     ConstAt, AtMissing, ConstAtMissing, Subscript, SubscriptMissing, AssignSubscript,
     UpdateSubscript, CopyConstruct, Copy, MoveConstruct, Move, Empty, NotEmpty, Hash, Clear, Insert,
@@ -1097,9 +1106,61 @@ REGISTER_TYPED_TEST_SUITE_P(
 
 using RepresentationElement = std::pair<TestKey, std::string>;
 using RepresentationTypes =
-    ::testing::Types<std::vector<RepresentationElement>, std::deque<RepresentationElement>>;
+    ::testing::Types<std::vector<RepresentationElement>, std::deque<RepresentationElement>,
+                     std::vector<RepresentationElement, std::allocator<RepresentationElement>>>;
 INSTANTIATE_TYPED_TEST_SUITE_P(FlatMapWithRepresentationTest, FlatMapWithRepresentationTest,
                                RepresentationTypes);
+
+TEST(FlatMapWithAllocatorTest, DefaultAllocator) {
+  flat_map<int, int, std::less<int>, std::vector<std::pair<int, int>, TestAllocator>> fm;
+  EXPECT_THAT(fm.get_allocator(), Property(&TestAllocator::tag, 0));
+}
+
+TEST(FlatMapWithAllocatorTest, CustomAllocator) {
+  TestAllocator alloc{42};
+  flat_map<int, int, std::less<int>, std::vector<std::pair<int, int>, TestAllocator>> fs{alloc};
+  EXPECT_THAT(fs.get_allocator(), Property(&TestAllocator ::tag, 42));
+}
+
+TEST(FlatMapWithAllocatorTest, CustomComparatorAndAllocator) {
+  std::less<int> comp;
+  TestAllocator alloc{42};
+  flat_map<int, int, std::less<int>, std::vector<std::pair<int, int>, TestAllocator>> fs{comp,
+                                                                                         alloc};
+  EXPECT_THAT(fs.get_allocator(), Property(&TestAllocator::tag, 42));
+}
+
+TEST(FlatMapWithAllocatorTest, IteratorsAndAllocator) {
+  std::vector<std::pair<int, int>> v{{1, 2}, {3, 4}, {5, 6}, {7, 8}};
+  std::less<int> comp;
+  TestAllocator alloc{42};
+  flat_map<int, int, std::less<int>, std::vector<std::pair<int, int>, TestAllocator>> fm{
+      v.begin(), v.end(), comp, alloc};
+  EXPECT_THAT(fm, ElementsAre(Pair(1, 2), Pair(3, 4), Pair(5, 6), Pair(7, 8)));
+  EXPECT_THAT(fm.get_allocator(), Property(&TestAllocator::tag, 42));
+}
+
+TEST(FlatMapWithAllocatorTest, InitializerListAndAllocator) {
+  TestAllocator alloc{42};
+  flat_map<int, int, std::less<int>, std::vector<std::pair<int, int>, TestAllocator>> fm{
+      {{1, 2}, {3, 4}, {5, 6}, {7, 8}}, alloc};
+  EXPECT_THAT(fm, ElementsAre(Pair(1, 2), Pair(3, 4), Pair(5, 6), Pair(7, 8)));
+  EXPECT_THAT(fm.get_allocator(), Property(&TestAllocator::tag, 42));
+}
+
+TEST(FlatMapWithAllocatorTest, CopyAllocator) {
+  TestAllocator alloc{42};
+  flat_map<int, int, std::less<int>, std::vector<std::pair<int, int>, TestAllocator>> fm1{alloc};
+  auto fm2 = fm1;
+  EXPECT_THAT(fm2.get_allocator(), Property(&TestAllocator::tag, 42));
+}
+
+TEST(FlatMapWithAllocatorTest, MoveAllocator) {
+  TestAllocator alloc{42};
+  flat_map<int, int, std::less<int>, std::vector<std::pair<int, int>, TestAllocator>> fm1{alloc};
+  auto fm2 = std::move(fm1);
+  EXPECT_THAT(fm2.get_allocator(), Property(&TestAllocator::tag, 42));
+}
 
 TEST(FlatMapCapacityTest, InitialCapacity) {
   flat_map<int, std::string> fm;
