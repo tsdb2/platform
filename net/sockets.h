@@ -4,8 +4,7 @@
 //
 // The various socket classes are supported by a `SelectServer` singleton that uses epoll in
 // edge-triggered mode to achieve the highest performance and parallelism. `SelectServer` runs a
-// number of background threads that can be configured in the --select_server_num_workers command
-// line flag.
+// number of background threads that can be configured in the --num_io_workers command line flag.
 
 #ifndef __TSDB2_NET_SOCKETS_H__
 #define __TSDB2_NET_SOCKETS_H__
@@ -425,7 +424,7 @@ class ListenerSocket : public BaseSocket {
 // `SelectServer` is a singleton that manages a pool of worker threads listening to I/O events on
 // all the sockets in the process. All sockets must be created through this class.
 //
-// The number of worker threads is configured in the --select_server_num_workers command line flag.
+// The number of worker threads is configured in the --num_io_workers command line flag.
 //
 // Despite being called "select" server, the implementation uses epoll in edge-triggered mode in
 // order to achieve the highest performance and parallelism.
@@ -433,9 +432,6 @@ class SelectServer {
  public:
   // Returns the singleton instance of `SelectServer`.
   static SelectServer* GetInstance();
-
-  // Start the `SelectServer`'s worker threads.
-  void StartOrDie();
 
   // Creates a socket and makes the `SelectServer` listen to I/O events related to it.
   //
@@ -476,6 +472,8 @@ class SelectServer {
   using DeadSocketSet = absl::flat_hash_set<std::unique_ptr<BaseSocket>>;
 
   explicit SelectServer() = default;
+
+  void StartOrDie();
 
   // Called by `GetInstance` only the first time, to construct the singleton `SelectServer`
   // instance.

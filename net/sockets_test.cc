@@ -53,9 +53,6 @@ uint16_t GetNewPort() {
 }
 
 class SocketTest : public ::testing::Test {
- public:
-  explicit SocketTest() { select_server_->StartOrDie(); }
-
  protected:
   static Socket::ReadCallback ReadCallbackAdapter(
       absl::AnyInvocable<void(absl::StatusOr<Buffer>)> callback,

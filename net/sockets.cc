@@ -490,13 +490,13 @@ void SelectServer::StartOrDie() {
   if (epoll_fd_ < 0) {
     epoll_fd_ = epoll_create1(EPOLL_CLOEXEC);
     CHECK_GE(epoll_fd_, 0) << "epoll_create1() failed, errno=" << errno;
-  }
-  auto const num_workers = absl::GetFlag(FLAGS_num_io_workers);
-  CHECK_GT(num_workers, 0) << "SelectServer needs at least 1 worker, but " << num_workers
-                           << " were specified in --select_server_num_workers";
-  workers_.reserve(num_workers);
-  for (int i = 0; i < num_workers; ++i) {
-    workers_.emplace_back(absl::bind_front(&SelectServer::WorkerLoop, this));
+    auto const num_workers = absl::GetFlag(FLAGS_num_io_workers);
+    CHECK_GT(num_workers, 0) << "SelectServer needs at least 1 worker, but " << num_workers
+                             << " were specified in --num_io_workers";
+    workers_.reserve(num_workers);
+    for (int i = 0; i < num_workers; ++i) {
+      workers_.emplace_back(absl::bind_front(&SelectServer::WorkerLoop, this));
+    }
   }
 }
 

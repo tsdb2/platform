@@ -23,7 +23,7 @@ void InitServer(int argc, char* argv[]) {
   absl::InitializeLog();
   absl::InstallFailureSignalHandler(absl::FailureSignalHandlerOptions());
   absl::ParseCommandLine(argc, argv);
-  SelectServer::GetInstance()->StartOrDie();
+  SelectServer::GetInstance();
   HttpNode::GetDefault();
   init_done.Notify();
 }
