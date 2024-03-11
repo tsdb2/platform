@@ -274,7 +274,7 @@ void Socket::OnInput() {
         ReadStatus read_status = std::move(read_status_).value();
         read_status_ = std::nullopt;
         lock.Unlock();
-        MaybeClose(read_status.callback(std::move(buffer))).IgnoreError();
+        MaybeClose(read_status.callback(std::move(read_status.buffer))).IgnoreError();
         return;
       }
     } else {
