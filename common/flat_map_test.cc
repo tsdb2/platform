@@ -140,12 +140,12 @@ TEST(FlatMapTest, Traits) {
   EXPECT_TRUE((std::is_same_v<typename flat_map::const_reference, TestValue const&>));
   EXPECT_TRUE((std::is_same_v<typename flat_map::pointer, TestValue*>));
   EXPECT_TRUE((std::is_same_v<typename flat_map::const_pointer, TestValue const*>));
-  EXPECT_TRUE((std::is_same_v<typename flat_map::iterator,
-                              typename TestValueRepresentation::iterator const>));
+  EXPECT_TRUE(
+      (std::is_same_v<typename flat_map::iterator, typename TestValueRepresentation::iterator>));
   EXPECT_TRUE((std::is_same_v<typename flat_map::const_iterator,
                               typename TestValueRepresentation::const_iterator>));
   EXPECT_TRUE((std::is_same_v<typename flat_map::reverse_iterator,
-                              typename TestValueRepresentation::reverse_iterator const>));
+                              typename TestValueRepresentation::reverse_iterator>));
   EXPECT_TRUE((std::is_same_v<typename flat_map::const_reverse_iterator,
                               typename TestValueRepresentation::const_reverse_iterator>));
 }
@@ -165,12 +165,12 @@ TEST(FlatMapTest, DefaultRepresentation) {
   EXPECT_TRUE((std::is_same_v<typename flat_map::const_reference, TestValue const&>));
   EXPECT_TRUE((std::is_same_v<typename flat_map::pointer, TestValue*>));
   EXPECT_TRUE((std::is_same_v<typename flat_map::const_pointer, TestValue const*>));
-  EXPECT_TRUE((std::is_same_v<typename flat_map::iterator,
-                              typename std::vector<TestValue>::iterator const>));
+  EXPECT_TRUE(
+      (std::is_same_v<typename flat_map::iterator, typename std::vector<TestValue>::iterator>));
   EXPECT_TRUE((std::is_same_v<typename flat_map::const_iterator,
                               typename std::vector<TestValue>::const_iterator>));
   EXPECT_TRUE((std::is_same_v<typename flat_map::reverse_iterator,
-                              typename std::vector<TestValue>::reverse_iterator const>));
+                              typename std::vector<TestValue>::reverse_iterator>));
   EXPECT_TRUE((std::is_same_v<typename flat_map::const_reverse_iterator,
                               typename std::vector<TestValue>::const_reverse_iterator>));
 }
@@ -190,12 +190,12 @@ TEST(FlatMapTest, DefaultComparator) {
   EXPECT_TRUE((std::is_same_v<typename flat_map::const_reference, TestValue const&>));
   EXPECT_TRUE((std::is_same_v<typename flat_map::pointer, TestValue*>));
   EXPECT_TRUE((std::is_same_v<typename flat_map::const_pointer, TestValue const*>));
-  EXPECT_TRUE((std::is_same_v<typename flat_map::iterator,
-                              typename std::vector<TestValue>::iterator const>));
+  EXPECT_TRUE(
+      (std::is_same_v<typename flat_map::iterator, typename std::vector<TestValue>::iterator>));
   EXPECT_TRUE((std::is_same_v<typename flat_map::const_iterator,
                               typename std::vector<TestValue>::const_iterator>));
   EXPECT_TRUE((std::is_same_v<typename flat_map::reverse_iterator,
-                              typename std::vector<TestValue>::reverse_iterator const>));
+                              typename std::vector<TestValue>::reverse_iterator>));
   EXPECT_TRUE((std::is_same_v<typename flat_map::const_reverse_iterator,
                               typename std::vector<TestValue>::const_reverse_iterator>));
 }

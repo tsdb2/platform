@@ -53,9 +53,9 @@ class flat_map {
   using const_reference = value_type const&;
   using pointer = typename Representation::pointer;
   using const_pointer = typename Representation::const_pointer;
-  using iterator = typename Representation::iterator const;
+  using iterator = typename Representation::iterator;
   using const_iterator = typename Representation::const_iterator;
-  using reverse_iterator = typename Representation::reverse_iterator const;
+  using reverse_iterator = typename Representation::reverse_iterator;
   using const_reverse_iterator = typename Representation::const_reverse_iterator;
 
   class node {
