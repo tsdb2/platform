@@ -19,13 +19,13 @@ namespace tsdb2 {
 namespace common {
 
 // trie_set is a set of strings implemented as a compressed trie, aka a radix tree. The provided API
-// is similar to std::set<std::string>.
+// is similar to `std::set<std::string>`.
 //
 // Notable differences between std::set<std::string> and trie_set:
 //
-//  * Inserting nodes is not supported. That is because, by definition, a trie node doesn't have all
-//    the information about its key, so it wouldn't make sense to reinsert it under a completely
-//    different key prefix.
+//  * Inserting nodes from node handles is not supported. That is because, by definition, a trie
+//    node doesn't have all the information about its key, so it wouldn't make sense to reinsert it
+//    under a completely different key prefix.
 //  * For the same reasons above, retrieving the full key of a node is not supported by `node_type`.
 //    Once extracted, a trie node can only be destroyed.
 //  * TODO
@@ -183,6 +183,44 @@ class trie_set {
   size_type erase(std::string_view const key) { return root().Remove(key) ? 1 : 0; }
 
  private:
+  // `StateFrame` is used by iterators to turn recursive algorithms into iterative ones. For
+  // example, rather than providing a recursive algorithm scanning all the nodes of the trie, our
+  // API must provide iterators with `operator++` allowing the user to iteratively step to the next
+  // node.
+  //
+  // These algorithms would normally require recursive calls keeping their data in the system call
+  // stack, but in iterative form the stack has to be managed manually as a vector of state frames.
+  //
+  // Each frame contains two `NodeSet` iterators. The first iterator points to the current element
+  // the algorithm is working on, while the second one is the end iterator and allows an iterative
+  // call to determine whether the "recursive call" corresponding to that stack frame has completed.
+  //
+  // Those two iterators correspond to the local variables we'd have in a recursive algorithm. See
+  // the `pos` and `end` variables in the following pseudo-code:
+  //
+  //   void trie_set::Node::Scan() {
+  //     auto end = children_.end();
+  //     for (auto pos = children_.begin(); pos != end; ++pos) {
+  //       DoSomething(*pos);
+  //       pos->Scan();
+  //     }
+  //   }
+  //
+  struct StateFrame {
+    friend bool operator==(StateFrame const& lhs, StateFrame const& rhs) {
+      if (lhs.pos != lhs.end) {
+        return rhs.pos != rhs.end && lhs.pos->first == rhs.pos->first;
+      } else {
+        return rhs.pos == rhs.end;
+      }
+    }
+
+    friend bool operator!=(StateFrame const& lhs, StateFrame const& rhs) { return !(lhs == rhs); }
+
+    typename NodeSet::const_iterator pos;
+    typename NodeSet::const_iterator end;
+  };
+
   // A trie node. This is the core implementation of the trie.
   class Node {
    public:
@@ -199,84 +237,20 @@ class trie_set {
 
     bool IsEmpty() const { return !leaf_ && children_.empty(); }
 
-    void Clear() {
-      leaf_ = false;
-      children_.clear();
-    }
+    // Deletes all elements from the trie rooted at this node.
+    void Clear();
 
-    bool Contains(std::string_view const value) const {
-      if (value.empty()) {
-        return leaf_;
-      }
-      auto const it = children_.lower_bound(value.substr(0, 1));
-      if (it == children_.end()) {
-        return false;
-      }
-      auto const& [key, node] = *it;
-      if (absl::StartsWith(value, key)) {
-        return node.Contains(value.substr(key.size()));
-      } else {
-        return false;
-      }
-    }
+    // Determines whether the trie rooted at this node contains the specified string.
+    bool Contains(std::string_view value) const;
 
-    bool Insert(std::string_view const value) {
-      if (value.empty()) {
-        bool const result = !leaf_;
-        leaf_ = true;
-        return result;
-      }
-      auto const it = children_.lower_bound(value.substr(0, 1));
-      if (it == children_.end()) {
-        children_.try_emplace(std::string(value), /*leaf=*/true, children_.get_allocator());
-        return true;
-      }
-      auto& [key, node] = *it;
-      size_t i = 0;
-      // Find the longest common prefix.
-      for (; i < value.size() && i < key.size() && value[i] == key[i]; ++i) {
-        ;
-      }
-      // `i` is now the length of the longest common prefix.
-      if (i == 0) {
-        children_.try_emplace(std::string(value), /*leaf=*/true, children_.get_allocator());
-        return true;
-      }
-      if (i < key.size()) {
-        Node child = std::move(node);
-        node = Node(/*leaf=*/false, children_.get_allocator());
-        node.children_.try_emplace(key.substr(i), std::move(child));
-        key = key.substr(0, i);
-      }
-      return node.Insert(value.substr(i));
-    }
+    // Inserts the specified `value` in the trie rooted at this node if the value is not already
+    // present. The first element of the returned pair is an iterator to either the newly added node
+    // or to a preexisting one with the same `value`, while the second element is a boolean
+    // indicating whether insertion happened.
+    bool Insert(std::string_view value);
 
-    bool Remove(std::string_view const value) {
-      if (value.empty()) {
-        bool const result = leaf_;
-        leaf_ = false;
-        return result;
-      }
-      auto const it = children_.lower_bound(value.substr(0, 1));
-      if (it == children_.end()) {
-        return false;
-      }
-      auto& [key, node] = *it;
-      size_t i = 0;
-      // Find the longest common prefix.
-      for (; i < value.size() && i < key.size() && value[i] == key[i]; ++i) {
-        ;
-      }
-      // `i` is now the length of the longest common prefix.
-      if (i < key.size()) {
-        return false;
-      }
-      bool const result = node.Remove(value.substr(i));
-      if (node.IsEmpty()) {
-        children_.erase(it);
-      }
-      return result;
-    }
+    // Removes the specified `value` from the trie rooted at this node.
+    bool Remove(std::string_view value);
 
    private:
     friend class Iterator;
@@ -288,22 +262,6 @@ class trie_set {
   // Iterator implementation satisfying the requirements of LegacyBidirectionalIterator.
   class Iterator {
    public:
-    // Constructs the "begin" iterator.
-    // REQUIRES: `roots` must not be empty.
-    explicit Iterator(NodeSet const& roots) {
-      frames_.push_back({
-          .pos = roots.begin(),
-          .end = roots.end(),
-      });
-      auto const& root = roots.begin()->second;
-      if (!root.leaf_) {
-        Advance();
-      }
-    }
-
-    // Constructs the "end" iterator.
-    explicit Iterator() = default;
-
     Iterator(Iterator const&) = default;
     Iterator& operator=(Iterator const&) = default;
     Iterator(Iterator&&) noexcept = default;
@@ -317,18 +275,7 @@ class trie_set {
       return lhs.frames_ != rhs.frames_;
     }
 
-    std::string operator*() const {
-      size_t size = 0;
-      for (auto const& frame : frames_) {
-        size += frame.pos->first.size();
-      }
-      std::string key;
-      key.reserve(size);
-      for (auto const& frame : frames_) {
-        key += frame.pos->first;
-      }
-      return key;
-    }
+    std::string operator*() const;
 
     Iterator& operator++() {
       Advance();
@@ -347,52 +294,21 @@ class trie_set {
     friend void swap(Iterator& lhs, Iterator& rhs) { lhs.swap(rhs); }
 
    private:
-    struct StateFrame {
-      friend bool operator==(StateFrame const& lhs, StateFrame const& rhs) {
-        if (lhs.pos != lhs.end) {
-          return rhs.pos != rhs.end && lhs.pos->first == rhs.pos->first;
-        } else {
-          return rhs.pos == rhs.end;
-        }
-      }
+    friend class trie_set;
+    friend class Node;
 
-      friend bool operator!=(StateFrame const& lhs, StateFrame const& rhs) { return !(lhs == rhs); }
+    // Constructs the "begin" iterator.
+    // REQUIRES: `roots` must not be empty.
+    explicit Iterator(NodeSet const& roots);
 
-      typename NodeSet::const_iterator pos;
-      typename NodeSet::const_iterator end;
-    };
+    // Constructs the "end" iterator.
+    explicit Iterator() = default;
 
-    void NextNode() {
-      auto const& frame = frames_.back();
-      auto const& node = frame.pos->second;
-      auto begin = node.children_.begin();
-      auto end = node.children_.end();
-      if (begin != end) {
-        frames_.push_back({
-            .pos = std::move(begin),
-            .end = std::move(end),
-        });
-      } else {
-        do {
-          auto& frame = frames_.back();
-          if (++frame.pos != frame.end) {
-            return;
-          } else {
-            frames_.pop_back();
-          }
-        } while (!frames_.empty());
-      }
-    }
+    // Constructs an iterator with the given state frames.
+    explicit Iterator(std::vector<StateFrame> frames) : frames_(std::move(frames)) {}
 
-    void Advance() {
-      while (NextNode(), !frames_.empty()) {
-        auto const& frame = frames_.back();
-        auto const& node = frame.pos->second;
-        if (node.leaf_) {
-          return;
-        }
-      }
-    }
+    void NextNode();
+    void Advance();
 
     std::vector<StateFrame> frames_;
   };
@@ -412,6 +328,149 @@ class trie_set {
   // Number of strings in the trie.
   size_type size_ = 0;
 };
+
+template <typename Allocator>
+void trie_set<Allocator>::Node::Clear() {
+  leaf_ = false;
+  children_.clear();
+}
+
+template <typename Allocator>
+bool trie_set<Allocator>::Node::Contains(std::string_view const value) const {
+  if (value.empty()) {
+    return leaf_;
+  }
+  auto const it = children_.lower_bound(value.substr(0, 1));
+  if (it == children_.end()) {
+    return false;
+  }
+  auto const& [key, node] = *it;
+  if (absl::StartsWith(value, key)) {
+    return node.Contains(value.substr(key.size()));
+  } else {
+    return false;
+  }
+}
+
+template <typename Allocator>
+bool trie_set<Allocator>::Node::Insert(std::string_view const value) {
+  if (value.empty()) {
+    bool const result = !leaf_;
+    leaf_ = true;
+    return result;
+  }
+  auto const it = children_.lower_bound(value.substr(0, 1));
+  if (it == children_.end()) {
+    children_.try_emplace(std::string(value), /*leaf=*/true, children_.get_allocator());
+    return true;
+  }
+  auto& [key, node] = *it;
+  size_t i = 0;
+  // Find the longest common prefix.
+  while (i < value.size() && i < key.size() && value[i] == key[i]) {
+    ++i;
+  }
+  // `i` is now the length of the longest common prefix.
+  if (i == 0) {
+    children_.try_emplace(std::string(value), /*leaf=*/true, children_.get_allocator());
+    return true;
+  }
+  if (i < key.size()) {
+    Node child = std::move(node);
+    node = Node(/*leaf=*/false, children_.get_allocator());
+    node.children_.try_emplace(key.substr(i), std::move(child));
+    key = key.substr(0, i);
+  }
+  return node.Insert(value.substr(i));
+}
+
+template <typename Allocator>
+bool trie_set<Allocator>::Node::Remove(std::string_view const value) {
+  if (value.empty()) {
+    bool const result = leaf_;
+    leaf_ = false;
+    return result;
+  }
+  auto const it = children_.lower_bound(value.substr(0, 1));
+  if (it == children_.end()) {
+    return false;
+  }
+  auto& [key, node] = *it;
+  size_t i = 0;
+  // Find the longest common prefix.
+  while (i < value.size() && i < key.size() && value[i] == key[i]) {
+    ++i;
+  }
+  // `i` is now the length of the longest common prefix.
+  if (i < key.size()) {
+    return false;
+  }
+  bool const result = node.Remove(value.substr(i));
+  if (node.IsEmpty()) {
+    children_.erase(it);
+  }
+  return result;
+}
+
+template <typename Allocator>
+trie_set<Allocator>::Iterator::Iterator(NodeSet const& roots) {
+  frames_.push_back({
+      .pos = roots.begin(),
+      .end = roots.end(),
+  });
+  auto const& root = roots.begin()->second;
+  if (!root.leaf_) {
+    Advance();
+  }
+}
+
+template <typename Allocator>
+std::string trie_set<Allocator>::Iterator::operator*() const {
+  size_t size = 0;
+  for (auto const& frame : frames_) {
+    size += frame.pos->first.size();
+  }
+  std::string key;
+  key.reserve(size);
+  for (auto const& frame : frames_) {
+    key += frame.pos->first;
+  }
+  return key;
+}
+
+template <typename Allocator>
+void trie_set<Allocator>::Iterator::NextNode() {
+  auto const& frame = frames_.back();
+  auto const& node = frame.pos->second;
+  auto begin = node.children_.begin();
+  auto end = node.children_.end();
+  if (begin != end) {
+    frames_.push_back({
+        .pos = std::move(begin),
+        .end = std::move(end),
+    });
+  } else {
+    do {
+      auto& frame = frames_.back();
+      if (++frame.pos != frame.end) {
+        return;
+      } else {
+        frames_.pop_back();
+      }
+    } while (!frames_.empty());
+  }
+}
+
+template <typename Allocator>
+void trie_set<Allocator>::Iterator::Advance() {
+  while (NextNode(), !frames_.empty()) {
+    auto const& frame = frames_.back();
+    auto const& node = frame.pos->second;
+    if (node.leaf_) {
+      return;
+    }
+  }
+}
 
 }  // namespace common
 }  // namespace tsdb2
