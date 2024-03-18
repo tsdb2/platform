@@ -52,8 +52,8 @@ class trie_set {
   using allocator_traits = std::allocator_traits<allocator_type>;
   using reference = value_type&;
   using const_reference = value_type const&;
-  using pointer = typename std::allocator_traits<allocator_type>::pointer;
-  using const_pointer = typename std::allocator_traits<allocator_type>::const_pointer;
+  using pointer = typename std::allocator_traits<Allocator>::pointer;
+  using const_pointer = typename std::allocator_traits<Allocator>::const_pointer;
   using iterator = Iterator;
   using const_iterator = Iterator;
   using reverse_iterator = std::reverse_iterator<iterator>;
@@ -135,11 +135,7 @@ class trie_set {
   }
 
   trie_set& operator=(std::initializer_list<std::string> const init) {
-    auto& root_node = root();
-    for (auto const& element : init) {
-      root_node.Insert(element);
-    }
-    size_ = init.size();
+    insert(init);
     return *this;
   }
 

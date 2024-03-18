@@ -1,5 +1,12 @@
 #include "common/trie_set.h"
 
+#include <cstddef>
+#include <memory>
+#include <string>
+#include <type_traits>
+#include <utility>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -8,6 +15,20 @@ namespace {
 using tsdb2::common::trie_set;
 
 using ::testing::ElementsAre;
+using ::testing::IsEmpty;
+
+TEST(TrieSetTest, Traits) {
+  EXPECT_TRUE((std::is_same_v<typename trie_set<>::key_type, std::string>));
+  EXPECT_TRUE((std::is_same_v<typename trie_set<>::value_type, std::string>));
+  EXPECT_TRUE((std::is_same_v<typename trie_set<>::size_type, size_t>));
+  EXPECT_TRUE((std::is_same_v<typename trie_set<>::difference_type, ptrdiff_t>));
+  EXPECT_TRUE((std::is_same_v<typename trie_set<>::allocator_traits,
+                              std::allocator_traits<typename trie_set<>::allocator_type>>));
+  EXPECT_TRUE((std::is_same_v<typename trie_set<>::reference, std::string &>));
+  EXPECT_TRUE((std::is_same_v<typename trie_set<>::const_reference, std::string const &>));
+  EXPECT_TRUE((std::is_same_v<typename trie_set<>::pointer, std::string *>));
+  EXPECT_TRUE((std::is_same_v<typename trie_set<>::const_pointer, std::string const *>));
+}
 
 TEST(TrieSetTest, Empty) {
   trie_set ts;
@@ -53,6 +74,21 @@ TEST(TrieSetTest, TwoDifferentElements) {
   EXPECT_FALSE(ts.contains("ips"));
 }
 
+TEST(TrieSetTest, TwoDifferentElementsReverse) {
+  trie_set ts{"ipsum", "lorem"};
+  EXPECT_FALSE(ts.empty());
+  EXPECT_EQ(ts.size(), 2);
+  EXPECT_THAT(ts, ElementsAre("ipsum", "lorem"));
+  EXPECT_FALSE(ts.contains(""));
+  EXPECT_TRUE(ts.contains("lorem"));
+  EXPECT_TRUE(ts.contains("ipsum"));
+  EXPECT_FALSE(ts.contains("dolor"));
+  EXPECT_FALSE(ts.contains("loremdolor"));
+  EXPECT_FALSE(ts.contains("lor"));
+  EXPECT_FALSE(ts.contains("ipsumdolor"));
+  EXPECT_FALSE(ts.contains("ips"));
+}
+
 TEST(TrieSetTest, TwoElementsOneEmpty) {
   trie_set ts{"", "lorem"};
   EXPECT_FALSE(ts.empty());
@@ -77,10 +113,7 @@ TEST(TrieSetTest, TwoElementsOneEmptyReverse) {
   EXPECT_FALSE(ts.contains("lor"));
 }
 
-// TODO: other tests
-
-// TODO: remove this test.
-TEST(TrieSetTest, Foo) {
+TEST(TrieSetTest, ManyElements) {
   trie_set ts{"lorem", "ipsum", "dolor", "amet"};
   EXPECT_TRUE(ts.contains("lorem"));
   EXPECT_TRUE(ts.contains("ipsum"));
@@ -94,6 +127,104 @@ TEST(TrieSetTest, Foo) {
   EXPECT_EQ(ts.erase("dolor"), 0);
 }
 
-// TODO
+TEST(TrieSetTest, ConstructFromIterators) {
+  std::vector<std::string> v{"lorem", "", "ipsum"};
+  trie_set ts{v.begin(), v.end()};
+  EXPECT_THAT(ts, ElementsAre("", "ipsum", "lorem"));
+  EXPECT_EQ(ts.size(), 3);
+}
+
+TEST(TrieSetTest, CopyConstruct) {
+  trie_set ts1{"", "lorem", "ipsum"};
+  trie_set ts2{ts1};
+  EXPECT_THAT(ts1, ElementsAre("", "ipsum", "lorem"));
+  EXPECT_EQ(ts1.size(), 3);
+  EXPECT_THAT(ts2, ElementsAre("", "ipsum", "lorem"));
+  EXPECT_EQ(ts2.size(), 3);
+}
+
+TEST(TrieSetTest, CopyAssign) {
+  trie_set ts1{"", "lorem", "ipsum"};
+  trie_set ts2;
+  ts2 = ts1;
+  EXPECT_THAT(ts1, ElementsAre("", "ipsum", "lorem"));
+  EXPECT_EQ(ts1.size(), 3);
+  EXPECT_THAT(ts2, ElementsAre("", "ipsum", "lorem"));
+  EXPECT_EQ(ts2.size(), 3);
+}
+
+TEST(TrieSetTest, MoveConstruct) {
+  trie_set ts1{"", "lorem", "ipsum"};
+  trie_set ts2{std::move(ts1)};
+  EXPECT_THAT(ts2, ElementsAre("", "ipsum", "lorem"));
+  EXPECT_EQ(ts2.size(), 3);
+}
+
+TEST(TrieSetTest, MoveAssign) {
+  trie_set ts1{"", "lorem", "ipsum"};
+  trie_set ts2;
+  ts2 = std::move(ts1);
+  EXPECT_THAT(ts2, ElementsAre("", "ipsum", "lorem"));
+  EXPECT_EQ(ts2.size(), 3);
+}
+
+TEST(TrieSetTest, AssignInitializerList) {
+  trie_set ts;
+  ts = {"lorem", "", "ipsum"};
+  EXPECT_THAT(ts, ElementsAre("", "ipsum", "lorem"));
+  EXPECT_EQ(ts.size(), 3);
+}
+
+TEST(TrieSetTest, Clear) {
+  trie_set ts{"lorem", "", "ipsum"};
+  ts.clear();
+  EXPECT_THAT(ts, IsEmpty());
+  EXPECT_EQ(ts.size(), 0);
+  EXPECT_TRUE(ts.empty());
+}
+
+TEST(TrieSetTest, Insert) {
+  trie_set ts;
+  auto const [it, inserted] = ts.insert("lorem");
+  EXPECT_NE(it, ts.end());
+  EXPECT_TRUE(inserted);
+  EXPECT_THAT(ts, ElementsAre("lorem"));
+  EXPECT_EQ(ts.size(), 1);
+  EXPECT_FALSE(ts.contains(""));
+  EXPECT_TRUE(ts.contains("lorem"));
+  EXPECT_FALSE(ts.contains("lor"));
+  EXPECT_FALSE(ts.contains("ipsum"));
+  EXPECT_FALSE(ts.contains("loremipsum"));
+  EXPECT_FALSE(ts.contains("ipsumlorem"));
+}
+
+TEST(TrieSetTest, InsertEmpty) {
+  trie_set ts;
+  auto const [it, inserted] = ts.insert("");
+  EXPECT_NE(it, ts.end());
+  EXPECT_TRUE(inserted);
+  EXPECT_THAT(ts, ElementsAre(""));
+  EXPECT_EQ(ts.size(), 1);
+  EXPECT_TRUE(ts.contains(""));
+  EXPECT_FALSE(ts.contains("lorem"));
+  EXPECT_FALSE(ts.contains("ipsum"));
+}
+
+TEST(TrieSetTest, InsertAnother) {
+  trie_set ts;
+  auto const [it, inserted] = ts.insert("ipsum");
+  EXPECT_NE(it, ts.end());
+  EXPECT_TRUE(inserted);
+  EXPECT_THAT(ts, ElementsAre("ipsum"));
+  EXPECT_EQ(ts.size(), 1);
+  EXPECT_FALSE(ts.contains(""));
+  EXPECT_FALSE(ts.contains("lorem"));
+  EXPECT_TRUE(ts.contains("ipsum"));
+  EXPECT_FALSE(ts.contains("ips"));
+  EXPECT_FALSE(ts.contains("loremipsum"));
+  EXPECT_FALSE(ts.contains("ipsumlorem"));
+}
+
+// TODO: other tests, e.g. insert many with various combinations of shared prefixes.
 
 }  // namespace
