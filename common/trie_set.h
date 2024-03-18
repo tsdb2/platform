@@ -454,10 +454,8 @@ std::pair<typename trie_set<Allocator>::Iterator, bool> trie_set<Allocator>::Nod
     if (i < key.size()) {
       Node temp = std::move(child);
       child = Node(/*leaf=*/false, node.children_.get_allocator());
-      auto const [it, unused_inserted] =
-          child.children_.try_emplace(key.substr(i), std::move(temp));
-      key = key.substr(0, i);
-      frames.emplace_back(it, child.children_.end());
+      child.children_.try_emplace(key.substr(i), std::move(temp));
+      key.resize(i);
     }
     value.remove_prefix(i);
   }
