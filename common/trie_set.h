@@ -450,6 +450,7 @@ std::pair<typename trie_set<Allocator>::Iterator, bool> trie_set<Allocator>::Nod
     if (i == 0) {
       return node.InsertChild(std::move(frames), value);
     }
+    frames.emplace_back(it, node.children_.end());
     if (i < key.size()) {
       Node temp = std::move(child);
       child = Node(/*leaf=*/false, node.children_.get_allocator());
