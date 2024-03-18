@@ -127,6 +127,13 @@ TEST(TrieSetTest, ManyElements) {
   EXPECT_EQ(ts.erase("dolor"), 0);
 }
 
+TEST(TrieSetTest, SharedPrefixes) {
+  trie_set ts{"abcd", "abefij", "abefgh", "loremipsum", "loremdolor"};
+  EXPECT_FALSE(ts.empty());
+  EXPECT_EQ(ts.size(), 5);
+  EXPECT_THAT(ts, ElementsAre("abcd", "abefgh", "abefij", "loremdolor", "loremipsum"));
+}
+
 TEST(TrieSetTest, ConstructFromIterators) {
   std::vector<std::string> v{"lorem", "", "ipsum"};
   trie_set ts{v.begin(), v.end()};
@@ -187,6 +194,7 @@ TEST(TrieSetTest, Insert) {
   trie_set ts;
   auto const [it, inserted] = ts.insert("lorem");
   EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "lorem");
   EXPECT_TRUE(inserted);
   EXPECT_THAT(ts, ElementsAre("lorem"));
   EXPECT_EQ(ts.size(), 1);
@@ -202,6 +210,7 @@ TEST(TrieSetTest, InsertEmpty) {
   trie_set ts;
   auto const [it, inserted] = ts.insert("");
   EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "");
   EXPECT_TRUE(inserted);
   EXPECT_THAT(ts, ElementsAre(""));
   EXPECT_EQ(ts.size(), 1);
@@ -214,6 +223,7 @@ TEST(TrieSetTest, InsertAnother) {
   trie_set ts;
   auto const [it, inserted] = ts.insert("ipsum");
   EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "ipsum");
   EXPECT_TRUE(inserted);
   EXPECT_THAT(ts, ElementsAre("ipsum"));
   EXPECT_EQ(ts.size(), 1);
@@ -221,6 +231,80 @@ TEST(TrieSetTest, InsertAnother) {
   EXPECT_FALSE(ts.contains("lorem"));
   EXPECT_TRUE(ts.contains("ipsum"));
   EXPECT_FALSE(ts.contains("ips"));
+  EXPECT_FALSE(ts.contains("loremipsum"));
+  EXPECT_FALSE(ts.contains("ipsumlorem"));
+}
+
+TEST(TrieSetTest, InsertTwo) {
+  trie_set ts;
+  auto const [it1, inserted1] = ts.insert("ipsum");
+  auto const [it2, inserted2] = ts.insert("lorem");
+  EXPECT_NE(it2, ts.end());
+  EXPECT_NE(it1, it2);
+  EXPECT_EQ(*it2, "lorem");
+  EXPECT_TRUE(inserted2);
+  EXPECT_THAT(ts, ElementsAre("ipsum", "lorem"));
+  EXPECT_EQ(ts.size(), 2);
+  EXPECT_FALSE(ts.contains(""));
+  EXPECT_TRUE(ts.contains("lorem"));
+  EXPECT_TRUE(ts.contains("ipsum"));
+  EXPECT_FALSE(ts.contains("lor"));
+  EXPECT_FALSE(ts.contains("ips"));
+  EXPECT_FALSE(ts.contains("loremipsum"));
+  EXPECT_FALSE(ts.contains("ipsumlorem"));
+}
+
+TEST(TrieSetTest, InsertTwoReverse) {
+  trie_set ts;
+  auto const [it1, inserted1] = ts.insert("lorem");
+  auto const [it2, inserted2] = ts.insert("ipsum");
+  EXPECT_NE(it2, ts.end());
+  EXPECT_NE(it1, it2);
+  EXPECT_EQ(*it2, "ipsum");
+  EXPECT_TRUE(inserted2);
+  EXPECT_THAT(ts, ElementsAre("ipsum", "lorem"));
+  EXPECT_EQ(ts.size(), 2);
+  EXPECT_FALSE(ts.contains(""));
+  EXPECT_TRUE(ts.contains("lorem"));
+  EXPECT_TRUE(ts.contains("ipsum"));
+  EXPECT_FALSE(ts.contains("lor"));
+  EXPECT_FALSE(ts.contains("ips"));
+  EXPECT_FALSE(ts.contains("loremipsum"));
+  EXPECT_FALSE(ts.contains("ipsumlorem"));
+}
+
+TEST(TrieSetTest, InsertTwoWithEmpty) {
+  trie_set ts;
+  auto const [it1, inserted1] = ts.insert("");
+  auto const [it2, inserted2] = ts.insert("lorem");
+  EXPECT_NE(it2, ts.end());
+  EXPECT_NE(it1, it2);
+  EXPECT_EQ(*it2, "lorem");
+  EXPECT_TRUE(inserted2);
+  EXPECT_THAT(ts, ElementsAre("", "lorem"));
+  EXPECT_EQ(ts.size(), 2);
+  EXPECT_TRUE(ts.contains(""));
+  EXPECT_TRUE(ts.contains("lorem"));
+  EXPECT_FALSE(ts.contains("ipsum"));
+  EXPECT_FALSE(ts.contains("lor"));
+  EXPECT_FALSE(ts.contains("loremipsum"));
+  EXPECT_FALSE(ts.contains("ipsumlorem"));
+}
+
+TEST(TrieSetTest, InsertTwoWithEmptyReverse) {
+  trie_set ts;
+  auto const [it1, inserted1] = ts.insert("lorem");
+  auto const [it2, inserted2] = ts.insert("");
+  EXPECT_NE(it2, ts.end());
+  EXPECT_NE(it1, it2);
+  EXPECT_EQ(*it2, "");
+  EXPECT_TRUE(inserted2);
+  EXPECT_THAT(ts, ElementsAre("", "lorem"));
+  EXPECT_EQ(ts.size(), 2);
+  EXPECT_TRUE(ts.contains(""));
+  EXPECT_TRUE(ts.contains("lorem"));
+  EXPECT_FALSE(ts.contains("ipsum"));
+  EXPECT_FALSE(ts.contains("lor"));
   EXPECT_FALSE(ts.contains("loremipsum"));
   EXPECT_FALSE(ts.contains("ipsumlorem"));
 }

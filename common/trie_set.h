@@ -299,6 +299,8 @@ class trie_set {
    private:
     friend class Iterator;
 
+    std::pair<Iterator, bool> InsertChild(std::vector<StateFrame> frames, std::string_view value);
+
     bool leaf_;
     NodeSet children_;
   };
@@ -392,7 +394,7 @@ typename trie_set<Allocator>::Iterator trie_set<Allocator>::Node::Find(NodeSet c
     if (!absl::ConsumePrefix(&value, it->first)) {
       return false;
     }
-    frames.emplace_back(StateFrame(it, node.children_.end()));
+    frames.emplace_back(it, node.children_.end());
   }
   auto const& node = frames.back().pos->second;
   if (node.leaf_) {
@@ -420,6 +422,15 @@ bool trie_set<Allocator>::Node::Contains(std::string_view const value) const {
 }
 
 template <typename Allocator>
+std::pair<typename trie_set<Allocator>::Iterator, bool> trie_set<Allocator>::Node::InsertChild(
+    std::vector<StateFrame> frames, std::string_view const value) {
+  auto const [it, unused_inserted] =
+      children_.try_emplace(std::string(value), /*leaf=*/true, children_.get_allocator());
+  frames.emplace_back(it, children_.end());
+  return std::make_pair(Iterator(std::move(frames)), true);
+}
+
+template <typename Allocator>
 std::pair<typename trie_set<Allocator>::Iterator, bool> trie_set<Allocator>::Node::Insert(
     NodeSet* const roots, std::string_view value) {
   std::vector<StateFrame> frames{StateFrame(*roots)};
@@ -427,8 +438,7 @@ std::pair<typename trie_set<Allocator>::Iterator, bool> trie_set<Allocator>::Nod
     auto& node = frames.back().pos->second;
     auto const it = node.children_.lower_bound(value.substr(0, 1));
     if (it == node.children_.end()) {
-      node.children_.try_emplace(std::string(value), /*leaf=*/true, node.children_.get_allocator());
-      return std::make_pair(Iterator(std::move(frames)), true);
+      return node.InsertChild(std::move(frames), value);
     }
     auto& [key, child] = *it;
     size_t i = 0;
@@ -438,14 +448,15 @@ std::pair<typename trie_set<Allocator>::Iterator, bool> trie_set<Allocator>::Nod
     }
     // `i` is now the length of the longest common prefix.
     if (i == 0) {
-      node.children_.try_emplace(std::string(value), /*leaf=*/true, node.children_.get_allocator());
-      return std::make_pair(Iterator(std::move(frames)), true);
+      return node.InsertChild(std::move(frames), value);
     }
     if (i < key.size()) {
       Node temp = std::move(child);
       child = Node(/*leaf=*/false, node.children_.get_allocator());
-      child.children_.try_emplace(key.substr(i), std::move(temp));
+      auto const [it, unused_inserted] =
+          child.children_.try_emplace(key.substr(i), std::move(temp));
       key = key.substr(0, i);
+      frames.emplace_back(it, child.children_.end());
     }
     value.remove_prefix(i);
   }
@@ -485,7 +496,7 @@ bool trie_set<Allocator>::Node::Remove(std::string_view const value) {
 
 template <typename Allocator>
 trie_set<Allocator>::Iterator::Iterator(NodeSet const& roots) {
-  frames_.push_back(StateFrame(roots));
+  frames_.emplace_back(roots);
   auto const& root = roots.begin()->second;
   if (!root.leaf_) {
     Advance();
@@ -511,7 +522,7 @@ void trie_set<Allocator>::Iterator::NextNode() {
   auto const& frame = frames_.back();
   auto const& node = frame.pos->second;
   if (!node.children_.empty()) {
-    frames_.push_back(StateFrame(node.children_));
+    frames_.emplace_back(node.children_);
     return;
   }
   do {
