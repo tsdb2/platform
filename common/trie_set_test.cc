@@ -127,11 +127,30 @@ TEST(TrieSetTest, ManyElements) {
   EXPECT_EQ(ts.erase("dolor"), 0);
 }
 
-TEST(TrieSetTest, SharedPrefixes) {
+TEST(TrieSetTest, ConstructWithSharedPrefixes) {
   trie_set ts{"abcd", "abefij", "abefgh", "loremipsum", "loremdolor"};
   EXPECT_FALSE(ts.empty());
   EXPECT_EQ(ts.size(), 5);
   EXPECT_THAT(ts, ElementsAre("abcd", "abefgh", "abefij", "loremdolor", "loremipsum"));
+  EXPECT_FALSE(ts.contains(""));
+  EXPECT_FALSE(ts.contains("ab"));
+  EXPECT_TRUE(ts.contains("abcd"));
+  EXPECT_FALSE(ts.contains("abef"));
+  EXPECT_TRUE(ts.contains("abefgh"));
+  EXPECT_TRUE(ts.contains("abefij"));
+  EXPECT_FALSE(ts.contains("lorem"));
+  EXPECT_TRUE(ts.contains("loremdolor"));
+  EXPECT_TRUE(ts.contains("loremipsum"));
+}
+
+TEST(TrieSetTest, ConstructWithDuplicates) {
+  trie_set ts{"lorem", "lorem", "ipsum", "ipsum", "dolor"};
+  EXPECT_FALSE(ts.empty());
+  EXPECT_EQ(ts.size(), 3);
+  EXPECT_THAT(ts, ElementsAre("dolor", "ipsum", "lorem"));
+  EXPECT_TRUE(ts.contains("lorem"));
+  EXPECT_TRUE(ts.contains("ipsum"));
+  EXPECT_TRUE(ts.contains("dolor"));
 }
 
 TEST(TrieSetTest, ConstructFromIterators) {
@@ -309,6 +328,88 @@ TEST(TrieSetTest, InsertTwoWithEmptyReverse) {
   EXPECT_FALSE(ts.contains("ipsumlorem"));
 }
 
-// TODO: other tests, e.g. insert many with various combinations of shared prefixes.
+TEST(TrieSetTest, InsertSameTwice) {
+  trie_set ts;
+  auto const [it1, inserted1] = ts.insert("lorem");
+  auto const [it2, inserted2] = ts.insert("lorem");
+  EXPECT_NE(it1, ts.end());
+  EXPECT_EQ(*it1, "lorem");
+  EXPECT_TRUE(inserted1);
+  EXPECT_NE(it2, ts.end());
+  EXPECT_EQ(it1, it2);
+  EXPECT_EQ(*it2, "lorem");
+  EXPECT_FALSE(inserted2);
+  EXPECT_THAT(ts, ElementsAre("lorem"));
+  EXPECT_EQ(ts.size(), 1);
+  EXPECT_FALSE(ts.contains(""));
+  EXPECT_TRUE(ts.contains("lorem"));
+  EXPECT_FALSE(ts.contains("lor"));
+  EXPECT_FALSE(ts.contains("loremipsum"));
+}
+
+TEST(TrieSetTest, InsertFirstSharedPrefix) {
+  trie_set ts;
+  ts.insert("abcd");
+  auto const [it, inserted] = ts.insert("abef");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "abef");
+  EXPECT_TRUE(inserted);
+  EXPECT_EQ(ts.size(), 2);
+  EXPECT_THAT(ts, ElementsAre("abcd", "abef"));
+  EXPECT_FALSE(ts.contains(""));
+  EXPECT_FALSE(ts.contains("ab"));
+  EXPECT_TRUE(ts.contains("abcd"));
+  EXPECT_FALSE(ts.contains("cd"));
+  EXPECT_TRUE(ts.contains("abef"));
+  EXPECT_FALSE(ts.contains("ef"));
+}
+
+TEST(TrieSetTest, InsertSecondSharedPrefix) {
+  trie_set ts;
+  ts.insert("abcd");
+  ts.insert("abefgh");
+  auto const [it, inserted] = ts.insert("abefij");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "abefij");
+  EXPECT_TRUE(inserted);
+  EXPECT_EQ(ts.size(), 3);
+  EXPECT_THAT(ts, ElementsAre("abcd", "abefgh", "abefij"));
+  EXPECT_FALSE(ts.contains(""));
+  EXPECT_FALSE(ts.contains("ab"));
+  EXPECT_TRUE(ts.contains("abcd"));
+  EXPECT_FALSE(ts.contains("cd"));
+  EXPECT_FALSE(ts.contains("abef"));
+  EXPECT_TRUE(ts.contains("abefgh"));
+  EXPECT_TRUE(ts.contains("abefij"));
+}
+
+TEST(TrieSetTest, InsertDifferentSharedPrefixBranches) {
+  trie_set ts;
+  ts.insert("abcd");
+  ts.insert("abefgh");
+  ts.insert("abefij");
+  ts.insert("cd");
+  ts.insert("efgh");
+  ts.insert("efij");
+  EXPECT_EQ(ts.size(), 6);
+  EXPECT_THAT(ts, ElementsAre("abcd", "abefgh", "abefij", "cd", "efgh", "efij"));
+}
+
+TEST(TrieSetTest, InsertFromIterators) {
+  std::vector<std::string> v{"abcd", "abefgh", "abefij", "cd", "efgh", "efij"};
+  trie_set ts;
+  ts.insert(v.begin(), v.end());
+  EXPECT_EQ(ts.size(), 6);
+  EXPECT_THAT(ts, ElementsAre("abcd", "abefgh", "abefij", "cd", "efgh", "efij"));
+}
+
+TEST(TrieSetTest, InsertFromInitializerList) {
+  trie_set ts;
+  ts.insert({"abcd", "abefgh", "abefij", "cd", "efgh", "efij"});
+  EXPECT_EQ(ts.size(), 6);
+  EXPECT_THAT(ts, ElementsAre("abcd", "abefgh", "abefij", "cd", "efgh", "efij"));
+}
+
+// TODO: other tests.
 
 }  // namespace
