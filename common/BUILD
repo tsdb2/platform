@@ -40,6 +40,7 @@ cc_test(
     name = "type_string_test",
     srcs = ["type_string_test.cc"],
     deps = [
+        ":testing",
         ":type_string",
         "@com_google_googletest//:gtest_main",
     ],
@@ -58,6 +59,7 @@ cc_test(
     srcs = ["mutex_lock_test.cc"],
     deps = [
         ":mutex_lock",
+        ":testing",
         "@com_google_absl//absl/synchronization",
         "@com_google_googletest//:gtest_main",
     ],
@@ -175,6 +177,7 @@ cc_test(
     name = "trie_set_test",
     srcs = ["trie_set_test.cc"],
     deps = [
+        ":testing",
         ":trie_set",
         "@com_google_googletest//:gtest_main",
     ],
