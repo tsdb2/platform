@@ -29,7 +29,8 @@ namespace common {
 //    under a completely different key prefix.
 //  * For the same reasons above, retrieving the full key of a node is not supported by `node_type`.
 //    Once extracted, a trie node can only be destroyed.
-//  * TODO
+//  * The worst-case space complexity of our iterators is linear in the length of the stored string.
+//    trie_set iterators are cheap to move but relatively expensive to copy.
 //
 template <typename Allocator = std::allocator<std::string>>
 class trie_set {
@@ -186,6 +187,15 @@ class trie_set {
 
   // TODO
 
+  iterator erase(const_iterator pos) { return Node::Remove(&roots_, std::move(pos)); }
+
+  iterator erase(const_iterator& first, const_iterator const& last) {
+    while (first != last) {
+      first = erase(std::move(first));
+    }
+    return first;
+  }
+
   size_type erase(std::string_view const key) {
     if (root().Remove(key)) {
       --size_;
@@ -199,9 +209,9 @@ class trie_set {
 
   size_type count(std::string_view const key) const { return root().Contains(key) ? 1 : 0; }
 
-  iterator find(std::string_view const key) { return root().Find(key); }
+  iterator find(std::string_view const key) { return Node::Find(roots_, key); }
 
-  const_iterator find(std::string_view const key) const { return root().Find(key); }
+  const_iterator find(std::string_view const key) const { return Node::Find(roots_, key); }
 
   bool contains(std::string_view const key) const { return root().Contains(key); }
 
@@ -295,6 +305,10 @@ class trie_set {
 
     // Removes the specified `value` from the trie rooted at this node.
     bool Remove(std::string_view value);
+
+    // Removes the value referred to by the specified iterator and returns an iterator to the next
+    // element.
+    static Iterator Remove(NodeSet* roots, Iterator it);
 
    private:
     friend class Iterator;
@@ -392,7 +406,7 @@ typename trie_set<Allocator>::Iterator trie_set<Allocator>::Node::Find(NodeSet c
       return Iterator();
     }
     if (!absl::ConsumePrefix(&value, it->first)) {
-      return false;
+      return Iterator();
     }
     frames.emplace_back(it, node.children_.end());
   }
@@ -491,6 +505,19 @@ bool trie_set<Allocator>::Node::Remove(std::string_view const value) {
     children_.erase(it);
   }
   return result;
+}
+
+template <typename Allocator>
+typename trie_set<Allocator>::Iterator trie_set<Allocator>::Node::Remove(NodeSet* const roots,
+                                                                         Iterator it) {
+  auto& frames = it.frames_;
+  NodeSet* nodes = roots;
+  if (frames.size() > 1) {
+    nodes = &(frames[frames.size() - 2].pos->second.children_);
+  }
+  auto& last_frame = frames.back();
+  // TODO
+  return it;
 }
 
 template <typename Allocator>

@@ -410,6 +410,31 @@ TEST(TrieSetTest, InsertFromInitializerList) {
   EXPECT_THAT(ts, ElementsAre("abcd", "abefgh", "abefij", "cd", "efgh", "efij"));
 }
 
+TEST(TrieSetTest, Find) {
+  trie_set ts{"lorem", "ipsum", "lorips"};
+  auto const it = ts.find("lorem");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "lorem");
+  EXPECT_EQ(ts.count("lorem"), 1);
+  EXPECT_TRUE(ts.contains("lorem"));
+}
+
+TEST(TrieSetTest, NotFound) {
+  trie_set ts{"lorem", "ipsum", "lorips"};
+  auto const it = ts.find("dolor");
+  EXPECT_EQ(it, ts.end());
+  EXPECT_EQ(ts.count("dolor"), 0);
+  EXPECT_FALSE(ts.contains("dolor"));
+}
+
+TEST(TrieSetTest, FoundButNotLeaf) {
+  trie_set ts{"lorem", "ipsum", "lorips"};
+  auto const it = ts.find("lor");
+  EXPECT_EQ(it, ts.end());
+  EXPECT_EQ(ts.count("lor"), 0);
+  EXPECT_FALSE(ts.contains("lor"));
+}
+
 // TODO: other tests.
 
 }  // namespace
