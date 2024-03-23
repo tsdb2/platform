@@ -190,7 +190,11 @@ class trie_set {
     }
   }
 
-  iterator erase(const_iterator pos) { return Node::Remove(&roots_, std::move(pos)); }
+  iterator erase(const_iterator pos) {
+    auto it = Node::Remove(&roots_, std::move(pos));
+    --size_;
+    return it;
+  }
 
   iterator erase(const_iterator& first, const_iterator const& last) {
     while (first != last) {
@@ -375,7 +379,24 @@ class trie_set {
     // Constructs an iterator with the given state frames.
     explicit Iterator(std::vector<StateFrame> frames) : frames_(std::move(frames)) {}
 
+    // Advances the iterator to the next node. The next node is found by attempting the following,
+    // in order:
+    //
+    //  1. descend to the leftmost child;
+    //  2. if the current node has no children, advance to the next peer;
+    //  3. if the current node has no peers, backtrack to the parent (by removing the last frame)
+    //     and repeat #2.
+    //
+    // NOTE: this algorithm won't necessarily find the next *leaf* node, it will simply advance to
+    // the next one. The caller needs to repeat until either a leaf node is found or there are no
+    // more nodes. That is achieved by the `Advance` method.
     void NextNode();
+
+    // Advances the iterator to the next node repeatedly until either the next leaf node is found or
+    // there are no more nodes. In the latter case the iterator becomes the end iterator of the
+    // trie.
+    //
+    // This is the main iterator advancement algorithm invoked by `operator++`.
     void Advance();
 
     std::vector<StateFrame> frames_;
@@ -524,7 +545,30 @@ typename trie_set<Allocator>::Iterator trie_set<Allocator>::Node::Remove(NodeSet
     nodes = &(frames[frames.size() - 2].pos->second.children_);
   }
   auto& last_frame = frames.back();
-  // TODO
+  auto& node = last_frame.pos->second;
+  if (node.children_.size() > 1) {
+    node.leaf_ = false;
+    it.Advance();
+  } else if (node.children_.size() > 0) {
+    auto& child = node.children_.begin()->second;
+    node = std::move(child);
+    it.Advance();
+  } else {
+    auto pos = nodes->erase(last_frame.pos);
+    if (pos != nodes->end()) {
+      last_frame.pos = std::move(pos);
+      return it;
+    }
+    frames.pop_back();
+    while (!frames.empty()) {
+      auto& frame = frames.back();
+      if (++frame.pos != frame.end) {
+        return it;
+      } else {
+        frames.pop_back();
+      }
+    }
+  }
   return it;
 }
 

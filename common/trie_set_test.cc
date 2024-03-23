@@ -420,6 +420,14 @@ TEST(TrieSetTest, InsertFromInitializerList) {
   EXPECT_THAT(ts, ElementsAre("abcd", "abefgh", "abefij", "cd", "efgh", "efij"));
 }
 
+TEST(TrieSetTest, EraseIterator) {
+  trie_set ts{"lorem"};
+  EXPECT_EQ(ts.erase(ts.find("lorem")), ts.end());
+  EXPECT_THAT(ts, ElementsAre());
+}
+
+// TODO: other erase tests.
+
 TEST(TrieSetTest, Find) {
   trie_set ts{"lorem", "ipsum", "lorips"};
   auto const it = ts.find("lorem");
