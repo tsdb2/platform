@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/hash/hash.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -199,6 +200,15 @@ TEST(TrieSetTest, AssignInitializerList) {
   ts = {"lorem", "", "ipsum"};
   EXPECT_THAT(ts, ElementsAre("", "ipsum", "lorem"));
   EXPECT_EQ(ts.size(), 3);
+}
+
+TEST(TrieSetTest, Hash) {
+  EXPECT_EQ(absl::HashOf(trie_set({})), absl::HashOf(trie_set({})));
+  EXPECT_NE(absl::HashOf(trie_set({})), absl::HashOf(trie_set({"lorem"})));
+  EXPECT_EQ(absl::HashOf(trie_set({"lorem"})), absl::HashOf(trie_set({"lorem"})));
+  EXPECT_NE(absl::HashOf(trie_set({"lorem"})), absl::HashOf(trie_set({"lorem", "ipsum"})));
+  EXPECT_EQ(absl::HashOf(trie_set({"lorem", "ipsum"})), absl::HashOf(trie_set({"lorem", "ipsum"})));
+  EXPECT_EQ(absl::HashOf(trie_set({"ipsum", "lorem"})), absl::HashOf(trie_set({"lorem", "ipsum"})));
 }
 
 TEST(TrieSetTest, Clear) {

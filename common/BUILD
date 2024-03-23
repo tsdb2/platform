@@ -179,6 +179,7 @@ cc_test(
     deps = [
         ":testing",
         ":trie_set",
+        "@com_google_absl//absl/hash",
         "@com_google_googletest//:gtest_main",
     ],
 )

@@ -153,6 +153,11 @@ class trie_set {
 
   // TODO: reverse iterations
 
+  template <typename H>
+  friend H AbslHashValue(H h, trie_set const& set) {
+    return H::combine(std::move(h), set.roots_);
+  }
+
   [[nodiscard]] bool empty() const noexcept { return root().IsEmpty(); }
 
   size_type size() const noexcept { return size_; }
@@ -184,8 +189,6 @@ class trie_set {
       insert(value);
     }
   }
-
-  // TODO
 
   iterator erase(const_iterator pos) { return Node::Remove(&roots_, std::move(pos)); }
 
@@ -283,6 +286,11 @@ class trie_set {
 
     allocator_type get_allocator() const noexcept {
       return allocator_traits::select_on_container_copy_construction(children_.get_allocator());
+    }
+
+    template <typename H>
+    friend H AbslHashValue(H h, Node const& node) {
+      return H::combine(std::move(h), node.leaf_, node.children_);
     }
 
     // Indicates whether the trie rooted at this node is empty.
