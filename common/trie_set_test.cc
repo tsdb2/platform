@@ -196,9 +196,9 @@ TEST(TrieSetTest, MoveAssign) {
 }
 
 TEST(TrieSetTest, AssignInitializerList) {
-  trie_set ts;
-  ts = {"lorem", "", "ipsum"};
-  EXPECT_THAT(ts, ElementsAre("", "ipsum", "lorem"));
+  trie_set ts{"lorem", "ipsum"};
+  ts = {"lorem", "", "dolor"};
+  EXPECT_THAT(ts, ElementsAre("", "dolor", "lorem"));
   EXPECT_EQ(ts.size(), 3);
 }
 

@@ -109,6 +109,7 @@ class trie_set {
   }
 
   trie_set& operator=(std::initializer_list<std::string> const init) {
+    clear();
     insert(init);
     return *this;
   }
@@ -178,8 +179,17 @@ class trie_set {
   }
 
   iterator erase(const_iterator& first, const_iterator const& last) {
-    while (first != last) {
-      first = erase(std::move(first));
+    if (last.is_end()) {
+      while (first != last) {
+        first = erase(std::move(first));
+      }
+    } else {
+      // the `erase` calls will invalidate `last` if it's not the end iterator, so we must compare
+      // the keys.
+      auto const last_key = *last;
+      while (*first != last_key) {
+        first = erase(std::move(first));
+      }
     }
     return first;
   }
@@ -379,6 +389,9 @@ class trie_set {
 
     // Constructs an iterator with the given state frames.
     explicit Iterator(std::vector<StateFrame> frames) : frames_(std::move(frames)) {}
+
+    // Returns true iff this is the end iterator.
+    bool is_end() const { return frames_.empty(); }
 
     // Advances the iterator to the next node. The next node is found by attempting the following,
     // in order:
