@@ -420,14 +420,6 @@ TEST(TrieSetTest, InsertFromInitializerList) {
   EXPECT_THAT(ts, ElementsAre("abcd", "abefgh", "abefij", "cd", "efgh", "efij"));
 }
 
-TEST(TrieSetTest, EraseIterator) {
-  trie_set ts{"lorem"};
-  EXPECT_EQ(ts.erase(ts.find("lorem")), ts.end());
-  EXPECT_THAT(ts, ElementsAre());
-}
-
-// TODO: other erase tests.
-
 TEST(TrieSetTest, Find) {
   trie_set ts{"lorem", "ipsum", "lorips"};
   auto const it = ts.find("lorem");
@@ -452,6 +444,73 @@ TEST(TrieSetTest, FoundButNotLeaf) {
   EXPECT_EQ(ts.count("lor"), 0);
   EXPECT_FALSE(ts.contains("lor"));
 }
+
+TEST(TrieSetTest, EraseIteratorFromSingleElementSet) {
+  trie_set ts{"lorem"};
+  EXPECT_EQ(ts.erase(ts.find("lorem")), ts.end());
+  EXPECT_THAT(ts, ElementsAre());
+  EXPECT_EQ(ts.size(), 0);
+}
+
+TEST(TrieSetTest, EraseFirstIteratorFromTwoElementSet) {
+  trie_set ts{"lorem", "ipsum"};
+  EXPECT_EQ(ts.erase(ts.find("lorem")), ts.end());
+  EXPECT_THAT(ts, ElementsAre("ipsum"));
+  EXPECT_EQ(ts.size(), 1);
+}
+
+TEST(TrieSetTest, EraseSecondIteratorFromTwoElementSet) {
+  trie_set ts{"lorem", "ipsum"};
+  auto it = ts.erase(ts.find("ipsum"));
+  EXPECT_EQ(*it, "lorem");
+  EXPECT_EQ(++it, ts.end());
+  EXPECT_THAT(ts, ElementsAre("lorem"));
+  EXPECT_EQ(ts.size(), 1);
+}
+
+TEST(TrieSetTest, EraseFirstIteratorWithSharedPrefix) {
+  trie_set ts{"loremipsum", "loremdolor"};
+  EXPECT_EQ(ts.erase(ts.find("loremipsum")), ts.end());
+  EXPECT_THAT(ts, ElementsAre("loremdolor"));
+  EXPECT_EQ(ts.size(), 1);
+}
+
+TEST(TrieSetTest, EraseSecondIteratorWithSharedPrefix) {
+  trie_set ts{"loremipsum", "loremdolor"};
+  auto it = ts.erase(ts.find("loremdolor"));
+  EXPECT_EQ(*it, "loremipsum");
+  EXPECT_EQ(++it, ts.end());
+  EXPECT_THAT(ts, ElementsAre("loremipsum"));
+  EXPECT_EQ(ts.size(), 1);
+}
+
+TEST(TrieSetTest, EraseFirstIteratorFromThreeElementSet) {
+  trie_set ts{"lorem", "ipsum", "dolor"};
+  EXPECT_EQ(ts.erase(ts.find("lorem")), ts.end());
+  EXPECT_THAT(ts, ElementsAre("dolor", "ipsum"));
+  EXPECT_EQ(ts.size(), 2);
+}
+
+TEST(TrieSetTest, EraseSecondIteratorFromThreeElementSet) {
+  trie_set ts{"lorem", "ipsum", "dolor"};
+  auto it = ts.erase(ts.find("ipsum"));
+  EXPECT_EQ(*it, "lorem");
+  EXPECT_EQ(++it, ts.end());
+  EXPECT_THAT(ts, ElementsAre("dolor", "lorem"));
+  EXPECT_EQ(ts.size(), 2);
+}
+
+TEST(TrieSetTest, EraseThirdIteratorFromThreeElementSet) {
+  trie_set ts{"lorem", "ipsum", "dolor"};
+  auto it = ts.erase(ts.find("dolor"));
+  EXPECT_EQ(*it, "ipsum");
+  EXPECT_EQ(*++it, "lorem");
+  EXPECT_EQ(++it, ts.end());
+  EXPECT_THAT(ts, ElementsAre("ipsum", "lorem"));
+  EXPECT_EQ(ts.size(), 2);
+}
+
+// TODO: other erase tests.
 
 // TODO: other tests.
 

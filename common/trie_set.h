@@ -319,7 +319,10 @@ class trie_set {
     bool Remove(std::string_view value);
 
     // Removes the value referred to by the specified iterator and returns an iterator to the next
-    // element.
+    // element. All other iterators of this container are invalidated.
+    //
+    // WARNING: the iterator MUST be valid and dereferenceable, otherwise the behavior is undefined.
+    // This is consistent with STL containers.
     static Iterator Remove(NodeSet* roots, Iterator it);
 
    private:
@@ -555,14 +558,16 @@ typename trie_set<Allocator>::Iterator trie_set<Allocator>::Node::Remove(NodeSet
     it.Advance();
   } else {
     auto pos = nodes->erase(last_frame.pos);
-    if (pos != nodes->end()) {
+    auto end = nodes->end();
+    if (pos != end) {
       last_frame.pos = std::move(pos);
+      last_frame.end = std::move(end);
       return it;
     }
     frames.pop_back();
     while (!frames.empty()) {
       auto& frame = frames.back();
-      if (++frame.pos != frame.end) {
+      if (++frame.pos != frame.end && !frame.pos->second.leaf_) {
         return it;
       } else {
         frames.pop_back();
