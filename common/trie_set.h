@@ -352,6 +352,10 @@ class trie_set {
 
     std::string operator*() const;
 
+    std::unique_ptr<std::string> operator->() const {
+      return std::make_unique<std::string>(operator*());
+    }
+
     Iterator& operator++() {
       Advance();
       return *this;
@@ -551,29 +555,18 @@ typename trie_set<Allocator>::Iterator trie_set<Allocator>::Node::Remove(NodeSet
   auto& node = last_frame.pos->second;
   if (node.children_.size() > 1) {
     node.leaf_ = false;
-    it.Advance();
   } else if (node.children_.size() > 0) {
-    auto& child = node.children_.begin()->second;
-    node = std::move(child);
-    it.Advance();
+    auto child_node = node.children_.extract(node.children_.begin());
+    last_frame.pos->first += child_node.key();
+    node = std::move(child_node).mapped();
   } else {
-    auto pos = nodes->erase(last_frame.pos);
-    auto end = nodes->end();
-    if (pos != end) {
-      last_frame.pos = std::move(pos);
-      last_frame.end = std::move(end);
+    last_frame.pos = nodes->erase(last_frame.pos);
+    last_frame.end = nodes->end();
+    if (last_frame.pos != last_frame.end && last_frame.pos->second.leaf_) {
       return it;
     }
-    frames.pop_back();
-    while (!frames.empty()) {
-      auto& frame = frames.back();
-      if (++frame.pos != frame.end && !frame.pos->second.leaf_) {
-        return it;
-      } else {
-        frames.pop_back();
-      }
-    }
   }
+  it.Advance();
   return it;
 }
 
@@ -603,19 +596,23 @@ std::string trie_set<Allocator>::Iterator::operator*() const {
 template <typename Allocator>
 void trie_set<Allocator>::Iterator::NextNode() {
   auto const& frame = frames_.back();
-  auto const& node = frame.pos->second;
-  if (!node.children_.empty()) {
-    frames_.emplace_back(node.children_);
-    return;
+  if (frame.pos != frame.end) {
+    auto const& node = frame.pos->second;
+    if (!node.children_.empty()) {
+      frames_.emplace_back(node.children_);
+      return;
+    }
+  } else {
+    frames_.pop_back();
   }
-  do {
+  while (!frames_.empty()) {
     auto& frame = frames_.back();
     if (++frame.pos != frame.end) {
       return;
     } else {
       frames_.pop_back();
     }
-  } while (!frames_.empty());
+  }
 }
 
 template <typename Allocator>

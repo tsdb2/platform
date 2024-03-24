@@ -510,7 +510,31 @@ TEST(TrieSetTest, EraseThirdIteratorFromThreeElementSet) {
   EXPECT_EQ(ts.size(), 2);
 }
 
-// TODO: other erase tests.
+TEST(TrieSetTest, EraseFirstIteratorFromThreeElementSetWithSharedPrefix) {
+  trie_set ts{"loremipsum", "loremdolor", "consectetur"};
+  EXPECT_EQ(ts.erase(ts.find("loremipsum")), ts.end());
+  EXPECT_THAT(ts, ElementsAre("consectetur", "loremdolor"));
+  EXPECT_EQ(ts.size(), 2);
+}
+
+TEST(TrieSetTest, EraseSecondIteratorFromThreeElementSetWithSharedPrefix) {
+  trie_set ts{"loremipsum", "loremdolor", "consectetur"};
+  auto it = ts.erase(ts.find("loremdolor"));
+  EXPECT_EQ(*it, "loremipsum");
+  EXPECT_EQ(++it, ts.end());
+  EXPECT_THAT(ts, ElementsAre("consectetur", "loremipsum"));
+  EXPECT_EQ(ts.size(), 2);
+}
+
+TEST(TrieSetTest, EraseThirdIteratorFromThreeElementSetWithSharedPrefix) {
+  trie_set ts{"loremipsum", "loremdolor", "consectetur"};
+  auto it = ts.erase(ts.find("consectetur"));
+  EXPECT_EQ(*it, "loremdolor");
+  EXPECT_EQ(*++it, "loremipsum");
+  EXPECT_EQ(++it, ts.end());
+  EXPECT_THAT(ts, ElementsAre("loremdolor", "loremipsum"));
+  EXPECT_EQ(ts.size(), 2);
+}
 
 // TODO: other tests.
 
