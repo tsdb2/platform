@@ -24,11 +24,8 @@ namespace common {
 //
 // Notable differences between std::set<std::string> and trie_set:
 //
-//  * Inserting nodes from node handles is not supported. That is because, by definition, a trie
-//    node doesn't have all the information about its key, so it wouldn't make sense to reinsert it
-//    under a completely different key prefix.
-//  * For the same reasons above, retrieving the full key of a node is not supported by `node_type`.
-//    Once extracted, a trie node can only be destroyed.
+//  * Node handles are not supported. That is because, by definition, a trie node doesn't have all
+//    the information about its key, so most of the node API wouldn't make sense.
 //  * The worst-case space complexity of our iterators is linear in the length of the stored string.
 //    trie_set iterators are cheap to move but relatively expensive to copy.
 //
@@ -59,30 +56,6 @@ class trie_set {
   using const_iterator = Iterator;
   using reverse_iterator = std::reverse_iterator<iterator>;
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
-
-  class node_type {
-   public:
-    explicit node_type() = default;
-
-    node_type(node_type&&) noexcept = default;
-    node_type& operator=(node_type&&) noexcept = default;
-
-    [[nodiscard]] bool empty() const { return node_.empty(); }
-    explicit operator bool() const noexcept { return node_.operator bool(); }
-
-    allocator_type get_allocator() const noexcept {
-      return allocator_traits::select_on_container_copy_construction(node_.get_allocator());
-    }
-
-    void swap(node_type& other) noexcept { node_.swap(other.node_); }
-    friend void swap(node_type& lhs, node_type& rhs) noexcept { lhs.swap(rhs); }
-
-   private:
-    node_type(node_type const&) = delete;
-    node_type& operator=(node_type const&) = delete;
-
-    typename NodeSet::node_type node_;
-  };
 
   trie_set() = default;
 
@@ -158,6 +131,14 @@ class trie_set {
     return H::combine(std::move(h), set.roots_);
   }
 
+  friend bool operator==(trie_set const& lhs, trie_set const& rhs) {
+    return lhs.size_ == rhs.size_ && lhs.roots_ == rhs.roots_;
+  }
+
+  friend bool operator!=(trie_set const& lhs, trie_set const& rhs) { return !operator==(lhs, rhs); }
+
+  // TODO: other comparison operators.
+
   [[nodiscard]] bool empty() const noexcept { return root().IsEmpty(); }
 
   size_type size() const noexcept { return size_; }
@@ -212,7 +193,15 @@ class trie_set {
     }
   }
 
-  // TODO
+  void swap(trie_set<Allocator>& other) {
+    if (std::allocator_traits<Allocator>::propagate_on_container_swap::value) {
+      std::swap(alloc_, other.alloc_);
+    }
+    std::swap(roots_, other.roots_);
+    std::swap(size_, other.size_);
+  }
+
+  friend void swap(trie_set<Allocator>& lhs, trie_set<Allocator>& rhs) { lhs.swap(rhs); }
 
   size_type count(std::string_view const key) const { return root().Contains(key) ? 1 : 0; }
 
@@ -297,6 +286,9 @@ class trie_set {
       return H::combine(std::move(h), node.leaf_, node.children_);
     }
 
+    friend bool operator==(Node const& lhs, Node const& rhs) { return lhs.Tie() == rhs.Tie(); }
+    friend bool operator!=(Node const& lhs, Node const& rhs) { return lhs.Tie() != rhs.Tie(); }
+
     // Indicates whether the trie rooted at this node is empty.
     bool IsEmpty() const { return !leaf_ && children_.empty(); }
 
@@ -327,6 +319,8 @@ class trie_set {
 
    private:
     friend class Iterator;
+
+    auto Tie() const { return std::tie(leaf_, children_); }
 
     std::pair<Iterator, bool> InsertChild(std::vector<StateFrame> frames, std::string_view value);
 

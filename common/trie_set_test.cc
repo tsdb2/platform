@@ -211,6 +211,15 @@ TEST(TrieSetTest, Hash) {
   EXPECT_EQ(absl::HashOf(trie_set({"ipsum", "lorem"})), absl::HashOf(trie_set({"lorem", "ipsum"})));
 }
 
+TEST(TrieSetTest, Compare) {
+  trie_set ts1{"lorem", "ipsum", "dolor"};
+  trie_set ts2{"lorem", "ipsum", "dolor"};
+  trie_set ts3{"dolor", "amet", "consectetur"};
+  EXPECT_EQ(ts1, ts2);
+  EXPECT_NE(ts1, ts3);
+  EXPECT_NE(ts2, ts3);
+}
+
 TEST(TrieSetTest, Clear) {
   trie_set ts{"lorem", "", "ipsum"};
   ts.clear();
@@ -536,6 +545,51 @@ TEST(TrieSetTest, EraseThirdIteratorFromThreeElementSetWithSharedPrefix) {
   EXPECT_EQ(ts.size(), 2);
 }
 
-// TODO: other tests.
+TEST(TrieSetTest, EraseFirstIteratorFromSetWithTerminalPrefix) {
+  trie_set ts{"loremipsum", "lorem", "loremdolor", "consectetur"};
+  EXPECT_EQ(ts.erase(ts.find("loremipsum")), ts.end());
+  EXPECT_THAT(ts, ElementsAre("consectetur", "lorem", "loremdolor"));
+  EXPECT_EQ(ts.size(), 3);
+}
+
+TEST(TrieSetTest, EraseSecondIteratorFromSetWithTerminalPrefix) {
+  trie_set ts{"loremipsum", "lorem", "loremdolor", "consectetur"};
+  auto it = ts.erase(ts.find("lorem"));
+  EXPECT_EQ(*it, "loremdolor");
+  EXPECT_EQ(*++it, "loremipsum");
+  EXPECT_EQ(++it, ts.end());
+  EXPECT_THAT(ts, ElementsAre("consectetur", "loremdolor", "loremipsum"));
+  EXPECT_EQ(ts.size(), 3);
+}
+
+TEST(TrieSetTest, EraseThirdIteratorFromSetWithTerminalPrefix) {
+  trie_set ts{"loremipsum", "lorem", "loremdolor", "consectetur"};
+  auto it = ts.erase(ts.find("loremdolor"));
+  EXPECT_EQ(*it, "loremipsum");
+  EXPECT_EQ(++it, ts.end());
+  EXPECT_THAT(ts, ElementsAre("consectetur", "lorem", "loremipsum"));
+  EXPECT_EQ(ts.size(), 3);
+}
+
+TEST(TrieSetTest, EraseFourthIteratorFromSetWithTerminalPrefix) {
+  trie_set ts{"loremipsum", "lorem", "loremdolor", "consectetur"};
+  auto it = ts.erase(ts.find("consectetur"));
+  EXPECT_EQ(*it, "lorem");
+  EXPECT_EQ(*++it, "loremdolor");
+  EXPECT_EQ(*++it, "loremipsum");
+  EXPECT_EQ(++it, ts.end());
+  EXPECT_THAT(ts, ElementsAre("lorem", "loremdolor", "loremipsum"));
+  EXPECT_EQ(ts.size(), 3);
+}
+
+TEST(TrieSetTest, Swap) {
+  trie_set ts1{"lorem", "ipsum", "dolor"};
+  trie_set ts2{"dolor", "amet", "consectetur", "adipisci"};
+  ts1.swap(ts2);
+  EXPECT_THAT(ts1, ElementsAre("adipisci", "amet", "consectetur", "dolor"));
+  EXPECT_EQ(ts1.size(), 4);
+  EXPECT_THAT(ts2, ElementsAre("dolor", "ipsum", "lorem"));
+  EXPECT_EQ(ts2.size(), 3);
+}
 
 }  // namespace
