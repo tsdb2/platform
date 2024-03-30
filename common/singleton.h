@@ -47,7 +47,7 @@ class Singleton {
 
   template <typename... Args>
   explicit Singleton(ConstructorArgs const&, Args&&... args)
-      : construct_([=] { Construct(args...); }) {}
+      : construct_([=] { Construct(std::move(args)...); }) {}
 
   // TEST ONLY: replace the wrapped value with a different one.
   void Override(T* const value) {

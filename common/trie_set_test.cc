@@ -560,6 +560,8 @@ TEST(TrieSetTest, LowerBoundTwoElementSet) {
   EXPECT_EQ(*it, "lorem");
   it = ts.lower_bound("loremipsum");
   EXPECT_EQ(it, ts.end());
+  it = ts.lower_bound("sator");
+  EXPECT_EQ(it, ts.end());
 }
 
 TEST(TrieSetTest, LowerBoundSharedPrefix) {
@@ -574,6 +576,9 @@ TEST(TrieSetTest, LowerBoundSharedPrefix) {
   EXPECT_NE(it, ts.end());
   EXPECT_EQ(*it, "loremamet");
   it = ts.lower_bound("lorem");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "loremamet");
+  it = ts.lower_bound("loremamet");
   EXPECT_NE(it, ts.end());
   EXPECT_EQ(*it, "loremamet");
   it = ts.lower_bound("loremametamet");
@@ -592,6 +597,94 @@ TEST(TrieSetTest, LowerBoundSharedPrefix) {
   it = ts.lower_bound("lorlor");
   EXPECT_EQ(it, ts.end());
   it = ts.lower_bound("sator");
+  EXPECT_EQ(it, ts.end());
+}
+
+TEST(TrieSetTest, UpperBoundEmptySet) {
+  trie_set const ts{};
+  EXPECT_EQ(ts.upper_bound(""), ts.end());
+  EXPECT_EQ(ts.upper_bound("lorem"), ts.end());
+}
+
+TEST(TrieSetTest, UpperBoundSingleElementSet) {
+  trie_set const ts{"lorem"};
+  auto it = ts.upper_bound("");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "lorem");
+  it = ts.upper_bound("ipsum");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "lorem");
+  it = ts.upper_bound("lor");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "lorem");
+  it = ts.upper_bound("lorem");
+  EXPECT_EQ(it, ts.end());
+  it = ts.upper_bound("lorlor");
+  EXPECT_EQ(it, ts.end());
+  it = ts.upper_bound("sator");
+  EXPECT_EQ(it, ts.end());
+}
+
+TEST(TrieSetTest, UpperBoundTwoElementSet) {
+  trie_set const ts{"lorem", "ipsum"};
+  auto it = ts.upper_bound("");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "ipsum");
+  it = ts.upper_bound("ips");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "ipsum");
+  it = ts.upper_bound("ipsum");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "lorem");
+  it = ts.upper_bound("ipsumdolor");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "lorem");
+  it = ts.upper_bound("justo");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "lorem");
+  it = ts.upper_bound("lor");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "lorem");
+  it = ts.upper_bound("lorem");
+  EXPECT_EQ(it, ts.end());
+  it = ts.upper_bound("loremipsum");
+  EXPECT_EQ(it, ts.end());
+  it = ts.upper_bound("sator");
+  EXPECT_EQ(it, ts.end());
+}
+
+TEST(TrieSetTest, UpperBoundSharedPrefix) {
+  trie_set const ts{"loremamet", "loremipsum"};
+  auto it = ts.upper_bound("");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "loremamet");
+  it = ts.upper_bound("amet");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "loremamet");
+  it = ts.upper_bound("lor");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "loremamet");
+  it = ts.upper_bound("lorem");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "loremamet");
+  it = ts.upper_bound("loremamet");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "loremipsum");
+  it = ts.upper_bound("loremametamet");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "loremipsum");
+  it = ts.upper_bound("loremdolor");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "loremipsum");
+  it = ts.upper_bound("loremipsum");
+  EXPECT_EQ(it, ts.end());
+  it = ts.upper_bound("loremipsumipsum");
+  EXPECT_EQ(it, ts.end());
+  it = ts.upper_bound("loremlorem");
+  EXPECT_EQ(it, ts.end());
+  it = ts.upper_bound("lorlor");
+  EXPECT_EQ(it, ts.end());
+  it = ts.upper_bound("sator");
   EXPECT_EQ(it, ts.end());
 }
 

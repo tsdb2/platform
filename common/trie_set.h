@@ -227,6 +227,12 @@ class trie_set {
     return Node::LowerBound(roots_, key);
   }
 
+  iterator upper_bound(std::string_view const key) { return Node::UpperBound(roots_, key); }
+
+  const_iterator upper_bound(std::string_view const key) const {
+    return Node::UpperBound(roots_, key);
+  }
+
   // TODO
 
  private:
@@ -319,8 +325,12 @@ class trie_set {
     bool Contains(std::string_view value) const;
 
     // Finds the first element that is greater than or equal to `value`. Returns the end iterator if
-    // no such element exists in this subtree.
+    // no such element exists.
     static Iterator LowerBound(NodeSet const& roots, std::string_view value);
+
+    // Finds the first element that is strictly greater than `value`. Returns the end iterator if no
+    // such element exists.
+    static Iterator UpperBound(NodeSet const& roots, std::string_view value);
 
     // Inserts the specified `value` if it's not already present. The first element of the returned
     // pair is an iterator to either the newly added node or to a preexisting one with the same
@@ -456,14 +466,12 @@ typename trie_set<Allocator>::Iterator trie_set<Allocator>::Node::Find(NodeSet c
   std::vector<StateFrame> frames{StateFrame(roots)};
   while (!value.empty()) {
     auto& node = frames.back().pos->second;
+    auto const end = node.children_.end();
     auto const it = node.children_.lower_bound(value.substr(0, 1));
-    if (it == node.children_.end()) {
+    if (it == end || !absl::ConsumePrefix(&value, it->first)) {
       return Iterator();
     }
-    if (!absl::ConsumePrefix(&value, it->first)) {
-      return Iterator();
-    }
-    frames.emplace_back(it, node.children_.end());
+    frames.emplace_back(it, end);
   }
   auto const& node = frames.back().pos->second;
   if (node.leaf_) {
@@ -536,6 +544,33 @@ typename trie_set<Allocator>::Iterator trie_set<Allocator>::Node::LowerBound(
   if (!leaf) {
     result.Advance();
   }
+  return result;
+}
+
+template <typename Allocator>
+typename trie_set<Allocator>::Iterator trie_set<Allocator>::Node::UpperBound(
+    NodeSet const& roots, std::string_view value) {
+  std::vector<StateFrame> frames{StateFrame(roots)};
+  while (!value.empty()) {
+    auto& node = frames.back().pos->second;
+    auto const it = node.LowerBound(value);
+    auto const end = node.children_.end();
+    frames.emplace_back(it, end);
+    if (it == end) {
+      break;
+    }
+    auto const key = it->first;
+    if (value.size() < key.size() || !absl::ConsumePrefix(&value, key)) {
+      auto const& node = it->second;
+      Iterator result{std::move(frames)};
+      if (!node.leaf_) {
+        result.Advance();
+      }
+      return result;
+    }
+  }
+  Iterator result{std::move(frames)};
+  result.Advance();
   return result;
 }
 
