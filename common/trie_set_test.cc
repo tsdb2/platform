@@ -429,9 +429,21 @@ TEST(TrieSetTest, InsertFromInitializerList) {
   EXPECT_THAT(ts, ElementsAre("abcd", "abefgh", "abefij", "cd", "efgh", "efij"));
 }
 
+TEST(TrieSetTest, FindInEmptySet) {
+  trie_set const ts{};
+  auto it = ts.find("");
+  EXPECT_EQ(it, ts.end());
+  it = ts.find("lorem");
+  EXPECT_EQ(it, ts.end());
+  EXPECT_EQ(ts.count(""), 0);
+  EXPECT_EQ(ts.count("lorem"), 0);
+  EXPECT_FALSE(ts.contains(""));
+  EXPECT_FALSE(ts.contains("lorem"));
+}
+
 TEST(TrieSetTest, Find) {
-  trie_set ts{"lorem", "ipsum", "lorips"};
-  auto const it = ts.find("lorem");
+  trie_set const ts{"lorem", "ipsum", "lorips"};
+  auto it = ts.find("lorem");
   EXPECT_NE(it, ts.end());
   EXPECT_EQ(*it, "lorem");
   EXPECT_EQ(ts.count("lorem"), 1);
@@ -439,7 +451,7 @@ TEST(TrieSetTest, Find) {
 }
 
 TEST(TrieSetTest, NotFound) {
-  trie_set ts{"lorem", "ipsum", "lorips"};
+  trie_set const ts{"lorem", "ipsum", "lorips"};
   auto const it = ts.find("dolor");
   EXPECT_EQ(it, ts.end());
   EXPECT_EQ(ts.count("dolor"), 0);
@@ -447,11 +459,140 @@ TEST(TrieSetTest, NotFound) {
 }
 
 TEST(TrieSetTest, FoundButNotLeaf) {
-  trie_set ts{"lorem", "ipsum", "lorips"};
+  trie_set const ts{"lorem", "ipsum", "lorips"};
   auto const it = ts.find("lor");
   EXPECT_EQ(it, ts.end());
   EXPECT_EQ(ts.count("lor"), 0);
   EXPECT_FALSE(ts.contains("lor"));
+}
+
+TEST(TrieSetTest, FindInSingleElementSet) {
+  trie_set const ts{"lorem"};
+  auto it = ts.find("");
+  EXPECT_EQ(it, ts.end());
+  it = ts.find("ipsum");
+  EXPECT_EQ(it, ts.end());
+  it = ts.find("lor");
+  EXPECT_EQ(it, ts.end());
+  it = ts.find("lorem");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "lorem");
+  it = ts.find("lorlor");
+  EXPECT_EQ(it, ts.end());
+  it = ts.find("sator");
+  EXPECT_EQ(it, ts.end());
+}
+
+TEST(TrieSetTest, FindInTwoElementSet) {
+  trie_set const ts{"lorem", "ipsum"};
+  auto it = ts.find("");
+  EXPECT_EQ(it, ts.end());
+  it = ts.find("ips");
+  EXPECT_EQ(it, ts.end());
+  it = ts.find("ipsum");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "ipsum");
+  it = ts.find("ipsumdolor");
+  EXPECT_EQ(it, ts.end());
+  it = ts.find("justo");
+  EXPECT_EQ(it, ts.end());
+  it = ts.find("lor");
+  EXPECT_EQ(it, ts.end());
+  it = ts.find("lorem");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "lorem");
+  it = ts.find("loremipsum");
+  EXPECT_EQ(it, ts.end());
+  it = ts.find("lorlor");
+  EXPECT_EQ(it, ts.end());
+  it = ts.find("sator");
+  EXPECT_EQ(it, ts.end());
+}
+
+TEST(TrieSetTest, LowerBoundEmptySet) {
+  trie_set const ts{};
+  EXPECT_EQ(ts.lower_bound(""), ts.end());
+  EXPECT_EQ(ts.lower_bound("lorem"), ts.end());
+}
+
+TEST(TrieSetTest, LowerBoundSingleElementSet) {
+  trie_set const ts{"lorem"};
+  auto it = ts.lower_bound("");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "lorem");
+  it = ts.lower_bound("ipsum");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "lorem");
+  it = ts.lower_bound("lor");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "lorem");
+  it = ts.lower_bound("lorem");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "lorem");
+  it = ts.lower_bound("lorlor");
+  EXPECT_EQ(it, ts.end());
+  it = ts.lower_bound("sator");
+  EXPECT_EQ(it, ts.end());
+}
+
+TEST(TrieSetTest, LowerBoundTwoElementSet) {
+  trie_set const ts{"lorem", "ipsum"};
+  auto it = ts.lower_bound("");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "ipsum");
+  it = ts.lower_bound("ips");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "ipsum");
+  it = ts.lower_bound("ipsum");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "ipsum");
+  it = ts.lower_bound("ipsumdolor");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "lorem");
+  it = ts.lower_bound("justo");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "lorem");
+  it = ts.lower_bound("lor");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "lorem");
+  it = ts.lower_bound("lorem");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "lorem");
+  it = ts.lower_bound("loremipsum");
+  EXPECT_EQ(it, ts.end());
+}
+
+TEST(TrieSetTest, LowerBoundSharedPrefix) {
+  trie_set const ts{"loremamet", "loremipsum"};
+  auto it = ts.lower_bound("");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "loremamet");
+  it = ts.lower_bound("amet");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "loremamet");
+  it = ts.lower_bound("lor");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "loremamet");
+  it = ts.lower_bound("lorem");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "loremamet");
+  it = ts.lower_bound("loremametamet");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "loremipsum");
+  it = ts.lower_bound("loremdolor");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "loremipsum");
+  it = ts.lower_bound("loremipsum");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "loremipsum");
+  it = ts.lower_bound("loremipsumipsum");
+  EXPECT_EQ(it, ts.end());
+  it = ts.lower_bound("loremlorem");
+  EXPECT_EQ(it, ts.end());
+  it = ts.lower_bound("lorlor");
+  EXPECT_EQ(it, ts.end());
+  it = ts.lower_bound("sator");
+  EXPECT_EQ(it, ts.end());
 }
 
 TEST(TrieSetTest, EraseIteratorFromSingleElementSet) {

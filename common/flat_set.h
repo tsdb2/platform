@@ -317,7 +317,7 @@ class flat_set {
 
   void reserve(size_type const count) { rep_.reserve(count); }
 
-  Representation const& rep() const { return rep_; }
+  Representation const& rep() const& { return rep_; }
 
   Representation&& ExtractRep() && { return std::move(rep_); }
 

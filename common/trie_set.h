@@ -221,6 +221,12 @@ class trie_set {
 
   bool contains(std::string_view const key) const { return root().Contains(key); }
 
+  iterator lower_bound(std::string_view const key) { return Node::LowerBound(roots_, key); }
+
+  const_iterator lower_bound(std::string_view const key) const {
+    return Node::LowerBound(roots_, key);
+  }
+
   // TODO
 
  private:
@@ -312,6 +318,10 @@ class trie_set {
     // Determines whether the trie rooted at this node contains the specified string.
     bool Contains(std::string_view value) const;
 
+    // Finds the first element that is greater than or equal to `value`. Returns the end iterator if
+    // no such element exists in this subtree.
+    static Iterator LowerBound(NodeSet const& roots, std::string_view value);
+
     // Inserts the specified `value` if it's not already present. The first element of the returned
     // pair is an iterator to either the newly added node or to a preexisting one with the same
     // `value`, while the second element is a boolean indicating whether insertion happened.
@@ -331,6 +341,8 @@ class trie_set {
     friend class Iterator;
 
     auto Tie() const { return std::tie(leaf_, children_); }
+
+    typename NodeSet::iterator LowerBound(std::string_view needle);
 
     std::pair<Iterator, bool> InsertChild(std::vector<StateFrame> frames, std::string_view value);
 
@@ -476,6 +488,55 @@ bool trie_set<Allocator>::Node::Contains(std::string_view const value) const {
   } else {
     return false;
   }
+}
+
+template <typename Allocator>
+typename trie_set<Allocator>::NodeSet::iterator trie_set<Allocator>::Node::LowerBound(
+    std::string_view const needle) {
+  auto const end = children_.end();
+  auto it = children_.lower_bound(needle.substr(0, 1));
+  if (it == end) {
+    return it;
+  }
+  auto const key = it->first;
+  if (key[0] > needle[0]) {
+    return it;
+  }
+  size_t i = 1;
+  while (i < needle.size() && i < key.size()) {
+    if (needle[i] != key[i]) {
+      return ++it;
+    } else {
+      ++i;
+    }
+  }
+  return it;
+}
+
+template <typename Allocator>
+typename trie_set<Allocator>::Iterator trie_set<Allocator>::Node::LowerBound(
+    NodeSet const& roots, std::string_view value) {
+  std::vector<StateFrame> frames{StateFrame(roots)};
+  while (!value.empty()) {
+    auto& node = frames.back().pos->second;
+    auto const it = node.LowerBound(value);
+    auto const end = node.children_.end();
+    frames.emplace_back(it, end);
+    if (it == end) {
+      break;
+    }
+    auto const key = it->first;
+    if (value.size() < key.size() || !absl::ConsumePrefix(&value, key)) {
+      break;
+    }
+  }
+  auto const& frame = frames.back();
+  bool const leaf = frame.pos != frame.end && frame.pos->second.leaf_;
+  Iterator result{std::move(frames)};
+  if (!leaf) {
+    result.Advance();
+  }
+  return result;
 }
 
 template <typename Allocator>
