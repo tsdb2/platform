@@ -688,6 +688,15 @@ TEST(TrieSetTest, UpperBoundSharedPrefix) {
   EXPECT_EQ(it, ts.end());
 }
 
+TEST(TrieSetTest, EqualRange) {
+  trie_set const ts{"loremamet", "loremipsum"};
+  auto const [lb, ub] = ts.equal_range("loremamet");
+  EXPECT_NE(lb, ts.end());
+  EXPECT_EQ(*lb, "loremamet");
+  EXPECT_NE(ub, ts.end());
+  EXPECT_EQ(*ub, "loremipsum");
+}
+
 TEST(TrieSetTest, EraseIteratorFromSingleElementSet) {
   trie_set ts{"lorem"};
   EXPECT_EQ(ts.erase(ts.find("lorem")), ts.end());

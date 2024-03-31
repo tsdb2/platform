@@ -233,7 +233,13 @@ class trie_set {
     return Node::UpperBound(roots_, key);
   }
 
-  // TODO
+  std::pair<iterator, iterator> equal_range(std::string_view const key) {
+    return std::make_pair(lower_bound(key), upper_bound(key));
+  }
+
+  std::pair<const_iterator, const_iterator> equal_range(std::string_view const key) const {
+    return std::make_pair(lower_bound(key), upper_bound(key));
+  }
 
  private:
   // `StateFrame` is used by iterators to turn recursive algorithms into iterative ones. For
