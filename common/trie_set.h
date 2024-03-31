@@ -145,11 +145,11 @@ class trie_set {
   }
 
   std::pair<iterator, bool> insert(std::string_view const key) {
-    auto [it, inserted] = Node::Insert(&roots_, key, true);
-    if (inserted) {
+    auto result = Node::Insert(&roots_, key, true);
+    if (result.second) {
       ++size_;
     }
-    return std::make_pair(std::move(it), inserted);
+    return result;
   }
 
   template <class InputIt>

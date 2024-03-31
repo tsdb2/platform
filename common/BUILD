@@ -195,6 +195,26 @@ cc_test(
 )
 
 cc_library(
+    name = "trie_map",
+    hdrs = ["trie_map.h"],
+    deps = [
+        ":raw_trie",
+        "@com_google_absl//absl/base",
+    ],
+)
+
+cc_test(
+    name = "trie_map_test",
+    srcs = ["trie_map_test.cc"],
+    deps = [
+        ":testing",
+        ":trie_map",
+        "@com_google_absl//absl/hash",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "fingerprint",
     hdrs = ["fingerprint.h"],
     deps = [
