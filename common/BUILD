@@ -165,11 +165,21 @@ cc_test(
 )
 
 cc_library(
-    name = "trie_set",
-    hdrs = ["trie_set.h"],
+    name = "raw_trie",
+    hdrs = ["raw_trie.h"],
+    visibility = ["//visibility:private"],
     deps = [
         ":flat_map",
         "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "trie_set",
+    hdrs = ["trie_set.h"],
+    deps = [
+        ":raw_trie",
+        "@com_google_absl//absl/base",
     ],
 )
 
