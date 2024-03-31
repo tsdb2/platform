@@ -382,6 +382,16 @@ class TrieNode {
   // This is consistent with STL containers.
   static Iterator Remove(NodeSet* roots, ConstIterator it);
 
+  // Removes the value referred to by the specified const iterator. All other iterators of this
+  // container are invalidated.
+  //
+  // This method is faster than `Remove` because it avoids copying the input iterator and doesn't
+  // need to advance it to the next element.
+  //
+  // WARNING: the iterator MUST be valid and dereferenceable, otherwise the behavior is undefined.
+  // This is consistent with STL containers.
+  static void RemoveFast(NodeSet* roots, ConstIterator const& it);
+
  private:
   auto Tie() const { return std::tie(label_, children_); }
 
@@ -679,6 +689,26 @@ typename TrieNode<Label, Allocator>::Iterator TrieNode<Label, Allocator>::Remove
   }
   it.Advance();
   return Iterator(std::move(it.frames_));
+}
+
+template <typename Label, typename Allocator>
+void TrieNode<Label, Allocator>::RemoveFast(NodeSet* const roots, ConstIterator const& it) {
+  auto const& frames = it.frames_;
+  NodeSet* nodes = roots;
+  if (frames.size() > 1) {
+    nodes = &(frames[frames.size() - 2].pos->second.children_);
+  }
+  auto const& last_frame = frames.back();
+  auto& node = last_frame.pos->second;
+  if (node.children_.size() > 1) {
+    node.ResetLabel();
+  } else if (node.children_.size() > 0) {
+    auto child_node = node.children_.extract(node.children_.begin());
+    last_frame.pos->first += child_node.key();
+    node = std::move(child_node).mapped();
+  } else {
+    nodes->erase(last_frame.pos);
+  }
 }
 
 }  // namespace internal

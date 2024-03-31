@@ -825,6 +825,216 @@ TEST(TrieSetTest, EraseFourthIteratorFromSetWithTerminalPrefix) {
   EXPECT_EQ(ts.size(), 3);
 }
 
+TEST(TrieSetTest, FastEraseFromSingleElementSet) {
+  trie_set ts{"lorem"};
+  ts.erase_fast(ts.find("lorem"));
+  EXPECT_THAT(ts, ElementsAre());
+  EXPECT_EQ(ts.size(), 0);
+}
+
+TEST(TrieSetTest, FastEraseFirstFromTwoElementSet) {
+  trie_set ts{"lorem", "ipsum"};
+  ts.erase_fast(ts.find("lorem"));
+  EXPECT_THAT(ts, ElementsAre("ipsum"));
+  EXPECT_EQ(ts.size(), 1);
+}
+
+TEST(TrieSetTest, FastEraseSecondFromTwoElementSet) {
+  trie_set ts{"lorem", "ipsum"};
+  ts.erase_fast(ts.find("ipsum"));
+  EXPECT_THAT(ts, ElementsAre("lorem"));
+  EXPECT_EQ(ts.size(), 1);
+}
+
+TEST(TrieSetTest, FastEraseFirstWithSharedPrefix) {
+  trie_set ts{"loremipsum", "loremdolor"};
+  ts.erase_fast(ts.find("loremipsum"));
+  EXPECT_THAT(ts, ElementsAre("loremdolor"));
+  EXPECT_EQ(ts.size(), 1);
+}
+
+TEST(TrieSetTest, FastEraseSecondWithSharedPrefix) {
+  trie_set ts{"loremipsum", "loremdolor"};
+  ts.erase_fast(ts.find("loremdolor"));
+  EXPECT_THAT(ts, ElementsAre("loremipsum"));
+  EXPECT_EQ(ts.size(), 1);
+}
+
+TEST(TrieSetTest, FastEraseFirstFromThreeElementSet) {
+  trie_set ts{"lorem", "ipsum", "dolor"};
+  ts.erase_fast(ts.find("lorem"));
+  EXPECT_THAT(ts, ElementsAre("dolor", "ipsum"));
+  EXPECT_EQ(ts.size(), 2);
+}
+
+TEST(TrieSetTest, FastEraseSecondFromThreeElementSet) {
+  trie_set ts{"lorem", "ipsum", "dolor"};
+  ts.erase_fast(ts.find("ipsum"));
+  EXPECT_THAT(ts, ElementsAre("dolor", "lorem"));
+  EXPECT_EQ(ts.size(), 2);
+}
+
+TEST(TrieSetTest, FastEraseThirdFromThreeElementSet) {
+  trie_set ts{"lorem", "ipsum", "dolor"};
+  ts.erase_fast(ts.find("dolor"));
+  EXPECT_THAT(ts, ElementsAre("ipsum", "lorem"));
+  EXPECT_EQ(ts.size(), 2);
+}
+
+TEST(TrieSetTest, FastEraseFirstFromThreeElementSetWithSharedPrefix) {
+  trie_set ts{"loremipsum", "loremdolor", "consectetur"};
+  ts.erase_fast(ts.find("loremipsum"));
+  EXPECT_THAT(ts, ElementsAre("consectetur", "loremdolor"));
+  EXPECT_EQ(ts.size(), 2);
+}
+
+TEST(TrieSetTest, FastEraseSecondFromThreeElementSetWithSharedPrefix) {
+  trie_set ts{"loremipsum", "loremdolor", "consectetur"};
+  ts.erase_fast(ts.find("loremdolor"));
+  EXPECT_THAT(ts, ElementsAre("consectetur", "loremipsum"));
+  EXPECT_EQ(ts.size(), 2);
+}
+
+TEST(TrieSetTest, FastEraseThirdFromThreeElementSetWithSharedPrefix) {
+  trie_set ts{"loremipsum", "loremdolor", "consectetur"};
+  ts.erase_fast(ts.find("consectetur"));
+  EXPECT_THAT(ts, ElementsAre("loremdolor", "loremipsum"));
+  EXPECT_EQ(ts.size(), 2);
+}
+
+TEST(TrieSetTest, FastEraseFirstFromSetWithTerminalPrefix) {
+  trie_set ts{"loremipsum", "lorem", "loremdolor", "consectetur"};
+  ts.erase_fast(ts.find("loremipsum"));
+  EXPECT_THAT(ts, ElementsAre("consectetur", "lorem", "loremdolor"));
+  EXPECT_EQ(ts.size(), 3);
+}
+
+TEST(TrieSetTest, FastEraseSecondFromSetWithTerminalPrefix) {
+  trie_set ts{"loremipsum", "lorem", "loremdolor", "consectetur"};
+  ts.erase_fast(ts.find("lorem"));
+  EXPECT_THAT(ts, ElementsAre("consectetur", "loremdolor", "loremipsum"));
+  EXPECT_EQ(ts.size(), 3);
+}
+
+TEST(TrieSetTest, FastEraseThirdFromSetWithTerminalPrefix) {
+  trie_set ts{"loremipsum", "lorem", "loremdolor", "consectetur"};
+  ts.erase_fast(ts.find("loremdolor"));
+  EXPECT_THAT(ts, ElementsAre("consectetur", "lorem", "loremipsum"));
+  EXPECT_EQ(ts.size(), 3);
+}
+
+TEST(TrieSetTest, FastEraseFourthFromSetWithTerminalPrefix) {
+  trie_set ts{"loremipsum", "lorem", "loremdolor", "consectetur"};
+  ts.erase_fast(ts.find("consectetur"));
+  EXPECT_THAT(ts, ElementsAre("lorem", "loremdolor", "loremipsum"));
+  EXPECT_EQ(ts.size(), 3);
+}
+
+TEST(TrieSetTest, EraseKeyFromSingleElementSet) {
+  trie_set ts{"lorem"};
+  ts.erase("lorem");
+  EXPECT_THAT(ts, ElementsAre());
+  EXPECT_EQ(ts.size(), 0);
+}
+
+TEST(TrieSetTest, EraseFirstKeyFromTwoElementSet) {
+  trie_set ts{"lorem", "ipsum"};
+  ts.erase("lorem");
+  EXPECT_THAT(ts, ElementsAre("ipsum"));
+  EXPECT_EQ(ts.size(), 1);
+}
+
+TEST(TrieSetTest, EraseSecondKeyFromTwoElementSet) {
+  trie_set ts{"lorem", "ipsum"};
+  ts.erase("ipsum");
+  EXPECT_THAT(ts, ElementsAre("lorem"));
+  EXPECT_EQ(ts.size(), 1);
+}
+
+TEST(TrieSetTest, EraseFirstKeyWithSharedPrefix) {
+  trie_set ts{"loremipsum", "loremdolor"};
+  ts.erase("loremipsum");
+  EXPECT_THAT(ts, ElementsAre("loremdolor"));
+  EXPECT_EQ(ts.size(), 1);
+}
+
+TEST(TrieSetTest, EraseSecondKeyWithSharedPrefix) {
+  trie_set ts{"loremipsum", "loremdolor"};
+  ts.erase("loremdolor");
+  EXPECT_THAT(ts, ElementsAre("loremipsum"));
+  EXPECT_EQ(ts.size(), 1);
+}
+
+TEST(TrieSetTest, EraseFirstKeyFromThreeElementSet) {
+  trie_set ts{"lorem", "ipsum", "dolor"};
+  ts.erase("lorem");
+  EXPECT_THAT(ts, ElementsAre("dolor", "ipsum"));
+  EXPECT_EQ(ts.size(), 2);
+}
+
+TEST(TrieSetTest, EraseSecondKeyFromThreeElementSet) {
+  trie_set ts{"lorem", "ipsum", "dolor"};
+  ts.erase("ipsum");
+  EXPECT_THAT(ts, ElementsAre("dolor", "lorem"));
+  EXPECT_EQ(ts.size(), 2);
+}
+
+TEST(TrieSetTest, EraseThirdKeyFromThreeElementSet) {
+  trie_set ts{"lorem", "ipsum", "dolor"};
+  ts.erase("dolor");
+  EXPECT_THAT(ts, ElementsAre("ipsum", "lorem"));
+  EXPECT_EQ(ts.size(), 2);
+}
+
+TEST(TrieSetTest, EraseFirstKeyFromThreeElementSetWithSharedPrefix) {
+  trie_set ts{"loremipsum", "loremdolor", "consectetur"};
+  ts.erase("loremipsum");
+  EXPECT_THAT(ts, ElementsAre("consectetur", "loremdolor"));
+  EXPECT_EQ(ts.size(), 2);
+}
+
+TEST(TrieSetTest, EraseSecondKeyFromThreeElementSetWithSharedPrefix) {
+  trie_set ts{"loremipsum", "loremdolor", "consectetur"};
+  ts.erase("loremdolor");
+  EXPECT_THAT(ts, ElementsAre("consectetur", "loremipsum"));
+  EXPECT_EQ(ts.size(), 2);
+}
+
+TEST(TrieSetTest, EraseThirdKeyFromThreeElementSetWithSharedPrefix) {
+  trie_set ts{"loremipsum", "loremdolor", "consectetur"};
+  ts.erase("consectetur");
+  EXPECT_THAT(ts, ElementsAre("loremdolor", "loremipsum"));
+  EXPECT_EQ(ts.size(), 2);
+}
+
+TEST(TrieSetTest, EraseFirstKeyFromSetWithTerminalPrefix) {
+  trie_set ts{"loremipsum", "lorem", "loremdolor", "consectetur"};
+  ts.erase("loremipsum");
+  EXPECT_THAT(ts, ElementsAre("consectetur", "lorem", "loremdolor"));
+  EXPECT_EQ(ts.size(), 3);
+}
+
+TEST(TrieSetTest, EraseSecondKeyFromSetWithTerminalPrefix) {
+  trie_set ts{"loremipsum", "lorem", "loremdolor", "consectetur"};
+  ts.erase("lorem");
+  EXPECT_THAT(ts, ElementsAre("consectetur", "loremdolor", "loremipsum"));
+  EXPECT_EQ(ts.size(), 3);
+}
+
+TEST(TrieSetTest, EraseThirdKeyFromSetWithTerminalPrefix) {
+  trie_set ts{"loremipsum", "lorem", "loremdolor", "consectetur"};
+  ts.erase("loremdolor");
+  EXPECT_THAT(ts, ElementsAre("consectetur", "lorem", "loremipsum"));
+  EXPECT_EQ(ts.size(), 3);
+}
+
+TEST(TrieSetTest, EraseFourthKeyFromSetWithTerminalPrefix) {
+  trie_set ts{"loremipsum", "lorem", "loremdolor", "consectetur"};
+  ts.erase("consectetur");
+  EXPECT_THAT(ts, ElementsAre("lorem", "loremdolor", "loremipsum"));
+  EXPECT_EQ(ts.size(), 3);
+}
+
 TEST(TrieSetTest, Swap) {
   trie_set ts1{"lorem", "ipsum", "dolor"};
   trie_set ts2{"dolor", "amet", "consectetur", "adipisci"};

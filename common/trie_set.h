@@ -25,6 +25,8 @@ namespace common {
 //    the information about its key, so most of the node API wouldn't make sense.
 //  * The worst-case space complexity of our iterators is linear in the length of the stored string.
 //    trie_set iterators are cheap to move but relatively expensive to copy.
+//  * Emplace methods are not provided because in order to be inserted in the trie a string must be
+//    split, so it cannot be emplaced.
 //
 template <typename Allocator = std::allocator<std::string>>
 class trie_set {
@@ -169,6 +171,11 @@ class trie_set {
     return it;
   }
 
+  void erase_fast(const_iterator const& pos) {
+    Node::RemoveFast(&roots_, pos);
+    --size_;
+  }
+
   iterator erase(const_iterator& first, const_iterator const& last) {
     if (last.is_end()) {
       while (first != last) {
@@ -194,7 +201,7 @@ class trie_set {
     }
   }
 
-  void swap(trie_set<Allocator>& other) {
+  void swap(trie_set& other) {
     if (std::allocator_traits<Allocator>::propagate_on_container_swap::value) {
       std::swap(alloc_, other.alloc_);
     }
