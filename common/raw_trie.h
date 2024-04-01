@@ -133,6 +133,7 @@ class TrieNode {
     typename NodeSet::iterator end;
   };
 
+ public:
   // Base class for iterators.
   class BaseIterator {
    public:
@@ -190,6 +191,7 @@ class TrieNode {
     std::vector<StateFrame> frames_;
   };
 
+ private:
   // Bidirectional node iterator.
   template <typename Value>
   class GenericIterator : public BaseIterator {
@@ -204,13 +206,23 @@ class TrieNode {
       return this->GetKey();
     }
 
+    template <typename Alias = Value, std::enable_if_t<std::is_void_v<Alias>, bool> = true>
+    std::unique_ptr<std::string const> operator->() const {
+      return std::make_unique<std::string const>(this->GetKey());
+    }
+
     template <typename Alias = Value, std::enable_if_t<!std::is_void_v<Alias>, bool> = true>
-    std::pair<std::string, Alias&> operator*() const {
+    std::pair<std::string const, Alias&> operator*() const {
       auto& node = this->frames_.back().pos->second;
       return {this->GetKey(), node.label_.value()};
     }
 
-    // TODO: operator->
+    template <typename Alias = Value, std::enable_if_t<!std::is_void_v<Alias>, bool> = true>
+    std::unique_ptr<std::pair<std::string const, Alias&>> operator->() const {
+      auto& node = this->frames_.back().pos->second;
+      return std::make_unique<std::pair<std::string const, Alias&>>(this->GetKey(),
+                                                                    node.label_.value());
+    }
 
     GenericIterator& operator++() {
       this->Advance();
@@ -252,13 +264,23 @@ class TrieNode {
       return this->GetKey();
     }
 
+    template <typename Alias = Value, std::enable_if_t<std::is_void_v<Alias>, bool> = true>
+    std::unique_ptr<std::string const> operator->() const {
+      return std::make_unique<std::string const>(this->GetKey());
+    }
+
     template <typename Alias = Value, std::enable_if_t<!std::is_void_v<Alias>, bool> = true>
-    std::pair<std::string, Alias const&> operator*() const {
+    std::pair<std::string const, Alias const&> operator*() const {
       auto& node = this->frames_.back().pos->second;
       return {this->GetKey(), node.label_.value()};
     }
 
-    // TODO: operator->
+    template <typename Alias = Value, std::enable_if_t<!std::is_void_v<Alias>, bool> = true>
+    std::unique_ptr<std::pair<std::string const, Alias const&>> operator->() const {
+      auto& node = this->frames_.back().pos->second;
+      return std::make_unique<std::pair<std::string const, Alias const&>>(this->GetKey(),
+                                                                          node.label_.value());
+    }
 
     GenericConstIterator& operator++() {
       this->Advance();

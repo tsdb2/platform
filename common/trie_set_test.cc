@@ -1,6 +1,7 @@
 #include "common/trie_set.h"
 
 #include <cstddef>
+#include <cstring>
 #include <memory>
 #include <string>
 #include <type_traits>
@@ -200,6 +201,30 @@ TEST(TrieSetTest, AssignInitializerList) {
   ts = {"lorem", "", "dolor"};
   EXPECT_THAT(ts, ElementsAre("", "dolor", "lorem"));
   EXPECT_EQ(ts.size(), 3);
+}
+
+TEST(TrieSetTest, Iterators) {
+  trie_set const ts{"lorem", "ipsum", "dolor", "amet"};
+  auto it1 = ts.find("lorem");
+  auto it2 = ts.find("lorem");
+  auto it3 = ts.find("dolor");
+  auto const end = ts.end();
+  EXPECT_EQ(it1, it2);
+  EXPECT_NE(it1, it3);
+  EXPECT_NE(it2, it3);
+  EXPECT_NE(it1, end);
+  EXPECT_NE(it2, end);
+  EXPECT_NE(it3, end);
+  EXPECT_EQ(*it1, "lorem");
+  EXPECT_EQ(*it2, "lorem");
+  EXPECT_EQ(*it3, "dolor");
+  EXPECT_EQ(strcmp(it1->c_str(), "lorem"), 0);
+  EXPECT_EQ(strcmp(it2->c_str(), "lorem"), 0);
+  EXPECT_EQ(strcmp(it3->c_str(), "dolor"), 0);
+  EXPECT_EQ(*++it3, "ipsum");
+  EXPECT_EQ(*++it3, "lorem");
+  EXPECT_EQ(it3, it1);
+  EXPECT_EQ(++it3, end);
 }
 
 TEST(TrieSetTest, Hash) {

@@ -246,8 +246,8 @@ class trie_map {
     } else {
       // The `erase` calls will invalidate `last` if it's not the end iterator, so we must compare
       // the keys.
-      auto const last_key = last->first;
-      while (first->first != last_key) {
+      auto const last_key = GetKey(last);
+      while (GetKey(first) != last_key) {
         first = erase(std::move(first));
       }
     }
@@ -305,6 +305,17 @@ class trie_map {
   // Returns the root node of the tree (see the comment on `roots_` below).
   Node& root() { return roots_.begin()->second; }
   Node const& root() const { return roots_.begin()->second; }
+
+  // Returns the key of an element referred to by an iterator. Works for both iterators and const
+  // iterators.
+  //
+  // The arrow operator of our trie iterators perform a heap allocation, so for the best performance
+  // we need to use the star operator instead. But the latter requires destructuring the returned
+  // pair into an intermediate variable, so we need a convenience function like this one.
+  static std::string GetKey(typename Node::BaseIterator const& it) {
+    auto const [key, unused] = *it;
+    return key;
+  }
 
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS allocator_type alloc_;
 
