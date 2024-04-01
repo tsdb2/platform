@@ -150,6 +150,8 @@ class TrieNode {
     }
 
    protected:
+    friend class TrieNode;
+
     // Constructs the "begin" iterator.
     // REQUIRES: `roots` must not be empty.
     explicit BaseIterator(NodeSet const& roots);
@@ -311,6 +313,18 @@ class TrieNode {
     return lhs.Tie() != rhs.Tie();
   }
 
+  friend bool operator<(TrieNode const& lhs, TrieNode const& rhs) { return lhs.Tie() < rhs.Tie(); }
+
+  friend bool operator<=(TrieNode const& lhs, TrieNode const& rhs) {
+    return lhs.Tie() <= rhs.Tie();
+  }
+
+  friend bool operator>(TrieNode const& lhs, TrieNode const& rhs) { return lhs.Tie() > rhs.Tie(); }
+
+  friend bool operator>=(TrieNode const& lhs, TrieNode const& rhs) {
+    return lhs.Tie() >= rhs.Tie();
+  }
+
   static Iterator begin(NodeSet const& roots) { return Iterator(roots); }
   static ConstIterator cbegin(NodeSet const& roots) { return ConstIterator(roots); }
   static Iterator end() { return Iterator(); }
@@ -390,7 +404,7 @@ class TrieNode {
   //
   // WARNING: the iterator MUST be valid and dereferenceable, otherwise the behavior is undefined.
   // This is consistent with STL containers.
-  static void RemoveFast(NodeSet* roots, ConstIterator const& it);
+  static void RemoveFast(NodeSet* roots, BaseIterator const& it);
 
  private:
   auto Tie() const { return std::tie(label_, children_); }
@@ -692,7 +706,7 @@ typename TrieNode<Label, Allocator>::Iterator TrieNode<Label, Allocator>::Remove
 }
 
 template <typename Label, typename Allocator>
-void TrieNode<Label, Allocator>::RemoveFast(NodeSet* const roots, ConstIterator const& it) {
+void TrieNode<Label, Allocator>::RemoveFast(NodeSet* const roots, BaseIterator const& it) {
   auto const& frames = it.frames_;
   NodeSet* nodes = roots;
   if (frames.size() > 1) {

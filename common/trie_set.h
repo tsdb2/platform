@@ -25,8 +25,8 @@ namespace common {
 //    the information about its key, so most of the node API wouldn't make sense.
 //  * The worst-case space complexity of our iterators is linear in the length of the stored string.
 //    trie_set iterators are cheap to move but relatively expensive to copy.
-//  * Emplace methods are not provided because in order to be inserted in the trie a string must be
-//    split, so it cannot be emplaced.
+//  * An `emplace` method is not provided because in order to be inserted in the trie a string must
+//    be split, so it cannot be emplaced.
 //
 template <typename Allocator = std::allocator<std::string>>
 class trie_set {
@@ -126,12 +126,28 @@ class trie_set {
   }
 
   friend bool operator==(trie_set const& lhs, trie_set const& rhs) {
-    return lhs.size_ == rhs.size_ && lhs.roots_ == rhs.roots_;
+    return lhs.roots_ == rhs.roots_;
   }
 
-  friend bool operator!=(trie_set const& lhs, trie_set const& rhs) { return !operator==(lhs, rhs); }
+  friend bool operator!=(trie_set const& lhs, trie_set const& rhs) {
+    return lhs.roots_ != rhs.roots_;
+  }
 
-  // TODO: other comparison operators.
+  friend bool operator<(trie_set const& lhs, trie_set const& rhs) {
+    return lhs.roots_ < rhs.roots_;
+  }
+
+  friend bool operator<=(trie_set const& lhs, trie_set const& rhs) {
+    return lhs.roots_ <= rhs.roots_;
+  }
+
+  friend bool operator>(trie_set const& lhs, trie_set const& rhs) {
+    return lhs.roots_ > rhs.roots_;
+  }
+
+  friend bool operator>=(trie_set const& lhs, trie_set const& rhs) {
+    return lhs.roots_ >= rhs.roots_;
+  }
 
   [[nodiscard]] bool empty() const noexcept { return root().IsEmpty(); }
 
@@ -176,7 +192,7 @@ class trie_set {
     --size_;
   }
 
-  iterator erase(const_iterator& first, const_iterator const& last) {
+  iterator erase(const_iterator first, const_iterator const& last) {
     if (last.is_end()) {
       while (first != last) {
         first = erase(std::move(first));
@@ -202,7 +218,7 @@ class trie_set {
   }
 
   void swap(trie_set& other) {
-    if (std::allocator_traits<Allocator>::propagate_on_container_swap::value) {
+    if (allocator_traits::propagate_on_container_swap::value) {
       std::swap(alloc_, other.alloc_);
     }
     std::swap(roots_, other.roots_);

@@ -1,6 +1,7 @@
 #ifndef __TSDB2_COMMON_TRIE_MAP_H__
 #define __TSDB2_COMMON_TRIE_MAP_H__
 
+#include <algorithm>
 #include <initializer_list>
 #include <iterator>
 #include <memory>
@@ -16,6 +17,20 @@
 namespace tsdb2 {
 namespace common {
 
+// trie_map is an associative container mapping strings to arbitrary values. trie_map is implemented
+// as a compressed trie, aka a radix tree. The provided API is similar to `std::map<std::string,
+// Value>`.
+//
+// Notable differences between std::map and trie_map:
+//
+//  * Node handles are not supported. That is because, by definition, a trie node doesn't have all
+//    the information about its key, so most of the node API wouldn't make sense.
+//  * The worst-case space complexity of our iterators is linear in the length of the stored string.
+//    trie_map iterators are cheap to move but relatively expensive to copy.
+//  * An `emplace` method is not provided because in order to be inserted in the trie a string must
+//    be split, so it cannot be emplaced. Note that a `try_emplace` method is still provided because
+//    in that case we can perform in-place construction of the value.
+//
 template <typename Value, typename Allocator = std::allocator<std::pair<std::string const, Value>>>
 class trie_map {
  private:
@@ -118,12 +133,28 @@ class trie_map {
   }
 
   friend bool operator==(trie_map const& lhs, trie_map const& rhs) {
-    return lhs.size_ == rhs.size_ && lhs.roots_ == rhs.roots_;
+    return lhs.roots_ == rhs.roots_;
   }
 
-  friend bool operator!=(trie_map const& lhs, trie_map const& rhs) { return !operator==(lhs, rhs); }
+  friend bool operator!=(trie_map const& lhs, trie_map const& rhs) {
+    return lhs.roots_ != rhs.roots_;
+  }
 
-  // TODO: other comparison operators.
+  friend bool operator<(trie_map const& lhs, trie_map const& rhs) {
+    return lhs.roots_ < rhs.roots_;
+  }
+
+  friend bool operator<=(trie_map const& lhs, trie_map const& rhs) {
+    return lhs.roots_ <= rhs.roots_;
+  }
+
+  friend bool operator>(trie_map const& lhs, trie_map const& rhs) {
+    return lhs.roots_ > rhs.roots_;
+  }
+
+  friend bool operator>=(trie_map const& lhs, trie_map const& rhs) {
+    return lhs.roots_ >= rhs.roots_;
+  }
 
   [[nodiscard]] bool empty() const noexcept { return root().IsEmpty(); }
 
@@ -165,11 +196,110 @@ class trie_map {
     }
   }
 
-  // TODO
+  template <typename V>
+  std::pair<iterator, bool> insert_or_assign(std::string_view const key, V&& value) {
+    auto const [it, inserted] = Node::Insert(&roots_, key, std::move(value));
+    if (inserted) {
+      ++size_;
+    } else {
+      it->second = std::move(value);
+    }
+    return std::make_pair(it, inserted);
+  }
+
+  template <typename... Args>
+  std::pair<iterator, bool> try_emplace(std::string_view const key, Args&&... args) {
+    auto result = Node::Insert(&roots_, key, std::forward<Args>(args)...);
+    if (result.second) {
+      ++size_;
+    }
+    return result;
+  }
+
+  iterator erase(iterator pos) {
+    iterator result = Node::Remove(std::move(pos));
+    --size_;
+    return result;
+  }
+
+  iterator erase(const_iterator pos) {
+    iterator result = Node::Remove(std::move(pos));
+    --size_;
+    return result;
+  }
+
+  void erase_fast(iterator const& pos) {
+    Node::RemoveFast(&roots_, pos);
+    --size_;
+  }
+
+  void erase_fast(const_iterator const& pos) {
+    Node::RemoveFast(&roots_, pos);
+    --size_;
+  }
+
+  iterator erase(const_iterator first, const_iterator const& last) {
+    if (last.is_end()) {
+      while (first != last) {
+        first = erase(std::move(first));
+      }
+    } else {
+      // The `erase` calls will invalidate `last` if it's not the end iterator, so we must compare
+      // the keys.
+      auto const last_key = last->first;
+      while (first->first != last_key) {
+        first = erase(std::move(first));
+      }
+    }
+    return first;
+  }
+
+  size_type erase(std::string_view const key) {
+    if (root().Remove(key)) {
+      --size_;
+      return 1;
+    } else {
+      return 0;
+    }
+  }
+
+  void swap(trie_map const& other) noexcept {
+    if (allocator_traits::propagate_on_container_swap::value) {
+      std::swap(alloc_, other.alloc_);
+    }
+    std::swap(roots_, other.roots_);
+    std::swap(size_, other.size_);
+  }
+
+  // TODO: merge
+
+  size_type count(std::string_view const key) const { return root().Contains(key) ? 1 : 0; }
+
+  iterator find(std::string_view const key) { return Node::Find(&roots_, key); }
+
+  const_iterator find(std::string_view const key) const { return Node::FindConst(&roots_, key); }
 
   bool contains(std::string_view const key) const { return root().Contains(key); }
 
-  // TODO
+  iterator lower_bound(std::string_view const key) { return Node::LowerBound(&roots_, key); }
+
+  const_iterator lower_bound(std::string_view const key) const {
+    return Node::LowerBoundConst(&roots_, key);
+  }
+
+  iterator upper_bound(std::string_view const key) { return Node::UpperBound(&roots_, key); }
+
+  const_iterator upper_bound(std::string_view const key) const {
+    return Node::UpperBoundConst(&roots_, key);
+  }
+
+  std::pair<iterator, iterator> equal_range(std::string_view const key) {
+    return std::make_pair(lower_bound(key), upper_bound(key));
+  }
+
+  std::pair<const_iterator, const_iterator> equal_range(std::string_view const key) const {
+    return std::make_pair(lower_bound(key), upper_bound(key));
+  }
 
  private:
   // Returns the root node of the tree (see the comment on `roots_` below).
@@ -184,7 +314,7 @@ class trie_map {
   // root. The empty string we're using here as a key is irrelevant.
   NodeSet roots_{{"", Node(alloc_)}};
 
-  // Number of strings in the trie.
+  // Number of elements in the trie.
   size_type size_ = 0;
 };
 

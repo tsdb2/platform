@@ -32,7 +32,7 @@ TEST(TrieSetTest, Traits) {
 }
 
 TEST(TrieSetTest, Empty) {
-  trie_set ts;
+  trie_set const ts;
   EXPECT_TRUE(ts.empty());
   EXPECT_EQ(ts.size(), 0);
   EXPECT_THAT(ts, ElementsAre());
@@ -40,7 +40,7 @@ TEST(TrieSetTest, Empty) {
 }
 
 TEST(TrieSetTest, OneEmptyElement) {
-  trie_set ts{""};
+  trie_set const ts{""};
   EXPECT_FALSE(ts.empty());
   EXPECT_EQ(ts.size(), 1);
   EXPECT_THAT(ts, ElementsAre(""));
@@ -49,7 +49,7 @@ TEST(TrieSetTest, OneEmptyElement) {
 }
 
 TEST(TrieSetTest, OneElement) {
-  trie_set ts{"lorem"};
+  trie_set const ts{"lorem"};
   EXPECT_FALSE(ts.empty());
   EXPECT_EQ(ts.size(), 1);
   EXPECT_THAT(ts, ElementsAre("lorem"));
@@ -61,7 +61,7 @@ TEST(TrieSetTest, OneElement) {
 }
 
 TEST(TrieSetTest, TwoDifferentElements) {
-  trie_set ts{"lorem", "ipsum"};
+  trie_set const ts{"lorem", "ipsum"};
   EXPECT_FALSE(ts.empty());
   EXPECT_EQ(ts.size(), 2);
   EXPECT_THAT(ts, ElementsAre("ipsum", "lorem"));
@@ -76,7 +76,7 @@ TEST(TrieSetTest, TwoDifferentElements) {
 }
 
 TEST(TrieSetTest, TwoDifferentElementsReverse) {
-  trie_set ts{"ipsum", "lorem"};
+  trie_set const ts{"ipsum", "lorem"};
   EXPECT_FALSE(ts.empty());
   EXPECT_EQ(ts.size(), 2);
   EXPECT_THAT(ts, ElementsAre("ipsum", "lorem"));
@@ -91,7 +91,7 @@ TEST(TrieSetTest, TwoDifferentElementsReverse) {
 }
 
 TEST(TrieSetTest, TwoElementsOneEmpty) {
-  trie_set ts{"", "lorem"};
+  trie_set const ts{"", "lorem"};
   EXPECT_FALSE(ts.empty());
   EXPECT_EQ(ts.size(), 2);
   EXPECT_THAT(ts, ElementsAre("", "lorem"));
@@ -103,7 +103,7 @@ TEST(TrieSetTest, TwoElementsOneEmpty) {
 }
 
 TEST(TrieSetTest, TwoElementsOneEmptyReverse) {
-  trie_set ts{"lorem", ""};
+  trie_set const ts{"lorem", ""};
   EXPECT_FALSE(ts.empty());
   EXPECT_EQ(ts.size(), 2);
   EXPECT_THAT(ts, ElementsAre("", "lorem"));
@@ -129,7 +129,7 @@ TEST(TrieSetTest, ManyElements) {
 }
 
 TEST(TrieSetTest, ConstructWithSharedPrefixes) {
-  trie_set ts{"abcd", "abefij", "abefgh", "loremipsum", "loremdolor"};
+  trie_set const ts{"abcd", "abefij", "abefgh", "loremipsum", "loremdolor"};
   EXPECT_FALSE(ts.empty());
   EXPECT_EQ(ts.size(), 5);
   EXPECT_THAT(ts, ElementsAre("abcd", "abefgh", "abefij", "loremdolor", "loremipsum"));
@@ -145,7 +145,7 @@ TEST(TrieSetTest, ConstructWithSharedPrefixes) {
 }
 
 TEST(TrieSetTest, ConstructWithDuplicates) {
-  trie_set ts{"lorem", "lorem", "ipsum", "ipsum", "dolor"};
+  trie_set const ts{"lorem", "lorem", "ipsum", "ipsum", "dolor"};
   EXPECT_FALSE(ts.empty());
   EXPECT_EQ(ts.size(), 3);
   EXPECT_THAT(ts, ElementsAre("dolor", "ipsum", "lorem"));
@@ -156,14 +156,14 @@ TEST(TrieSetTest, ConstructWithDuplicates) {
 
 TEST(TrieSetTest, ConstructFromIterators) {
   std::vector<std::string> v{"lorem", "", "ipsum"};
-  trie_set ts{v.begin(), v.end()};
+  trie_set const ts{v.begin(), v.end()};
   EXPECT_THAT(ts, ElementsAre("", "ipsum", "lorem"));
   EXPECT_EQ(ts.size(), 3);
 }
 
 TEST(TrieSetTest, CopyConstruct) {
-  trie_set ts1{"", "lorem", "ipsum"};
-  trie_set ts2{ts1};
+  trie_set const ts1{"", "lorem", "ipsum"};
+  trie_set const ts2{ts1};
   EXPECT_THAT(ts1, ElementsAre("", "ipsum", "lorem"));
   EXPECT_EQ(ts1.size(), 3);
   EXPECT_THAT(ts2, ElementsAre("", "ipsum", "lorem"));
@@ -171,7 +171,7 @@ TEST(TrieSetTest, CopyConstruct) {
 }
 
 TEST(TrieSetTest, CopyAssign) {
-  trie_set ts1{"", "lorem", "ipsum"};
+  trie_set const ts1{"", "lorem", "ipsum"};
   trie_set ts2;
   ts2 = ts1;
   EXPECT_THAT(ts1, ElementsAre("", "ipsum", "lorem"));
@@ -182,7 +182,7 @@ TEST(TrieSetTest, CopyAssign) {
 
 TEST(TrieSetTest, MoveConstruct) {
   trie_set ts1{"", "lorem", "ipsum"};
-  trie_set ts2{std::move(ts1)};
+  trie_set const ts2{std::move(ts1)};
   EXPECT_THAT(ts2, ElementsAre("", "ipsum", "lorem"));
   EXPECT_EQ(ts2.size(), 3);
 }
@@ -212,12 +212,20 @@ TEST(TrieSetTest, Hash) {
 }
 
 TEST(TrieSetTest, Compare) {
-  trie_set ts1{"lorem", "ipsum", "dolor"};
-  trie_set ts2{"lorem", "ipsum", "dolor"};
-  trie_set ts3{"dolor", "amet", "consectetur"};
+  trie_set const ts1{"lorem", "ipsum", "dolor"};
+  trie_set const ts2{"lorem", "ipsum", "dolor"};
+  trie_set const ts3{"dolor", "amet", "consectetur"};
   EXPECT_EQ(ts1, ts2);
   EXPECT_NE(ts1, ts3);
   EXPECT_NE(ts2, ts3);
+  EXPECT_FALSE(ts1 < ts2);
+  EXPECT_FALSE(ts2 < ts3);
+  EXPECT_TRUE(ts1 <= ts2);
+  EXPECT_FALSE(ts2 <= ts3);
+  EXPECT_FALSE(ts1 > ts2);
+  EXPECT_TRUE(ts2 > ts3);
+  EXPECT_TRUE(ts1 >= ts2);
+  EXPECT_TRUE(ts2 > ts3);
 }
 
 TEST(TrieSetTest, Clear) {
