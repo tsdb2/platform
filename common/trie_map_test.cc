@@ -4,6 +4,7 @@
 #include <string>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include "absl/hash/hash.h"
 #include "gmock/gmock.h"
@@ -13,6 +14,7 @@ namespace {
 
 using trie_map = tsdb2::common::trie_map<int>;
 
+using ::testing::_;
 using ::testing::ElementsAre;
 using ::testing::IsEmpty;
 using ::testing::Pair;
@@ -61,7 +63,7 @@ TEST(TrieMapTest, OneElement) {
   EXPECT_FALSE(tm.contains("lor"));
 }
 
-TEST(TrieSetTest, TwoDifferentElements) {
+TEST(TrieMapTest, TwoDifferentElements) {
   trie_map const tm{{"lorem", 42}, {"ipsum", 43}};
   EXPECT_FALSE(tm.empty());
   EXPECT_EQ(tm.size(), 2);
@@ -76,7 +78,7 @@ TEST(TrieSetTest, TwoDifferentElements) {
   EXPECT_FALSE(tm.contains("ips"));
 }
 
-TEST(TrieSetTest, TwoDifferentElementsReverse) {
+TEST(TrieMapTest, TwoDifferentElementsReverse) {
   trie_map const tm{{"ipsum", 42}, {"lorem", 43}};
   EXPECT_FALSE(tm.empty());
   EXPECT_EQ(tm.size(), 2);
@@ -91,7 +93,7 @@ TEST(TrieSetTest, TwoDifferentElementsReverse) {
   EXPECT_FALSE(tm.contains("ips"));
 }
 
-TEST(TrieSetTest, TwoElementsOneEmpty) {
+TEST(TrieMapTest, TwoElementsOneEmpty) {
   trie_map const tm{{"", 12}, {"lorem", 34}};
   EXPECT_FALSE(tm.empty());
   EXPECT_EQ(tm.size(), 2);
@@ -103,7 +105,7 @@ TEST(TrieSetTest, TwoElementsOneEmpty) {
   EXPECT_FALSE(tm.contains("lor"));
 }
 
-TEST(TrieSetTest, TwoElementsOneEmptyReverse) {
+TEST(TrieMapTest, TwoElementsOneEmptyReverse) {
   trie_map const tm{{"lorem", 12}, {"", 34}};
   EXPECT_FALSE(tm.empty());
   EXPECT_EQ(tm.size(), 2);
@@ -115,7 +117,7 @@ TEST(TrieSetTest, TwoElementsOneEmptyReverse) {
   EXPECT_FALSE(tm.contains("lor"));
 }
 
-TEST(TrieSetTest, ManyElements) {
+TEST(TrieMapTest, ManyElements) {
   trie_map tm{{"lorem", 12}, {"ipsum", 34}, {"dolor", 56}, {"amet", 78}};
   EXPECT_FALSE(tm.empty());
   EXPECT_EQ(tm.size(), 4);
@@ -131,6 +133,83 @@ TEST(TrieSetTest, ManyElements) {
   EXPECT_EQ(tm.erase("adipisci"), 0);
   EXPECT_EQ(tm.erase("dolor"), 1);
   EXPECT_EQ(tm.erase("dolor"), 0);
+}
+
+TEST(TrieMapTest, ConstructWithSharedPrefixes) {
+  trie_map const tm{
+      {"abcd", 12}, {"abefij", 34}, {"abefgh", 56}, {"loremipsum", 78}, {"loremdolor", 90},
+  };
+  EXPECT_FALSE(tm.empty());
+  EXPECT_EQ(tm.size(), 5);
+  EXPECT_THAT(tm, ElementsAre(Pair("abcd", 12), Pair("abefgh", 56), Pair("abefij", 34),
+                              Pair("loremdolor", 90), Pair("loremipsum", 78)));
+  EXPECT_FALSE(tm.contains(""));
+  EXPECT_FALSE(tm.contains("ab"));
+  EXPECT_TRUE(tm.contains("abcd"));
+  EXPECT_FALSE(tm.contains("abef"));
+  EXPECT_TRUE(tm.contains("abefgh"));
+  EXPECT_TRUE(tm.contains("abefij"));
+  EXPECT_FALSE(tm.contains("lorem"));
+  EXPECT_TRUE(tm.contains("loremdolor"));
+  EXPECT_TRUE(tm.contains("loremipsum"));
+}
+
+TEST(TrieMapTest, ConstructWithDuplicates) {
+  trie_map const tm{{"lorem", 12}, {"lorem", 34}, {"ipsum", 56}, {"ipsum", 78}, {"dolor", 90}};
+  EXPECT_FALSE(tm.empty());
+  EXPECT_EQ(tm.size(), 3);
+  EXPECT_THAT(tm, ElementsAre(Pair("dolor", 90), Pair("ipsum", _), Pair("lorem", _)));
+  EXPECT_TRUE(tm.contains("lorem"));
+  EXPECT_TRUE(tm.contains("ipsum"));
+  EXPECT_TRUE(tm.contains("dolor"));
+}
+
+TEST(TrieMapTest, ConstructFromIterators) {
+  std::vector<std::pair<std::string, int>> v{{"lorem", 12}, {"", 34}, {"ipsum", 56}};
+  trie_map const tm{v.begin(), v.end()};
+  EXPECT_THAT(tm, ElementsAre(Pair("", 34), Pair("ipsum", 56), Pair("lorem", 12)));
+  EXPECT_EQ(tm.size(), 3);
+}
+
+TEST(TrieMapTest, CopyConstruct) {
+  trie_map const tm1{{"", 12}, {"lorem", 34}, {"ipsum", 56}};
+  trie_map const tm2{tm1};
+  EXPECT_THAT(tm1, ElementsAre(Pair("", 12), Pair("ipsum", 56), Pair("lorem", 34)));
+  EXPECT_EQ(tm1.size(), 3);
+  EXPECT_THAT(tm2, ElementsAre(Pair("", 12), Pair("ipsum", 56), Pair("lorem", 34)));
+  EXPECT_EQ(tm2.size(), 3);
+}
+
+TEST(TrieMapTest, CopyAssign) {
+  trie_map const tm1{{"", 12}, {"lorem", 34}, {"ipsum", 56}};
+  trie_map tm2;
+  tm2 = tm1;
+  EXPECT_THAT(tm1, ElementsAre(Pair("", 12), Pair("ipsum", 56), Pair("lorem", 34)));
+  EXPECT_EQ(tm1.size(), 3);
+  EXPECT_THAT(tm2, ElementsAre(Pair("", 12), Pair("ipsum", 56), Pair("lorem", 34)));
+  EXPECT_EQ(tm2.size(), 3);
+}
+
+TEST(TrieMapTest, MoveConstruct) {
+  trie_map tm1{{"", 12}, {"lorem", 34}, {"ipsum", 56}};
+  trie_map const tm2{std::move(tm1)};
+  EXPECT_THAT(tm2, ElementsAre(Pair("", 12), Pair("ipsum", 56), Pair("lorem", 34)));
+  EXPECT_EQ(tm2.size(), 3);
+}
+
+TEST(TrieMapTest, MoveAssign) {
+  trie_map tm1{{"", 12}, {"lorem", 34}, {"ipsum", 56}};
+  trie_map tm2;
+  tm2 = std::move(tm1);
+  EXPECT_THAT(tm2, ElementsAre(Pair("", 12), Pair("ipsum", 56), Pair("lorem", 34)));
+  EXPECT_EQ(tm2.size(), 3);
+}
+
+TEST(TrieMapTest, AssignInitializerList) {
+  trie_map tm{{"lorem", 12}, {"ipsum", 34}};
+  tm = {{"lorem", 56}, {"", 78}, {"dolor", 90}};
+  EXPECT_THAT(tm, ElementsAre(Pair("", 78), Pair("dolor", 90), Pair("lorem", 56)));
+  EXPECT_EQ(tm.size(), 3);
 }
 
 // TODO

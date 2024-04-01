@@ -91,6 +91,26 @@ class trie_map {
     insert(init);
   }
 
+  trie_map& operator=(trie_map const& other) {
+    alloc_ = allocator_traits::select_on_container_copy_construction(other.alloc_);
+    roots_ = other.roots_;
+    size_ = other.size_;
+    return *this;
+  }
+
+  trie_map& operator=(trie_map&& other) noexcept {
+    alloc_ = std::move(other.alloc_);
+    roots_ = std::move(other.roots_);
+    size_ = other.size_;
+    return *this;
+  }
+
+  trie_map& operator=(std::initializer_list<value_type> const init) {
+    clear();
+    insert(init);
+    return *this;
+  }
+
   allocator_type get_allocator() const noexcept {
     return allocator_traits::select_on_container_copy_construction(alloc_);
   }
