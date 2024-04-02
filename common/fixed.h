@@ -16,7 +16,7 @@ template <typename T, typename Unused>
 using FixedT = typename Fixed<T, Unused>::type;
 
 template <typename Unused, typename T>
-constexpr T FixedV(T&& t) {
+inline constexpr T FixedV(T&& t) {
   return Fixed<T, Unused>::value(std::forward<T>(t));
 }
 
