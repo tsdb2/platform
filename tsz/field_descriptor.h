@@ -157,58 +157,51 @@ struct FieldDescriptorImpl<Field<FirstFieldType, FirstFieldName>, OtherFields...
 // to instrument many metrics you may want to resort to the second pattern. Both patterns have the
 // same runtime performance.
 template <typename... Fields>
-class FieldDescriptor;
-
-template <>
-class FieldDescriptor<> {
+class FieldDescriptor {
  public:
-  using HasTypeNames = internal::AllFieldsHaveTypeNames<>;
+  using HasTypeNames = internal::AllFieldsHaveTypeNames<Fields...>;
   static inline bool constexpr kHasTypeNames = HasTypeNames::value;
 
-  using HasParameterNames = internal::AllFieldsHaveParameterNames<>;
-  static inline bool constexpr kHasParameterNames = HasParameterNames::value;
-
-  using Tuple = std::tuple<>;
-
-  explicit FieldDescriptor() = default;
-  FieldDescriptor(FieldDescriptor const&) = default;
-  FieldDescriptor& operator=(FieldDescriptor const&) = default;
-  FieldDescriptor(FieldDescriptor&&) noexcept = default;
-  FieldDescriptor& operator=(FieldDescriptor&&) noexcept = default;
-
-  std::array<std::string, 0> names() const { return {}; }
-
-  FieldMap MakeFieldMap() const { return {}; }
-};
-
-template <typename... FirstFieldArgs, typename... OtherFields>
-class FieldDescriptor<Field<FirstFieldArgs...>, OtherFields...> {
- public:
-  using HasTypeNames = internal::AllFieldsHaveTypeNames<Field<FirstFieldArgs...>, OtherFields...>;
-  static inline bool constexpr kHasTypeNames = HasTypeNames::value;
-
-  using HasParameterNames =
-      internal::AllFieldsHaveParameterNames<Field<FirstFieldArgs...>, OtherFields...>;
+  using HasParameterNames = internal::AllFieldsHaveParameterNames<Fields...>;
   static inline bool constexpr kHasParameterNames = HasParameterNames::value;
 
   static_assert(kHasTypeNames || kHasParameterNames);
 
-  using Tuple = util::CatTupleT<std::tuple<CanonicalTypeT<typename Field<FirstFieldArgs...>::Type>>,
-                                typename FieldDescriptor<OtherFields...>::Tuple>;
+  using Tuple = std::tuple<CanonicalTypeT<typename Fields::Type>...>;
 
-  template <typename HasTypeNamesAlias = HasTypeNames,
-            std::enable_if_t<HasTypeNamesAlias::value, bool> = true>
-  explicit FieldDescriptor()
-      : names_(internal::GetTypeNameArray<Field<FirstFieldArgs...>, OtherFields...>()) {
+  // Constructs a field descriptor using the type names pattern. The names of the fields are
+  // specified as type strings in the template arguments.
+  //
+  // Example:
+  //
+  //   char constexpr kLoremName[] = "lorem";
+  //   char constexpr kIpsumName[] = "ipsum";
+  //
+  //   FieldDescriptor<Field<int, Name<kLoremName>>, Field<bool, Name<kIpsumName>>> fd;
+  //
+  // In the above example, the first field is an int called "lorem" and the second is a bool called
+  // "ipsum".
+  template <
+      typename HasTypeNamesAlias = HasTypeNames,
+      typename HasParameterNamesAlias = HasParameterNames,
+      std::enable_if_t<HasTypeNamesAlias::value && !HasParameterNamesAlias::value, bool> = true>
+  explicit FieldDescriptor() : names_(internal::GetTypeNameArray<Fields...>()) {
     InitIndices();
   }
 
+  // Constructs a field descriptor using the parameter names pattern. The names of the fields are
+  // specified as constructor arguments.
+  //
+  // Example:
+  //
+  //   FieldDescriptor<Field<int>, Field<bool>> fd{"lorem", "ipsum"};
+  //
+  // In the above example, the first field is an int called "lorem" and the second is a bool called
+  // "ipsum".
   template <typename HasParameterNamesAlias = HasParameterNames,
             std::enable_if_t<HasParameterNamesAlias::value, bool> = true>
-  explicit FieldDescriptor(
-      std::string_view const first_name,
-      tsdb2::common::FixedT<std::string_view, OtherFields> const... other_names)
-      : names_{std::string(first_name), std::string(other_names)...} {
+  explicit FieldDescriptor(tsdb2::common::FixedT<std::string_view, Fields> const... names)
+      : names_{std::string(names)...} {
     InitIndices();
   }
 
@@ -217,10 +210,11 @@ class FieldDescriptor<Field<FirstFieldArgs...>, OtherFields...> {
   FieldDescriptor(FieldDescriptor&&) noexcept = default;
   FieldDescriptor& operator=(FieldDescriptor&&) noexcept = default;
 
-  std::array<std::string, sizeof...(OtherFields) + 1> const& names() const { return names_; }
+  // Returns the names of these fields.
+  std::array<std::string, sizeof...(Fields)> const& names() const { return names_; }
 
-  FieldMap MakeFieldMap(typename Field<FirstFieldArgs...>::ParameterType first,
-                        typename OtherFields::ParameterType... others) const;
+  // Returns a `FieldMap` object mapping these fields' names to the provided values.
+  FieldMap MakeFieldMap(typename Fields::ParameterType const... values) const;
 
  private:
   // Called by the constructors to initialize `indices_`.
@@ -228,32 +222,29 @@ class FieldDescriptor<Field<FirstFieldArgs...>, OtherFields...> {
   // REQUIRES: `names_` must have been initialized.
   void InitIndices();
 
-  std::array<std::string, sizeof...(OtherFields) + 1> names_;
+  std::array<std::string, sizeof...(Fields)> names_;
 
   // `indices_` represents `names_` as if they were sorted. In other words, `indices_[x] == y` means
   // that `names_[x]` is the y-th smallest name.
   //
   // This permutation is used to speed up `MakeFieldMap` by avoiding sorting the entries.
-  std::array<int, sizeof...(OtherFields) + 1> indices_;
+  std::array<int, sizeof...(Fields)> indices_;
 };
 
-template <typename... FirstFieldArgs, typename... OtherFields>
-FieldMap FieldDescriptor<Field<FirstFieldArgs...>, OtherFields...>::MakeFieldMap(
-    typename Field<FirstFieldArgs...>::ParameterType first,
-    typename OtherFields::ParameterType... others) const {
-  std::array<FieldValue, sizeof...(OtherFields) + 1> values{
-      typename Field<FirstFieldArgs...>::CanonicalType(first),
-      typename OtherFields::CanonicalType(others)...};
+template <typename... Fields>
+FieldMap FieldDescriptor<Fields...>::MakeFieldMap(
+    typename Fields::ParameterType const... values) const {
+  std::array<FieldValue, sizeof...(Fields)> value_array{typename Fields::CanonicalType(values)...};
   typename FieldMap::representation_type rep;
-  rep.reserve(sizeof...(OtherFields) + 1);
+  rep.reserve(sizeof...(Fields));
   for (auto const index : indices_) {
-    rep.emplace_back(names_[index], std::move(values[index]));
+    rep.emplace_back(names_[index], std::move(value_array[index]));
   }
   return FieldMap(tsdb2::common::kSortedDeduplicatedContainer, std::move(rep));
 }
 
-template <typename... FirstFieldArgs, typename... OtherFields>
-void FieldDescriptor<Field<FirstFieldArgs...>, OtherFields...>::InitIndices() {
+template <typename... Fields>
+void FieldDescriptor<Fields...>::InitIndices() {
   std::iota(indices_.begin(), indices_.end(), 0);
   std::sort(indices_.begin(), indices_.end(),
             [this](int const lhs, int const rhs) { return names_[lhs] < names_[rhs]; });
