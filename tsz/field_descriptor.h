@@ -1,7 +1,9 @@
 #ifndef __TSDB2_TSZ_FIELD_DESCRIPTOR_H__
 #define __TSDB2_TSZ_FIELD_DESCRIPTOR_H__
 
+#include <algorithm>
 #include <array>
+#include <numeric>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -197,41 +199,86 @@ class FieldDescriptor<Field<FirstFieldArgs...>, OtherFields...> {
   template <typename HasTypeNamesAlias = HasTypeNames,
             std::enable_if_t<HasTypeNamesAlias::value, bool> = true>
   explicit FieldDescriptor()
-      : names_(internal::GetTypeNameArray<Field<FirstFieldArgs...>, OtherFields...>()) {}
+      : names_(internal::GetTypeNameArray<Field<FirstFieldArgs...>, OtherFields...>()) {
+    InitIndices();
+  }
 
   template <typename HasParameterNamesAlias = HasParameterNames,
             std::enable_if_t<HasParameterNamesAlias::value, bool> = true>
   explicit FieldDescriptor(
       std::string_view const first_name,
       tsdb2::common::FixedT<std::string_view, OtherFields> const... other_names)
-      : names_{std::string(first_name), std::string(other_names)...} {}
+      : names_{std::string(first_name), std::string(other_names)...} {
+    InitIndices();
+  }
 
   FieldDescriptor(FieldDescriptor const&) = default;
   FieldDescriptor& operator=(FieldDescriptor const&) = default;
   FieldDescriptor(FieldDescriptor&&) noexcept = default;
   FieldDescriptor& operator=(FieldDescriptor&&) noexcept = default;
 
-  std::array<std::string, sizeof...(OtherFields) + 1> names() const { return names_; }
+  std::array<std::string, sizeof...(OtherFields) + 1> const& names() const { return names_; }
 
   FieldMap MakeFieldMap(typename Field<FirstFieldArgs...>::ParameterType first,
                         typename OtherFields::ParameterType... others) const;
 
  private:
+  // Called by the constructors to initialize `indices_`.
+  //
+  // REQUIRES: `names_` must have been initialized.
+  void InitIndices();
+
   std::array<std::string, sizeof...(OtherFields) + 1> names_;
+
+  // `indices_` represents `names_` as if they were sorted. In other words, `indices_[x] == y` means
+  // that `names_[x]` is the y-th smallest name.
+  //
+  // This permutation is used to speed up `MakeFieldMap` by avoiding sorting the entries.
+  std::array<int, sizeof...(OtherFields) + 1> indices_;
 };
 
+template <typename... FirstFieldArgs, typename... OtherFields>
+FieldMap FieldDescriptor<Field<FirstFieldArgs...>, OtherFields...>::MakeFieldMap(
+    typename Field<FirstFieldArgs...>::ParameterType first,
+    typename OtherFields::ParameterType... others) const {
+  std::array<FieldValue, sizeof...(OtherFields) + 1> values{
+      typename Field<FirstFieldArgs...>::CanonicalType(first),
+      typename OtherFields::CanonicalType(others)...};
+  typename FieldMap::representation_type rep;
+  rep.reserve(sizeof...(OtherFields) + 1);
+  for (auto const index : indices_) {
+    rep.emplace_back(names_[index], std::move(values[index]));
+  }
+  return FieldMap(tsdb2::common::kSortedDeduplicatedContainer, std::move(rep));
+}
+
+template <typename... FirstFieldArgs, typename... OtherFields>
+void FieldDescriptor<Field<FirstFieldArgs...>, OtherFields...>::InitIndices() {
+  std::iota(indices_.begin(), indices_.end(), 0);
+  std::sort(indices_.begin(), indices_.end(),
+            [this](int const lhs, int const rhs) { return names_[lhs] < names_[rhs]; });
+}
+
+// Used to specify entity labels in tsz metrics. See `FieldDescriptor` for more info.
 template <typename... Fields>
 class EntityLabels : public FieldDescriptor<Fields...> {
  public:
   template <typename... Args>
   explicit EntityLabels(Args&&... args) : FieldDescriptor<Fields...>(std::forward<Args>(args)...) {}
+  using FieldDescriptor<Fields...>::operator=;
+  using FieldDescriptor<Fields...>::names;
+  using FieldDescriptor<Fields...>::MakeFieldMap;
 };
 
+// Used to specify metric fields in tsz metrics. See `FieldDescriptor` for more info.
 template <typename... Fields>
 class MetricFields : public FieldDescriptor<Fields...> {
  public:
   template <typename... Args>
   explicit MetricFields(Args&&... args) : FieldDescriptor<Fields...>(std::forward<Args>(args)...) {}
+  using FieldDescriptor<Fields...>::operator=;
+  using FieldDescriptor<Fields...>::names;
+  using FieldDescriptor<Fields...>::MakeFieldMap;
 };
 
 }  // namespace tsz

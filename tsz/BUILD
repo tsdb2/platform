@@ -16,7 +16,10 @@ cc_library(
 
 cc_test(
     name = "base_test",
-    srcs = ["coercion_test.cc"],
+    srcs = [
+        "coercion_test.cc",
+        "field_descriptor_test.cc",
+    ],
     deps = [
         ":base",
         "//common:testing",

@@ -47,6 +47,9 @@ class Counter<EntityLabels<EntityLabelArgs...>, MetricFields<MetricFieldArgs...>
   EntityLabels const &entity_labels() const { return entity_labels_; }
   MetricFields const &metric_fields() const { return metric_fields_; }
 
+  auto const &entity_label_names() const { return entity_labels_.names(); }
+  auto const &metric_field_names() const { return metric_fields_.names(); }
+
  private:
   Counter(Counter const &) = delete;
   Counter &operator=(Counter const &) = delete;
