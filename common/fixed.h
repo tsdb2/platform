@@ -9,7 +9,7 @@ namespace common {
 template <typename T, typename Unused>
 struct Fixed {
   using type = T;
-  static T value(T&& t) { return t; }
+  static T value(T&& t) { return std::move(t); }
 };
 
 template <typename T, typename Unused>

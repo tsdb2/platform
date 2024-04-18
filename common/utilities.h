@@ -18,6 +18,25 @@ using IsIntegralStrict =
 template <typename Type>
 inline bool constexpr IsIntegralStrictV = IsIntegralStrict<Type>::value;
 
+// Allows creating overloaded lambdas. This can be useful e.g. when visiting `std::variant`s.
+// Example:
+//
+//   std::variant<int, std::string, bool> v;
+//   std::visit(OverloadedLambda{
+//     [](int const value) { printf("%d\n", value); },
+//     [](std::string const& value) { printf("%s\n", value.c_str()); },
+//     [](bool const value) { printf("%d\n", value); },
+//   }, v);
+//
+// More information at https://en.cppreference.com/w/cpp/utility/variant/visit.
+template <typename... Lambdas>
+struct OverloadedLambda : Lambdas... {
+  using Lambdas::operator()...;
+};
+
+template <typename... Lambdas>
+OverloadedLambda(Lambdas...) -> OverloadedLambda<Lambdas...>;
+
 namespace internal {
 
 inline absl::Status ReturnIfError_GetStatus(absl::Status const& status) { return status; }

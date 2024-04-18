@@ -41,14 +41,14 @@ struct CatTuple<std::tuple<LHSTypes...>, std::tuple<RHSTypes...>> {
 template <typename LHS, typename RHS>
 using CatTupleT = typename CatTuple<LHS, RHS>::Tuple;
 
-}  // namespace util
+// `IsIntegralStrict` is re-exported here for convenience.
 
-// Re-exported for convenience.
 using tsdb2::util::IsIntegralStrict;
 
-// Re-exported for convenience.
 template <typename Type>
 inline bool constexpr IsIntegralStrictV = tsdb2::util::IsIntegralStrictV<Type>;
+
+}  // namespace util
 
 // Converts the given `Type` to the corresponding canonical type. The tsz API is defined in terms of
 // user-specified types, but the underlying engine converts and stores all data in the corresponding
@@ -69,7 +69,7 @@ struct CanonicalType<bool> {
 };
 
 template <typename Integer>
-struct CanonicalType<Integer, std::enable_if_t<IsIntegralStrictV<Integer>>> {
+struct CanonicalType<Integer, std::enable_if_t<util::IsIntegralStrictV<Integer>>> {
   using Type = int64_t;
 };
 
@@ -100,7 +100,7 @@ struct ParameterType<bool> {
 };
 
 template <typename Integer>
-struct ParameterType<Integer, std::enable_if_t<IsIntegralStrictV<Integer>>> {
+struct ParameterType<Integer, std::enable_if_t<util::IsIntegralStrictV<Integer>>> {
   using Type = int64_t;
 };
 

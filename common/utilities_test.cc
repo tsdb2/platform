@@ -1,6 +1,8 @@
 #include "common/utilities.h"
 
 #include <cstdint>
+#include <string>
+#include <variant>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -11,6 +13,7 @@
 namespace {
 
 using tsdb2::util::IsIntegralStrictV;
+using tsdb2::util::OverloadedLambda;
 
 using ::testing::status::IsOk;
 using ::testing::status::IsOkAndHolds;
@@ -85,6 +88,24 @@ TEST(UtilitiesTest, IsIntegralStrict) {
   EXPECT_TRUE(IsIntegralStrictV<uint16_t>);
   EXPECT_TRUE(IsIntegralStrictV<uint32_t>);
   EXPECT_TRUE(IsIntegralStrictV<uint64_t>);
+}
+
+TEST(UtilitiesTest, OverloadedLambda) {
+  int x1 = 0;
+  std::string x2;
+  bool x3 = true;
+  OverloadedLambda visitor{
+      [&](int const value) { x1 = value + 1; },
+      [&](std::string const& value) { x2 = value + " " + value; },
+      [&](bool const value) { x3 = !value; },
+  };
+  using Variant = std::variant<int, std::string, bool>;
+  std::visit(visitor, Variant{42});
+  EXPECT_EQ(x1, 43);
+  std::visit(visitor, Variant{std::string("lorem")});
+  EXPECT_EQ(x2, "lorem lorem");
+  std::visit(visitor, Variant{true});
+  EXPECT_EQ(x3, false);
 }
 
 }  // namespace
