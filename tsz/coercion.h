@@ -91,6 +91,10 @@ struct CanonicalType<char const*> {
 template <typename Type>
 using CanonicalTypeT = typename CanonicalType<Type>::Type;
 
+// Converts the given `Type` to the corresponding type used for parameter passing. Most types are
+// converted to themselves, but string types are converted to std::string_view and distributions to
+// const-ref. That means strings are always passed by string_view, distributions by const reference,
+// and everything else (booleans, integers, and floats) is passed by copy.
 template <typename Type, typename Enable = void>
 struct ParameterType;
 
@@ -101,21 +105,16 @@ struct ParameterType<bool> {
 
 template <typename Integer>
 struct ParameterType<Integer, std::enable_if_t<util::IsIntegralStrictV<Integer>>> {
-  using Type = int64_t;
+  using Type = Integer;
 };
 
 template <typename Float>
 struct ParameterType<Float, std::enable_if_t<std::is_floating_point_v<Float>>> {
-  using Type = double;
+  using Type = Float;
 };
 
 template <>
 struct ParameterType<std::string> {
-  using Type = std::string_view;
-};
-
-template <>
-struct ParameterType<std::string_view> {
   using Type = std::string_view;
 };
 
