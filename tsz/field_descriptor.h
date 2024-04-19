@@ -99,11 +99,6 @@ struct AllFieldsHaveParameterNames<Field<FirstFieldType, FirstFieldName>, OtherF
   static inline bool constexpr value = false;
 };
 
-template <typename... Fields>
-std::array<std::string, sizeof...(Fields)> GetTypeNameArray() {
-  return {std::string(Fields::GetName())...};
-}
-
 }  // namespace internal
 
 // Represents an entity label set or metric field set in a tsz metric definition. The fields must
@@ -159,7 +154,7 @@ class FieldDescriptor {
       typename HasTypeNamesAlias = HasTypeNames,
       typename HasParameterNamesAlias = HasParameterNames,
       std::enable_if_t<HasTypeNamesAlias::value && !HasParameterNamesAlias::value, bool> = true>
-  explicit FieldDescriptor() : names_(internal::GetTypeNameArray<Fields...>()) {
+  explicit FieldDescriptor() : names_{std::string(Fields::GetName())...} {
     InitIndices();
   }
 
