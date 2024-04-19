@@ -104,32 +104,6 @@ std::array<std::string, sizeof...(Fields)> GetTypeNameArray() {
   return {std::string(Fields::GetName())...};
 }
 
-template <typename... Fields>
-struct FieldDescriptorImpl;
-
-template <>
-struct FieldDescriptorImpl<> {
-  template <size_t N>
-  static void GetFieldNamesImpl(std::array<std::string, N>& names, size_t const index) {}
-  static std::array<std::string, 0> GetFieldNames() { return {}; }
-};
-
-template <typename FirstFieldType, typename FirstFieldName, typename... OtherFields>
-struct FieldDescriptorImpl<Field<FirstFieldType, FirstFieldName>, OtherFields...>
-    : private FieldDescriptorImpl<OtherFields...> {
-  template <size_t N>
-  static void GetFieldNamesImpl(std::array<std::string, N>& names, size_t const index) {
-    names[index] = Field<FirstFieldType, FirstFieldName>::name;
-    FieldDescriptorImpl<OtherFields...>::GetFieldNamesImpl(names, index + 1);
-  }
-
-  static std::array<std::string, sizeof...(OtherFields) + 1> GetFieldNames() {
-    std::array<std::string, sizeof...(OtherFields) + 1> names;
-    GetFieldNamesImpl(names, 0);
-    return names;
-  }
-};
-
 }  // namespace internal
 
 // Represents an entity label set or metric field set in a tsz metric definition. The fields must
