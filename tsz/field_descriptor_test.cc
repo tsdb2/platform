@@ -18,6 +18,7 @@ using ::tsz::MetricFields;
 
 char constexpr kFooName[] = "foo";
 char constexpr kBarName[] = "bar";
+char constexpr kBazName[] = "baz";
 
 TEST(FieldTest, ParameterName) {
   EXPECT_FALSE(Field<int>::kHasTypeName);
@@ -108,6 +109,8 @@ TEST(EmptyMetricFieldsTest, Movable) {
 }
 
 TEST(SingleFieldDescriptorTest, Traits) {
+  EXPECT_FALSE(EntityLabels<int>::HasTypeNames::value);
+  EXPECT_FALSE(EntityLabels<int>::kHasTypeNames);
   EXPECT_FALSE(EntityLabels<Field<int>>::HasTypeNames::value);
   EXPECT_FALSE(EntityLabels<Field<int>>::kHasTypeNames);
   EXPECT_TRUE((EntityLabels<Field<int, kFooName>>::HasTypeNames::value));
@@ -116,6 +119,8 @@ TEST(SingleFieldDescriptorTest, Traits) {
   EXPECT_TRUE(EntityLabels<Field<int>>::kHasParameterNames);
   EXPECT_FALSE((EntityLabels<Field<int, kFooName>>::HasParameterNames::value));
   EXPECT_FALSE((EntityLabels<Field<int, kFooName>>::kHasParameterNames));
+  EXPECT_FALSE(MetricFields<int>::HasTypeNames::value);
+  EXPECT_FALSE(MetricFields<int>::kHasTypeNames);
   EXPECT_FALSE(MetricFields<Field<int>>::HasTypeNames::value);
   EXPECT_FALSE(MetricFields<Field<int>>::kHasTypeNames);
   EXPECT_TRUE((MetricFields<Field<int, kFooName>>::HasTypeNames::value));
@@ -140,11 +145,20 @@ TEST(SingleFieldDescriptorTest, ParameterName) {
   EXPECT_THAT(mf.names(), ElementsAre(kBarName));
 }
 
+TEST(SingleFieldDescriptorTest, Implicit) {
+  EntityLabels<int> el{kFooName};
+  EXPECT_THAT(el.names(), ElementsAre(kFooName));
+  MetricFields<int> mf{kBarName};
+  EXPECT_THAT(mf.names(), ElementsAre(kBarName));
+}
+
 TEST(SingleFieldDescriptorTest, FieldMap) {
   EntityLabels<Field<int, kFooName>> el;
   EXPECT_THAT(el.MakeFieldMap(42), ElementsAre(Pair(kFooName, VariantWith<int64_t>(42))));
-  MetricFields<Field<int>> mf{kBarName};
-  EXPECT_THAT(mf.MakeFieldMap(43), ElementsAre(Pair(kBarName, VariantWith<int64_t>(43))));
+  MetricFields<Field<int>> mf1{kBarName};
+  EXPECT_THAT(mf1.MakeFieldMap(43), ElementsAre(Pair(kBarName, VariantWith<int64_t>(43))));
+  MetricFields<int> mf2{kBazName};
+  EXPECT_THAT(mf2.MakeFieldMap(44), ElementsAre(Pair(kBazName, VariantWith<int64_t>(44))));
 }
 
 TEST(SingleEntityLabelTest, Copyable) {
@@ -212,6 +226,8 @@ TEST(SingleMetricFieldTest, Movable) {
 }
 
 TEST(TwoFieldDescriptorTest, Traits) {
+  EXPECT_FALSE((EntityLabels<bool, std::string>::HasTypeNames::value));
+  EXPECT_FALSE((EntityLabels<bool, std::string>::kHasTypeNames));
   EXPECT_FALSE((EntityLabels<Field<bool>, Field<std::string>>::HasTypeNames::value));
   EXPECT_FALSE((EntityLabels<Field<bool>, Field<std::string>>::kHasTypeNames));
   EXPECT_TRUE(
@@ -223,6 +239,8 @@ TEST(TwoFieldDescriptorTest, Traits) {
       EntityLabels<Field<bool, kFooName>, Field<std::string, kBarName>>::HasParameterNames::value));
   EXPECT_FALSE(
       (EntityLabels<Field<bool, kFooName>, Field<std::string, kBarName>>::kHasParameterNames));
+  EXPECT_FALSE((MetricFields<bool, std::string>::HasTypeNames::value));
+  EXPECT_FALSE((MetricFields<bool, std::string>::kHasTypeNames));
   EXPECT_FALSE((MetricFields<Field<bool>, Field<std::string>>::HasTypeNames::value));
   EXPECT_FALSE((MetricFields<Field<bool>, Field<std::string>>::kHasTypeNames));
   EXPECT_TRUE(
@@ -250,15 +268,26 @@ TEST(TwoFieldDescriptorTest, ParameterNames) {
   EXPECT_THAT(mf.names(), ElementsAre(kBarName, kFooName));
 }
 
+TEST(TwoFieldDescriptorTest, Implicit) {
+  EntityLabels<bool, std::string> el{kFooName, kBarName};
+  EXPECT_THAT(el.names(), ElementsAre(kFooName, kBarName));
+  MetricFields<bool, std::string> mf{kBarName, kFooName};
+  EXPECT_THAT(mf.names(), ElementsAre(kBarName, kFooName));
+}
+
 TEST(TwoFieldDescriptorTest, FieldMap) {
   EntityLabels<Field<bool, kFooName>, Field<std::string, kBarName>> el;
   EXPECT_THAT(el.MakeFieldMap(true, "lorem"),
               ElementsAre(Pair(kBarName, VariantWith<std::string>("lorem")),
                           Pair(kFooName, VariantWith<bool>(true))));
-  MetricFields<Field<bool>, Field<std::string>> mf{kBarName, kFooName};
-  EXPECT_THAT(mf.MakeFieldMap(true, "lorem"),
+  MetricFields<Field<bool>, Field<std::string>> mf1{kBarName, kFooName};
+  EXPECT_THAT(mf1.MakeFieldMap(true, "lorem"),
               ElementsAre(Pair(kBarName, VariantWith<bool>(true)),
                           Pair(kFooName, VariantWith<std::string>("lorem"))));
+  MetricFields<bool, std::string> mf2{kFooName, kBazName};
+  EXPECT_THAT(mf2.MakeFieldMap(true, "lorem"),
+              ElementsAre(Pair(kBazName, VariantWith<std::string>("lorem")),
+                          Pair(kFooName, VariantWith<bool>(true))));
 }
 
 }  // namespace

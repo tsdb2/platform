@@ -85,6 +85,11 @@ struct AllFieldsHaveTypeNames<internal::FieldImpl<FirstFieldType>, OtherFields..
   static inline bool constexpr value = false;
 };
 
+template <typename FirstFieldType, typename... OtherFields>
+struct AllFieldsHaveTypeNames<FirstFieldType, OtherFields...> {
+  static inline bool constexpr value = false;
+};
+
 // Checks that all fields are in the form `Field<Type>`, with the name being specified at
 // construction time.
 template <typename... Fields>
@@ -105,6 +110,43 @@ struct AllFieldsHaveParameterNames<internal::FieldImpl<FirstFieldType, FirstFiel
                                    OtherFields...> {
   static inline bool constexpr value = false;
 };
+
+template <typename FirstFieldType, typename... OtherFields>
+struct AllFieldsHaveParameterNames<FirstFieldType, OtherFields...> {
+  static inline bool constexpr value = AllFieldsHaveParameterNames<OtherFields...>::value;
+};
+
+// Infers the canonical type of a field, as per `tsz::CanonicalType`. The field can be a `FieldImpl`
+// with a type name, a `FieldImpl` with parameter name, or just a field type such as `int` or
+// `std::string`.
+template <typename FieldType>
+struct CanonicalFieldType {
+  using Type = CanonicalTypeT<FieldType>;
+};
+
+template <typename... Args>
+struct CanonicalFieldType<FieldImpl<Args...>> {
+  using Type = typename FieldImpl<Args...>::CanonicalType;
+};
+
+template <typename Field>
+using CanonicalFieldTypeT = typename CanonicalFieldType<Field>::Type;
+
+// Infers the parameter type of a field, as per `tsz::ParameterType`. The field can be a `FieldImpl`
+// with a type name, a `FieldImpl` with parameter name, or just a field type such as `int` or
+// `std::string`.
+template <typename FieldType>
+struct ParameterFieldType {
+  using Type = ParameterTypeT<FieldType>;
+};
+
+template <typename... Args>
+struct ParameterFieldType<FieldImpl<Args...>> {
+  using Type = typename FieldImpl<Args...>::ParameterType;
+};
+
+template <typename Field>
+using ParameterFieldTypeT = typename ParameterFieldType<Field>::Type;
 
 }  // namespace internal
 
@@ -129,6 +171,11 @@ struct AllFieldsHaveParameterNames<internal::FieldImpl<FirstFieldType, FirstFiel
 //   tsz::Counter<tsz::EntityLabels<tsz::Field<std::string>>, tsz::MetricFields<tsz::Field<int>>>
 //       counter{"/lorem/ipsum", "lorem", "foo"};
 //
+// The second pattern can also be abbreviated by removing the `Field` tag altogether:
+//
+//   tsz::Counter<tsz::EntityLabels<std::string>, tsz::MetricFields<int>>
+//       counter{"/lorem/ipsum", "lorem", "foo"};
+//
 // The first pattern provides better type-safety but can be much slower to compile, so if you need
 // to instrument many metrics you may want to resort to the second pattern. Both patterns have the
 // same runtime performance.
@@ -143,7 +190,7 @@ class FieldDescriptor {
 
   static_assert(kHasTypeNames || kHasParameterNames);
 
-  using Tuple = std::tuple<CanonicalTypeT<typename Fields::Type>...>;
+  using Tuple = std::tuple<internal::CanonicalFieldTypeT<Fields>...>;
 
   // Constructs a field descriptor using the type names pattern. The names of the fields are
   // specified as type strings in the template arguments.
@@ -190,7 +237,7 @@ class FieldDescriptor {
   std::array<std::string, sizeof...(Fields)> const& names() const { return names_; }
 
   // Returns a `FieldMap` object mapping these fields' names to the provided values.
-  FieldMap MakeFieldMap(typename Fields::ParameterType const... values) const;
+  FieldMap MakeFieldMap(internal::ParameterFieldTypeT<Fields> const... values) const;
 
  private:
   // Called by the constructors to initialize `indices_`.
@@ -209,8 +256,9 @@ class FieldDescriptor {
 
 template <typename... Fields>
 FieldMap FieldDescriptor<Fields...>::MakeFieldMap(
-    typename Fields::ParameterType const... values) const {
-  std::array<FieldValue, sizeof...(Fields)> value_array{typename Fields::CanonicalType(values)...};
+    internal::ParameterFieldTypeT<Fields> const... values) const {
+  std::array<FieldValue, sizeof...(Fields)> value_array{
+      internal::CanonicalFieldTypeT<Fields>(values)...};
   typename FieldMap::representation_type rep;
   rep.reserve(sizeof...(Fields));
   for (auto const index : indices_) {
