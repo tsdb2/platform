@@ -15,8 +15,8 @@ using tsdb2::common::NoDestructor;
 char constexpr kLoremName[] = "lorem";
 char constexpr kFooName[] = "foo";
 
-NoDestructor<tsz::Counter<tsz::EntityLabels<tsz::Field<std::string, tsz::Name<kLoremName>>>,
-                          tsz::MetricFields<tsz::Field<int, tsz::Name<kFooName>>>>>
+NoDestructor<tsz::Counter<tsz::EntityLabels<tsz::Field<std::string, kLoremName>>,
+                          tsz::MetricFields<tsz::Field<int, kFooName>>>>
     counter1{"/lorem/ipsum"};
 
 NoDestructor<

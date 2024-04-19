@@ -17,37 +17,23 @@
 
 namespace tsz {
 
-// Used for field names. Example:
-//
-//   char constexpr kFooName[] = "foo";
-//   tsz::Counter<tsz::Field<int, tsz::Name<kFooName>>> foo_counter{"/foo/bar"};
-//
-template <char const str[]>
-using Name = tsdb2::common::TypeStringT<str>;
+namespace internal {
 
-// Used internally by tsz to implement template specializations matching the name of a field. Tsz
-// users normally don't need this.
-template <char... name>
-using NameMatcher = tsdb2::common::TypeStringMatcher<name...>;
-
-// Represents an entity label or metric field in a tsz metric definition.
 template <typename... Args>
-struct Field;
+struct FieldImpl;
 
 template <typename FieldType>
-struct Field<FieldType> {
+struct FieldImpl<FieldType> {
   using HasTypeName = std::false_type;
   static inline bool constexpr kHasTypeName = false;
 
   using Type = FieldType;
   using CanonicalType = CanonicalTypeT<Type>;
   using ParameterType = ParameterTypeT<Type>;
-
-  static std::string_view GetName(std::string_view const name) { return name; }
 };
 
 template <typename FieldType, char... field_name>
-struct Field<FieldType, NameMatcher<field_name...>> {
+struct FieldImpl<FieldType, tsdb2::common::TypeStringMatcher<field_name...>> {
   using HasTypeName = std::true_type;
   static inline bool constexpr kHasTypeName = true;
 
@@ -55,12 +41,32 @@ struct Field<FieldType, NameMatcher<field_name...>> {
   using CanonicalType = CanonicalTypeT<Type>;
   using ParameterType = ParameterTypeT<Type>;
 
-  static std::string_view GetName() { return NameMatcher<field_name...>::value; }
+  static inline std::string_view constexpr name =
+      tsdb2::common::TypeStringMatcher<field_name...>::value;
 };
+
+template <typename Type, char const name[]>
+struct Field {
+  using Impl = FieldImpl<Type, tsdb2::common::TypeStringT<name>>;
+};
+
+template <typename Type>
+struct Field<Type, nullptr> {
+  using Impl = FieldImpl<Type>;
+};
+
+template <typename Type, char const name[]>
+using FieldT = typename Field<Type, name>::Impl;
+
+}  // namespace internal
+
+// Represents an entity label or metric field in a tsz metric definition.
+template <typename Type, char const name[] = nullptr>
+using Field = internal::FieldT<Type, name>;
 
 namespace internal {
 
-// Checks that all fields are in the form `Field<Type, Name<kName>>`.
+// Checks that all fields are in the form `Field<Type, kName>`.
 template <typename... Fields>
 struct AllFieldsHaveTypeNames;
 
@@ -70,12 +76,12 @@ struct AllFieldsHaveTypeNames<> {
 };
 
 template <typename FirstFieldType, typename FirstFieldName, typename... OtherFields>
-struct AllFieldsHaveTypeNames<Field<FirstFieldType, FirstFieldName>, OtherFields...> {
+struct AllFieldsHaveTypeNames<internal::FieldImpl<FirstFieldType, FirstFieldName>, OtherFields...> {
   static inline bool constexpr value = AllFieldsHaveTypeNames<OtherFields...>::value;
 };
 
 template <typename FirstFieldType, typename... OtherFields>
-struct AllFieldsHaveTypeNames<Field<FirstFieldType>, OtherFields...> {
+struct AllFieldsHaveTypeNames<internal::FieldImpl<FirstFieldType>, OtherFields...> {
   static inline bool constexpr value = false;
 };
 
@@ -90,12 +96,13 @@ struct AllFieldsHaveParameterNames<> {
 };
 
 template <typename FirstFieldType, typename... OtherFields>
-struct AllFieldsHaveParameterNames<Field<FirstFieldType>, OtherFields...> {
+struct AllFieldsHaveParameterNames<internal::FieldImpl<FirstFieldType>, OtherFields...> {
   static inline bool constexpr value = AllFieldsHaveParameterNames<OtherFields...>::value;
 };
 
 template <typename FirstFieldType, typename FirstFieldName, typename... OtherFields>
-struct AllFieldsHaveParameterNames<Field<FirstFieldType, FirstFieldName>, OtherFields...> {
+struct AllFieldsHaveParameterNames<internal::FieldImpl<FirstFieldType, FirstFieldName>,
+                                   OtherFields...> {
   static inline bool constexpr value = false;
 };
 
@@ -113,8 +120,8 @@ struct AllFieldsHaveParameterNames<Field<FirstFieldType, FirstFieldName>, OtherF
 //
 // In the first pattern field names are part of the type along with field types:
 //
-//   tsz::Counter<tsz::EntityLabels<tsz::Field<std::string, tsz::Name<kLoremName>>>,
-//                tsz::MetricFields<tsz::Field<int, tsz::Name<kFooName>>>>
+//   tsz::Counter<tsz::EntityLabels<tsz::Field<std::string, kLoremName>>,
+//                tsz::MetricFields<tsz::Field<int, kFooName>>>
 //       counter{"/lorem/ipsum"};
 //
 // In the second pattern field names are specified at construction time:
@@ -146,7 +153,7 @@ class FieldDescriptor {
   //   char constexpr kLoremName[] = "lorem";
   //   char constexpr kIpsumName[] = "ipsum";
   //
-  //   FieldDescriptor<Field<int, Name<kLoremName>>, Field<bool, Name<kIpsumName>>> fd;
+  //   FieldDescriptor<Field<int, kLoremName>, Field<bool, kIpsumName>> fd;
   //
   // In the above example, the first field is an int called "lorem" and the second is a bool called
   // "ipsum".
@@ -154,7 +161,7 @@ class FieldDescriptor {
       typename HasTypeNamesAlias = HasTypeNames,
       typename HasParameterNamesAlias = HasParameterNames,
       std::enable_if_t<HasTypeNamesAlias::value && !HasParameterNamesAlias::value, bool> = true>
-  explicit FieldDescriptor() : names_{std::string(Fields::GetName())...} {
+  explicit FieldDescriptor() : names_{std::string(Fields::name)...} {
     InitIndices();
   }
 
