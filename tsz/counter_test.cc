@@ -26,6 +26,8 @@ NoDestructor<
 NoDestructor<tsz::Counter<tsz::EntityLabels<std::string>, tsz::MetricFields<int>>> counter3{
     "/lorem/ipsum", "lorem", "foo"};
 
+NoDestructor<tsz::Counter<int>> counter4{"/lorem/ipsum", "foo"};
+
 // TODO
 
 }  // namespace

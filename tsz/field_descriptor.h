@@ -179,6 +179,10 @@ using ParameterFieldTypeT = typename ParameterFieldType<Field>::Type;
 // The first pattern provides better type-safety but can be much slower to compile, so if you need
 // to instrument many metrics you may want to resort to the second pattern. Both patterns have the
 // same runtime performance.
+//
+// Entity labels and metric fields may have the following types: bool, any integer type, or
+// std::string. They cannot be floating point numbers (for those you need to resort to metric
+// values).
 template <typename... Fields>
 class FieldDescriptor {
  public:
