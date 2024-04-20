@@ -25,6 +25,8 @@ namespace common {
 //    the information about its key, so most of the node API wouldn't make sense.
 //  * The worst-case space complexity of our iterators is linear in the length of the stored string.
 //    trie_set iterators are cheap to move but relatively expensive to copy.
+//  * Iterators are not bidirectional. Monodirectional reverse iterators are still provided, but
+//    providing fully bidirectional ones would entail significant additional complexity.
 //  * An `emplace` method is not provided because in order to be inserted in the trie a string must
 //    be split, so it cannot be emplaced.
 //
@@ -47,8 +49,8 @@ class trie_set {
   using const_pointer = typename std::allocator_traits<Allocator>::const_pointer;
   using iterator = typename Node::ConstIterator;
   using const_iterator = typename Node::ConstIterator;
-  using reverse_iterator = std::reverse_iterator<iterator>;
-  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+  using reverse_iterator = typename Node::ConstReverseIterator;
+  using const_reverse_iterator = typename Node::ConstReverseIterator;
 
   trie_set() = default;
 
@@ -118,7 +120,12 @@ class trie_set {
   const_iterator end() const noexcept { return Node::cend(); }
   const_iterator cend() const noexcept { return Node::cend(); }
 
-  // TODO: reverse iterations
+  reverse_iterator rbegin() noexcept { return Node::crbegin(roots_); }
+  const_reverse_iterator rbegin() const noexcept { return Node::crbegin(roots_); }
+  const_reverse_iterator crbegin() const noexcept { return Node::crbegin(roots_); }
+  reverse_iterator rend() noexcept { return Node::crend(); }
+  const_reverse_iterator rend() const noexcept { return Node::crend(); }
+  const_reverse_iterator crend() const noexcept { return Node::crend(); }
 
   template <typename H>
   friend H AbslHashValue(H h, trie_set const& set) {

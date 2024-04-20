@@ -190,12 +190,12 @@ class flat_set {
   const_iterator end() const noexcept { return rep_.end(); }
   const_iterator cend() const noexcept { return rep_.cend(); }
 
-  iterator rbegin() noexcept { return rep_.rbegin(); }
-  const_iterator rbegin() const noexcept { return rep_.rbegin(); }
-  const_iterator crbegin() const noexcept { return rep_.crbegin(); }
-  iterator rend() noexcept { return rep_.rend(); }
-  const_iterator rend() const noexcept { return rep_.rend(); }
-  const_iterator crend() const noexcept { return rep_.crend(); }
+  reverse_iterator rbegin() noexcept { return rep_.rbegin(); }
+  const_reverse_iterator rbegin() const noexcept { return rep_.rbegin(); }
+  const_reverse_iterator crbegin() const noexcept { return rep_.crbegin(); }
+  reverse_iterator rend() noexcept { return rep_.rend(); }
+  const_reverse_iterator rend() const noexcept { return rep_.rend(); }
+  const_reverse_iterator crend() const noexcept { return rep_.crend(); }
 
   bool empty() const noexcept { return rep_.empty(); }
   size_type size() const noexcept { return rep_.size(); }

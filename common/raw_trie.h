@@ -107,7 +107,14 @@ class TrieNode {
   //     }
   //   }
   //
-  struct StateFrame {
+  // The `reverse` flag indicates whether the `StateFrame` embeds reverse iterators or not. Reverse
+  // iterators are retrieved by calling `rbegin()` / `rend()` on a node set.
+  //
+  template <bool reverse>
+  struct StateFrame;
+
+  template <>
+  struct StateFrame<false> {
     explicit StateFrame(NodeSet& nodes) : pos(nodes.begin()), end(nodes.end()) {}
     explicit StateFrame(NodeSet const& nodes) : StateFrame(const_cast<NodeSet&>(nodes)) {}
 
@@ -133,8 +140,38 @@ class TrieNode {
     typename NodeSet::iterator end;
   };
 
+  template <>
+  struct StateFrame<true> {
+    explicit StateFrame(NodeSet& nodes) : pos(nodes.rbegin()), end(nodes.rend()) {}
+    explicit StateFrame(NodeSet const& nodes) : StateFrame(const_cast<NodeSet&>(nodes)) {}
+
+    explicit StateFrame(typename NodeSet::iterator pos_it, typename NodeSet::iterator end_it)
+        : pos(std::move(pos_it)), end(std::move(end_it)) {}
+
+    StateFrame(StateFrame const&) = default;
+    StateFrame& operator=(StateFrame const&) = default;
+    StateFrame(StateFrame&&) noexcept = default;
+    StateFrame& operator=(StateFrame&&) noexcept = default;
+
+    friend bool operator==(StateFrame const& lhs, StateFrame const& rhs) {
+      if (lhs.pos != lhs.end) {
+        return rhs.pos != rhs.end && lhs.pos->first == rhs.pos->first;
+      } else {
+        return rhs.pos == rhs.end;
+      }
+    }
+
+    friend bool operator!=(StateFrame const& lhs, StateFrame const& rhs) { return !(lhs == rhs); }
+
+    typename NodeSet::reverse_iterator pos;
+    typename NodeSet::reverse_iterator end;
+  };
+
+  using DirectStateFrame = StateFrame<false>;
+
  public:
   // Base class for iterators.
+  template <bool reverse>
   class BaseIterator {
    public:
     BaseIterator(BaseIterator const&) = default;
@@ -161,7 +198,7 @@ class TrieNode {
     explicit BaseIterator() = default;
 
     // Constructs an iterator with the given state frames.
-    explicit BaseIterator(std::vector<StateFrame> frames) : frames_(std::move(frames)) {}
+    explicit BaseIterator(std::vector<StateFrame<reverse>> frames) : frames_(std::move(frames)) {}
 
     // Returns true iff this is the end iterator.
     bool is_end() const { return frames_.empty(); }
@@ -188,13 +225,15 @@ class TrieNode {
     // This is the main iterator advancement algorithm invoked by `operator++`.
     void Advance();
 
-    std::vector<StateFrame> frames_;
+    std::vector<StateFrame<reverse>> frames_;
   };
+
+  using DirectBaseIterator = BaseIterator<false>;
 
  private:
   // Bidirectional node iterator.
-  template <typename Value>
-  class GenericIterator : public BaseIterator {
+  template <typename Value, bool reverse>
+  class GenericIterator : public BaseIterator<reverse> {
    public:
     GenericIterator(GenericIterator const&) = default;
     GenericIterator& operator=(GenericIterator const&) = default;
@@ -235,29 +274,29 @@ class TrieNode {
       return result;
     }
 
-    // TODO: operator--
-
     void swap(GenericIterator& other) { this->frames_.swap(other.frames_); }
 
    private:
     friend class TrieNode;
-    explicit GenericIterator(NodeSet const& roots) : BaseIterator(roots) {}
+    explicit GenericIterator(NodeSet const& roots) : BaseIterator<reverse>(roots) {}
     explicit GenericIterator() = default;
-    explicit GenericIterator(std::vector<StateFrame> frames) : BaseIterator(std::move(frames)) {}
+    explicit GenericIterator(std::vector<StateFrame<reverse>> frames)
+        : BaseIterator<reverse>(std::move(frames)) {}
   };
 
   // Bidirectional const iterator.
-  template <typename Value>
-  class GenericConstIterator : public BaseIterator {
+  template <typename Value, bool reverse>
+  class GenericConstIterator : public BaseIterator<reverse> {
    public:
     GenericConstIterator(GenericConstIterator const&) = default;
     GenericConstIterator& operator=(GenericConstIterator const&) = default;
     GenericConstIterator(GenericConstIterator&&) noexcept = default;
     GenericConstIterator& operator=(GenericConstIterator&&) noexcept = default;
 
-    GenericConstIterator(GenericIterator<Value> const& other) : BaseIterator(other.frames_) {}
-    GenericConstIterator(GenericIterator<Value>&& other) noexcept
-        : BaseIterator(std::move(other.frames_)) {}
+    GenericConstIterator(GenericIterator<Value, reverse> const& other)
+        : BaseIterator<reverse>(other.frames_) {}
+    GenericConstIterator(GenericIterator<Value, reverse>&& other) noexcept
+        : BaseIterator<reverse>(std::move(other.frames_)) {}
 
     template <typename Alias = Value, std::enable_if_t<std::is_void_v<Alias>, bool> = true>
     std::string operator*() const {
@@ -293,21 +332,21 @@ class TrieNode {
       return result;
     }
 
-    // TODO: operator--
-
     void swap(GenericConstIterator& other) { this->frames_.swap(other.frames_); }
 
    private:
     friend class TrieNode;
-    explicit GenericConstIterator(NodeSet const& roots) : BaseIterator(roots) {}
+    explicit GenericConstIterator(NodeSet const& roots) : BaseIterator<reverse>(roots) {}
     explicit GenericConstIterator() = default;
-    explicit GenericConstIterator(std::vector<StateFrame> frames)
-        : BaseIterator(std::move(frames)) {}
+    explicit GenericConstIterator(std::vector<StateFrame<reverse>> frames)
+        : BaseIterator<reverse>(std::move(frames)) {}
   };
 
  public:
-  using Iterator = GenericIterator<typename Traits::Mapped>;
-  using ConstIterator = GenericConstIterator<typename Traits::Mapped>;
+  using Iterator = GenericIterator<typename Traits::Mapped, false>;
+  using ConstIterator = GenericConstIterator<typename Traits::Mapped, false>;
+  using ReverseIterator = GenericIterator<typename Traits::Mapped, true>;
+  using ConstReverseIterator = GenericConstIterator<typename Traits::Mapped, true>;
 
   template <typename... Args>
   explicit TrieNode(EntryAllocator const& alloc, Args&&... args)
@@ -351,6 +390,10 @@ class TrieNode {
   static ConstIterator cbegin(NodeSet const& roots) { return ConstIterator(roots); }
   static Iterator end() { return Iterator(); }
   static ConstIterator cend() { return ConstIterator(); }
+  static ReverseIterator rbegin(NodeSet const& roots) { return ReverseIterator(roots); }
+  static ConstReverseIterator crbegin(NodeSet const& roots) { return ConstReverseIterator(roots); }
+  static ReverseIterator rend() { return ReverseIterator(); }
+  static ConstReverseIterator crend() { return ConstReverseIterator(); }
 
   // Indicates whether the trie rooted at this node is empty.
   bool IsEmpty() const { return !TestLabel() && children_.empty(); }
@@ -426,7 +469,7 @@ class TrieNode {
   //
   // WARNING: the iterator MUST be valid and dereferenceable, otherwise the behavior is undefined.
   // This is consistent with STL containers.
-  static void RemoveFast(NodeSet* roots, BaseIterator const& it);
+  static void RemoveFast(NodeSet* roots, DirectBaseIterator const& it);
 
  private:
   auto Tie() const { return std::tie(label_, children_); }
@@ -445,7 +488,7 @@ class TrieNode {
   typename NodeSet::iterator LowerBound(std::string_view needle);
 
   template <typename... Args>
-  std::pair<Iterator, bool> InsertChild(std::vector<StateFrame> frames, std::string_view key,
+  std::pair<Iterator, bool> InsertChild(std::vector<DirectStateFrame> frames, std::string_view key,
                                         Args&&... args);
 
   Label label_;
@@ -453,16 +496,23 @@ class TrieNode {
 };
 
 template <typename Label, typename Allocator>
-TrieNode<Label, Allocator>::BaseIterator::BaseIterator(NodeSet const& roots) {
+template <bool reverse>
+TrieNode<Label, Allocator>::BaseIterator<reverse>::BaseIterator(NodeSet const& roots) {
   frames_.emplace_back(roots);
-  auto const& root = roots.begin()->second;
-  if (!root.TestLabel()) {
+  TrieNode<Label, Allocator> const* root;
+  if constexpr (reverse) {
+    root = &(roots.rbegin()->second);
+  } else {
+    root = &(roots.begin()->second);
+  }
+  if (!root->TestLabel()) {
     Advance();
   }
 }
 
 template <typename Label, typename Allocator>
-std::string TrieNode<Label, Allocator>::BaseIterator::GetKey() const {
+template <bool reverse>
+std::string TrieNode<Label, Allocator>::BaseIterator<reverse>::GetKey() const {
   size_t size = 0;
   for (auto const& frame : frames_) {
     size += frame.pos->first.size();
@@ -476,7 +526,8 @@ std::string TrieNode<Label, Allocator>::BaseIterator::GetKey() const {
 }
 
 template <typename Label, typename Allocator>
-void TrieNode<Label, Allocator>::BaseIterator::NextNode() {
+template <bool reverse>
+void TrieNode<Label, Allocator>::BaseIterator<reverse>::NextNode() {
   auto const& frame = frames_.back();
   if (frame.pos != frame.end) {
     auto const& node = frame.pos->second;
@@ -498,7 +549,8 @@ void TrieNode<Label, Allocator>::BaseIterator::NextNode() {
 }
 
 template <typename Label, typename Allocator>
-void TrieNode<Label, Allocator>::BaseIterator::Advance() {
+template <bool reverse>
+void TrieNode<Label, Allocator>::BaseIterator<reverse>::Advance() {
   while (NextNode(), !frames_.empty()) {
     auto const& frame = frames_.back();
     auto const& node = frame.pos->second;
@@ -517,7 +569,7 @@ void TrieNode<Label, Allocator>::Clear() {
 template <typename Label, typename Allocator>
 typename TrieNode<Label, Allocator>::Iterator TrieNode<Label, Allocator>::Find(
     NodeSet const& roots, std::string_view key) {
-  std::vector<StateFrame> frames{StateFrame(roots)};
+  std::vector<DirectStateFrame> frames{DirectStateFrame(roots)};
   while (!key.empty()) {
     auto& node = frames.back().pos->second;
     auto const end = node.children_.end();
@@ -578,7 +630,7 @@ typename TrieNode<Label, Allocator>::NodeSet::iterator TrieNode<Label, Allocator
 template <typename Label, typename Allocator>
 typename TrieNode<Label, Allocator>::Iterator TrieNode<Label, Allocator>::LowerBound(
     NodeSet const& roots, std::string_view key) {
-  std::vector<StateFrame> frames{StateFrame(roots)};
+  std::vector<DirectStateFrame> frames{DirectStateFrame(roots)};
   while (!key.empty()) {
     auto& node = frames.back().pos->second;
     auto const it = node.LowerBound(key);
@@ -604,7 +656,7 @@ typename TrieNode<Label, Allocator>::Iterator TrieNode<Label, Allocator>::LowerB
 template <typename Label, typename Allocator>
 typename TrieNode<Label, Allocator>::Iterator TrieNode<Label, Allocator>::UpperBound(
     NodeSet const& roots, std::string_view key) {
-  std::vector<StateFrame> frames{StateFrame(roots)};
+  std::vector<DirectStateFrame> frames{DirectStateFrame(roots)};
   while (!key.empty()) {
     auto& node = frames.back().pos->second;
     auto const it = node.LowerBound(key);
@@ -631,7 +683,7 @@ typename TrieNode<Label, Allocator>::Iterator TrieNode<Label, Allocator>::UpperB
 template <typename Label, typename Allocator>
 template <typename... Args>
 std::pair<typename TrieNode<Label, Allocator>::Iterator, bool>
-TrieNode<Label, Allocator>::InsertChild(std::vector<StateFrame> frames,
+TrieNode<Label, Allocator>::InsertChild(std::vector<DirectStateFrame> frames,
                                         std::string_view const value, Args&&... args) {
   auto const [it, unused_inserted] = children_.try_emplace(
       std::string(value), children_.get_allocator(), std::forward<Args>(args)...);
@@ -643,7 +695,7 @@ template <typename Label, typename Allocator>
 template <typename... Args>
 std::pair<typename TrieNode<Label, Allocator>::Iterator, bool> TrieNode<Label, Allocator>::Insert(
     NodeSet* const roots, std::string_view key, Args&&... args) {
-  std::vector<StateFrame> frames{StateFrame(*roots)};
+  std::vector<DirectStateFrame> frames{DirectStateFrame(*roots)};
   while (!key.empty()) {
     auto& node = frames.back().pos->second;
     auto const it = node.children_.lower_bound(key.substr(0, 1));
@@ -728,7 +780,7 @@ typename TrieNode<Label, Allocator>::Iterator TrieNode<Label, Allocator>::Remove
 }
 
 template <typename Label, typename Allocator>
-void TrieNode<Label, Allocator>::RemoveFast(NodeSet* const roots, BaseIterator const& it) {
+void TrieNode<Label, Allocator>::RemoveFast(NodeSet* const roots, DirectBaseIterator const& it) {
   auto const& frames = it.frames_;
   NodeSet* nodes = roots;
   if (frames.size() > 1) {

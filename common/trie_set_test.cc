@@ -129,6 +129,26 @@ TEST(TrieSetTest, ManyElements) {
   EXPECT_EQ(ts.erase("dolor"), 0);
 }
 
+TEST(TrieSetTest, ReverseIteration) {
+  trie_set ts{"lorem", "ipsum", "dolor", "amet"};
+  auto it = ts.rbegin();
+  EXPECT_THAT(*it++, "lorem");
+  EXPECT_THAT(*it++, "ipsum");
+  EXPECT_THAT(*it++, "dolor");
+  EXPECT_THAT(*it++, "amet");
+  EXPECT_EQ(it, ts.rend());
+}
+
+TEST(TrieSetTest, ConstReverseIteration) {
+  trie_set const ts{"lorem", "ipsum", "dolor", "amet"};
+  auto it = ts.crbegin();
+  EXPECT_THAT(*it++, "lorem");
+  EXPECT_THAT(*it++, "ipsum");
+  EXPECT_THAT(*it++, "dolor");
+  EXPECT_THAT(*it++, "amet");
+  EXPECT_EQ(it, ts.crend());
+}
+
 TEST(TrieSetTest, ConstructWithSharedPrefixes) {
   trie_set const ts{"abcd", "abefij", "abefgh", "loremipsum", "loremdolor"};
   EXPECT_FALSE(ts.empty());

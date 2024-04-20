@@ -135,6 +135,26 @@ TEST(TrieMapTest, ManyElements) {
   EXPECT_EQ(tm.erase("dolor"), 0);
 }
 
+TEST(TrieMapTest, ReverseIteration) {
+  trie_map tm{{"lorem", 12}, {"ipsum", 34}, {"dolor", 56}, {"amet", 78}};
+  auto it = tm.rbegin();
+  EXPECT_THAT(*it++, Pair("lorem", 12));
+  EXPECT_THAT(*it++, Pair("ipsum", 34));
+  EXPECT_THAT(*it++, Pair("dolor", 56));
+  EXPECT_THAT(*it++, Pair("amet", 78));
+  EXPECT_EQ(it, tm.rend());
+}
+
+TEST(TrieMapTest, ConstReverseIteration) {
+  trie_map const tm{{"lorem", 12}, {"ipsum", 34}, {"dolor", 56}, {"amet", 78}};
+  auto it = tm.crbegin();
+  EXPECT_THAT(*it++, Pair("lorem", 12));
+  EXPECT_THAT(*it++, Pair("ipsum", 34));
+  EXPECT_THAT(*it++, Pair("dolor", 56));
+  EXPECT_THAT(*it++, Pair("amet", 78));
+  EXPECT_EQ(it, tm.crend());
+}
+
 TEST(TrieMapTest, ConstructWithSharedPrefixes) {
   trie_map const tm{
       {"abcd", 12}, {"abefij", 34}, {"abefgh", 56}, {"loremipsum", 78}, {"loremdolor", 90},
