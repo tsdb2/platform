@@ -232,6 +232,301 @@ TEST(TrieMapTest, AssignInitializerList) {
   EXPECT_EQ(tm.size(), 3);
 }
 
+TEST(TrieMapTest, Iterators) {
+  trie_map const tm{{"lorem", 12}, {"ipsum", 34}, {"dolor", 56}, {"amet", 78}};
+  auto it1 = tm.find("lorem");
+  auto it2 = tm.find("lorem");
+  auto it3 = tm.find("dolor");
+  auto const end = tm.end();
+  EXPECT_EQ(it1, it2);
+  EXPECT_NE(it1, it3);
+  EXPECT_NE(it2, it3);
+  EXPECT_NE(it1, end);
+  EXPECT_NE(it2, end);
+  EXPECT_NE(it3, end);
+  EXPECT_THAT(*it1, Pair("lorem", 12));
+  EXPECT_THAT(*it2, Pair("lorem", 12));
+  EXPECT_THAT(*it3, Pair("dolor", 56));
+  EXPECT_EQ(it1->first, "lorem");
+  EXPECT_EQ(it1->second, 12);
+  EXPECT_EQ(it2->first, "lorem");
+  EXPECT_EQ(it2->second, 12);
+  EXPECT_EQ(it3->first, "dolor");
+  EXPECT_EQ(it3->second, 56);
+  EXPECT_THAT(*++it3, Pair("ipsum", 34));
+  EXPECT_THAT(*++it3, Pair("lorem", 12));
+  EXPECT_EQ(it3, it1);
+  EXPECT_EQ(++it3, end);
+}
+
+TEST(TrieMapTest, Hash) {
+  EXPECT_EQ(absl::HashOf(trie_map({})), absl::HashOf(trie_map({})));
+  EXPECT_NE(absl::HashOf(trie_map({})), absl::HashOf(trie_map({{"lorem", 12}})));
+  EXPECT_EQ(absl::HashOf(trie_map({{"lorem", 12}})), absl::HashOf(trie_map({{"lorem", 12}})));
+  EXPECT_NE(absl::HashOf(trie_map({{"lorem", 12}})),
+            absl::HashOf(trie_map({{"lorem", 12}, {"ipsum", 12}})));
+  EXPECT_EQ(absl::HashOf(trie_map({{"lorem", 12}, {"ipsum", 34}})),
+            absl::HashOf(trie_map({{"lorem", 12}, {"ipsum", 34}})));
+  EXPECT_EQ(absl::HashOf(trie_map({{"ipsum", 12}, {"lorem", 34}})),
+            absl::HashOf(trie_map({{"lorem", 34}, {"ipsum", 12}})));
+}
+
+TEST(TrieMapTest, CompareEmpty) {
+  trie_map const tm1;
+  trie_map const tm2;
+  EXPECT_TRUE(tm1 == tm2);
+  EXPECT_FALSE(tm1 != tm2);
+  EXPECT_FALSE(tm1 < tm2);
+  EXPECT_TRUE(tm1 <= tm2);
+  EXPECT_FALSE(tm1 > tm2);
+  EXPECT_TRUE(tm1 >= tm2);
+}
+
+TEST(TrieMapTest, CompareOneKeySameValue) {
+  trie_map const tm1{{"lorem", 42}};
+  trie_map const tm2{{"lorem", 42}};
+  EXPECT_TRUE(tm1 == tm2);
+  EXPECT_FALSE(tm1 != tm2);
+  EXPECT_FALSE(tm1 < tm2);
+  EXPECT_TRUE(tm1 <= tm2);
+  EXPECT_FALSE(tm1 > tm2);
+  EXPECT_TRUE(tm1 >= tm2);
+}
+
+TEST(TrieMapTest, CompareOneKeyDifferentValues) {
+  trie_map const tm1{{"lorem", 42}};
+  trie_map const tm2{{"lorem", 43}};
+  EXPECT_FALSE(tm1 == tm2);
+  EXPECT_TRUE(tm1 != tm2);
+  EXPECT_TRUE(tm1 < tm2);
+  EXPECT_TRUE(tm1 <= tm2);
+  EXPECT_FALSE(tm1 > tm2);
+  EXPECT_FALSE(tm1 >= tm2);
+}
+
+TEST(TrieMapTest, CompareDifferentKeys) {
+  trie_map const tm1{{"lorem", 42}};
+  trie_map const tm2{{"ipsum", 42}};
+  EXPECT_FALSE(tm1 == tm2);
+  EXPECT_TRUE(tm1 != tm2);
+  EXPECT_FALSE(tm1 < tm2);
+  EXPECT_FALSE(tm1 <= tm2);
+  EXPECT_TRUE(tm1 > tm2);
+  EXPECT_TRUE(tm1 >= tm2);
+}
+
+TEST(TrieMapTest, CompareSeveralKeys) {
+  trie_map const tm1{{"lorem", 12}, {"ipsum", 34}, {"dolor", 56}};
+  trie_map const tm2{{"lorem", 12}, {"ipsum", 34}, {"dolor", 56}};
+  trie_map const tm3{{"dolor", 56}, {"amet", 78}, {"consectetur", 90}};
+  EXPECT_EQ(tm1, tm2);
+  EXPECT_NE(tm1, tm3);
+  EXPECT_NE(tm2, tm3);
+  EXPECT_FALSE(tm1 < tm2);
+  EXPECT_FALSE(tm2 < tm3);
+  EXPECT_TRUE(tm1 <= tm2);
+  EXPECT_FALSE(tm2 <= tm3);
+  EXPECT_FALSE(tm1 > tm2);
+  EXPECT_TRUE(tm2 > tm3);
+  EXPECT_TRUE(tm1 >= tm2);
+  EXPECT_TRUE(tm2 > tm3);
+}
+
+TEST(TrieMapTest, Clear) {
+  trie_map tm{{"lorem", 12}, {"", 34}, {"ipsum", 56}};
+  tm.clear();
+  EXPECT_THAT(tm, IsEmpty());
+  EXPECT_EQ(tm.size(), 0);
+  EXPECT_TRUE(tm.empty());
+}
+
+TEST(TrieMapTest, Insert) {
+  trie_map tm;
+  auto const [it, inserted] = tm.insert(std::make_pair("lorem", 42));
+  EXPECT_NE(it, tm.end());
+  EXPECT_THAT(*it, Pair("lorem", 42));
+  EXPECT_TRUE(inserted);
+  EXPECT_THAT(tm, ElementsAre(Pair("lorem", 42)));
+  EXPECT_EQ(tm.size(), 1);
+  EXPECT_FALSE(tm.contains(""));
+  EXPECT_TRUE(tm.contains("lorem"));
+  EXPECT_FALSE(tm.contains("lor"));
+  EXPECT_FALSE(tm.contains("ipsum"));
+  EXPECT_FALSE(tm.contains("loremipsum"));
+  EXPECT_FALSE(tm.contains("ipsumlorem"));
+}
+
+TEST(TrieMapTest, InsertEmpty) {
+  trie_map tm;
+  auto const [it, inserted] = tm.insert(std::make_pair("", 42));
+  EXPECT_NE(it, tm.end());
+  EXPECT_THAT(*it, Pair("", 42));
+  EXPECT_TRUE(inserted);
+  EXPECT_THAT(tm, ElementsAre(Pair("", 42)));
+  EXPECT_EQ(tm.size(), 1);
+  EXPECT_TRUE(tm.contains(""));
+  EXPECT_FALSE(tm.contains("lorem"));
+  EXPECT_FALSE(tm.contains("ipsum"));
+}
+
+TEST(TrieMapTest, InsertAnother) {
+  trie_map tm;
+  auto const [it, inserted] = tm.insert(std::make_pair("ipsum", 43));
+  EXPECT_NE(it, tm.end());
+  EXPECT_THAT(*it, Pair("ipsum", 43));
+  EXPECT_TRUE(inserted);
+  EXPECT_THAT(tm, ElementsAre(Pair("ipsum", 43)));
+  EXPECT_EQ(tm.size(), 1);
+  EXPECT_FALSE(tm.contains(""));
+  EXPECT_FALSE(tm.contains("lorem"));
+  EXPECT_TRUE(tm.contains("ipsum"));
+  EXPECT_FALSE(tm.contains("ips"));
+  EXPECT_FALSE(tm.contains("loremipsum"));
+  EXPECT_FALSE(tm.contains("ipsumlorem"));
+}
+
+TEST(TrieMapTest, InsertTwo) {
+  trie_map tm;
+  auto const [it1, inserted1] = tm.insert(std::make_pair("ipsum", 12));
+  auto const [it2, inserted2] = tm.insert(std::make_pair("lorem", 34));
+  EXPECT_NE(it2, tm.end());
+  EXPECT_NE(it1, it2);
+  EXPECT_THAT(*it2, Pair("lorem", 34));
+  EXPECT_TRUE(inserted2);
+  EXPECT_THAT(tm, ElementsAre(Pair("ipsum", 12), Pair("lorem", 34)));
+  EXPECT_EQ(tm.size(), 2);
+  EXPECT_FALSE(tm.contains(""));
+  EXPECT_TRUE(tm.contains("lorem"));
+  EXPECT_TRUE(tm.contains("ipsum"));
+  EXPECT_FALSE(tm.contains("lor"));
+  EXPECT_FALSE(tm.contains("ips"));
+  EXPECT_FALSE(tm.contains("loremipsum"));
+  EXPECT_FALSE(tm.contains("ipsumlorem"));
+}
+
+TEST(TrieMapTest, InsertTwoReverse) {
+  trie_map tm;
+  auto const [it1, inserted1] = tm.insert(std::make_pair("lorem", 12));
+  auto const [it2, inserted2] = tm.insert(std::make_pair("ipsum", 34));
+  EXPECT_NE(it2, tm.end());
+  EXPECT_NE(it1, it2);
+  EXPECT_THAT(*it2, Pair("ipsum", 34));
+  EXPECT_TRUE(inserted2);
+  EXPECT_THAT(tm, ElementsAre(Pair("ipsum", 34), Pair("lorem", 12)));
+  EXPECT_EQ(tm.size(), 2);
+  EXPECT_FALSE(tm.contains(""));
+  EXPECT_TRUE(tm.contains("lorem"));
+  EXPECT_TRUE(tm.contains("ipsum"));
+  EXPECT_FALSE(tm.contains("lor"));
+  EXPECT_FALSE(tm.contains("ips"));
+  EXPECT_FALSE(tm.contains("loremipsum"));
+  EXPECT_FALSE(tm.contains("ipsumlorem"));
+}
+
+TEST(TrieMapTest, InsertTwoWithEmpty) {
+  trie_map tm;
+  auto const [it1, inserted1] = tm.insert(std::make_pair("", 12));
+  auto const [it2, inserted2] = tm.insert(std::make_pair("lorem", 34));
+  EXPECT_NE(it2, tm.end());
+  EXPECT_NE(it1, it2);
+  EXPECT_THAT(*it2, Pair("lorem", 34));
+  EXPECT_TRUE(inserted2);
+  EXPECT_THAT(tm, ElementsAre(Pair("", 12), Pair("lorem", 34)));
+  EXPECT_EQ(tm.size(), 2);
+  EXPECT_TRUE(tm.contains(""));
+  EXPECT_TRUE(tm.contains("lorem"));
+  EXPECT_FALSE(tm.contains("ipsum"));
+  EXPECT_FALSE(tm.contains("lor"));
+  EXPECT_FALSE(tm.contains("loremipsum"));
+  EXPECT_FALSE(tm.contains("ipsumlorem"));
+}
+
+TEST(TrieMapTest, InsertTwoWithEmptyReverse) {
+  trie_map tm;
+  auto const [it1, inserted1] = tm.insert(std::make_pair("lorem", 12));
+  auto const [it2, inserted2] = tm.insert(std::make_pair("", 34));
+  EXPECT_NE(it2, tm.end());
+  EXPECT_NE(it1, it2);
+  EXPECT_THAT(*it2, Pair("", 34));
+  EXPECT_TRUE(inserted2);
+  EXPECT_THAT(tm, ElementsAre(Pair("", 34), Pair("lorem", 12)));
+  EXPECT_EQ(tm.size(), 2);
+  EXPECT_TRUE(tm.contains(""));
+  EXPECT_TRUE(tm.contains("lorem"));
+  EXPECT_FALSE(tm.contains("ipsum"));
+  EXPECT_FALSE(tm.contains("lor"));
+  EXPECT_FALSE(tm.contains("loremipsum"));
+  EXPECT_FALSE(tm.contains("ipsumlorem"));
+}
+
+TEST(TrieMapTest, InsertSameTwice) {
+  trie_map tm;
+  auto const [it1, inserted1] = tm.insert(std::make_pair("lorem", 12));
+  auto const [it2, inserted2] = tm.insert(std::make_pair("lorem", 34));
+  EXPECT_NE(it1, tm.end());
+  EXPECT_THAT(*it1, Pair("lorem", 12));
+  EXPECT_TRUE(inserted1);
+  EXPECT_NE(it2, tm.end());
+  EXPECT_EQ(it1, it2);
+  EXPECT_THAT(*it2, Pair("lorem", 12));
+  EXPECT_FALSE(inserted2);
+  EXPECT_THAT(tm, ElementsAre(Pair("lorem", 12)));
+  EXPECT_EQ(tm.size(), 1);
+  EXPECT_FALSE(tm.contains(""));
+  EXPECT_TRUE(tm.contains("lorem"));
+  EXPECT_FALSE(tm.contains("lor"));
+  EXPECT_FALSE(tm.contains("loremipsum"));
+}
+
+TEST(TrieMapTest, InsertFirstSharedPrefix) {
+  trie_map tm;
+  tm.insert(std::make_pair("abcd", 12));
+  auto const [it, inserted] = tm.insert(std::make_pair("abef", 34));
+  EXPECT_NE(it, tm.end());
+  EXPECT_THAT(*it, Pair("abef", 34));
+  EXPECT_TRUE(inserted);
+  EXPECT_EQ(tm.size(), 2);
+  EXPECT_THAT(tm, ElementsAre(Pair("abcd", 12), Pair("abef", 34)));
+  EXPECT_FALSE(tm.contains(""));
+  EXPECT_FALSE(tm.contains("ab"));
+  EXPECT_TRUE(tm.contains("abcd"));
+  EXPECT_FALSE(tm.contains("cd"));
+  EXPECT_TRUE(tm.contains("abef"));
+  EXPECT_FALSE(tm.contains("ef"));
+}
+
+TEST(TrieMapTest, InsertSecondSharedPrefix) {
+  trie_map tm;
+  tm.insert(std::make_pair("abcd", 12));
+  tm.insert(std::make_pair("abefgh", 34));
+  auto const [it, inserted] = tm.insert(std::make_pair("abefij", 56));
+  EXPECT_NE(it, tm.end());
+  EXPECT_THAT(*it, Pair("abefij", 56));
+  EXPECT_TRUE(inserted);
+  EXPECT_EQ(tm.size(), 3);
+  EXPECT_THAT(tm, ElementsAre(Pair("abcd", 12), Pair("abefgh", 34), Pair("abefij", 56)));
+  EXPECT_FALSE(tm.contains(""));
+  EXPECT_FALSE(tm.contains("ab"));
+  EXPECT_TRUE(tm.contains("abcd"));
+  EXPECT_FALSE(tm.contains("cd"));
+  EXPECT_FALSE(tm.contains("abef"));
+  EXPECT_TRUE(tm.contains("abefgh"));
+  EXPECT_TRUE(tm.contains("abefij"));
+}
+
+TEST(TrieMapTest, InsertDifferentSharedPrefixBranches) {
+  trie_map tm;
+  tm.insert(std::make_pair("abcd", 12));
+  tm.insert(std::make_pair("abefgh", 23));
+  tm.insert(std::make_pair("abefij", 34));
+  tm.insert(std::make_pair("cd", 45));
+  tm.insert(std::make_pair("efgh", 56));
+  tm.insert(std::make_pair("efij", 67));
+  EXPECT_EQ(tm.size(), 6);
+  EXPECT_THAT(tm, ElementsAre(Pair("abcd", 12), Pair("abefgh", 23), Pair("abefij", 34),
+                              Pair("cd", 45), Pair("efgh", 56), Pair("efij", 67)));
+}
+
 // TODO
 
 }  // namespace

@@ -302,9 +302,9 @@ class trie_map {
 
   size_type count(std::string_view const key) const { return root().Contains(key) ? 1 : 0; }
 
-  iterator find(std::string_view const key) { return Node::Find(&roots_, key); }
+  iterator find(std::string_view const key) { return Node::Find(roots_, key); }
 
-  const_iterator find(std::string_view const key) const { return Node::FindConst(&roots_, key); }
+  const_iterator find(std::string_view const key) const { return Node::FindConst(roots_, key); }
 
   bool contains(std::string_view const key) const { return root().Contains(key); }
 
