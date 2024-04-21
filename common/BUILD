@@ -244,6 +244,7 @@ cc_library(
         ":no_destructor",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:node_hash_set",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/synchronization",
     ],
 )

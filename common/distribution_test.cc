@@ -3,6 +3,7 @@
 #include <functional>
 
 #include "absl/functional/bind_front.h"
+#include "common/testing.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -82,6 +83,96 @@ TEST_F(GetBucketTest, Overflow) {
   EXPECT_EQ(bucketer_.GetBucketFor(7), 5);
 }
 
-// TODO
+TEST(DistributionTest, Bucketer) {
+  auto const& bucketer = Bucketer::Custom(1, 2, 0.5, 20);
+  Distribution distribution{bucketer};
+  EXPECT_EQ(distribution.bucketer(), bucketer);
+  EXPECT_EQ(distribution.num_finite_buckets(), bucketer.num_finite_buckets());
+}
+
+TEST(DistributionTest, DefaultBucketer) {
+  Distribution distribution;
+  EXPECT_EQ(distribution.bucketer(), Bucketer::Default());
+  EXPECT_EQ(distribution.num_finite_buckets(), Bucketer::Default().num_finite_buckets());
+}
+
+TEST(DistributionTest, InitialState) {
+  Distribution distribution;
+  for (size_t i = 0; i < distribution.num_finite_buckets(); ++i) {
+    EXPECT_EQ(distribution.bucket(i), 0);
+  }
+  EXPECT_EQ(distribution.underflow(), 0);
+  EXPECT_EQ(distribution.overflow(), 0);
+  EXPECT_EQ(distribution.sum(), 0);
+  EXPECT_EQ(distribution.sum_of_squares(), 0);
+  EXPECT_EQ(distribution.count(), 0);
+  EXPECT_TRUE(distribution.empty());
+}
+
+TEST(DistributionTest, RecordOneSample) {
+  Distribution distribution;
+  distribution.Record(42);
+  EXPECT_EQ(distribution.bucket(3), 1);
+  EXPECT_EQ(distribution.sum(), 42);
+  EXPECT_EQ(distribution.sum_of_squares(), 42 * 42);
+  EXPECT_EQ(distribution.count(), 1);
+  EXPECT_FALSE(distribution.empty());
+  EXPECT_EQ(distribution.mean(), 42);
+}
+
+TEST(DistributionTest, RecordTwoSamples) {
+  Distribution distribution;
+  distribution.Record(1);
+  distribution.Record(5);
+  EXPECT_EQ(distribution.bucket(1), 1);
+  EXPECT_EQ(distribution.bucket(2), 1);
+  EXPECT_EQ(distribution.sum(), 6);
+  EXPECT_EQ(distribution.sum_of_squares(), 26);
+  EXPECT_EQ(distribution.count(), 2);
+  EXPECT_FALSE(distribution.empty());
+  EXPECT_EQ(distribution.mean(), 3);
+}
+
+TEST(DistributionTest, RecordOneSampleManyTimes) {
+  Distribution distribution;
+  distribution.Record(1);
+  distribution.RecordMany(5, 3);
+  EXPECT_EQ(distribution.bucket(1), 1);
+  EXPECT_EQ(distribution.bucket(2), 3);
+  EXPECT_EQ(distribution.sum(), 16);
+  EXPECT_EQ(distribution.sum_of_squares(), 76);
+  EXPECT_EQ(distribution.count(), 4);
+  EXPECT_FALSE(distribution.empty());
+  EXPECT_EQ(distribution.mean(), 4);
+}
+
+TEST(DistributionTest, Add) {
+  Distribution distribution1;
+  distribution1.Record(2);
+  distribution1.Record(4);
+  distribution1.Record(6);
+  distribution1.Record(8);
+  distribution1.Record(10);
+  Distribution distribution2;
+  distribution2.Record(1);
+  distribution2.Record(3);
+  distribution2.Record(5);
+  distribution2.Record(7);
+  distribution2.Record(9);
+  distribution2.Record(11);
+  EXPECT_OK(distribution1.Add(distribution2));
+  EXPECT_EQ(distribution1.num_finite_buckets(), Bucketer::Default().num_finite_buckets());
+  EXPECT_EQ(distribution1.bucket(0), 0);
+  EXPECT_EQ(distribution1.bucket(1), 3);
+  EXPECT_EQ(distribution1.bucket(2), 8);
+  for (size_t i = 3; i < distribution1.num_finite_buckets(); ++i) {
+    EXPECT_EQ(distribution1.bucket(i), 0);
+  }
+  EXPECT_EQ(distribution1.sum(), 66);
+  EXPECT_EQ(distribution1.sum_of_squares(), 506);
+  EXPECT_EQ(distribution1.count(), 11);
+  EXPECT_FALSE(distribution1.empty());
+  EXPECT_EQ(distribution1.mean(), 6);
+}
 
 }  // namespace

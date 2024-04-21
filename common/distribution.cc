@@ -8,6 +8,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/container/node_hash_set.h"
+#include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"
 #include "common/no_destructor.h"
 
@@ -72,6 +73,35 @@ Bucketer const& Bucketer::GetCanonicalBucketer(double const width, double const 
   auto const [it, _] = bucketers->emplace(width, growth_factor, scale_factor,
                                           std::min(num_finite_buckets, kMaxNumFiniteBuckets));
   return *it;
+}
+
+void Distribution::RecordMany(double const sample, size_t const times) {
+  sum_ += sample * times;
+  sum_of_squares_ += sample * sample * times;
+  count_ += times;
+  auto const i = FindBucket(sample);
+  if (i < 0) {
+    underflow_ += times;
+  } else if (i >= bucketer_->num_finite_buckets()) {
+    overflow_ += times;
+  } else {
+    buckets_[i] += times;
+  }
+}
+
+absl::Status Distribution::Add(Distribution const& other) {
+  if (other.bucketer_ != bucketer_) {
+    return absl::InvalidArgumentError("incompatible bucketers");
+  }
+  sum_ += other.sum_;
+  sum_of_squares_ += other.sum_of_squares_;
+  count_ += other.count_;
+  underflow_ += other.underflow_;
+  overflow_ += other.overflow_;
+  for (size_t i = 0; i < buckets_.size(); ++i) {
+    buckets_[i] += other.buckets_[i];
+  }
+  return absl::OkStatus();
 }
 
 }  // namespace common

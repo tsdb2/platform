@@ -5,6 +5,9 @@
 #include <cstddef>
 #include <tuple>
 #include <utility>
+#include <vector>
+
+#include "absl/status/status.h"
 
 namespace tsdb2 {
 namespace common {
@@ -94,8 +97,8 @@ class Bucketer {
   // Moves and copies not allowed because bucketers are canonical.
   Bucketer(Bucketer const &) = delete;
   Bucketer &operator=(Bucketer const &) = delete;
-  Bucketer(Bucketer &&) noexcept = delete;
-  Bucketer &operator=(Bucketer &&) noexcept = delete;
+  Bucketer(Bucketer &&) = delete;
+  Bucketer &operator=(Bucketer &&) = delete;
 
   static Bucketer const &GetCanonicalBucketer(double width, double growth_factor,
                                               double scale_factor, size_t num_finite_buckets);
@@ -106,9 +109,84 @@ class Bucketer {
   size_t num_finite_buckets_;
 };
 
+// Manages a histogram of sample frequencies. The histogram is conceptually an array of buckets,
+// each bucket being an unsigned integer representing the number of samples in that bucket. The
+// number and boundaries of the buckets are determined by a Bucketer.
+//
+// Bucketers define a finite number of buckets, but Distribution objects keep two extra implicit
+// buckets: samples that fall below the lowest bucket are recorded in an underflow bucket, and
+// samples falling above the highest are recorded in an overflow bucket.
 class Distribution {
  public:
-  // TODO
+  explicit Distribution(Bucketer const &bucketer)
+      : bucketer_(&bucketer), buckets_(bucketer.num_finite_buckets(), 0) {
+    buckets_.shrink_to_fit();
+  }
+
+  // Constructs a distribution with the default bucketer.
+  explicit Distribution() : Distribution(Bucketer::Default()) {}
+
+  Distribution(Distribution const &) = default;
+  Distribution &operator=(Distribution const &) = default;
+  Distribution(Distribution &&) noexcept = default;
+  Distribution &operator=(Distribution &&) noexcept = default;
+
+  // Returns the bucketer associated to this distribution.
+  Bucketer const &bucketer() const { return *bucketer_; }
+
+  // Returns the number of buckets. Equivalent to `bucketer().num_finite_buckets()`.
+  size_t num_finite_buckets() const { return buckets_.size(); }
+
+  // Returns the number of samples in the i-th finite bucket. Undefined behavior if i is greater
+  // than or equal to `num_finite_buckets`.
+  size_t bucket(size_t const i) const { return buckets_[i]; }
+
+  // Returns the number of samples in the underflow bucket.
+  size_t underflow() const { return underflow_; }
+
+  // Returns the number of samples in the overflow bucket.
+  size_t overflow() const { return overflow_; }
+
+  // Returns the sum of all samples.
+  double sum() const { return sum_; }
+
+  // Returns the sum of the squared samples. `Distribution` keeps track of this information in order
+  // to calculate the variance and standard deviation.
+  double sum_of_squares() const { return sum_of_squares_; }
+
+  // Returns the number of samples, including the ones in the underflow and overflow buckets.
+  size_t count() const { return count_; }
+
+  // True iff there are no samples (i.e. `count() == 0`).
+  bool empty() const { return count_ == 0; }
+
+  // Various stats about the recorded samples.
+  double mean() const { return sum_ / count_; }
+  double variance() const { return (sum_of_squares_ - sum_ * sum_ / count_) / count_; }
+  double stddev() const { return std::sqrt(variance()); }
+
+  // Records a sample in the corresponding bucket.
+  void Record(double const sample) { RecordMany(sample, 1); }
+
+  // Records a sample `times` times.
+  void RecordMany(double sample, size_t times);
+
+  // Adds `other` to this distribution. The two distributions must have the same bucketer, otherwise
+  // the operation will fail with an error status.
+  absl::Status Add(Distribution const &other);
+
+ private:
+  intptr_t FindBucket(double const sample) const { return bucketer_->GetBucketFor(sample); }
+
+  // Not owned. Must never be null.
+  Bucketer const *bucketer_;
+
+  double sum_ = 0;
+  double sum_of_squares_ = 0;
+  size_t count_ = 0;
+  size_t underflow_ = 0;
+  size_t overflow_ = 0;
+  std::vector<size_t> buckets_;
 };
 
 }  // namespace common
