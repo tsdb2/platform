@@ -308,16 +308,16 @@ class trie_map {
 
   bool contains(std::string_view const key) const { return root().Contains(key); }
 
-  iterator lower_bound(std::string_view const key) { return Node::LowerBound(&roots_, key); }
+  iterator lower_bound(std::string_view const key) { return Node::LowerBound(roots_, key); }
 
   const_iterator lower_bound(std::string_view const key) const {
-    return Node::LowerBoundConst(&roots_, key);
+    return Node::LowerBoundConst(roots_, key);
   }
 
-  iterator upper_bound(std::string_view const key) { return Node::UpperBound(&roots_, key); }
+  iterator upper_bound(std::string_view const key) { return Node::UpperBound(roots_, key); }
 
   const_iterator upper_bound(std::string_view const key) const {
-    return Node::UpperBoundConst(&roots_, key);
+    return Node::UpperBoundConst(roots_, key);
   }
 
   std::pair<iterator, iterator> equal_range(std::string_view const key) {
