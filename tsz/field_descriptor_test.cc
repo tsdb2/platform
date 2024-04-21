@@ -15,6 +15,7 @@ using ::testing::VariantWith;
 using ::tsz::EntityLabels;
 using ::tsz::Field;
 using ::tsz::MetricFields;
+using ::tsz::internal::HasDuplicateNamesV;
 
 char constexpr kFooName[] = "foo";
 char constexpr kBarName[] = "bar";
@@ -43,6 +44,32 @@ TEST(FieldTest, TypeName) {
   EXPECT_TRUE(
       (std::is_same_v<typename Field<std::string, kBarName>::ParameterType, std::string_view>));
   EXPECT_EQ((Field<std::string, kBarName>::name), kBarName);
+}
+
+TEST(DuplicateTypeNamesTest, Empty) { EXPECT_FALSE(HasDuplicateNamesV<>); }
+
+TEST(DuplicateTypeNamesTest, OneField) { EXPECT_FALSE((HasDuplicateNamesV<Field<int, kFooName>>)); }
+
+TEST(DuplicateTypeNamesTest, TwoFieldsNoDuplication) {
+  EXPECT_FALSE((HasDuplicateNamesV<Field<int, kFooName>, Field<int, kBarName>>));
+}
+
+TEST(DuplicateTypeNamesTest, TwoFieldsWithDuplication) {
+  EXPECT_TRUE((HasDuplicateNamesV<Field<int, kFooName>, Field<int, kFooName>>));
+}
+
+TEST(DuplicateTypeNamesTest, ThreeFieldsNoDuplication) {
+  EXPECT_FALSE(
+      (HasDuplicateNamesV<Field<int, kFooName>, Field<int, kBarName>, Field<int, kBazName>>));
+}
+
+TEST(DuplicateTypeNamesTest, ThreeFieldsOneDuplication) {
+  EXPECT_TRUE(
+      (HasDuplicateNamesV<Field<int, kFooName>, Field<int, kBarName>, Field<int, kBarName>>));
+  EXPECT_TRUE(
+      (HasDuplicateNamesV<Field<int, kBarName>, Field<int, kFooName>, Field<int, kBarName>>));
+  EXPECT_TRUE(
+      (HasDuplicateNamesV<Field<int, kBarName>, Field<int, kBarName>, Field<int, kFooName>>));
 }
 
 TEST(EmptyFieldDescriptorTest, Traits) {

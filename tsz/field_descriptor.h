@@ -66,29 +66,69 @@ using Field = internal::FieldT<Type, name>;
 
 namespace internal {
 
-// Checks that all fields are in the form `Field<Type, kName>`.
+// Indicates whether one or more of the specified `Fields` have the specified `Name`.
+//
+// REQUIRES: all the provided fields must have type names, i.e. they must be in the form
+// `FieldImpl<FieldType, FieldName>`.
+template <typename Name, typename... Fields>
+struct ContainsName;
+
+template <char... name>
+struct ContainsName<tsdb2::common::TypeStringMatcher<name...>> : public std::false_type {};
+
+template <char... name, typename FirstFieldType, typename... OtherFields>
+struct ContainsName<tsdb2::common::TypeStringMatcher<name...>,
+                    FieldImpl<FirstFieldType, tsdb2::common::TypeStringMatcher<name...>>,
+                    OtherFields...> : public std::true_type {};
+
+template <char... name, typename FirstFieldType, typename FirstFieldName, typename... OtherFields>
+struct ContainsName<tsdb2::common::TypeStringMatcher<name...>,
+                    FieldImpl<FirstFieldType, FirstFieldName>, OtherFields...>
+    : public ContainsName<tsdb2::common::TypeStringMatcher<name...>, OtherFields...> {};
+
+template <typename Name, typename... Fields>
+inline bool constexpr ContainsNameV = ContainsName<Name, Fields...>::value;
+
+// Indicates whether two or more among the provided fields have duplicate names.
+//
+// REQUIRES: all the provided fields must have type names, i.e. they must be in the form
+// `FieldImpl<FieldType, FieldName>`.
+template <typename... Fields>
+struct HasDuplicateNames;
+
+template <>
+struct HasDuplicateNames<> : public std::false_type {};
+
+template <typename FirstFieldType, typename FirstFieldName, typename... OtherFields>
+struct HasDuplicateNames<FieldImpl<FirstFieldType, FirstFieldName>, OtherFields...>
+    : public std::disjunction<ContainsName<FirstFieldName, OtherFields...>,
+                              HasDuplicateNames<OtherFields...>> {};
+
+template <typename... Fields>
+inline bool constexpr HasDuplicateNamesV = HasDuplicateNames<Fields...>::value;
+
+// Checks that all fields are in the form `Field<Type, kName>` and that there are no duplicate
+// names.
 template <typename... Fields>
 struct AllFieldsHaveTypeNames;
 
 template <>
-struct AllFieldsHaveTypeNames<> {
-  static inline bool constexpr value = true;
-};
+struct AllFieldsHaveTypeNames<> : public std::true_type {};
 
 template <typename FirstFieldType, typename FirstFieldName, typename... OtherFields>
-struct AllFieldsHaveTypeNames<internal::FieldImpl<FirstFieldType, FirstFieldName>, OtherFields...> {
-  static inline bool constexpr value = AllFieldsHaveTypeNames<OtherFields...>::value;
+struct AllFieldsHaveTypeNames<internal::FieldImpl<FirstFieldType, FirstFieldName>, OtherFields...>
+    : public AllFieldsHaveTypeNames<OtherFields...> {
+  static_assert(!internal::HasDuplicateNamesV<internal::FieldImpl<FirstFieldType, FirstFieldName>,
+                                              OtherFields...>,
+                "field descriptors must not have duplicate names");
 };
 
 template <typename FirstFieldType, typename... OtherFields>
-struct AllFieldsHaveTypeNames<internal::FieldImpl<FirstFieldType>, OtherFields...> {
-  static inline bool constexpr value = false;
-};
+struct AllFieldsHaveTypeNames<internal::FieldImpl<FirstFieldType>, OtherFields...>
+    : public std::false_type {};
 
 template <typename FirstFieldType, typename... OtherFields>
-struct AllFieldsHaveTypeNames<FirstFieldType, OtherFields...> {
-  static inline bool constexpr value = false;
-};
+struct AllFieldsHaveTypeNames<FirstFieldType, OtherFields...> : public std::false_type {};
 
 // Checks that all fields are in the form `Field<Type>`, with the name being specified at
 // construction time.
