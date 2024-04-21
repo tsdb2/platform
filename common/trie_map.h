@@ -290,7 +290,7 @@ class trie_map {
     }
   }
 
-  void swap(trie_map const& other) noexcept {
+  void swap(trie_map& other) noexcept {
     if (allocator_traits::propagate_on_container_swap::value) {
       std::swap(alloc_, other.alloc_);
     }

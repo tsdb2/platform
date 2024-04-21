@@ -1243,6 +1243,121 @@ TEST(TrieMapTest, FastEraseFourthFromMapWithTerminalPrefix) {
   EXPECT_EQ(tm.size(), 3);
 }
 
-// TODO
+TEST(TrieMapTest, EraseKeyFromSingleElementMap) {
+  trie_map tm{{"lorem", 42}};
+  tm.erase("lorem");
+  EXPECT_THAT(tm, ElementsAre());
+  EXPECT_EQ(tm.size(), 0);
+}
+
+TEST(TrieMapTest, EraseFirstKeyFromTwoElementMap) {
+  trie_map tm{{"lorem", 12}, {"ipsum", 34}};
+  tm.erase("lorem");
+  EXPECT_THAT(tm, ElementsAre(Pair("ipsum", 34)));
+  EXPECT_EQ(tm.size(), 1);
+}
+
+TEST(TrieMapTest, EraseSecondKeyFromTwoElementMap) {
+  trie_map tm{{"lorem", 12}, {"ipsum", 34}};
+  tm.erase("ipsum");
+  EXPECT_THAT(tm, ElementsAre(Pair("lorem", 12)));
+  EXPECT_EQ(tm.size(), 1);
+}
+
+TEST(TrieMapTest, EraseFirstKeyWithSharedPrefix) {
+  trie_map tm{{"loremipsum", 12}, {"loremdolor", 34}};
+  tm.erase("loremipsum");
+  EXPECT_THAT(tm, ElementsAre(Pair("loremdolor", 34)));
+  EXPECT_EQ(tm.size(), 1);
+}
+
+TEST(TrieMapTest, EraseSecondKeyWithSharedPrefix) {
+  trie_map tm{{"loremipsum", 12}, {"loremdolor", 34}};
+  tm.erase("loremdolor");
+  EXPECT_THAT(tm, ElementsAre(Pair("loremipsum", 12)));
+  EXPECT_EQ(tm.size(), 1);
+}
+
+TEST(TrieMapTest, EraseFirstKeyFromThreeElementMap) {
+  trie_map tm{{"lorem", 12}, {"ipsum", 34}, {"dolor", 56}};
+  tm.erase("lorem");
+  EXPECT_THAT(tm, ElementsAre(Pair("dolor", 56), Pair("ipsum", 34)));
+  EXPECT_EQ(tm.size(), 2);
+}
+
+TEST(TrieMapTest, EraseSecondKeyFromThreeElementMap) {
+  trie_map tm{{"lorem", 12}, {"ipsum", 34}, {"dolor", 56}};
+  tm.erase("ipsum");
+  EXPECT_THAT(tm, ElementsAre(Pair("dolor", 56), Pair("lorem", 12)));
+  EXPECT_EQ(tm.size(), 2);
+}
+
+TEST(TrieMapTest, EraseThirdKeyFromThreeElementMap) {
+  trie_map tm{{"lorem", 12}, {"ipsum", 34}, {"dolor", 56}};
+  tm.erase("dolor");
+  EXPECT_THAT(tm, ElementsAre(Pair("ipsum", 34), Pair("lorem", 12)));
+  EXPECT_EQ(tm.size(), 2);
+}
+
+TEST(TrieMapTest, EraseFirstKeyFromThreeElementMapWithSharedPrefix) {
+  trie_map tm{{"loremipsum", 12}, {"loremdolor", 34}, {"consectetur", 56}};
+  tm.erase("loremipsum");
+  EXPECT_THAT(tm, ElementsAre(Pair("consectetur", 56), Pair("loremdolor", 34)));
+  EXPECT_EQ(tm.size(), 2);
+}
+
+TEST(TrieMapTest, EraseSecondKeyFromThreeElementMapWithSharedPrefix) {
+  trie_map tm{{"loremipsum", 12}, {"loremdolor", 34}, {"consectetur", 56}};
+  tm.erase("loremdolor");
+  EXPECT_THAT(tm, ElementsAre(Pair("consectetur", 56), Pair("loremipsum", 12)));
+  EXPECT_EQ(tm.size(), 2);
+}
+
+TEST(TrieMapTest, EraseThirdKeyFromThreeElementMapWithSharedPrefix) {
+  trie_map tm{{"loremipsum", 12}, {"loremdolor", 34}, {"consectetur", 56}};
+  tm.erase("consectetur");
+  EXPECT_THAT(tm, ElementsAre(Pair("loremdolor", 34), Pair("loremipsum", 12)));
+  EXPECT_EQ(tm.size(), 2);
+}
+
+TEST(TrieMapTest, EraseFirstKeyFromMapWithTerminalPrefix) {
+  trie_map tm{{"loremipsum", 12}, {"lorem", 34}, {"loremdolor", 56}, {"consectetur", 78}};
+  tm.erase("loremipsum");
+  EXPECT_THAT(tm, ElementsAre(Pair("consectetur", 78), Pair("lorem", 34), Pair("loremdolor", 56)));
+  EXPECT_EQ(tm.size(), 3);
+}
+
+TEST(TrieMapTest, EraseSecondKeyFromMapWithTerminalPrefix) {
+  trie_map tm{{"loremipsum", 12}, {"lorem", 34}, {"loremdolor", 56}, {"consectetur", 78}};
+  tm.erase("lorem");
+  EXPECT_THAT(tm,
+              ElementsAre(Pair("consectetur", 78), Pair("loremdolor", 56), Pair("loremipsum", 12)));
+  EXPECT_EQ(tm.size(), 3);
+}
+
+TEST(TrieMapTest, EraseThirdKeyFromMapWithTerminalPrefix) {
+  trie_map tm{{"loremipsum", 12}, {"lorem", 34}, {"loremdolor", 56}, {"consectetur", 78}};
+  tm.erase("loremdolor");
+  EXPECT_THAT(tm, ElementsAre(Pair("consectetur", 78), Pair("lorem", 34), Pair("loremipsum", 12)));
+  EXPECT_EQ(tm.size(), 3);
+}
+
+TEST(TrieMapTest, EraseFourthKeyFromMapWithTerminalPrefix) {
+  trie_map tm{{"loremipsum", 12}, {"lorem", 34}, {"loremdolor", 56}, {"consectetur", 78}};
+  tm.erase("consectetur");
+  EXPECT_THAT(tm, ElementsAre(Pair("lorem", 34), Pair("loremdolor", 56), Pair("loremipsum", 12)));
+  EXPECT_EQ(tm.size(), 3);
+}
+
+TEST(TrieMapTest, Swap) {
+  trie_map tm1{{"lorem", 12}, {"ipsum", 23}, {"dolor", 34}};
+  trie_map tm2{{"dolor", 45}, {"amet", 56}, {"consectetur", 67}, {"adipisci", 78}};
+  tm1.swap(tm2);
+  EXPECT_THAT(tm1, ElementsAre(Pair("adipisci", 78), Pair("amet", 56), Pair("consectetur", 67),
+                               Pair("dolor", 45)));
+  EXPECT_EQ(tm1.size(), 4);
+  EXPECT_THAT(tm2, ElementsAre(Pair("dolor", 34), Pair("ipsum", 23), Pair("lorem", 12)));
+  EXPECT_EQ(tm2.size(), 3);
+}
 
 }  // namespace
