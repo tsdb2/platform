@@ -477,10 +477,13 @@ class TrieNode {
   bool TestLabel() const { return Traits::TestLabel(label_); }
 
   template <typename... Args>
-  bool SetLabel(Args&&... args) {
-    bool const result = Traits::TestLabel(label_);
-    label_ = Traits::ConstructLabel(std::forward<Args>(args)...);
-    return result;
+  bool TrySetLabel(Args&&... args) {
+    if (Traits::TestLabel(label_)) {
+      return false;
+    } else {
+      label_ = Traits::ConstructLabel(std::forward<Args>(args)...);
+      return true;
+    }
   }
 
   bool ResetLabel() { return Traits::ResetLabel(label_); }
@@ -722,7 +725,7 @@ std::pair<typename TrieNode<Label, Allocator>::Iterator, bool> TrieNode<Label, A
     key.remove_prefix(i);
   }
   auto& node = frames.back().pos->second;
-  bool const inserted = !node.SetLabel(std::forward<Args>(args)...);
+  bool const inserted = node.TrySetLabel(std::forward<Args>(args)...);
   return std::make_pair(Iterator(std::move(frames)), inserted);
 }
 

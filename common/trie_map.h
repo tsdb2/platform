@@ -120,7 +120,7 @@ class trie_map {
   Value& at(std::string_view const key) {
     auto const it = Node::Find(roots_, key);
     if (it != Node::end()) {
-      return it->second;
+      return (*it).second;
     } else {
       throw std::out_of_range(std::string(key));
     }
@@ -129,7 +129,7 @@ class trie_map {
   Value const& at(std::string_view const key) const {
     auto const it = Node::FindConst(roots_, key);
     if (it != Node::cend()) {
-      return it->second;
+      return (*it).second;
     } else {
       throw std::out_of_range(std::string(key));
     }
@@ -137,7 +137,7 @@ class trie_map {
 
   Value& operator[](std::string_view const key) {
     auto const [it, unused_inserted] = Node::Insert(roots_, key);
-    return it->second;
+    return (*it).second;
   }
 
   iterator begin() noexcept { return Node::begin(roots_); }
@@ -229,7 +229,7 @@ class trie_map {
     if (inserted) {
       ++size_;
     } else {
-      it->second = std::move(value);
+      (*it).second = std::move(value);
     }
     return std::make_pair(it, inserted);
   }
