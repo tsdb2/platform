@@ -911,13 +911,13 @@ TEST(TrieMapTest, LowerBoundSharedPrefix) {
   EXPECT_EQ(it, tm.end());
 }
 
-TEST(TrieMapTest, UpperBoundEmptySet) {
+TEST(TrieMapTest, UpperBoundEmptyMap) {
   trie_map const tm{};
   EXPECT_EQ(tm.upper_bound(""), tm.end());
   EXPECT_EQ(tm.upper_bound("lorem"), tm.end());
 }
 
-TEST(TrieMapTest, UpperBoundSingleElementSet) {
+TEST(TrieMapTest, UpperBoundSingleElementMap) {
   trie_map const tm{{"lorem", 42}};
   auto it = tm.upper_bound("");
   EXPECT_NE(it, tm.end());
@@ -936,7 +936,7 @@ TEST(TrieMapTest, UpperBoundSingleElementSet) {
   EXPECT_EQ(it, tm.end());
 }
 
-TEST(TrieMapTest, UpperBoundTwoElementSet) {
+TEST(TrieMapTest, UpperBoundTwoElementMap) {
   trie_map const tm{{"lorem", 12}, {"ipsum", 34}};
   auto it = tm.upper_bound("");
   EXPECT_NE(it, tm.end());
@@ -997,6 +997,144 @@ TEST(TrieMapTest, UpperBoundSharedPrefix) {
   EXPECT_EQ(it, tm.end());
   it = tm.upper_bound("sator");
   EXPECT_EQ(it, tm.end());
+}
+
+TEST(TrieMapTest, EqualRange) {
+  trie_map const tm{{"loremamet", 34}, {"loremipsum", 12}};
+  auto const [lb, ub] = tm.equal_range("loremamet");
+  EXPECT_NE(lb, tm.end());
+  EXPECT_THAT(*lb, Pair("loremamet", 34));
+  EXPECT_NE(ub, tm.end());
+  EXPECT_THAT(*ub, Pair("loremipsum", 12));
+}
+
+TEST(TrieMapTest, EraseIteratorFromSingleElementMap) {
+  trie_map tm{{"lorem", 42}};
+  EXPECT_EQ(tm.erase(tm.find("lorem")), tm.end());
+  EXPECT_THAT(tm, ElementsAre());
+  EXPECT_EQ(tm.size(), 0);
+}
+
+TEST(TrieMapTest, EraseFirstIteratorFromTwoElementMap) {
+  trie_map tm{{"lorem", 12}, {"ipsum", 34}};
+  EXPECT_EQ(tm.erase(tm.find("lorem")), tm.end());
+  EXPECT_THAT(tm, ElementsAre(Pair("ipsum", 34)));
+  EXPECT_EQ(tm.size(), 1);
+}
+
+TEST(TrieMapTest, EraseSecondIteratorFromTwoElementMap) {
+  trie_map tm{{"lorem", 12}, {"ipsum", 34}};
+  auto it = tm.erase(tm.find("ipsum"));
+  EXPECT_THAT(*it, Pair("lorem", 12));
+  EXPECT_EQ(++it, tm.end());
+  EXPECT_THAT(tm, ElementsAre(Pair("lorem", 12)));
+  EXPECT_EQ(tm.size(), 1);
+}
+
+TEST(TrieMapTest, EraseFirstIteratorWithSharedPrefix) {
+  trie_map tm{{"loremipsum", 12}, {"loremdolor", 34}};
+  EXPECT_EQ(tm.erase(tm.find("loremipsum")), tm.end());
+  EXPECT_THAT(tm, ElementsAre(Pair("loremdolor", 34)));
+  EXPECT_EQ(tm.size(), 1);
+}
+
+TEST(TrieMapTest, EraseSecondIteratorWithSharedPrefix) {
+  trie_map tm{{"loremipsum", 12}, {"loremdolor", 34}};
+  auto it = tm.erase(tm.find("loremdolor"));
+  EXPECT_THAT(*it, Pair("loremipsum", 12));
+  EXPECT_EQ(++it, tm.end());
+  EXPECT_THAT(tm, ElementsAre(Pair("loremipsum", 12)));
+  EXPECT_EQ(tm.size(), 1);
+}
+
+TEST(TrieMapTest, EraseFirstIteratorFromThreeElementMap) {
+  trie_map tm{{"lorem", 12}, {"ipsum", 34}, {"dolor", 56}};
+  EXPECT_EQ(tm.erase(tm.find("lorem")), tm.end());
+  EXPECT_THAT(tm, ElementsAre(Pair("dolor", 56), Pair("ipsum", 34)));
+  EXPECT_EQ(tm.size(), 2);
+}
+
+TEST(TrieMapTest, EraseSecondIteratorFromThreeElementMap) {
+  trie_map tm{{"lorem", 12}, {"ipsum", 34}, {"dolor", 56}};
+  auto it = tm.erase(tm.find("ipsum"));
+  EXPECT_THAT(*it, Pair("lorem", 12));
+  EXPECT_EQ(++it, tm.end());
+  EXPECT_THAT(tm, ElementsAre(Pair("dolor", 56), Pair("lorem", 12)));
+  EXPECT_EQ(tm.size(), 2);
+}
+
+TEST(TrieMapTest, EraseThirdIteratorFromThreeElementMap) {
+  trie_map tm{{"lorem", 12}, {"ipsum", 34}, {"dolor", 56}};
+  auto it = tm.erase(tm.find("dolor"));
+  EXPECT_THAT(*it, Pair("ipsum", 34));
+  EXPECT_THAT(*++it, Pair("lorem", 12));
+  EXPECT_EQ(++it, tm.end());
+  EXPECT_THAT(tm, ElementsAre(Pair("ipsum", 34), Pair("lorem", 12)));
+  EXPECT_EQ(tm.size(), 2);
+}
+
+TEST(TrieMapTest, EraseFirstIteratorFromThreeElementMapWithSharedPrefix) {
+  trie_map tm{{"loremipsum", 12}, {"loremdolor", 34}, {"consectetur", 56}};
+  EXPECT_EQ(tm.erase(tm.find("loremipsum")), tm.end());
+  EXPECT_THAT(tm, ElementsAre(Pair("consectetur", 56), Pair("loremdolor", 34)));
+  EXPECT_EQ(tm.size(), 2);
+}
+
+TEST(TrieMapTest, EraseSecondIteratorFromThreeElementMapWithSharedPrefix) {
+  trie_map tm{{"loremipsum", 12}, {"loremdolor", 34}, {"consectetur", 56}};
+  auto it = tm.erase(tm.find("loremdolor"));
+  EXPECT_THAT(*it, Pair("loremipsum", 12));
+  EXPECT_EQ(++it, tm.end());
+  EXPECT_THAT(tm, ElementsAre(Pair("consectetur", 56), Pair("loremipsum", 12)));
+  EXPECT_EQ(tm.size(), 2);
+}
+
+TEST(TrieMapTest, EraseThirdIteratorFromThreeElementMapWithSharedPrefix) {
+  trie_map tm{{"loremipsum", 12}, {"loremdolor", 34}, {"consectetur", 56}};
+  auto it = tm.erase(tm.find("consectetur"));
+  EXPECT_THAT(*it, Pair("loremdolor", 34));
+  EXPECT_THAT(*++it, Pair("loremipsum", 12));
+  EXPECT_EQ(++it, tm.end());
+  EXPECT_THAT(tm, ElementsAre(Pair("loremdolor", 34), Pair("loremipsum", 12)));
+  EXPECT_EQ(tm.size(), 2);
+}
+
+TEST(TrieMapTest, EraseFirstIteratorFromMapWithTerminalPrefix) {
+  trie_map tm{{"loremipsum", 12}, {"lorem", 34}, {"loremdolor", 56}, {"consectetur", 78}};
+  EXPECT_EQ(tm.erase(tm.find("loremipsum")), tm.end());
+  EXPECT_THAT(tm, ElementsAre(Pair("consectetur", 78), Pair("lorem", 34), Pair("loremdolor", 56)));
+  EXPECT_EQ(tm.size(), 3);
+}
+
+TEST(TrieMapTest, EraseSecondIteratorFromMapWithTerminalPrefix) {
+  trie_map tm{{"loremipsum", 12}, {"lorem", 34}, {"loremdolor", 56}, {"consectetur", 78}};
+  auto it = tm.erase(tm.find("lorem"));
+  EXPECT_THAT(*it, Pair("loremdolor", 56));
+  EXPECT_THAT(*++it, Pair("loremipsum", 12));
+  EXPECT_EQ(++it, tm.end());
+  EXPECT_THAT(tm,
+              ElementsAre(Pair("consectetur", 78), Pair("loremdolor", 56), Pair("loremipsum", 12)));
+  EXPECT_EQ(tm.size(), 3);
+}
+
+TEST(TrieMapTest, EraseThirdIteratorFromMapWithTerminalPrefix) {
+  trie_map tm{{"loremipsum", 12}, {"lorem", 34}, {"loremdolor", 56}, {"consectetur", 78}};
+  auto it = tm.erase(tm.find("loremdolor"));
+  EXPECT_THAT(*it, Pair("loremipsum", 12));
+  EXPECT_EQ(++it, tm.end());
+  EXPECT_THAT(tm, ElementsAre(Pair("consectetur", 78), Pair("lorem", 34), Pair("loremipsum", 12)));
+  EXPECT_EQ(tm.size(), 3);
+}
+
+TEST(TrieMapTest, EraseFourthIteratorFromMapWithTerminalPrefix) {
+  trie_map tm{{"loremipsum", 12}, {"lorem", 34}, {"loremdolor", 56}, {"consectetur", 78}};
+  auto it = tm.erase(tm.find("consectetur"));
+  EXPECT_THAT(*it, Pair("lorem", 34));
+  EXPECT_THAT(*++it, Pair("loremdolor", 56));
+  EXPECT_THAT(*++it, Pair("loremipsum", 12));
+  EXPECT_EQ(++it, tm.end());
+  EXPECT_THAT(tm, ElementsAre(Pair("lorem", 34), Pair("loremdolor", 56), Pair("loremipsum", 12)));
+  EXPECT_EQ(tm.size(), 3);
 }
 
 // TODO

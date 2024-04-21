@@ -244,13 +244,13 @@ class trie_map {
   }
 
   iterator erase(iterator pos) {
-    iterator result = Node::Remove(std::move(pos));
+    iterator result = Node::Remove(&roots_, std::move(pos));
     --size_;
     return result;
   }
 
   iterator erase(const_iterator pos) {
-    iterator result = Node::Remove(std::move(pos));
+    iterator result = Node::Remove(&roots_, std::move(pos));
     --size_;
     return result;
   }
