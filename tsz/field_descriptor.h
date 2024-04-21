@@ -202,6 +202,9 @@ using ParameterFieldTypeT = typename ParameterFieldType<Field>::Type;
 //
 // In the first pattern field names are part of the type along with field types:
 //
+//   char constexpr kLoremName[] = "lorem";
+//   char constexpr kFooName[] = "foo";
+//
 //   tsz::Counter<tsz::EntityLabels<tsz::Field<std::string, kLoremName>>,
 //                tsz::MetricFields<tsz::Field<int, kFooName>>>
 //       counter{"/lorem/ipsum"};
