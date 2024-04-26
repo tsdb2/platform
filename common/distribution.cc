@@ -76,9 +76,6 @@ Bucketer const& Bucketer::GetCanonicalBucketer(double const width, double const 
 }
 
 void Distribution::RecordMany(double const sample, size_t const times) {
-  sum_ += sample * times;
-  sum_of_squares_ += sample * sample * times;
-  count_ += times;
   auto const i = FindBucket(sample);
   if (i < 0) {
     underflow_ += times;
@@ -87,20 +84,40 @@ void Distribution::RecordMany(double const sample, size_t const times) {
   } else {
     buckets_[i] += times;
   }
+  count_ += times;
+  sum_ += sample * times;
+  double const dev = sample - mean_;
+  double const new_mean = mean_ + times * dev / count_;
+  ssd_ += times * dev * (sample - new_mean);
+  mean_ = new_mean;
 }
+
+namespace {
+
+inline double Square(double const x) { return x * x; }
+
+}  // namespace
 
 absl::Status Distribution::Add(Distribution const& other) {
   if (other.bucketer_ != bucketer_) {
     return absl::InvalidArgumentError("incompatible bucketers");
   }
-  sum_ += other.sum_;
-  sum_of_squares_ += other.sum_of_squares_;
-  count_ += other.count_;
-  underflow_ += other.underflow_;
-  overflow_ += other.overflow_;
   for (size_t i = 0; i < buckets_.size(); ++i) {
     buckets_[i] += other.buckets_[i];
   }
+  underflow_ += other.underflow_;
+  overflow_ += other.overflow_;
+  double const old_count = count_;
+  count_ += other.count_;
+  sum_ += other.sum_;
+  double const old_mean = mean_;
+  if (count_ > 0) {
+    mean_ = sum_ / count_;
+  } else {
+    mean_ = 0;
+  }
+  ssd_ += other.ssd_ + old_count * Square(mean_ - old_mean) +
+          other.count_ * Square(mean_ - other.mean_);
   return absl::OkStatus();
 }
 

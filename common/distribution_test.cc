@@ -1,5 +1,6 @@
 #include "common/distribution.h"
 
+#include <cstdint>
 #include <functional>
 
 #include "absl/functional/bind_front.h"
@@ -104,7 +105,7 @@ TEST(DistributionTest, InitialState) {
   EXPECT_EQ(distribution.underflow(), 0);
   EXPECT_EQ(distribution.overflow(), 0);
   EXPECT_EQ(distribution.sum(), 0);
-  EXPECT_EQ(distribution.sum_of_squares(), 0);
+  EXPECT_EQ(distribution.sum_of_squared_deviations(), 0);
   EXPECT_EQ(distribution.count(), 0);
   EXPECT_TRUE(distribution.empty());
 }
@@ -114,7 +115,7 @@ TEST(DistributionTest, RecordOneSample) {
   distribution.Record(42);
   EXPECT_EQ(distribution.bucket(3), 1);
   EXPECT_EQ(distribution.sum(), 42);
-  EXPECT_EQ(distribution.sum_of_squares(), 42 * 42);
+  EXPECT_EQ(distribution.sum_of_squared_deviations(), 0);
   EXPECT_EQ(distribution.count(), 1);
   EXPECT_FALSE(distribution.empty());
   EXPECT_EQ(distribution.mean(), 42);
@@ -127,7 +128,7 @@ TEST(DistributionTest, RecordTwoSamples) {
   EXPECT_EQ(distribution.bucket(1), 1);
   EXPECT_EQ(distribution.bucket(2), 1);
   EXPECT_EQ(distribution.sum(), 6);
-  EXPECT_EQ(distribution.sum_of_squares(), 26);
+  EXPECT_EQ(distribution.sum_of_squared_deviations(), 8);
   EXPECT_EQ(distribution.count(), 2);
   EXPECT_FALSE(distribution.empty());
   EXPECT_EQ(distribution.mean(), 3);
@@ -140,10 +141,71 @@ TEST(DistributionTest, RecordOneSampleManyTimes) {
   EXPECT_EQ(distribution.bucket(1), 1);
   EXPECT_EQ(distribution.bucket(2), 3);
   EXPECT_EQ(distribution.sum(), 16);
-  EXPECT_EQ(distribution.sum_of_squares(), 76);
+  EXPECT_EQ(distribution.sum_of_squared_deviations(), 12);
   EXPECT_EQ(distribution.count(), 4);
   EXPECT_FALSE(distribution.empty());
   EXPECT_EQ(distribution.mean(), 4);
+}
+
+TEST(DistributionTest, AddEmptyToEmpty) {
+  Distribution distribution1, distribution2;
+  EXPECT_OK(distribution1.Add(distribution2));
+  EXPECT_EQ(distribution1.num_finite_buckets(), Bucketer::Default().num_finite_buckets());
+  for (size_t i = 0; i < distribution1.num_finite_buckets(); ++i) {
+    EXPECT_EQ(distribution1.bucket(i), 0);
+  }
+  EXPECT_EQ(distribution1.underflow(), 0);
+  EXPECT_EQ(distribution1.overflow(), 0);
+  EXPECT_EQ(distribution1.count(), 0);
+  EXPECT_EQ(distribution1.sum(), 0);
+  EXPECT_EQ(distribution1.mean(), 0);
+  EXPECT_EQ(distribution1.sum_of_squared_deviations(), 0);
+}
+
+TEST(DistributionTest, AddEmpty) {
+  Distribution distribution1;
+  distribution1.Record(2);
+  distribution1.Record(4);
+  distribution1.Record(6);
+  distribution1.Record(8);
+  distribution1.Record(10);
+  Distribution distribution2;
+  EXPECT_OK(distribution1.Add(distribution2));
+  EXPECT_EQ(distribution1.num_finite_buckets(), Bucketer::Default().num_finite_buckets());
+  EXPECT_EQ(distribution1.bucket(0), 0);
+  EXPECT_EQ(distribution1.bucket(1), 1);
+  EXPECT_EQ(distribution1.bucket(2), 4);
+  for (size_t i = 3; i < distribution1.num_finite_buckets(); ++i) {
+    EXPECT_EQ(distribution1.bucket(i), 0);
+  }
+  EXPECT_EQ(distribution1.sum(), 30);
+  EXPECT_EQ(distribution1.sum_of_squared_deviations(), 40);
+  EXPECT_EQ(distribution1.count(), 5);
+  EXPECT_FALSE(distribution1.empty());
+  EXPECT_EQ(distribution1.mean(), 6);
+}
+
+TEST(DistributionTest, AddToEmpty) {
+  Distribution distribution1;
+  Distribution distribution2;
+  distribution2.Record(2);
+  distribution2.Record(4);
+  distribution2.Record(6);
+  distribution2.Record(8);
+  distribution2.Record(10);
+  EXPECT_OK(distribution1.Add(distribution2));
+  EXPECT_EQ(distribution1.num_finite_buckets(), Bucketer::Default().num_finite_buckets());
+  EXPECT_EQ(distribution1.bucket(0), 0);
+  EXPECT_EQ(distribution1.bucket(1), 1);
+  EXPECT_EQ(distribution1.bucket(2), 4);
+  for (size_t i = 3; i < distribution1.num_finite_buckets(); ++i) {
+    EXPECT_EQ(distribution1.bucket(i), 0);
+  }
+  EXPECT_EQ(distribution1.sum(), 30);
+  EXPECT_EQ(distribution1.sum_of_squared_deviations(), 40);
+  EXPECT_EQ(distribution1.count(), 5);
+  EXPECT_FALSE(distribution1.empty());
+  EXPECT_EQ(distribution1.mean(), 6);
 }
 
 TEST(DistributionTest, Add) {
@@ -169,7 +231,7 @@ TEST(DistributionTest, Add) {
     EXPECT_EQ(distribution1.bucket(i), 0);
   }
   EXPECT_EQ(distribution1.sum(), 66);
-  EXPECT_EQ(distribution1.sum_of_squares(), 506);
+  EXPECT_EQ(distribution1.sum_of_squared_deviations(), 110);
   EXPECT_EQ(distribution1.count(), 11);
   EXPECT_FALSE(distribution1.empty());
   EXPECT_EQ(distribution1.mean(), 6);

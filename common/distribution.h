@@ -116,6 +116,11 @@ class Bucketer {
 // Bucketers define a finite number of buckets, but Distribution objects keep two extra implicit
 // buckets: samples that fall below the lowest bucket are recorded in an underflow bucket, and
 // samples falling above the highest are recorded in an overflow bucket.
+//
+// Distributions also keep track of a few stats related to the recorded samples, namely: their sum,
+// count, mean, and sum of squared deviations from the mean. The latter is used to calculate the
+// mean with the least loss of precision thanks to the method of provisional means (see
+// http://www.pmean.com/04/ProvisionalMeans.html for more info).
 class Distribution {
  public:
   explicit Distribution(Bucketer const &bucketer)
@@ -150,9 +155,9 @@ class Distribution {
   // Returns the sum of all samples.
   double sum() const { return sum_; }
 
-  // Returns the sum of the squared samples. `Distribution` keeps track of this information in order
-  // to calculate the variance and standard deviation.
-  double sum_of_squares() const { return sum_of_squares_; }
+  // Returns the sum of the squared deviations from the mean. `Distribution` keeps track of this
+  // information in order to calculate the mean, variance, and standard deviation.
+  double sum_of_squared_deviations() const { return ssd_; }
 
   // Returns the number of samples, including the ones in the underflow and overflow buckets.
   size_t count() const { return count_; }
@@ -161,8 +166,8 @@ class Distribution {
   bool empty() const { return count_ == 0; }
 
   // Various stats about the recorded samples.
-  double mean() const { return sum_ / count_; }
-  double variance() const { return (sum_of_squares_ - sum_ * sum_ / count_) / count_; }
+  double mean() const { return mean_; }
+  double variance() const { return ssd_ / count_; }
   double stddev() const { return std::sqrt(variance()); }
 
   // Records a sample in the corresponding bucket.
@@ -181,12 +186,13 @@ class Distribution {
   // Not owned. Must never be null.
   Bucketer const *bucketer_;
 
-  double sum_ = 0;
-  double sum_of_squares_ = 0;
-  size_t count_ = 0;
+  std::vector<size_t> buckets_;
   size_t underflow_ = 0;
   size_t overflow_ = 0;
-  std::vector<size_t> buckets_;
+  size_t count_ = 0;
+  double sum_ = 0;
+  double mean_ = 0;
+  double ssd_ = 0;
 };
 
 }  // namespace common
