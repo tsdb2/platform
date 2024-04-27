@@ -165,6 +165,26 @@ cc_test(
 )
 
 cc_library(
+    name = "lock_free_hash_set",
+    hdrs = ["lock_free_hash_set.h"],
+    deps = [
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/hash",
+        "@com_google_absl//absl/synchronization",
+    ],
+)
+
+cc_test(
+    name = "lock_free_hash_set_test",
+    srcs = ["lock_free_hash_set_test.cc"],
+    deps = [
+        ":lock_free_hash_set",
+        ":testing",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "raw_trie",
     hdrs = ["raw_trie.h"],
     visibility = ["//visibility:private"],
