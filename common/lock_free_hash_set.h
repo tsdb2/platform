@@ -275,19 +275,19 @@ class lock_free_hash_set {
 
   // TODO
 
-  iterator begin() const ABSL_LOCKS_EXCLUDED(mutex_) {
+  iterator begin() const noexcept ABSL_LOCKS_EXCLUDED(mutex_) {
     return Iterator(&mutex_, ptr_.load(std::memory_order_relaxed), 0);
   }
 
-  iterator cbegin() const ABSL_LOCKS_EXCLUDED(mutex_) {
+  iterator cbegin() const noexcept ABSL_LOCKS_EXCLUDED(mutex_) {
     return Iterator(&mutex_, ptr_.load(std::memory_order_relaxed), 0);
   }
 
-  iterator end() const ABSL_LOCKS_EXCLUDED(mutex_) {
+  iterator end() const noexcept ABSL_LOCKS_EXCLUDED(mutex_) {
     return Iterator(&mutex_, ptr_.load(std::memory_order_relaxed));
   }
 
-  iterator cend() const ABSL_LOCKS_EXCLUDED(mutex_) {
+  iterator cend() const noexcept ABSL_LOCKS_EXCLUDED(mutex_) {
     return Iterator(&mutex_, ptr_.load(std::memory_order_relaxed));
   }
 
@@ -298,7 +298,7 @@ class lock_free_hash_set {
   // WARNING: the value returned by this function is purely advisory. By the time the function
   // returns, the data structure may have been rehashed any number of times. If you need to know the
   // exact capacity you need to implement your own synchronization (typically using a mutex).
-  size_t capacity() const {
+  size_t capacity() const noexcept {
     Array const *const array = ptr_.load(std::memory_order_relaxed);
     if (array) {
       return array->capacity;
@@ -312,7 +312,7 @@ class lock_free_hash_set {
   // WARNING: the value returned by this function is purely advisory. By the time the function
   // returns, any number of changes may have occurred in parallel. If you need to know the exact
   // number of elements you need to implement your own synchronization (typically using a mutex).
-  size_t size() const {
+  size_t size() const noexcept {
     Array const *const array = ptr_.load(std::memory_order_relaxed);
     if (array) {
       return array->size.load(std::memory_order_relaxed);
@@ -327,13 +327,13 @@ class lock_free_hash_set {
   // time the function returns, any number of changes may have occurred in parallel. If you need to
   // know the exact number of elements you need to implement your own synchronization (typically
   // using a mutex).
-  bool empty() const { return size() == 0; }
+  [[nodiscard]] bool empty() const noexcept { return size() == 0; }
 
   // Erases all elements from the hash set.
   //
   // NOTE: as explained above, the memory taken by the removed elements is not actually freed. This
   // function will simply cause the hash set as whole to no longer point to any previous slot array.
-  void clear() {
+  void clear() noexcept {
     absl::WriterMutexLock lock(&mutex_);
     ptr_.store(nullptr, std::memory_order_release);
   }
