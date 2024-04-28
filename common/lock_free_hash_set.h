@@ -391,16 +391,16 @@ class lock_free_hash_set {
 template <typename Key, typename Hash, typename Equal, typename Allocator>
 void lock_free_hash_set<Key, Hash, Equal, Allocator>::Array::InsertNodeRelaxed(Node *const node) {
   size_t const offset = node->hash & hash_mask;
-  size_t j = 0;
+  size_t i = 0;
   while (true) {
-    size_t const index = (offset + j * j) & hash_mask;
+    size_t const index = (offset + i * i) & hash_mask;
     Node *expected = nullptr;
     if (data[index].compare_exchange_strong(expected, node, std::memory_order_relaxed,
                                             std::memory_order_relaxed)) {
       size.fetch_add(1, std::memory_order_relaxed);
       return;
     } else {
-      ++j;
+      ++i;
     }
   }
 }
@@ -443,7 +443,7 @@ bool lock_free_hash_set<Key, Hash, Equal, Allocator>::insert(Key const &key) {
     } else {
       Node *const node = CreateNode(key, hash);
       size_t const size = array->size.load(std::memory_order_relaxed);
-      if (size > kMaxLoadFactor * array->capacity) {
+      if (size + 1 > kMaxLoadFactor * array->capacity) {
         array = Grow(array, node);
         ptr_.store(array, std::memory_order_release);
       } else {
