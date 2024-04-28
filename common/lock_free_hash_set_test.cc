@@ -9,6 +9,8 @@ namespace {
 
 using tsdb2::common::lock_free_hash_set;
 
+using ::testing::ElementsAre;
+
 struct TriviallyDestructible {
   int foo;
 };
@@ -30,9 +32,11 @@ TEST(LockFreeHashSetTest, Assumptions) {
   EXPECT_TRUE(std::is_trivially_destructible_v<std::atomic<NonTriviallyDestructible*>>);
 }
 
-TEST(LockFreeHashSetTest, Foo) {
+TEST(LockFreeHashSetTest, InitialState) {
   lock_free_hash_set<int> hs;
-  // TODO
+  EXPECT_THAT(hs, ElementsAre());
 }
+
+// TODO
 
 }  // namespace
