@@ -24,6 +24,17 @@ namespace common {
 // exclusive lock on an internal mutex. Iterators acquire a shared lock on the mutex and release it
 // when they're destroyed.
 //
+// While our iterators normally hold a shared lock on the internal mutex, end iterators do not.
+// Calling `end()` or `cend()` never acquires any locks, and incrementing an iterator until it
+// points to the end will cause it to release its lock. Similarly, decrementing the end iterator
+// will cause it to point to the last element (if any) and unless the hash set is empty it will
+// acquire a shared lock.
+//
+// WARNING: since our iterators hold a shared lock and all changes require an exclusive lock, it is
+// not possible to insert or emplace new elements during an iteration. It is possible to erase an
+// element that's being enumerated, but the iterator must be std::moved into the `erase` argument
+// (see the comment on `erase` for details).
+//
 // To reduce the number of heap allocations and increase cache friendliness, `lock_free_hash_set`
 // uses quadratic open addressing. To speed up lookups even further, values are pre-hashed so that a
 // hash doesn't have to be re-calculated for every colliding element and the probing algorithm can
@@ -34,6 +45,15 @@ namespace common {
 // memory upon element erasure, as doing so is infeasible when using atomic-based synchronization.
 // The memory used by the elements and internal element arrays is freed up only at destruction time,
 // so you should use `lock_free_hash_set` only if you don't need to perform many erasures.
+//
+// NOTE: `insert` and `emplace` methods of other standard STL containers return an
+// `std::pair<iterator, bool>` where the first component is an iterator to the inserted (or
+// previously found) element and the second one is a boolean indicating whether insertion happened.
+// In our case, returning the iterator is infeasible because it would require downgrading the
+// internal lock from exclusive to shared, which is not possible in `absl::Mutex`. We could release
+// the lock, then reacquire a shared one and perform a new lookup, but any number of changes may
+// happen in the meantime and it's not guaranteed that the newly inserted element is still present.
+// If you need an iterator to the inserted element you need to look it up manually.
 template <typename Key, typename Hash = absl::Hash<Key>, typename Equal = std::equal_to<Key>,
           typename Allocator = std::allocator<Key>>
 class lock_free_hash_set {
@@ -372,16 +392,12 @@ class lock_free_hash_set {
 
   // Inserts the specified element and returns true if insertion happened (i.e. the element was not
   // present in the hash set prior to this call) and false otherwise.
-  //
-  // NOTE: the `insert` method of other standard STL containers returns an `std::pair<iterator,
-  // bool>` where the first component is an iterator to the inserted (or previously found) element
-  // and the second one is a boolean with the same meaning as our return value. In our case,
-  // returning the iterator is infeasible because it would require downgrading the internal lock
-  // from exclusive to shared, which is not possible in `absl::Mutex`. We could release the lock,
-  // then reacquire a shared one and perform a new lookup, but any number of changes may happen in
-  // the meantime and it's not guaranteed that the newly inserted element is still present. If you
-  // need an iterator to the inserted element you need to look it up manually.
-  bool insert(Key const &key);
+  bool insert(Key const &key) ABSL_LOCKS_EXCLUDED(mutex_);
+
+  // Emplaces the specified element and returns true if emplacement happened (i.e. the element was
+  // not present in the hash set prior to this call) and false otherwise.
+  template <typename... Args>
+  bool emplace(Args &&...args) ABSL_LOCKS_EXCLUDED(mutex_);
 
   // TODO
 
@@ -396,7 +412,8 @@ class lock_free_hash_set {
 
   Array *CreateArray(size_t capacity, size_t initial_size) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
-  Node *CreateNode(Key const &key, size_t hash) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  template <typename... Args>
+  Node *CreateNode(Args &&...args) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   Array *Grow(Array const *array, Node *new_node) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
@@ -438,9 +455,11 @@ template <typename Key, typename Hash, typename Equal, typename Allocator>
 lock_free_hash_set<Key, Hash, Equal, Allocator>::~lock_free_hash_set() {
   absl::WriterMutexLock lock{&mutex_};
   for (auto const node : nodes_) {
+    node->~Node();
     node_alloc_.deallocate(node, 1);
   }
   for (auto const array : arrays_) {
+    array->~Array();
     array_alloc_.deallocate(array, 1);
   }
 }
@@ -487,6 +506,48 @@ bool lock_free_hash_set<Key, Hash, Equal, Allocator>::insert(Key const &key) {
 }
 
 template <typename Key, typename Hash, typename Equal, typename Allocator>
+template <typename... Args>
+bool lock_free_hash_set<Key, Hash, Equal, Allocator>::emplace(Args &&...args) {
+  Node *const new_node = CreateNode(hasher_, std::forward<Args>(args)...);
+  size_t const hash = new_node->hash;
+  absl::WriterMutexLock lock(&mutex_);
+  Array *array = ptr_.load(std::memory_order_relaxed);
+  bool store_ptr = false;
+  if (!array) {
+    array = CreateArray(Array::kMinCapacity, 0);
+    store_ptr = true;
+  }
+  size_t const mask = array->hash_mask;
+  size_t const offset = hash & mask;
+  size_t i = 0;
+  while (true) {
+    Node const *const node = array->data[(offset + i * i) & mask].load(std::memory_order_relaxed);
+    if (node) {
+      if (hash == node->hash && equal_(new_node->key, node->key)) {
+        if (store_ptr) {
+          ptr_.store(array, std::memory_order_release);
+        }
+        return false;
+      } else {
+        ++i;
+      }
+    } else {
+      size_t const size = array->size.load(std::memory_order_relaxed);
+      if (size + 1 > kMaxLoadFactor * array->capacity) {
+        array = Grow(array, new_node);
+        ptr_.store(array, std::memory_order_release);
+      } else {
+        array->InsertNodeRelaxed(new_node);
+        if (store_ptr) {
+          ptr_.store(array, std::memory_order_release);
+        }
+      }
+      return true;
+    }
+  }
+}
+
+template <typename Key, typename Hash, typename Equal, typename Allocator>
 typename lock_free_hash_set<Key, Hash, Equal, Allocator>::Array *
 lock_free_hash_set<Key, Hash, Equal, Allocator>::CreateArray(size_t capacity,
                                                              size_t const initial_size) {
@@ -502,10 +563,11 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::CreateArray(size_t capacity,
 }
 
 template <typename Key, typename Hash, typename Equal, typename Allocator>
+template <typename... Args>
 typename lock_free_hash_set<Key, Hash, Equal, Allocator>::Node *
-lock_free_hash_set<Key, Hash, Equal, Allocator>::CreateNode(Key const &key, size_t const hash) {
+lock_free_hash_set<Key, Hash, Equal, Allocator>::CreateNode(Args &&...args) {
   auto const node = node_alloc_.allocate(1);
-  new (node) Node(key, hash);
+  new (node) Node(std::forward<Args>(args)...);
   nodes_.push_back(node);
   return node;
 }
