@@ -555,8 +555,8 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::CreateArray(size_t capacity,
     capacity = Array::kMinCapacity;
   }
   size_t const byte_size = sizeof(Array) + (capacity - 1) * sizeof(std::atomic<Node *>);
-  size_t const remainder = byte_size % sizeof(Array);
-  Array *const array = array_alloc_.allocate((byte_size + remainder) / sizeof(Array));
+  // Add an extra `sizeof(Array)` before dividing to account for a possible spillover.
+  Array *const array = array_alloc_.allocate((byte_size + sizeof(Array)) / sizeof(Array));
   new (array) Array(capacity, initial_size);
   arrays_.push_back(array);
   return array;
