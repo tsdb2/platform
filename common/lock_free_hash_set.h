@@ -61,9 +61,14 @@ class lock_free_hash_set {
   struct Array final {
     static inline size_t constexpr kMinCapacity = 32;
 
-    // REQUIRES: `array_capacity` must be a power of 2.
+    // REQUIRES: `array_capacity` must be a power of 2 and must be greater than or equal to
+    // `kMinCapacity`.
     explicit Array(size_t const array_capacity, size_t const array_size)
-        : capacity(array_capacity), hash_mask(capacity - 1), size(array_size) {}
+        : capacity(array_capacity), hash_mask(capacity - 1), size(array_size) {
+      for (size_t i = 1; i < capacity; ++i) {
+        new (data + i) std::atomic<Node *>(nullptr);
+      }
+    }
 
     // Inserts the provided node in the array.
     //
@@ -93,7 +98,7 @@ class lock_free_hash_set {
     // nodes themselves. Those are not problems because the nodes are owned and destroyed by the
     // `nodes_` vector in the parent class, and atomic pointers are trivially destructible so
     // they don't require destruction.
-    std::atomic<Node *> data[1];
+    std::atomic<Node *> data[1] = {nullptr};
   };
 
   using ArrayAllocator = typename std::allocator_traits<Allocator>::template rebind_alloc<Array>;
