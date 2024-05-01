@@ -109,7 +109,8 @@ class flat_map {
   };
 
   template <typename Arg>
-  using key_arg_t = typename internal::key_arg<Compare>::template type<key_type, Arg>;
+  using key_arg_t =
+      typename internal::flat_container::key_arg<Compare>::template type<key_type, Arg>;
 
   class generic_compare {
    public:

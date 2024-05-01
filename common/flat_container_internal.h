@@ -39,6 +39,8 @@ struct DefaultCompare<std::string> {
 template <typename Key>
 using DefaultCompareT = typename DefaultCompare<Key>::Type;
 
+namespace flat_container {
+
 template <typename Compare, typename IsTransparent = void>
 struct key_arg {
   template <typename KeyType, typename KeyArg>
@@ -50,6 +52,8 @@ struct key_arg<Compare, std::void_t<typename Compare::is_transparent>> {
   template <typename KeyType, typename KeyArg>
   using type = KeyArg;
 };
+
+}  // namespace flat_container
 
 // `HasAllocator` is used in SFINAE to determine whether the underlying representation of a flat
 // container uses allocators. For example, std::vector uses allocators but std::array doesn't. Based

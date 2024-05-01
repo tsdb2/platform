@@ -165,9 +165,16 @@ cc_test(
 )
 
 cc_library(
+    name = "lock_free_container_internal",
+    hdrs = ["lock_free_container_internal.h"],
+    visibility = ["//visibility:private"],
+)
+
+cc_library(
     name = "lock_free_hash_set",
     hdrs = ["lock_free_hash_set.h"],
     deps = [
+        ":lock_free_container_internal",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/hash",
         "@com_google_absl//absl/synchronization",

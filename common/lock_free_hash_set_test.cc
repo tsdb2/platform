@@ -37,6 +37,7 @@ TEST(LockFreeHashSetTest, Empty) {
   EXPECT_EQ(hs.capacity(), 0);
   EXPECT_EQ(hs.size(), 0);
   EXPECT_THAT(hs, ElementsAre());
+  EXPECT_FALSE(hs.contains(42));
 }
 
 TEST(LockFreeHashSetTest, OneElement) {
@@ -44,6 +45,8 @@ TEST(LockFreeHashSetTest, OneElement) {
   EXPECT_EQ(hs.capacity(), 32);
   EXPECT_EQ(hs.size(), 1);
   EXPECT_THAT(hs, ElementsAre(42));
+  EXPECT_TRUE(hs.contains(42));
+  EXPECT_FALSE(hs.contains(43));
 }
 
 // TODO

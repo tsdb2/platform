@@ -13,27 +13,25 @@
 #include "absl/base/attributes.h"
 #include "absl/hash/hash.h"
 #include "absl/synchronization/mutex.h"
+#include "common/lock_free_container_internal.h"
 
 namespace tsdb2 {
 namespace common {
 
 // A lock-free, thread-safe hash set data structure.
 //
-// Readers can access the data without any locking; all synchronization is performed by
-// `lock_free_hash_set` using atomics. Writers are automatically serialized by acquiring an
-// exclusive lock on an internal mutex. Iterators acquire a shared lock on the mutex and release it
-// when they're destroyed.
+// Lookups are entirely lockless; all synchronization is performed by `lock_free_hash_set` using
+// atomics. Writers are automatically serialized by acquiring an exclusive lock on an internal
+// mutex. Iterators acquire a shared lock on the mutex and release it when they're destroyed.
 //
 // While our iterators normally hold a shared lock on the internal mutex, end iterators do not.
 // Calling `end()` or `cend()` never acquires any locks, and incrementing an iterator until it
-// points to the end will cause it to release its lock. Similarly, decrementing the end iterator
-// will cause it to point to the last element (if any) and unless the hash set is empty it will
-// acquire a shared lock.
+// reaches the end will cause it to release its lock. Similarly, decrementing the end iterator will
+// cause it to point to the last element (if any) and unless the hash set is empty it will acquire a
+// shared lock.
 //
 // WARNING: since our iterators hold a shared lock and all changes require an exclusive lock, it is
-// not possible to insert or emplace new elements during an iteration. It is possible to erase an
-// element that's being enumerated, but the iterator must be std::moved into the `erase` argument
-// (see the comment on `erase` for details).
+// not possible to perform any changes during an iteration.
 //
 // To reduce the number of heap allocations and increase cache friendliness, `lock_free_hash_set`
 // uses quadratic open addressing. To speed up lookups even further, values are pre-hashed so that a
@@ -274,6 +272,12 @@ class lock_free_hash_set {
 
   // TODO
 
+  template <typename Arg>
+  using key_arg_t =
+      typename internal::lock_free_container::key_arg<Hash, Equal>::template type<key_type, Arg>;
+
+  // TODO
+
   lock_free_hash_set() = default;
 
   explicit lock_free_hash_set(Hash const &hash, Equal const &equal = Equal(),
@@ -421,6 +425,24 @@ class lock_free_hash_set {
 
   // TODO
 
+  size_type count(Key const &key) const { return Find(key) != nullptr ? 1 : 0; }
+
+  template <typename KeyArg = key_type>
+  size_type count(key_arg_t<KeyArg> const &key) const {
+    return Find(key) != nullptr ? 1 : 0;
+  }
+
+  // TODO
+
+  bool contains(Key const &key) const { return Find(key) != nullptr; }
+
+  template <typename KeyArg = key_type>
+  bool contains(key_arg_t<KeyArg> const &key) const {
+    return Find(key) != nullptr;
+  }
+
+  // TODO
+
  private:
   // Rehash (halving the capacity) when the number of elements becomes less than half the capacity.
   // Respecting `Array::kMinCapacity` has priority: a rehash is not performed if there are only
@@ -436,6 +458,9 @@ class lock_free_hash_set {
   Node *CreateNode(Args &&...args) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   Array *Grow(Array const *array, Node *new_node) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+
+  template <typename KeyArg = Key>
+  Node *Find(key_arg_t<KeyArg> const &key) const;
 
   template <typename KeyArg>
   bool Insert(KeyArg &&key) ABSL_LOCKS_EXCLUDED(mutex_);
@@ -569,6 +594,32 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Grow(Array const *const array,
   new_array->InsertNodeRelaxed(new_node);
   arrays_.push_back(new_array);
   return new_array;
+}
+
+template <typename Key, typename Hash, typename Equal, typename Allocator>
+template <typename KeyArg>
+typename lock_free_hash_set<Key, Hash, Equal, Allocator>::Node *
+lock_free_hash_set<Key, Hash, Equal, Allocator>::Find(key_arg_t<KeyArg> const &key) const {
+  size_t const hash = hasher_(key);
+  Array const *const array = ptr_.load(std::memory_order_acquire);
+  if (!array) {
+    return nullptr;
+  }
+  size_t const mask = array->hash_mask;
+  size_t const offset = hash & mask;
+  size_t i = 0;
+  while (true) {
+    Node *const node = array->data[(offset + i * i) & mask].load(std::memory_order_acquire);
+    if (node) {
+      if (hash == node->hash && equal_(key, node->key)) {
+        return node;
+      } else {
+        ++i;
+      }
+    } else {
+      return nullptr;
+    }
+  }
 }
 
 template <typename Key, typename Hash, typename Equal, typename Allocator>
