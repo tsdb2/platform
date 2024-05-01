@@ -338,7 +338,7 @@ class lock_free_hash_set {
     return Iterator(&mutex_, ptr_.load(std::memory_order_acquire), 0);
   }
 
-  iterator cbegin() const noexcept ABSL_LOCKS_EXCLUDED(mutex_) {
+  const_iterator cbegin() const noexcept ABSL_LOCKS_EXCLUDED(mutex_) {
     return Iterator(&mutex_, ptr_.load(std::memory_order_acquire), 0);
   }
 
@@ -346,7 +346,7 @@ class lock_free_hash_set {
     return Iterator(&mutex_, ptr_.load(std::memory_order_acquire));
   }
 
-  iterator cend() const noexcept ABSL_LOCKS_EXCLUDED(mutex_) {
+  const_iterator cend() const noexcept ABSL_LOCKS_EXCLUDED(mutex_) {
     return Iterator(&mutex_, ptr_.load(std::memory_order_acquire));
   }
 
@@ -400,8 +400,8 @@ class lock_free_hash_set {
   // `insert` inserts the specified element and returns true if insertion happened (i.e. the element
   // was not present in the hash set prior to this call) and false otherwise.
 
-  bool insert(Key const &key) { return Insert(key); }
-  bool insert(Key &&key) { return Insert(std::move(key)); }
+  bool insert(value_type const &key) { return Insert(key); }
+  bool insert(value_type &&key) { return Insert(std::move(key)); }
 
   template <typename InputIt>
   void insert(InputIt first, InputIt last) {
@@ -410,7 +410,7 @@ class lock_free_hash_set {
     }
   }
 
-  void insert(std::initializer_list<Key> const init) {
+  void insert(std::initializer_list<value_type> const init) {
     for (auto const &key : init) {
       insert(key);
     }
@@ -425,7 +425,7 @@ class lock_free_hash_set {
 
   // TODO
 
-  size_type count(Key const &key) const { return Find(key) != nullptr ? 1 : 0; }
+  size_type count(key_type const &key) const { return Find(key) != nullptr ? 1 : 0; }
 
   template <typename KeyArg = key_type>
   size_type count(key_arg_t<KeyArg> const &key) const {
@@ -434,7 +434,7 @@ class lock_free_hash_set {
 
   // TODO
 
-  bool contains(Key const &key) const { return Find(key) != nullptr; }
+  bool contains(key_type const &key) const { return Find(key) != nullptr; }
 
   template <typename KeyArg = key_type>
   bool contains(key_arg_t<KeyArg> const &key) const {
