@@ -61,6 +61,9 @@ class lock_free_hash_set {
   struct Node final {
     explicit Node(Key const &node_key, size_t const node_hash) : key(node_key), hash(node_hash) {}
 
+    explicit Node(Key &&node_key, size_t const node_hash)
+        : key(std::move(node_key)), hash(node_hash) {}
+
     template <typename... Args>
     explicit Node(Hash const &hasher, Args &&...args)
         : key(std::forward<Args>(args)...), hash(hasher(key)) {}
@@ -390,9 +393,26 @@ class lock_free_hash_set {
     ptr_.store(nullptr, std::memory_order_release);
   }
 
-  // Inserts the specified element and returns true if insertion happened (i.e. the element was not
-  // present in the hash set prior to this call) and false otherwise.
-  bool insert(Key const &key) ABSL_LOCKS_EXCLUDED(mutex_);
+  // `insert` inserts the specified element and returns true if insertion happened (i.e. the element
+  // was not present in the hash set prior to this call) and false otherwise.
+
+  bool insert(Key const &key) { return Insert(key); }
+  bool insert(Key &&key) { return Insert(std::move(key)); }
+
+  template <typename InputIt>
+  void insert(InputIt first, InputIt last) {
+    for (; first != last; ++first) {
+      insert(*first);
+    }
+  }
+
+  void insert(std::initializer_list<Key> const init) {
+    for (auto const &key : init) {
+      insert(key);
+    }
+  }
+
+  // TODO
 
   // Emplaces the specified element and returns true if emplacement happened (i.e. the element was
   // not present in the hash set prior to this call) and false otherwise.
@@ -416,6 +436,9 @@ class lock_free_hash_set {
   Node *CreateNode(Args &&...args) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   Array *Grow(Array const *array, Node *new_node) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+
+  template <typename KeyArg>
+  bool Insert(KeyArg &&key) ABSL_LOCKS_EXCLUDED(mutex_);
 
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Hash hasher_;
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Equal equal_;
@@ -461,47 +484,6 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::~lock_free_hash_set() {
   for (auto const array : arrays_) {
     array->~Array();
     array_alloc_.deallocate(array, 1);
-  }
-}
-
-template <typename Key, typename Hash, typename Equal, typename Allocator>
-bool lock_free_hash_set<Key, Hash, Equal, Allocator>::insert(Key const &key) {
-  size_t const hash = hasher_(key);
-  absl::WriterMutexLock lock(&mutex_);
-  Array *array = ptr_.load(std::memory_order_relaxed);
-  bool store_ptr = false;
-  if (!array) {
-    array = CreateArray(Array::kMinCapacity, 0);
-    store_ptr = true;
-  }
-  size_t const mask = array->hash_mask;
-  size_t const offset = hash & mask;
-  size_t i = 0;
-  while (true) {
-    Node const *const node = array->data[(offset + i * i) & mask].load(std::memory_order_relaxed);
-    if (node) {
-      if (hash == node->hash && equal_(key, node->key)) {
-        if (store_ptr) {
-          ptr_.store(array, std::memory_order_release);
-        }
-        return false;
-      } else {
-        ++i;
-      }
-    } else {
-      Node *const node = CreateNode(key, hash);
-      size_t const size = array->size.load(std::memory_order_relaxed);
-      if (size + 1 > kMaxLoadFactor * array->capacity) {
-        array = Grow(array, node);
-        ptr_.store(array, std::memory_order_release);
-      } else {
-        array->InsertNodeRelaxed(node);
-        if (store_ptr) {
-          ptr_.store(array, std::memory_order_release);
-        }
-      }
-      return true;
-    }
   }
 }
 
@@ -587,6 +569,48 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Grow(Array const *const array,
   new_array->InsertNodeRelaxed(new_node);
   arrays_.push_back(new_array);
   return new_array;
+}
+
+template <typename Key, typename Hash, typename Equal, typename Allocator>
+template <typename KeyArg>
+bool lock_free_hash_set<Key, Hash, Equal, Allocator>::Insert(KeyArg &&key) {
+  size_t const hash = hasher_(key);
+  absl::WriterMutexLock lock(&mutex_);
+  Array *array = ptr_.load(std::memory_order_relaxed);
+  bool store_ptr = false;
+  if (!array) {
+    array = CreateArray(Array::kMinCapacity, 0);
+    store_ptr = true;
+  }
+  size_t const mask = array->hash_mask;
+  size_t const offset = hash & mask;
+  size_t i = 0;
+  while (true) {
+    Node const *const node = array->data[(offset + i * i) & mask].load(std::memory_order_relaxed);
+    if (node) {
+      if (hash == node->hash && equal_(key, node->key)) {
+        if (store_ptr) {
+          ptr_.store(array, std::memory_order_release);
+        }
+        return false;
+      } else {
+        ++i;
+      }
+    } else {
+      Node *const node = CreateNode(std::forward<KeyArg>(key), hash);
+      size_t const size = array->size.load(std::memory_order_relaxed);
+      if (size + 1 > kMaxLoadFactor * array->capacity) {
+        array = Grow(array, node);
+        ptr_.store(array, std::memory_order_release);
+      } else {
+        array->InsertNodeRelaxed(node);
+        if (store_ptr) {
+          ptr_.store(array, std::memory_order_release);
+        }
+      }
+      return true;
+    }
+  }
 }
 
 }  // namespace common
