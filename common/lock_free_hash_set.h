@@ -110,8 +110,26 @@ class lock_free_hash_set {
       }
     }
 
-    Iterator(Iterator const &) = delete;
-    Iterator &operator=(Iterator const &) = delete;
+    Iterator(Iterator const &other)
+        : mutex_(other.mutex_), locked_(other.locked_), array_(other.array_), index_(other.index_) {
+      if (locked_) {
+        mutex_->ReaderLock();
+      }
+    }
+
+    Iterator &operator=(Iterator const &other) {
+      if (locked_) {
+        mutex_->ReaderUnlock();
+      }
+      mutex_ = other.mutex_;
+      locked_ = other.locked_;
+      array_ = other.array_;
+      index_ = other.index_;
+      if (locked_) {
+        mutex_->ReaderLock();
+      }
+      return *this;
+    }
 
     Iterator(Iterator &&other) noexcept
         : mutex_(other.mutex_), locked_(other.locked_), array_(other.array_), index_(other.index_) {
@@ -166,8 +184,14 @@ class lock_free_hash_set {
     }
 
     Iterator &operator--() {
-      while (--index_ > 0) {
-        // TODO
+      if (!locked_) {
+        mutex_->ReaderLock();
+        locked_ = true;
+      }
+      while (index_ > 0) {
+        if (array_->data[--index_].load(std::memory_order_relaxed)) {
+          return *this;
+        }
       }
       return *this;
     }
@@ -186,6 +210,9 @@ class lock_free_hash_set {
         ABSL_LOCKS_EXCLUDED(mutex)
         : mutex_(mutex), locked_(true), array_(array), index_(index) {
       mutex_->ReaderLock();
+      if (array_ && !array_->data[index_].load(std::memory_order_relaxed)) {
+        operator++();
+      }
     }
 
     // Constructs the end iterator.
@@ -276,19 +303,19 @@ class lock_free_hash_set {
   // TODO
 
   iterator begin() const noexcept ABSL_LOCKS_EXCLUDED(mutex_) {
-    return Iterator(&mutex_, ptr_.load(std::memory_order_relaxed), 0);
+    return Iterator(&mutex_, ptr_.load(std::memory_order_acquire), 0);
   }
 
   iterator cbegin() const noexcept ABSL_LOCKS_EXCLUDED(mutex_) {
-    return Iterator(&mutex_, ptr_.load(std::memory_order_relaxed), 0);
+    return Iterator(&mutex_, ptr_.load(std::memory_order_acquire), 0);
   }
 
   iterator end() const noexcept ABSL_LOCKS_EXCLUDED(mutex_) {
-    return Iterator(&mutex_, ptr_.load(std::memory_order_relaxed));
+    return Iterator(&mutex_, ptr_.load(std::memory_order_acquire));
   }
 
   iterator cend() const noexcept ABSL_LOCKS_EXCLUDED(mutex_) {
-    return Iterator(&mutex_, ptr_.load(std::memory_order_relaxed));
+    return Iterator(&mutex_, ptr_.load(std::memory_order_acquire));
   }
 
   // TODO
@@ -299,7 +326,7 @@ class lock_free_hash_set {
   // returns, the data structure may have been rehashed any number of times. If you need to know the
   // exact capacity you need to implement your own synchronization (typically using a mutex).
   size_t capacity() const noexcept {
-    Array const *const array = ptr_.load(std::memory_order_relaxed);
+    Array const *const array = ptr_.load(std::memory_order_acquire);
     if (array) {
       return array->capacity;
     } else {
@@ -313,7 +340,7 @@ class lock_free_hash_set {
   // returns, any number of changes may have occurred in parallel. If you need to know the exact
   // number of elements you need to implement your own synchronization (typically using a mutex).
   size_t size() const noexcept {
-    Array const *const array = ptr_.load(std::memory_order_relaxed);
+    Array const *const array = ptr_.load(std::memory_order_acquire);
     if (array) {
       return array->size.load(std::memory_order_relaxed);
     } else {
@@ -367,9 +394,6 @@ class lock_free_hash_set {
   Node *CreateNode(Key const &key, size_t hash) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   Array *Grow(Array const *array, Node *new_node) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
-
-  template <typename Needle>
-  Node *Find(Needle const &needle, size_t const hash) const;
 
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Hash hasher_;
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Equal equal_;
@@ -496,31 +520,6 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Grow(Array const *const array,
   new_array->InsertNodeRelaxed(new_node);
   arrays_.push_back(new_array);
   return new_array;
-}
-
-template <typename Key, typename Hash, typename Equal, typename Allocator>
-template <typename Needle>
-typename lock_free_hash_set<Key, Hash, Equal, Allocator>::Node *
-lock_free_hash_set<Key, Hash, Equal, Allocator>::Find(Needle const &needle,
-                                                      size_t const hash) const {
-  Array const *const array = ptr_.load(std::memory_order_relaxed);
-  if (!array) {
-    return nullptr;
-  }
-  auto const mask = array->hash_mask;
-  auto const &data = array->data;
-  size_t const offset = hash & mask;
-  size_t i = 0;
-  while (true) {
-    Node *const node = data[(offset + i * i) & mask].load(std::memory_order_relaxed);
-    if (!node) {
-      return nullptr;
-    }
-    if (hash == node->hash && equal_(needle, node->key)) {
-      return node;
-    }
-    ++i;
-  }
 }
 
 }  // namespace common
