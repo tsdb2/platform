@@ -51,4 +51,19 @@ TEST(LockFreeHashSetTest, OneElement) {
 
 // TODO
 
+TEST(LockFreeHashSet, Emplace) {
+  lock_free_hash_set<int> hs;
+  auto const [it, inserted] = hs.emplace(42);
+  EXPECT_TRUE(inserted);
+  EXPECT_NE(it, hs.end());
+  EXPECT_EQ(*it, 42);
+  EXPECT_EQ(hs.capacity(), 32);
+  EXPECT_EQ(hs.size(), 1);
+  EXPECT_THAT(hs, ElementsAre(42));
+  EXPECT_TRUE(hs.contains(42));
+  EXPECT_FALSE(hs.contains(43));
+}
+
+// TODO
+
 }  // namespace

@@ -165,14 +165,14 @@ class lock_free_hash_set {
     }
 
     Iterator &operator--() {
-      while (index_ > 0) {
-        Node *const node = array_->data[--index_].load(std::memory_order_acquire);
+      for (size_t index = index_; index > 0;) {
+        Node *const node = array_->data[--index].load(std::memory_order_acquire);
         if (node) {
+          index_ = index;
           node_ = node;
           return *this;
         }
       }
-      node_ = nullptr;
       return *this;
     }
 
@@ -380,8 +380,6 @@ class lock_free_hash_set {
 
   // TODO
 
-  // Emplaces the specified element and returns true if emplacement happened (i.e. the element was
-  // not present in the hash set prior to this call) and false otherwise.
   template <typename... Args>
   std::pair<iterator, bool> emplace(Args &&...args) ABSL_LOCKS_EXCLUDED(mutex_);
 
@@ -406,15 +404,10 @@ class lock_free_hash_set {
   // TODO
 
  private:
-  // Rehash (halving the capacity) when the number of elements becomes less than half the capacity.
-  // Respecting `Array::kMinCapacity` has priority: a rehash is not performed if there are only
-  // `Array::kMinCapacity` slots.
-  static inline double constexpr kMinLoadFactor = 0.5;
-
-  // Rehash (doubling the capacity) when the number of elements exceeds 75% of the capacity.
-  static inline double constexpr kMaxLoadFactor = 0.75;
-
   Array *CreateArray(size_t capacity, size_t initial_size) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+
+  template <typename... Args>
+  Node *CreateNodeInternal(Args &&...args);
 
   template <typename... Args>
   Node *CreateNode(Args &&...args) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
@@ -479,7 +472,7 @@ template <typename Key, typename Hash, typename Equal, typename Allocator>
 template <typename... Args>
 std::pair<typename lock_free_hash_set<Key, Hash, Equal, Allocator>::Iterator, bool>
 lock_free_hash_set<Key, Hash, Equal, Allocator>::emplace(Args &&...args) {
-  Node *const new_node = CreateNode(hasher_, std::forward<Args>(args)...);
+  Node *const new_node = CreateNodeInternal(hasher_, std::forward<Args>(args)...);
   size_t const hash = new_node->hash;
   absl::MutexLock lock(&mutex_);
   Array *array = ptr_.load(std::memory_order_relaxed);
@@ -493,7 +486,7 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::emplace(Args &&...args) {
   size_t i = 0;
   while (true) {
     size_t const index = (offset + i * i) & mask;
-    Node const *const node = array->data[index].load(std::memory_order_relaxed);
+    Node *const node = array->data[index].load(std::memory_order_relaxed);
     if (node) {
       if (hash == node->hash && equal_(new_node->key, node->key)) {
         DestroyNode(new_node);
@@ -505,8 +498,9 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::emplace(Args &&...args) {
         ++i;
       }
     } else {
+      nodes_.push_back(new_node);
       size_t const size = array->size.load(std::memory_order_relaxed);
-      if (size + 1 > kMaxLoadFactor * array->capacity) {
+      if (size + 1 > array->capacity / 2) {  // rehash if more than 50% full
         array = Grow(array, new_node);
         ptr_.store(array, std::memory_order_release);
       } else {
@@ -544,9 +538,17 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::CreateArray(size_t capacity,
 template <typename Key, typename Hash, typename Equal, typename Allocator>
 template <typename... Args>
 typename lock_free_hash_set<Key, Hash, Equal, Allocator>::Node *
-lock_free_hash_set<Key, Hash, Equal, Allocator>::CreateNode(Args &&...args) {
+lock_free_hash_set<Key, Hash, Equal, Allocator>::CreateNodeInternal(Args &&...args) {
   auto const node = node_alloc_.allocate(1);
   new (node) Node(std::forward<Args>(args)...);
+  return node;
+}
+
+template <typename Key, typename Hash, typename Equal, typename Allocator>
+template <typename... Args>
+typename lock_free_hash_set<Key, Hash, Equal, Allocator>::Node *
+lock_free_hash_set<Key, Hash, Equal, Allocator>::CreateNode(Args &&...args) {
+  auto const node = CreateNodeInternal(std::forward<Args>(args)...);
   nodes_.push_back(node);
   return node;
 }
@@ -624,7 +626,7 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Insert(KeyArg &&key) {
     } else {
       node = CreateNode(std::forward<KeyArg>(key), hash);
       size_t const size = array->size.load(std::memory_order_relaxed);
-      if (size + 1 > kMaxLoadFactor * array->capacity) {
+      if (size + 1 > array->capacity / 2) {  // rehash if more than 50% full
         array = Grow(array, node);
         ptr_.store(array, std::memory_order_release);
       } else {
