@@ -113,10 +113,10 @@ class lock_free_hash_set {
    public:
     Iterator() : array_(nullptr), index_(0), node_(nullptr) {}
 
-    Iterator(Iterator const &other) = default;
-    Iterator &operator=(Iterator const &other) = default;
-    Iterator(Iterator &&other) noexcept = default;
-    Iterator &operator=(Iterator &&other) noexcept = default;
+    Iterator(Iterator const &) = default;
+    Iterator &operator=(Iterator const &) = default;
+    Iterator(Iterator &&) noexcept = default;
+    Iterator &operator=(Iterator &&) noexcept = default;
 
     friend bool operator==(Iterator const &lhs, Iterator const &rhs) {
       return lhs.Tie() == rhs.Tie();
@@ -200,6 +200,11 @@ class lock_free_hash_set {
         }
       }
     }
+
+    // Constructs an iterator at the specified position. `node` must be the element at
+    // `array->data[index]`.
+    explicit Iterator(Array const *const array, size_t const index, Node *const node)
+        : array_(array), index_(index), node_(node) {}
 
     // Constructs the end iterator.
     explicit Iterator(Array const *const array)
@@ -316,7 +321,7 @@ class lock_free_hash_set {
   // WARNING: the value returned by this function is purely advisory. By the time the function
   // returns, the data structure may have been rehashed any number of times. If you need to know the
   // exact capacity you need to implement your own synchronization (typically using a mutex).
-  size_t capacity() const noexcept {
+  size_type capacity() const noexcept {
     Array const *const array = ptr_.load(std::memory_order_acquire);
     if (array) {
       return array->capacity;
@@ -330,7 +335,7 @@ class lock_free_hash_set {
   // WARNING: the value returned by this function is purely advisory. By the time the function
   // returns, any number of changes may have occurred in parallel. If you need to know the exact
   // number of elements you need to implement your own synchronization (typically using a mutex).
-  size_t size() const noexcept {
+  size_type size() const noexcept {
     Array const *const array = ptr_.load(std::memory_order_acquire);
     if (array) {
       return array->size.load(std::memory_order_relaxed);
@@ -356,11 +361,9 @@ class lock_free_hash_set {
     ptr_.store(nullptr, std::memory_order_release);
   }
 
-  // `insert` inserts the specified element and returns true if insertion happened (i.e. the element
-  // was not present in the hash set prior to this call) and false otherwise.
+  std::pair<iterator, bool> insert(value_type const &key) { return Insert(key); }
 
-  bool insert(value_type const &key) { return Insert(key); }
-  bool insert(value_type &&key) { return Insert(std::move(key)); }
+  std::pair<iterator, bool> insert(value_type &&key) { return Insert(std::move(key)); }
 
   template <typename InputIt>
   void insert(InputIt first, InputIt last) {
@@ -422,7 +425,7 @@ class lock_free_hash_set {
   Node *Find(key_arg_t<KeyArg> const &key) const;
 
   template <typename KeyArg>
-  bool Insert(KeyArg &&key) ABSL_LOCKS_EXCLUDED(mutex_);
+  std::pair<Iterator, bool> Insert(KeyArg &&key) ABSL_LOCKS_EXCLUDED(mutex_);
 
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Hash hasher_;
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Equal equal_;
@@ -583,7 +586,8 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Find(key_arg_t<KeyArg> const &k
 
 template <typename Key, typename Hash, typename Equal, typename Allocator>
 template <typename KeyArg>
-bool lock_free_hash_set<Key, Hash, Equal, Allocator>::Insert(KeyArg &&key) {
+std::pair<typename lock_free_hash_set<Key, Hash, Equal, Allocator>::Iterator, bool>
+lock_free_hash_set<Key, Hash, Equal, Allocator>::Insert(KeyArg &&key) {
   size_t const hash = hasher_(key);
   absl::MutexLock lock(&mutex_);
   Array *array = ptr_.load(std::memory_order_relaxed);
@@ -596,18 +600,19 @@ bool lock_free_hash_set<Key, Hash, Equal, Allocator>::Insert(KeyArg &&key) {
   size_t const offset = hash & mask;
   size_t i = 0;
   while (true) {
-    Node const *const node = array->data[(offset + i * i) & mask].load(std::memory_order_relaxed);
+    size_t const index = (offset + i * i) & mask;
+    Node *node = array->data[index].load(std::memory_order_relaxed);
     if (node) {
       if (hash == node->hash && equal_(key, node->key)) {
         if (store_ptr) {
           ptr_.store(array, std::memory_order_release);
         }
-        return false;
+        return std::make_pair(Iterator(array, index, node), false);
       } else {
         ++i;
       }
     } else {
-      Node *const node = CreateNode(std::forward<KeyArg>(key), hash);
+      node = CreateNode(std::forward<KeyArg>(key), hash);
       size_t const size = array->size.load(std::memory_order_relaxed);
       if (size + 1 > kMaxLoadFactor * array->capacity) {
         array = Grow(array, node);
@@ -618,7 +623,7 @@ bool lock_free_hash_set<Key, Hash, Equal, Allocator>::Insert(KeyArg &&key) {
           ptr_.store(array, std::memory_order_release);
         }
       }
-      return true;
+      return std::make_pair(Iterator(array, index, node), true);
     }
   }
 }
