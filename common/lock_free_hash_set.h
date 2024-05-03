@@ -18,25 +18,12 @@
 namespace tsdb2 {
 namespace common {
 
-// A lock-free, thread-safe hash set data structure.
+// A lock-free, thread-safe hash set data structure. The provided API is similar to
+// `std::unordered_set`.
 //
-// Lookups are entirely lockless; all synchronization is performed by `lock_free_hash_set` using
-// atomics. Writers are automatically serialized by acquiring an exclusive lock on an internal
-// mutex. Iterators acquire a shared lock on the mutex and release it when they're destroyed.
-//
-// While our iterators normally hold a shared lock on the internal mutex, end iterators do not.
-// Calling `end()` or `cend()` never acquires any locks, and incrementing an iterator until it
-// reaches the end will cause it to release its lock. Similarly, decrementing the end iterator will
-// cause it to point to the last element (if any) and unless the hash set is empty it will acquire a
-// shared lock.
-//
-// WARNING: since our iterators hold a shared lock and all changes require an exclusive lock, it is
-// not possible to perform any changes during an iteration.
-//
-// To reduce the number of heap allocations and increase cache friendliness, `lock_free_hash_set`
-// uses quadratic open addressing. To speed up lookups even further, values are pre-hashed so that a
-// hash doesn't have to be re-calculated for every colliding element and the probing algorithm can
-// short-circuit and avoid a full comparison of every colliding element.
+// All reads (lookups and iterations) are lockless: all synchronization is performed by
+// `lock_free_hash_set` using atomics. Writers are automatically serialized by acquiring an
+// exclusive lock on an internal mutex.
 //
 // Under heavily contended read scenarios `lock_free_hash_set` can be much faster than other hash
 // set data structures guarded by a mutex. On the flip side, `lock_free_hash_set` does not free any
@@ -44,14 +31,10 @@ namespace common {
 // The memory used by the elements and internal element arrays is freed up only at destruction time,
 // so you should use `lock_free_hash_set` only if you don't need to perform many erasures.
 //
-// NOTE: `insert` and `emplace` methods of other standard STL containers return an
-// `std::pair<iterator, bool>` where the first component is an iterator to the inserted (or
-// previously found) element and the second one is a boolean indicating whether insertion happened.
-// In our case, returning the iterator is infeasible because it would require downgrading the
-// internal lock from exclusive to shared, which is not possible in `absl::Mutex`. We could release
-// the lock, then reacquire a shared one and perform a new lookup, but any number of changes may
-// happen in the meantime and it's not guaranteed that the newly inserted element is still present.
-// If you need an iterator to the inserted element you need to look it up manually.
+// To reduce the number of heap allocations and increase cache friendliness, `lock_free_hash_set`
+// uses quadratic open addressing. To speed up lookups even further, values are pre-hashed so that a
+// hash doesn't have to be re-calculated for every colliding element and the probing algorithm can
+// short-circuit and avoid a full comparison of every colliding element.
 template <typename Key, typename Hash = absl::Hash<Key>, typename Equal = std::equal_to<Key>,
           typename Allocator = std::allocator<Key>>
 class lock_free_hash_set {
@@ -128,78 +111,50 @@ class lock_free_hash_set {
 
   class Iterator final {
    public:
-    Iterator() : mutex_(nullptr), locked_(false), array_(nullptr), index_(0) {}
+    Iterator() : array_(nullptr), index_(0), node_(nullptr) {}
 
-    ~Iterator() ABSL_NO_THREAD_SAFETY_ANALYSIS {
-      if (locked_) {
-        mutex_->ReaderUnlock();
-      }
-    }
-
-    Iterator(Iterator const &other)
-        : mutex_(other.mutex_), locked_(other.locked_), array_(other.array_), index_(other.index_) {
-      if (locked_) {
-        mutex_->ReaderLock();
-      }
-    }
-
-    Iterator &operator=(Iterator const &other) {
-      if (locked_) {
-        mutex_->ReaderUnlock();
-      }
-      mutex_ = other.mutex_;
-      locked_ = other.locked_;
-      array_ = other.array_;
-      index_ = other.index_;
-      if (locked_) {
-        mutex_->ReaderLock();
-      }
-      return *this;
-    }
-
-    Iterator(Iterator &&other) noexcept
-        : mutex_(other.mutex_), locked_(other.locked_), array_(other.array_), index_(other.index_) {
-      other.mutex_ = nullptr;
-      other.locked_ = false;
-      other.array_ = nullptr;
-    }
-
-    Iterator &operator=(Iterator &&other) noexcept ABSL_NO_THREAD_SAFETY_ANALYSIS {
-      if (locked_) {
-        mutex_->ReaderUnlock();
-      }
-      mutex_ = other.mutex_;
-      locked_ = other.locked_;
-      array_ = other.array_;
-      index_ = other.index_;
-      other.mutex_ = nullptr;
-      other.locked_ = false;
-      return *this;
-    }
+    Iterator(Iterator const &other) = default;
+    Iterator &operator=(Iterator const &other) = default;
+    Iterator(Iterator &&other) noexcept = default;
+    Iterator &operator=(Iterator &&other) noexcept = default;
 
     friend bool operator==(Iterator const &lhs, Iterator const &rhs) {
       return lhs.Tie() == rhs.Tie();
     }
 
     friend bool operator!=(Iterator const &lhs, Iterator const &rhs) {
-      return !operator==(lhs, rhs);
+      return lhs.Tie() != rhs.Tie();
     }
 
-    Key const &operator*() const {
-      Node const *const node = array_->data[index_].load(std::memory_order_relaxed);
-      return node->key;
+    friend bool operator<(Iterator const &lhs, Iterator const &rhs) {
+      return lhs.Tie() < rhs.Tie();
     }
+
+    friend bool operator<=(Iterator const &lhs, Iterator const &rhs) {
+      return lhs.Tie() <= rhs.Tie();
+    }
+
+    friend bool operator>(Iterator const &lhs, Iterator const &rhs) {
+      return lhs.Tie() > rhs.Tie();
+    }
+
+    friend bool operator>=(Iterator const &lhs, Iterator const &rhs) {
+      return lhs.Tie() >= rhs.Tie();
+    }
+
+    operator bool() const { return node_ != nullptr; }
+
+    Key const &operator*() const { return node_->key; }
 
     Iterator &operator++() ABSL_NO_THREAD_SAFETY_ANALYSIS {
       while (++index_ < array_->capacity) {
-        if (array_->data[index_].load(std::memory_order_relaxed)) {
+        Node *const node = array_->data[index_].load(std::memory_order_acquire);
+        if (node) {
+          node_ = node;
           return *this;
         }
       }
-      if (locked_) {
-        mutex_->ReaderUnlock();
-        locked_ = false;
-      }
+      node_ = nullptr;
       return *this;
     }
 
@@ -210,15 +165,14 @@ class lock_free_hash_set {
     }
 
     Iterator &operator--() {
-      if (!locked_) {
-        mutex_->ReaderLock();
-        locked_ = true;
-      }
       while (index_ > 0) {
-        if (array_->data[--index_].load(std::memory_order_relaxed)) {
+        Node *const node = array_->data[--index_].load(std::memory_order_acquire);
+        if (node) {
+          node_ = node;
           return *this;
         }
       }
+      node_ = nullptr;
       return *this;
     }
 
@@ -231,26 +185,31 @@ class lock_free_hash_set {
    private:
     friend class lock_free_hash_set;
 
-    // Constructs an iterator at the specified position.
-    explicit Iterator(absl::Mutex *const mutex, Array const *const array, size_t const index)
-        ABSL_LOCKS_EXCLUDED(mutex)
-        : mutex_(mutex), locked_(true), array_(array), index_(index) {
-      mutex_->ReaderLock();
-      if (array_ && !array_->data[index_].load(std::memory_order_relaxed)) {
-        operator++();
+    // Constructs an iterator at the specified position. `memory_order` indicates how to load the
+    // atomic pointer to the element at that position; use relaxed order if the mutex of the parent
+    // container is locked exclusively, otherwise use acquire order.
+    explicit Iterator(Array const *const array, size_t const index,
+                      std::memory_order const memory_order)
+        : array_(array), index_(index), node_(nullptr) {
+      if (array_) {
+        Node *const node = array_->data[index_].load(memory_order);
+        if (node) {
+          node_ = node;
+        } else {
+          operator++();
+        }
       }
     }
 
     // Constructs the end iterator.
-    explicit Iterator(absl::Mutex *const mutex, Array const *const array)
-        : mutex_(mutex), locked_(false), array_(array), index_(array_ ? array_->capacity : 0) {}
+    explicit Iterator(Array const *const array)
+        : array_(array), index_(array_ ? array_->capacity : 0), node_(nullptr) {}
 
     auto Tie() const { return std::tie(array_, index_); }
 
-    absl::Mutex *mutex_;
-    bool locked_;
     Array const *array_;
     size_t index_;
+    Node *node_;
   };
 
  public:
@@ -335,19 +294,19 @@ class lock_free_hash_set {
   // TODO
 
   iterator begin() const noexcept ABSL_LOCKS_EXCLUDED(mutex_) {
-    return Iterator(&mutex_, ptr_.load(std::memory_order_acquire), 0);
+    return Iterator(ptr_.load(std::memory_order_acquire), 0, std::memory_order_acquire);
   }
 
   const_iterator cbegin() const noexcept ABSL_LOCKS_EXCLUDED(mutex_) {
-    return Iterator(&mutex_, ptr_.load(std::memory_order_acquire), 0);
+    return Iterator(ptr_.load(std::memory_order_acquire), 0, std::memory_order_acquire);
   }
 
   iterator end() const noexcept ABSL_LOCKS_EXCLUDED(mutex_) {
-    return Iterator(&mutex_, ptr_.load(std::memory_order_acquire));
+    return Iterator(ptr_.load(std::memory_order_acquire));
   }
 
   const_iterator cend() const noexcept ABSL_LOCKS_EXCLUDED(mutex_) {
-    return Iterator(&mutex_, ptr_.load(std::memory_order_acquire));
+    return Iterator(ptr_.load(std::memory_order_acquire));
   }
 
   // TODO
@@ -393,7 +352,7 @@ class lock_free_hash_set {
   // NOTE: as explained above, the memory taken by the removed elements is not actually freed. This
   // function will simply cause the hash set as whole to no longer point to any previous slot array.
   void clear() noexcept {
-    absl::WriterMutexLock lock(&mutex_);
+    absl::MutexLock lock(&mutex_);
     ptr_.store(nullptr, std::memory_order_release);
   }
 
@@ -501,7 +460,7 @@ void lock_free_hash_set<Key, Hash, Equal, Allocator>::Array::InsertNodeRelaxed(N
 
 template <typename Key, typename Hash, typename Equal, typename Allocator>
 lock_free_hash_set<Key, Hash, Equal, Allocator>::~lock_free_hash_set() {
-  absl::WriterMutexLock lock{&mutex_};
+  absl::MutexLock lock{&mutex_};
   for (auto const node : nodes_) {
     node->~Node();
     node_alloc_.deallocate(node, 1);
@@ -517,7 +476,7 @@ template <typename... Args>
 bool lock_free_hash_set<Key, Hash, Equal, Allocator>::emplace(Args &&...args) {
   Node *const new_node = CreateNode(hasher_, std::forward<Args>(args)...);
   size_t const hash = new_node->hash;
-  absl::WriterMutexLock lock(&mutex_);
+  absl::MutexLock lock(&mutex_);
   Array *array = ptr_.load(std::memory_order_relaxed);
   bool store_ptr = false;
   if (!array) {
@@ -626,7 +585,7 @@ template <typename Key, typename Hash, typename Equal, typename Allocator>
 template <typename KeyArg>
 bool lock_free_hash_set<Key, Hash, Equal, Allocator>::Insert(KeyArg &&key) {
   size_t const hash = hasher_(key);
-  absl::WriterMutexLock lock(&mutex_);
+  absl::MutexLock lock(&mutex_);
   Array *array = ptr_.load(std::memory_order_relaxed);
   bool store_ptr = false;
   if (!array) {
