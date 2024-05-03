@@ -383,7 +383,7 @@ class lock_free_hash_set {
   // Emplaces the specified element and returns true if emplacement happened (i.e. the element was
   // not present in the hash set prior to this call) and false otherwise.
   template <typename... Args>
-  bool emplace(Args &&...args) ABSL_LOCKS_EXCLUDED(mutex_);
+  std::pair<iterator, bool> emplace(Args &&...args) ABSL_LOCKS_EXCLUDED(mutex_);
 
   // TODO
 
@@ -418,6 +418,8 @@ class lock_free_hash_set {
 
   template <typename... Args>
   Node *CreateNode(Args &&...args) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+
+  void DestroyNode(Node *node) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   Array *Grow(Array const *array, Node *new_node) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
@@ -465,8 +467,7 @@ template <typename Key, typename Hash, typename Equal, typename Allocator>
 lock_free_hash_set<Key, Hash, Equal, Allocator>::~lock_free_hash_set() {
   absl::MutexLock lock{&mutex_};
   for (auto const node : nodes_) {
-    node->~Node();
-    node_alloc_.deallocate(node, 1);
+    DestroyNode(node);
   }
   for (auto const array : arrays_) {
     array->~Array();
@@ -476,7 +477,8 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::~lock_free_hash_set() {
 
 template <typename Key, typename Hash, typename Equal, typename Allocator>
 template <typename... Args>
-bool lock_free_hash_set<Key, Hash, Equal, Allocator>::emplace(Args &&...args) {
+std::pair<typename lock_free_hash_set<Key, Hash, Equal, Allocator>::Iterator, bool>
+lock_free_hash_set<Key, Hash, Equal, Allocator>::emplace(Args &&...args) {
   Node *const new_node = CreateNode(hasher_, std::forward<Args>(args)...);
   size_t const hash = new_node->hash;
   absl::MutexLock lock(&mutex_);
@@ -490,13 +492,15 @@ bool lock_free_hash_set<Key, Hash, Equal, Allocator>::emplace(Args &&...args) {
   size_t const offset = hash & mask;
   size_t i = 0;
   while (true) {
-    Node const *const node = array->data[(offset + i * i) & mask].load(std::memory_order_relaxed);
+    size_t const index = (offset + i * i) & mask;
+    Node const *const node = array->data[index].load(std::memory_order_relaxed);
     if (node) {
       if (hash == node->hash && equal_(new_node->key, node->key)) {
+        DestroyNode(new_node);
         if (store_ptr) {
           ptr_.store(array, std::memory_order_release);
         }
-        return false;
+        return std::make_pair(Iterator(array, index, node), false);
       } else {
         ++i;
       }
@@ -511,9 +515,15 @@ bool lock_free_hash_set<Key, Hash, Equal, Allocator>::emplace(Args &&...args) {
           ptr_.store(array, std::memory_order_release);
         }
       }
-      return true;
+      return std::make_pair(Iterator(array, index, new_node), true);
     }
   }
+}
+
+template <typename Key, typename Hash, typename Equal, typename Allocator>
+void lock_free_hash_set<Key, Hash, Equal, Allocator>::DestroyNode(Node *const node) {
+  node->~Node();
+  node_alloc_.deallocate(node, 1);
 }
 
 template <typename Key, typename Hash, typename Equal, typename Allocator>
