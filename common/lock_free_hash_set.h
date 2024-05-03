@@ -7,6 +7,7 @@
 #include <initializer_list>
 #include <iterator>
 #include <memory>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -74,12 +75,12 @@ class lock_free_hash_set {
       }
     }
 
-    // Inserts the provided node in the array.
+    // Inserts the provided node in the array, returning the index at which the node was inserted.
     //
     // NOTE: this function uses relaxed memory ordering because it assumes that the caller owns an
     // exclusive lock. That must be the case because all `lock_free_hash_set` writers are serialized
     // by a mutex.
-    void InsertNodeRelaxed(Node *node);
+    size_t InsertNodeRelaxed(Node *node);
 
     // Number of `data` slots. This is always a power of 2.
     size_t const capacity;
@@ -414,7 +415,10 @@ class lock_free_hash_set {
 
   void DestroyNode(Node *node) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
-  Array *Grow(Array const *array, Node *new_node) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  // Rehashes `array` doubling its capacity, copying over all existing nodes, and adding in
+  // `new_node`. Returns a pointer to the new array and the index at which `new_node` was inserted.
+  std::pair<Array *, size_t> Grow(Array const *array, Node *new_node)
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   template <typename KeyArg = Key>
   Node *Find(key_arg_t<KeyArg> const &key) const;
@@ -440,7 +444,7 @@ class lock_free_hash_set {
 };
 
 template <typename Key, typename Hash, typename Equal, typename Allocator>
-void lock_free_hash_set<Key, Hash, Equal, Allocator>::Array::InsertNodeRelaxed(Node *const node) {
+size_t lock_free_hash_set<Key, Hash, Equal, Allocator>::Array::InsertNodeRelaxed(Node *const node) {
   size_t const offset = node->hash & hash_mask;
   size_t i = 0;
   while (true) {
@@ -449,7 +453,7 @@ void lock_free_hash_set<Key, Hash, Equal, Allocator>::Array::InsertNodeRelaxed(N
     if (data[index].compare_exchange_strong(expected, node, std::memory_order_relaxed,
                                             std::memory_order_relaxed)) {
       size.fetch_add(1, std::memory_order_relaxed);
-      return;
+      return index;
     } else {
       ++i;
     }
@@ -485,7 +489,7 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::emplace(Args &&...args) {
   size_t const offset = hash & mask;
   size_t i = 0;
   while (true) {
-    size_t const index = (offset + i * i) & mask;
+    size_t index = (offset + i * i) & mask;
     Node *const node = array->data[index].load(std::memory_order_relaxed);
     if (node) {
       if (hash == node->hash && equal_(new_node->key, node->key)) {
@@ -501,10 +505,10 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::emplace(Args &&...args) {
       nodes_.push_back(new_node);
       size_t const size = array->size.load(std::memory_order_relaxed);
       if (size + 1 > array->capacity / 2) {  // rehash if more than 50% full
-        array = Grow(array, new_node);
+        std::tie(array, index) = Grow(array, new_node);
         ptr_.store(array, std::memory_order_release);
       } else {
-        array->InsertNodeRelaxed(new_node);
+        index = array->InsertNodeRelaxed(new_node);
         if (store_ptr) {
           ptr_.store(array, std::memory_order_release);
         }
@@ -554,7 +558,7 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::CreateNode(Args &&...args) {
 }
 
 template <typename Key, typename Hash, typename Equal, typename Allocator>
-typename lock_free_hash_set<Key, Hash, Equal, Allocator>::Array *
+std::pair<typename lock_free_hash_set<Key, Hash, Equal, Allocator>::Array *, size_t>
 lock_free_hash_set<Key, Hash, Equal, Allocator>::Grow(Array const *const array,
                                                       Node *const new_node) {
   Array *const new_array =
@@ -565,9 +569,9 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Grow(Array const *const array,
       new_array->InsertNodeRelaxed(node);
     }
   }
-  new_array->InsertNodeRelaxed(new_node);
+  size_t const index = new_array->InsertNodeRelaxed(new_node);
   arrays_.push_back(new_array);
-  return new_array;
+  return std::make_pair(new_array, index);
 }
 
 template <typename Key, typename Hash, typename Equal, typename Allocator>
@@ -612,7 +616,7 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Insert(KeyArg &&key) {
   size_t const offset = hash & mask;
   size_t i = 0;
   while (true) {
-    size_t const index = (offset + i * i) & mask;
+    size_t index = (offset + i * i) & mask;
     Node *node = array->data[index].load(std::memory_order_relaxed);
     if (node) {
       if (hash == node->hash && equal_(key, node->key)) {
@@ -627,10 +631,10 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Insert(KeyArg &&key) {
       node = CreateNode(std::forward<KeyArg>(key), hash);
       size_t const size = array->size.load(std::memory_order_relaxed);
       if (size + 1 > array->capacity / 2) {  // rehash if more than 50% full
-        array = Grow(array, node);
+        std::tie(array, index) = Grow(array, node);
         ptr_.store(array, std::memory_order_release);
       } else {
-        array->InsertNodeRelaxed(node);
+        index = array->InsertNodeRelaxed(node);
         if (store_ptr) {
           ptr_.store(array, std::memory_order_release);
         }
