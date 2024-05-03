@@ -147,7 +147,7 @@ class lock_free_hash_set {
 
     Key const &operator*() const { return node_->key; }
 
-    Iterator &operator++() ABSL_NO_THREAD_SAFETY_ANALYSIS {
+    Iterator &operator++() {
       while (++index_ < array_->capacity) {
         Node *const node = array_->data[index_].load(std::memory_order_acquire);
         if (node) {
@@ -299,21 +299,17 @@ class lock_free_hash_set {
 
   // TODO
 
-  iterator begin() const noexcept ABSL_LOCKS_EXCLUDED(mutex_) {
+  iterator begin() const noexcept {
     return Iterator(ptr_.load(std::memory_order_acquire), 0, std::memory_order_acquire);
   }
 
-  const_iterator cbegin() const noexcept ABSL_LOCKS_EXCLUDED(mutex_) {
+  const_iterator cbegin() const noexcept {
     return Iterator(ptr_.load(std::memory_order_acquire), 0, std::memory_order_acquire);
   }
 
-  iterator end() const noexcept ABSL_LOCKS_EXCLUDED(mutex_) {
-    return Iterator(ptr_.load(std::memory_order_acquire));
-  }
+  iterator end() const noexcept { return Iterator(ptr_.load(std::memory_order_acquire)); }
 
-  const_iterator cend() const noexcept ABSL_LOCKS_EXCLUDED(mutex_) {
-    return Iterator(ptr_.load(std::memory_order_acquire));
-  }
+  const_iterator cend() const noexcept { return Iterator(ptr_.load(std::memory_order_acquire)); }
 
   // TODO
 
@@ -416,7 +412,7 @@ class lock_free_hash_set {
   template <typename... Args>
   Node *CreateNode(Args &&...args) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
-  void DestroyNode(Node *node) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  void DestroyNode(Node *node);
 
   // Rehashes `array` doubling its capacity, copying over all existing nodes, and adding in
   // `new_node`. Returns a pointer to the new array and the index at which `new_node` was inserted.
