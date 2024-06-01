@@ -1,5 +1,6 @@
 #include "common/lock_free_hash_set.h"
 
+#include <tuple>
 #include <type_traits>
 
 #include "gmock/gmock.h"
@@ -9,7 +10,7 @@ namespace {
 
 using tsdb2::common::lock_free_hash_set;
 
-using ::testing::ElementsAre;
+using ::testing::UnorderedElementsAre;
 
 struct TriviallyDestructible {
   int foo;
@@ -36,7 +37,7 @@ TEST(LockFreeHashSetTest, Empty) {
   lock_free_hash_set<int> hs;
   EXPECT_EQ(hs.capacity(), 0);
   EXPECT_EQ(hs.size(), 0);
-  EXPECT_THAT(hs, ElementsAre());
+  EXPECT_THAT(hs, UnorderedElementsAre());
   EXPECT_FALSE(hs.contains(42));
 }
 
@@ -44,14 +45,24 @@ TEST(LockFreeHashSetTest, OneElement) {
   lock_free_hash_set<int> hs{42};
   EXPECT_EQ(hs.capacity(), 32);
   EXPECT_EQ(hs.size(), 1);
-  EXPECT_THAT(hs, ElementsAre(42));
+  EXPECT_THAT(hs, UnorderedElementsAre(42));
   EXPECT_TRUE(hs.contains(42));
   EXPECT_FALSE(hs.contains(43));
 }
 
+TEST(LockFreeHashSetTest, TwoElements) {
+  lock_free_hash_set<int> hs{42, 43};
+  EXPECT_EQ(hs.capacity(), 32);
+  EXPECT_EQ(hs.size(), 2);
+  EXPECT_THAT(hs, UnorderedElementsAre(42, 43));
+  EXPECT_TRUE(hs.contains(42));
+  EXPECT_TRUE(hs.contains(43));
+  EXPECT_FALSE(hs.contains(44));
+}
+
 // TODO
 
-TEST(LockFreeHashSet, Emplace) {
+TEST(LockFreeHashSet, EmplaceOne) {
   lock_free_hash_set<int> hs;
   auto const [it, inserted] = hs.emplace(42);
   EXPECT_TRUE(inserted);
@@ -59,9 +70,23 @@ TEST(LockFreeHashSet, Emplace) {
   EXPECT_EQ(*it, 42);
   EXPECT_EQ(hs.capacity(), 32);
   EXPECT_EQ(hs.size(), 1);
-  EXPECT_THAT(hs, ElementsAre(42));
+  EXPECT_THAT(hs, UnorderedElementsAre(42));
   EXPECT_TRUE(hs.contains(42));
   EXPECT_FALSE(hs.contains(43));
+}
+
+TEST(LockFreeHashSet, EmplaceTwo) {
+  lock_free_hash_set<int> hs;
+  auto [it, inserted] = hs.emplace(42);
+  std::tie(it, inserted) = hs.emplace(43);
+  EXPECT_TRUE(inserted);
+  EXPECT_NE(it, hs.end());
+  EXPECT_EQ(*it, 43);
+  EXPECT_EQ(hs.capacity(), 32);
+  EXPECT_EQ(hs.size(), 2);
+  EXPECT_THAT(hs, UnorderedElementsAre(42, 43));
+  EXPECT_TRUE(hs.contains(42));
+  EXPECT_TRUE(hs.contains(43));
 }
 
 // TODO
