@@ -427,14 +427,14 @@ class lock_free_hash_set {
 
   template <class InputIt>
   void insert(InputIt first, InputIt last) {
-    // TODO: optimize by reserving space and acquiring the mutex only once.
     for (; first != last; ++first) {
       Insert(*first);
     }
   }
 
   void insert(std::initializer_list<value_type> const list) {
-    // TODO: optimize by reserving space and acquiring the mutex only once.
+    reserve(list.end() - list.begin());
+    // TODO: optimize by acquiring the mutex only once.
     for (auto &value : list) {
       Insert(value);
     }
@@ -552,22 +552,25 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::~lock_free_hash_set() {
 }
 
 template <typename Key, typename Hash, typename Equal, typename Allocator>
-void lock_free_hash_set<Key, Hash, Equal, Allocator>::reserve(size_type const size) {
-  size_t const min_capacity = std::max(Array::kMinCapacity, NextPowerOf2(size * 2));
+void lock_free_hash_set<Key, Hash, Equal, Allocator>::reserve(size_type const new_size) {
+  size_t const min_capacity = std::max(Array::kMinCapacity, NextPowerOf2(new_size * 2));
   Array const *array = ptr_.load(std::memory_order_acquire);
-  if (array->capacity >= min_capacity) {
+  if (array && array->capacity >= min_capacity) {
     return;
   }
   absl::MutexLock lock{&mutex_};
   array = ptr_.load(std::memory_order_relaxed);
-  if (array->capacity >= min_capacity) {
+  if (array && array->capacity >= min_capacity) {
     return;
   }
-  auto const new_array = CreateArray(min_capacity, array->size.load(std::memory_order_relaxed));
-  for (size_t i = 0; i < array->capacity; ++i) {
-    auto const node = array->data[i].load(std::memory_order_relaxed);
-    if (node) {
-      new_array->InsertNodeRelaxed(node);
+  auto const size = array ? array->size.load(std::memory_order_relaxed) : 0;
+  auto const new_array = CreateArray(min_capacity, size);
+  if (array) {
+    for (size_t i = 0; i < array->capacity; ++i) {
+      auto const node = array->data[i].load(std::memory_order_relaxed);
+      if (node) {
+        new_array->InsertNodeRelaxed(node);
+      }
     }
   }
   ptr_.store(new_array, std::memory_order_release);
