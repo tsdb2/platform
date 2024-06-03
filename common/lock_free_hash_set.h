@@ -161,7 +161,7 @@ class lock_free_hash_set {
       if (lhs.index_ < 0) {
         return rhs.index_ < 0;
       }
-      return lhs.node_ == rhs.node_;
+      return lhs.index_ == rhs.index_;
     }
 
     friend bool operator!=(Iterator const &lhs, Iterator const &rhs) {
@@ -202,10 +202,10 @@ class lock_free_hash_set {
     Key const *operator->() const { return &(node_->key); }
 
     Iterator &operator++() {
+      node_ = nullptr;
       auto const array = parent_->ptr_.load(std::memory_order_acquire);
       if (!array) {
         index_ = -1;
-        node_ = nullptr;
         return *this;
       }
       while (++index_ < array->capacity) {
@@ -225,10 +225,10 @@ class lock_free_hash_set {
     }
 
     Iterator &operator--() {
+      node_ = nullptr;
       auto const array = parent_->ptr_.load(std::memory_order_acquire);
       if (!array) {
         index_ = -1;
-        node_ = nullptr;
         return *this;
       }
       if (index_ < 0) {
