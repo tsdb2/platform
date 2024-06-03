@@ -103,7 +103,7 @@ class lock_free_hash_set {
     }
 
     // Returns the index of the i-th slot of the bucket identified by `hash`.
-    size_t index(size_t const hash, size_t const i) const {
+    size_t slot_index(size_t const hash, size_t const i) const {
       return (hash + ((i + i * i) >> 1)) & hash_mask;
     }
 
@@ -296,10 +296,11 @@ class lock_free_hash_set {
   using hasher = Hash;
   using key_equal = Equal;
   using allocator_type = NodeAllocator;
+  using allocator_traits = std::allocator_traits<allocator_type>;
   using reference = value_type &;
   using const_reference = value_type const &;
-  using pointer = typename std::allocator_traits<NodeAllocator>::pointer;
-  using const_pointer = typename std::allocator_traits<NodeAllocator>::const_pointer;
+  using pointer = typename allocator_traits::pointer;
+  using const_pointer = typename allocator_traits::const_pointer;
   using iterator = Iterator;
   using const_iterator = Iterator;
   using reverse_iterator = std::reverse_iterator<iterator>;
@@ -352,9 +353,18 @@ class lock_free_hash_set {
     insert(init);
   }
 
-  // TODO: other constructors
+  lock_free_hash_set(std::initializer_list<value_type> init, Allocator const &alloc)
+      : lock_free_hash_set(init, Hash(), Equal(), alloc) {}
+
+  lock_free_hash_set(std::initializer_list<value_type> init, Hash const &hasher,
+                     Allocator const &alloc)
+      : lock_free_hash_set(init, hasher, Equal(), alloc) {}
 
   ~lock_free_hash_set();
+
+  allocator_type get_alloc() const noexcept {
+    return allocator_traits::select_on_container_copy_construction(node_alloc_);
+  }
 
   iterator begin() noexcept { return Iterator(Iterator::kBeginIterator, this); }
   const_iterator begin() const noexcept { return Iterator(Iterator::kBeginIterator, this); }
@@ -376,6 +386,11 @@ class lock_free_hash_set {
       return 0;
     }
   }
+
+  // Ensures the hash set has room for at least `size` elements, including some extra space to
+  // account for the maximum load factor. This is a no-op if the hash set already has enough
+  // capacity.
+  void reserve(size_type size);
 
   // Returns the number of elements in the hash set.
   //
@@ -463,6 +478,8 @@ class lock_free_hash_set {
   lock_free_hash_set(lock_free_hash_set &&) = delete;
   lock_free_hash_set &operator=(lock_free_hash_set &&) = delete;
 
+  static uint64_t NextPowerOf2(uint64_t value);
+
   Array *CreateArray(size_t capacity, size_t initial_size) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   void DestroyArray(Array *array);
@@ -511,7 +528,7 @@ template <typename Key, typename Hash, typename Equal, typename Allocator>
 size_t lock_free_hash_set<Key, Hash, Equal, Allocator>::Array::InsertNodeRelaxed(Node *const node) {
   size_t i = 0;
   while (true) {
-    size_t const j = index(node->hash, i);
+    size_t const j = slot_index(node->hash, i);
     Node *expected = nullptr;
     if (data[j].compare_exchange_strong(expected, node, std::memory_order_relaxed,
                                         std::memory_order_relaxed)) {
@@ -532,6 +549,40 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::~lock_free_hash_set() {
   for (auto const array : arrays_) {
     DestroyArray(array);
   }
+}
+
+template <typename Key, typename Hash, typename Equal, typename Allocator>
+void lock_free_hash_set<Key, Hash, Equal, Allocator>::reserve(size_type const size) {
+  size_t const min_capacity = std::max(Array::kMinCapacity, NextPowerOf2(size * 2));
+  Array const *array = ptr_.load(std::memory_order_acquire);
+  if (array->capacity >= min_capacity) {
+    return;
+  }
+  absl::MutexLock lock{&mutex_};
+  array = ptr_.load(std::memory_order_relaxed);
+  if (array->capacity >= min_capacity) {
+    return;
+  }
+  auto const new_array = CreateArray(min_capacity, array->size.load(std::memory_order_relaxed));
+  for (size_t i = 0; i < array->capacity; ++i) {
+    auto const node = array->data[i].load(std::memory_order_relaxed);
+    if (node) {
+      new_array->InsertNodeRelaxed(node);
+    }
+  }
+  ptr_.store(new_array, std::memory_order_release);
+}
+
+template <typename Key, typename Hash, typename Equal, typename Allocator>
+uint64_t lock_free_hash_set<Key, Hash, Equal, Allocator>::NextPowerOf2(uint64_t value) {
+  --value;
+  value |= value >> 1;
+  value |= value >> 2;
+  value |= value >> 4;
+  value |= value >> 8;
+  value |= value >> 16;
+  value |= value >> 32;
+  return ++value;
 }
 
 template <typename Key, typename Hash, typename Equal, typename Allocator>
@@ -589,7 +640,7 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Find(KeyArg const &key) const {
   }
   size_t i = 0;
   while (true) {
-    size_t const index = array->index(hash, i);
+    size_t const index = array->slot_index(hash, i);
     Node *const node = array->data[index].load(std::memory_order_acquire);
     if (node) {
       if (hash == node->hash && equal_(key, node->key)) {
@@ -634,7 +685,7 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Insert(KeyArg &&key) {
   }
   size_t i = 0;
   while (true) {
-    size_t index = array->index(hash, i);
+    size_t index = array->slot_index(hash, i);
     Node *node = array->data[index].load(std::memory_order_relaxed);
     if (node) {
       if (hash == node->hash && equal_(key, node->key)) {
@@ -677,7 +728,7 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Emplace(Args &&...args) {
   }
   size_t i = 0;
   while (true) {
-    size_t index = array->index(hash, i);
+    size_t index = array->slot_index(hash, i);
     Node *const node = array->data[index].load(std::memory_order_relaxed);
     if (node) {
       if (hash == node->hash && equal_(new_node->key, node->key)) {
