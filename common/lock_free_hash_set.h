@@ -1,6 +1,7 @@
 #ifndef __TSDB2_COMMON_LOCK_FREE_HASH_SET_H__
 #define __TSDB2_COMMON_LOCK_FREE_HASH_SET_H__
 
+#include <algorithm>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -413,15 +414,6 @@ class lock_free_hash_set {
   // know the exact number of elements you need to implement your own synchronization (typically
   // using a mutex).
   [[nodiscard]] bool empty() const noexcept { return size() == 0; }
-
-  // Erases all elements from the hash set.
-  //
-  // NOTE: as explained above, the memory taken by the removed elements is not actually freed. This
-  // function will simply cause the hash set as whole to no longer point to any previous slot array.
-  void clear() noexcept {
-    absl::MutexLock lock{&mutex_};
-    ptr_.store(nullptr, std::memory_order_release);
-  }
 
   std::pair<iterator, bool> insert(value_type const &value) { return Insert(value); }
 
