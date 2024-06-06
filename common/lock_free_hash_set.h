@@ -415,6 +415,15 @@ class lock_free_hash_set {
   // using a mutex).
   [[nodiscard]] bool empty() const noexcept { return size() == 0; }
 
+  // Erases all elements from the hash set.
+  //
+  // NOTE: as explained above, the memory taken by the removed elements is not actually freed. This
+  // function will simply cause the hash set as whole to no longer point to any previous slot array.
+  void clear() noexcept {
+    absl::MutexLock lock{&mutex_};
+    ptr_.store(nullptr, std::memory_order_release);
+  }
+
   std::pair<iterator, bool> insert(value_type const &value) { return Insert(value); }
 
   template <class InputIt>

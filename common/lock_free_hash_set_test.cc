@@ -204,4 +204,29 @@ TEST(LockFreeHashSet, LookUpTwoElements) {
   EXPECT_EQ(hs.count(44), 0);
 }
 
+TEST(LockFreeHashSet, ClearEmpty) {
+  lock_free_hash_set<int> hs;
+  hs.clear();
+  EXPECT_EQ(hs.size(), 0);
+  EXPECT_TRUE(hs.empty());
+  EXPECT_THAT(hs, UnorderedElementsAre());
+}
+
+TEST(LockFreeHashSet, ClearNonEmpty) {
+  lock_free_hash_set<int> hs{42, 43};
+  hs.clear();
+  EXPECT_EQ(hs.size(), 0);
+  EXPECT_TRUE(hs.empty());
+  EXPECT_THAT(hs, UnorderedElementsAre());
+}
+
+TEST(LockFreeHashSet, InsertAfterClear) {
+  lock_free_hash_set<int> hs{42};
+  hs.clear();
+  hs.insert(43);
+  EXPECT_EQ(hs.size(), 1);
+  EXPECT_FALSE(hs.empty());
+  EXPECT_THAT(hs, UnorderedElementsAre(43));
+}
+
 }  // namespace
