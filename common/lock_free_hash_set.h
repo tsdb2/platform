@@ -75,6 +75,7 @@ class lock_free_hash_set {
 
     Key const key;
     size_t const hash;
+    std::atomic<bool> deleted{false};
   };
 
   using NodeAllocator = typename std::allocator_traits<Allocator>::template rebind_alloc<Node>;
@@ -104,6 +105,18 @@ class lock_free_hash_set {
     }
 
     // Returns the index of the i-th slot of the bucket identified by `hash`.
+    //
+    // We use the following formula to calculate the index of the i-th slot in the bucket with the
+    // provided `hash`:
+    //
+    //   hash + (i + i^2) / 2
+    //
+    // The final AND with `hash_mask` is equivalent to applying the modulo operator with the size of
+    // the array, which wraps the calculated value around the array boundaries.
+    //
+    // This formula is equivalent to advance the index by 1, 2, 3, ... during the probing process.
+    // Since the size of the array is always a power of 2, that is in turn guaranteed to probe each
+    // slot exactly once even if the array were 100% full.
     size_t slot_index(size_t const hash, size_t const i) const {
       return (hash + ((i + i * i) >> 1)) & hash_mask;
     }
@@ -210,8 +223,9 @@ class lock_free_hash_set {
         return *this;
       }
       while (++index_ < array->capacity) {
-        node_ = array->data[index_].load(std::memory_order_acquire);
-        if (node_) {
+        auto const node = array->data[index_].load(std::memory_order_acquire);
+        if (node && !node->deleted.load(std::memory_order_relaxed)) {
+          node_ = node;
           return *this;
         }
       }
@@ -236,8 +250,9 @@ class lock_free_hash_set {
         index_ = array->capacity;
       }
       while (index_-- > 0) {
-        node_ = array->data[index_].load(std::memory_order_acquire);
-        if (node_) {
+        auto const node = array->data[index_].load(std::memory_order_acquire);
+        if (node && !node->deleted.load(std::memory_order_relaxed)) {
+          node_ = node;
           return *this;
         }
       }
@@ -569,7 +584,7 @@ void lock_free_hash_set<Key, Hash, Equal, Allocator>::reserve(size_type const ne
   if (array) {
     for (size_t i = 0; i < array->capacity; ++i) {
       auto const node = array->data[i].load(std::memory_order_relaxed);
-      if (node) {
+      if (node && !node->deleted.load(std::memory_order_relaxed)) {
         new_array->InsertNodeRelaxed(node);
       }
     }
@@ -648,7 +663,11 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Find(KeyArg const &key) const {
     Node *const node = array->data[index].load(std::memory_order_acquire);
     if (node) {
       if (hash == node->hash && equal_(key, node->key)) {
-        return Iterator(this, index, node);
+        if (node->deleted.load(std::memory_order_relaxed)) {
+          return Iterator(Iterator::kEndIterator, this);
+        } else {
+          return Iterator(this, index, node);
+        }
       } else {
         ++i;
       }
@@ -666,7 +685,7 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Grow(Array const *const array,
       CreateArray(array->capacity * 2, array->size.load(std::memory_order_relaxed) + 1);
   for (size_t i = 0; i < array->capacity; ++i) {
     Node *const node = array->data[i].load(std::memory_order_relaxed);
-    if (node) {
+    if (node && !node->deleted.load(std::memory_order_relaxed)) {
       new_array->InsertNodeRelaxed(node);
     }
   }
@@ -693,10 +712,12 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Insert(KeyArg &&key) {
     Node *node = array->data[index].load(std::memory_order_relaxed);
     if (node) {
       if (hash == node->hash && equal_(key, node->key)) {
-        if (store_ptr) {
-          ptr_.store(array, std::memory_order_release);
+        if (node->deleted.load(std::memory_order_relaxed)) {
+          node->deleted.store(false, std::memory_order_relaxed);
+          return std::make_pair(Iterator(this, index, node), true);
+        } else {
+          return std::make_pair(Iterator(this, index, node), false);
         }
-        return std::make_pair(Iterator(this, index, node), false);
       } else {
         ++i;
       }
@@ -737,10 +758,12 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Emplace(Args &&...args) {
     if (node) {
       if (hash == node->hash && equal_(new_node->key, node->key)) {
         DestroyNode(new_node);
-        if (store_ptr) {
-          ptr_.store(array, std::memory_order_release);
+        if (node->deleted.load(std::memory_order_relaxed)) {
+          node->deleted.store(false, std::memory_order_relaxed);
+          return std::make_pair(Iterator(this, index, node), true);
+        } else {
+          return std::make_pair(Iterator(this, index, node), false);
         }
-        return std::make_pair(Iterator(this, index, node), false);
       } else {
         ++i;
       }

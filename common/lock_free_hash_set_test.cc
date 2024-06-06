@@ -229,4 +229,6 @@ TEST(LockFreeHashSet, InsertAfterClear) {
   EXPECT_THAT(hs, UnorderedElementsAre(43));
 }
 
+// TODO: concurrent benchmarks
+
 }  // namespace
