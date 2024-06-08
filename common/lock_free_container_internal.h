@@ -1,12 +1,43 @@
 #ifndef __TSDB2_COMMON_LOCK_FREE_CONTAINER_INTERNAL_H__
 #define __TSDB2_COMMON_LOCK_FREE_CONTAINER_INTERNAL_H__
 
+#include <cstddef>
+#include <functional>
+#include <string>
 #include <type_traits>
+
+#include "absl/hash/hash.h"
 
 namespace tsdb2 {
 namespace common {
 namespace internal {
 namespace lock_free_container {
+
+template <typename Key>
+struct DefaultHashEq {
+  using Hash = absl::Hash<Key>;
+  using Eq = std::equal_to<Key>;
+};
+
+template <>
+struct DefaultHashEq<std::string> {
+  struct Hash {
+    using is_transparent = void;
+    size_t operator()(std::string_view const value) const { return absl::HashOf(value); }
+  };
+  struct Eq {
+    using is_transparent = void;
+    size_t operator()(std::string_view const lhs, std::string_view const rhs) const {
+      return lhs == rhs;
+    }
+  };
+};
+
+template <typename Key>
+using DefaultHashT = typename DefaultHashEq<Key>::Hash;
+
+template <typename Key>
+using DefaultEqT = typename DefaultHashEq<Key>::Eq;
 
 template <typename Hash, typename Equal, typename HashIsTransparent = void,
           typename EqualIsTransparent = void>

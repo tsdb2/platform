@@ -168,6 +168,7 @@ cc_library(
     name = "lock_free_container_internal",
     hdrs = ["lock_free_container_internal.h"],
     visibility = ["//visibility:private"],
+    deps = ["@com_google_absl//absl/hash"],
 )
 
 cc_library(

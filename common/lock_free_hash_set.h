@@ -40,7 +40,8 @@ namespace common {
 // uses quadratic open addressing. To speed up lookups even further, values are pre-hashed so that a
 // hash doesn't have to be re-calculated for every colliding element and the probing algorithm can
 // short-circuit and avoid a full comparison of every colliding element.
-template <typename Key, typename Hash = absl::Hash<Key>, typename Equal = std::equal_to<Key>,
+template <typename Key, typename Hash = internal::lock_free_container::DefaultHashT<Key>,
+          typename Equal = internal::lock_free_container::DefaultEqT<Key>,
           typename Allocator = std::allocator<Key>>
 class lock_free_hash_set {
  private:
@@ -129,7 +130,7 @@ class lock_free_hash_set {
     size_t InsertNodeRelaxed(Node *node);
 
     // Number of `data` slots. This is always a power of 2.
-    size_t const capacity;
+    intptr_t const capacity;
 
     // Equal to `capacity-1`. We use it to wrap slot indices when probing so that they don't exceed
     // the bounds of `data`. Since `capacity` is always a power of 2, `hash_mask` can be bitwise
@@ -139,7 +140,7 @@ class lock_free_hash_set {
     // The number of elements in the array, i.e. the number of non-null `data` elements. This is
     // only an advisory value used to implement methods like `lock_free_hash_set::size()`, because
     // keeping it atomically in sync with the content of `data` is impossible.
-    std::atomic<size_t> size;
+    std::atomic<intptr_t> size;
 
     // The actual array of pointers. `Array` objects are always allocated with extra trailing space
     // so that `data` has exactly `capacity` elements.
@@ -461,7 +462,10 @@ class lock_free_hash_set {
     return Emplace(std::forward<Args>(args)...);
   }
 
-  // TODO
+  template <typename KeyArg = key_type>
+  size_type erase(key_arg_t<KeyArg> const &key) {
+    return Erase(key) ? 1 : 0;
+  }
 
   size_type count(key_type const &key) const { return Find(key).is_end() ? 0 : 1; }
 
@@ -523,6 +527,9 @@ class lock_free_hash_set {
   template <typename... Args>
   std::pair<Iterator, bool> Emplace(Args &&...args) ABSL_LOCKS_EXCLUDED(mutex_);
 
+  template <typename KeyArg>
+  bool Erase(KeyArg &&key) ABSL_LOCKS_EXCLUDED(mutex_);
+
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Hash hasher_;
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Equal equal_;
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS ArrayAllocator array_alloc_;
@@ -569,7 +576,7 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::~lock_free_hash_set() {
 
 template <typename Key, typename Hash, typename Equal, typename Allocator>
 void lock_free_hash_set<Key, Hash, Equal, Allocator>::reserve(size_type const new_size) {
-  size_t const min_capacity = std::max(Array::kMinCapacity, NextPowerOf2(new_size * 2));
+  intptr_t const min_capacity = std::max(Array::kMinCapacity, NextPowerOf2(new_size * 2));
   Array const *array = ptr_.load(std::memory_order_acquire);
   if (array && array->capacity >= min_capacity) {
     return;
@@ -723,7 +730,7 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Insert(KeyArg &&key) {
       }
     } else {
       node = CreateNode(Node::kHashed, hash, std::forward<KeyArg>(key));
-      size_t const size = array->size.load(std::memory_order_relaxed);
+      auto const size = array->size.load(std::memory_order_relaxed);
       if ((size + 1) * 2 > array->capacity) {  // rehash if more than 50% full
         std::tie(array, index) = Grow(array, node);
         ptr_.store(array, std::memory_order_release);
@@ -769,7 +776,7 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Emplace(Args &&...args) {
       }
     } else {
       nodes_.push_back(new_node);
-      size_t const size = array->size.load(std::memory_order_relaxed);
+      auto const size = array->size.load(std::memory_order_relaxed);
       if ((size + 1) * 2 > array->capacity) {  // rehash if more than 50% full
         std::tie(array, index) = Grow(array, new_node);
         ptr_.store(array, std::memory_order_release);
@@ -780,6 +787,37 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Emplace(Args &&...args) {
         }
       }
       return std::make_pair(Iterator(this, index, new_node), true);
+    }
+  }
+}
+
+template <typename Key, typename Hash, typename Equal, typename Allocator>
+template <typename KeyArg>
+bool lock_free_hash_set<Key, Hash, Equal, Allocator>::Erase(KeyArg &&key) {
+  size_t const hash = hasher_(key);
+  absl::MutexLock lock{&mutex_};
+  Array *array = ptr_.load(std::memory_order_relaxed);
+  if (!array) {
+    return false;
+  }
+  size_t i = 0;
+  while (true) {
+    size_t index = array->slot_index(hash, i);
+    Node *const node = array->data[index].load(std::memory_order_relaxed);
+    if (!node) {
+      return false;
+    }
+    if (node->hash == hash && equal_(key, node->key)) {
+      if (node->deleted.exchange(false, std::memory_order_relaxed)) {
+        return false;
+      }
+      if (array->size.fetch_sub(1, std::memory_order_relaxed) * 4 <
+          array->capacity) {  // shrink if less than 25% full
+        // TODO: shrink
+      }
+      return true;
+    } else {
+      ++i;
     }
   }
 }
