@@ -269,7 +269,7 @@ TEST(LockFreeHashSetTest, EraseElementTwice) {
   hs.erase(42);
   EXPECT_EQ(hs.erase(42), 0);
   EXPECT_EQ(hs.size(), 0);
-  EXPECT_FALSE(hs.empty());
+  EXPECT_TRUE(hs.empty());
   EXPECT_FALSE(hs.contains(42));
   EXPECT_THAT(hs, UnorderedElementsAre());
 }

@@ -112,7 +112,7 @@ class lock_free_hash_set {
     Array(Array &&) = delete;
     Array &operator=(Array &&) = delete;
 
-    size_t capacity() const { return 1 << capacity_log2; }
+    size_t capacity() const { return size_t{1} << capacity_log2; }
     size_t hash_mask() const { return capacity() - 1; }
 
     // Inserts the provided node in the array, returning the index at which the node was inserted.
@@ -287,7 +287,7 @@ class lock_free_hash_set {
     lock_free_hash_set const *parent_;
 
     // Index to the current element. A negative value means this is the end iterator.
-    size_t index_;
+    intptr_t index_;
 
     // Caches the current element so that we can provide better consistency guarantees and avoid
     // dereferencing null pointers if a writer modifies the hash set while one or more threads are
@@ -521,7 +521,7 @@ class lock_free_hash_set {
   std::pair<Iterator, bool> Emplace(Args &&...args) ABSL_LOCKS_EXCLUDED(mutex_);
 
   template <typename KeyArg>
-  bool Erase(KeyArg &&key) ABSL_LOCKS_EXCLUDED(mutex_);
+  bool Erase(KeyArg const &key) ABSL_LOCKS_EXCLUDED(mutex_);
 
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Hash hasher_;
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Equal equal_;
@@ -602,7 +602,13 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::GetOrCreateArray(uint8_t capaci
   auto const index = capacity_log2 - Array::kMinCapacityLog2;
   if (index < arrays_.size()) {
     auto &array = arrays_[index];
-    if (!array) {
+    if (array) {
+      auto const capacity = array->capacity();
+      for (size_t i = 0; i < capacity; ++i) {
+        array->data[i].store(nullptr, std::memory_order_relaxed);
+      }
+      array->size.store(0, std::memory_order_relaxed);
+    } else {
       array = CreateFreeArray(capacity_log2);
     }
     return array;
@@ -702,6 +708,7 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Insert(KeyArg &&key) {
     array = GetOrCreateArray(Array::kMinCapacityLog2);
     auto const mask = array->hash_mask();
     array->data[hash & mask].store(node, std::memory_order_relaxed);
+    array->size.store(1, std::memory_order_relaxed);
     ptr_.store(array, std::memory_order_release);
     return std::make_pair(Iterator(this, hash & mask, node), true);
   }
@@ -716,22 +723,47 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Insert(KeyArg &&key) {
       if (!node->deleted.exchange(false, std::memory_order_relaxed)) {
         return std::make_pair(Iterator(this, index, node), false);
       }
-      auto const size = array->size.load(std::memory_order_relaxed);
-      if ((size + 1) * 2 > array->capacity()) {
+      auto const size = 1 + array->size.fetch_add(1, std::memory_order_relaxed);
+      if (size * 4 > array->capacity() * 3) {  // rehash if more than 75% full
         index = Grow(array, node);
-      } else {
-        node->deleted.store(false, std::memory_order_relaxed);
-        array->size.fetch_add(1, std::memory_order_relaxed);
       }
       return std::make_pair(Iterator(this, index, node), true);
     }
   }
   auto const node = CreateNode(Node::kHashed, hash, std::forward<KeyArg>(key));
   auto const size = array->size.load(std::memory_order_relaxed);
-  if ((size + 1) * 2 > array->capacity()) {
+  if ((size + 1) * 4 > array->capacity() * 3) {  // rehash if more than 75% full
     return std::make_pair(Iterator(this, Grow(array, node), node), true);
   } else {
     return std::make_pair(Iterator(this, array->InsertNodeRelaxed(node), node), true);
+  }
+}
+
+template <typename Key, typename Hash, typename Equal, typename Allocator>
+template <typename KeyArg>
+bool lock_free_hash_set<Key, Hash, Equal, Allocator>::Erase(KeyArg const &key) {
+  auto const hash = hasher_(key);
+  absl::MutexLock lock{&mutex_};
+  auto array = ptr_.load(std::memory_order_relaxed);
+  if (!array) {
+    return false;
+  }
+  auto const mask = array->hash_mask();
+  for (size_t i = 0, j = hash;; ++i, j += i) {
+    auto const node = array->data[j & mask].load(std::memory_order_relaxed);
+    if (!node) {
+      return false;
+    }
+    if (node->hash == hash && equal_(key, node->key)) {
+      if (node->deleted.exchange(true, std::memory_order_relaxed)) {
+        return false;
+      }
+      auto const size = array->size.fetch_sub(1, std::memory_order_relaxed);
+      if (size * 4 <= array->capacity()) {
+        // TODO: rehash if less than 25% full
+      }
+      return true;
+    }
   }
 }
 
