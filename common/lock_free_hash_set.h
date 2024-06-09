@@ -481,6 +481,14 @@ class lock_free_hash_set {
   // TODO
 
  private:
+  struct Fraction {
+    size_t numerator;
+    size_t denominator;
+  };
+
+  static inline Fraction constexpr kMinLoadFactor{.numerator = 1, .denominator = 4};
+  static inline Fraction constexpr kMaxLoadFactor{.numerator = 3, .denominator = 4};
+
   // No moves & copies because they wouldn't be thread-safe.
   lock_free_hash_set(lock_free_hash_set const &) = delete;
   lock_free_hash_set &operator=(lock_free_hash_set const &) = delete;
@@ -514,6 +522,13 @@ class lock_free_hash_set {
   // in `ptr_`. The return value is the index at which the new node was inserted.
   size_t Grow(Array const *old_array, Node *new_node) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
+  // Performs a re-hash creating a new array with half the capacity of `old_array`. All elements are
+  // copied over and the new array is stored in `ptr_`.
+  //
+  // REQUIRES: `old_array->size` MUST be strictly less than `old_array->capacity() *
+  // kMinLoadFactor`.
+  void Shrink(Array const *old_array) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+
   template <typename KeyArg>
   std::pair<Iterator, bool> Insert(KeyArg &&key) ABSL_LOCKS_EXCLUDED(mutex_);
 
@@ -544,11 +559,12 @@ template <typename Key, typename Hash, typename Equal, typename Allocator>
 size_t lock_free_hash_set<Key, Hash, Equal, Allocator>::Array::InsertNodeRelaxed(Node *const node) {
   size_t const mask = hash_mask();
   for (size_t i = 0, j = node->hash;; ++i, j += i) {
+    auto const index = j & mask;
     Node *expected = nullptr;
-    if (data[j & mask].compare_exchange_strong(expected, node, std::memory_order_relaxed,
-                                               std::memory_order_relaxed)) {
+    if (data[index].compare_exchange_strong(expected, node, std::memory_order_relaxed,
+                                            std::memory_order_relaxed)) {
       size.fetch_add(1, std::memory_order_relaxed);
-      return j;
+      return index;
     } else {
       ++i;
     }
@@ -697,6 +713,22 @@ size_t lock_free_hash_set<Key, Hash, Equal, Allocator>::Grow(Array const *const 
 }
 
 template <typename Key, typename Hash, typename Equal, typename Allocator>
+void lock_free_hash_set<Key, Hash, Equal, Allocator>::Shrink(Array const *const old_array) {
+  if (old_array->capacity_log2 <= Array::kMinCapacityLog2) {
+    return;
+  }
+  auto const new_array = GetOrCreateArray(old_array->capacity_log2 - 1);
+  auto const old_capacity = old_array->capacity();
+  for (size_t i = 0; i < old_capacity; ++i) {
+    auto const node = old_array->data[i].load(std::memory_order_relaxed);
+    if (node && !node->deleted.load(std::memory_order_relaxed)) {
+      new_array->InsertNodeRelaxed(node);
+    }
+  }
+  ptr_.store(new_array, std::memory_order_release);
+}
+
+template <typename Key, typename Hash, typename Equal, typename Allocator>
 template <typename KeyArg>
 std::pair<typename lock_free_hash_set<Key, Hash, Equal, Allocator>::Iterator, bool>
 lock_free_hash_set<Key, Hash, Equal, Allocator>::Insert(KeyArg &&key) {
@@ -723,8 +755,8 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Insert(KeyArg &&key) {
       if (!node->deleted.exchange(false, std::memory_order_relaxed)) {
         return std::make_pair(Iterator(this, index, node), false);
       }
-      auto const size = 1 + array->size.fetch_add(1, std::memory_order_relaxed);
-      if (size * 4 > array->capacity() * 3) {  // rehash if more than 75% full
+      auto const size = array->size.fetch_add(1, std::memory_order_relaxed) + 1;
+      if (size * kMaxLoadFactor.denominator > array->capacity() * kMaxLoadFactor.numerator) {
         index = Grow(array, node);
       }
       return std::make_pair(Iterator(this, index, node), true);
@@ -732,7 +764,7 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Insert(KeyArg &&key) {
   }
   auto const node = CreateNode(Node::kHashed, hash, std::forward<KeyArg>(key));
   auto const size = array->size.load(std::memory_order_relaxed);
-  if ((size + 1) * 4 > array->capacity() * 3) {  // rehash if more than 75% full
+  if ((size + 1) * kMaxLoadFactor.denominator > array->capacity() * kMaxLoadFactor.numerator) {
     return std::make_pair(Iterator(this, Grow(array, node), node), true);
   } else {
     return std::make_pair(Iterator(this, array->InsertNodeRelaxed(node), node), true);
@@ -758,9 +790,9 @@ bool lock_free_hash_set<Key, Hash, Equal, Allocator>::Erase(KeyArg const &key) {
       if (node->deleted.exchange(true, std::memory_order_relaxed)) {
         return false;
       }
-      auto const size = array->size.fetch_sub(1, std::memory_order_relaxed);
-      if (size * 4 <= array->capacity()) {
-        // TODO: rehash if less than 25% full
+      auto const size = array->size.fetch_sub(1, std::memory_order_relaxed) - 1;
+      if (size * kMinLoadFactor.denominator < array->capacity() * kMinLoadFactor.numerator) {
+        Shrink(array);
       }
       return true;
     }
