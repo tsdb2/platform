@@ -737,11 +737,11 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Insert(KeyArg &&key) {
   if (!array) {
     auto const node = CreateNode(Node::kHashed, hash, std::forward<KeyArg>(key));
     array = GetOrCreateArray(Array::kMinCapacityLog2);
-    auto const mask = array->hash_mask();
-    array->data[hash & mask].store(node, std::memory_order_relaxed);
+    auto const index = hash & array->hash_mask();
+    array->data[index].store(node, std::memory_order_relaxed);
     array->size.store(1, std::memory_order_relaxed);
     ptr_.store(array, std::memory_order_release);
-    return std::make_pair(Iterator(this, hash & mask, node), true);
+    return std::make_pair(Iterator(this, index, node), true);
   }
   size_t const mask = array->hash_mask();
   for (size_t i = 0, j = hash;; ++i, j += i) {
@@ -767,6 +767,48 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Insert(KeyArg &&key) {
     return std::make_pair(Iterator(this, Grow(array, node), node), true);
   } else {
     return std::make_pair(Iterator(this, array->InsertNodeRelaxed(node), node), true);
+  }
+}
+
+template <typename Key, typename Hash, typename Equal, typename Allocator>
+template <typename... Args>
+std::pair<typename lock_free_hash_set<Key, Hash, Equal, Allocator>::Iterator, bool>
+lock_free_hash_set<Key, Hash, Equal, Allocator>::Emplace(Args &&...args) {
+  auto const new_node = CreateFreeNode(Node::kToHash, hasher_, std::forward<Args>(args)...);
+  absl::MutexLock lock{&mutex_};
+  auto array = ptr_.load(std::memory_order_relaxed);
+  if (!array) {
+    array = GetOrCreateArray(Array::kMinCapacityLog2);
+    auto const index = new_node->hash & array->hash_mask();
+    array->data[index].store(new_node, std::memory_order_relaxed);
+    array->size.store(1, std::memory_order_relaxed);
+    ptr_.store(array, std::memory_order_release);
+    return std::make_pair(Iterator(this, index, new_node), true);
+  }
+  size_t const mask = array->hash_mask();
+  for (size_t i = 0, j = new_node->hash;; ++i, j += i) {
+    auto index = j & mask;
+    auto const node = array->data[index].load(std::memory_order_relaxed);
+    if (!node) {
+      break;
+    }
+    if (new_node->hash == node->hash && equal_(new_node->key, node->key)) {
+      DestroyNode(new_node);
+      if (!node->deleted.exchange(false, std::memory_order_relaxed)) {
+        return std::make_pair(Iterator(this, index, node), false);
+      }
+      auto const size = array->size.fetch_add(1, std::memory_order_relaxed) + 1;
+      if (size * kMaxLoadFactor.denominator > array->capacity() * kMaxLoadFactor.numerator) {
+        index = Grow(array, node);
+      }
+      return std::make_pair(Iterator(this, index, node), true);
+    }
+  }
+  auto const size = array->size.load(std::memory_order_relaxed);
+  if ((size + 1) * kMaxLoadFactor.denominator > array->capacity() * kMaxLoadFactor.numerator) {
+    return std::make_pair(Iterator(this, Grow(array, new_node), new_node), true);
+  } else {
+    return std::make_pair(Iterator(this, array->InsertNodeRelaxed(new_node), new_node), true);
   }
 }
 
