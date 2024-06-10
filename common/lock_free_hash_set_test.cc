@@ -130,6 +130,48 @@ TEST(LockFreeHashSetTest, InsertTwice) {
   EXPECT_FALSE(hs.contains(43));
 }
 
+TEST(LockFreeHashSetTest, MaxLoad) {
+  lock_free_hash_set<int> hs{
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+  };
+  EXPECT_EQ(hs.capacity(), 32);
+  EXPECT_EQ(hs.size(), 24);
+  EXPECT_FALSE(hs.empty());
+  EXPECT_THAT(hs, UnorderedElementsAre(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+                                       18, 19, 20, 21, 22, 23));
+}
+
+TEST(LockFreeHashSetTest, Grow) {
+  lock_free_hash_set<int> hs{
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+  };
+  auto const [it, inserted] = hs.insert(24);
+  EXPECT_TRUE(inserted);
+  EXPECT_NE(it, hs.end());
+  EXPECT_EQ(*it, 24);
+  EXPECT_EQ(hs.capacity(), 64);
+  EXPECT_EQ(hs.size(), 25);
+  EXPECT_FALSE(hs.empty());
+  EXPECT_THAT(hs, UnorderedElementsAre(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+                                       18, 19, 20, 21, 22, 23, 24));
+}
+
+TEST(LockFreeHashSetTest, InsertAfterGrow) {
+  lock_free_hash_set<int> hs{
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+  };
+  hs.insert(24);
+  auto const [it, inserted] = hs.insert(25);
+  EXPECT_TRUE(inserted);
+  EXPECT_NE(it, hs.end());
+  EXPECT_EQ(*it, 25);
+  EXPECT_EQ(hs.capacity(), 64);
+  EXPECT_EQ(hs.size(), 26);
+  EXPECT_FALSE(hs.empty());
+  EXPECT_THAT(hs, UnorderedElementsAre(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+                                       18, 19, 20, 21, 22, 23, 24, 25));
+}
+
 TEST(LockFreeHashSetTest, EmplaceOne) {
   lock_free_hash_set<int> hs;
   auto const [it, inserted] = hs.emplace(42);
@@ -224,6 +266,7 @@ TEST(LockFreeHashSetTest, TransparentLookup) {
 TEST(LockFreeHashSetTest, ClearEmpty) {
   lock_free_hash_set<int> hs;
   hs.clear();
+  EXPECT_EQ(hs.capacity(), 0);
   EXPECT_EQ(hs.size(), 0);
   EXPECT_TRUE(hs.empty());
   EXPECT_THAT(hs, UnorderedElementsAre());
@@ -232,6 +275,7 @@ TEST(LockFreeHashSetTest, ClearEmpty) {
 TEST(LockFreeHashSetTest, ClearNonEmpty) {
   lock_free_hash_set<int> hs{42, 43};
   hs.clear();
+  EXPECT_EQ(hs.capacity(), 0);
   EXPECT_EQ(hs.size(), 0);
   EXPECT_TRUE(hs.empty());
   EXPECT_THAT(hs, UnorderedElementsAre());
@@ -241,6 +285,7 @@ TEST(LockFreeHashSetTest, InsertAfterClear) {
   lock_free_hash_set<int> hs{42};
   hs.clear();
   hs.insert(43);
+  EXPECT_EQ(hs.capacity(), 32);
   EXPECT_EQ(hs.size(), 1);
   EXPECT_FALSE(hs.empty());
   EXPECT_THAT(hs, UnorderedElementsAre(43));
@@ -249,6 +294,7 @@ TEST(LockFreeHashSetTest, InsertAfterClear) {
 TEST(LockFreeHashSetTest, EraseEmpty) {
   lock_free_hash_set<int> hs;
   EXPECT_EQ(hs.erase(42), 0);
+  EXPECT_EQ(hs.capacity(), 0);
   EXPECT_EQ(hs.size(), 0);
   EXPECT_TRUE(hs.empty());
   EXPECT_FALSE(hs.contains(42));
@@ -258,6 +304,7 @@ TEST(LockFreeHashSetTest, EraseEmpty) {
 TEST(LockFreeHashSetTest, EraseElement) {
   lock_free_hash_set<int> hs{42};
   EXPECT_EQ(hs.erase(42), 1);
+  EXPECT_EQ(hs.capacity(), 32);
   EXPECT_EQ(hs.size(), 0);
   EXPECT_TRUE(hs.empty());
   EXPECT_FALSE(hs.contains(42));
@@ -268,6 +315,7 @@ TEST(LockFreeHashSetTest, EraseElementTwice) {
   lock_free_hash_set<int> hs{42};
   hs.erase(42);
   EXPECT_EQ(hs.erase(42), 0);
+  EXPECT_EQ(hs.capacity(), 32);
   EXPECT_EQ(hs.size(), 0);
   EXPECT_TRUE(hs.empty());
   EXPECT_FALSE(hs.contains(42));
@@ -277,6 +325,7 @@ TEST(LockFreeHashSetTest, EraseElementTwice) {
 TEST(LockFreeHashSetTest, EraseMissingElement) {
   lock_free_hash_set<int> hs{42};
   EXPECT_EQ(hs.erase(43), 0);
+  EXPECT_EQ(hs.capacity(), 32);
   EXPECT_EQ(hs.size(), 1);
   EXPECT_FALSE(hs.empty());
   EXPECT_TRUE(hs.contains(42));
@@ -288,11 +337,215 @@ TEST(LockFreeHashSetTest, EraseMissingElementTwice) {
   lock_free_hash_set<int> hs{42};
   hs.erase(43);
   EXPECT_EQ(hs.erase(43), 0);
+  EXPECT_EQ(hs.capacity(), 32);
   EXPECT_EQ(hs.size(), 1);
   EXPECT_FALSE(hs.empty());
   EXPECT_TRUE(hs.contains(42));
   EXPECT_FALSE(hs.contains(43));
   EXPECT_THAT(hs, UnorderedElementsAre(42));
+}
+
+TEST(LockFreeHashSetTest, InsertAfterErasing) {
+  lock_free_hash_set<int> hs{42, 43};
+  hs.erase(43);
+  auto const [it, inserted] = hs.insert(44);
+  EXPECT_TRUE(inserted);
+  EXPECT_NE(it, hs.end());
+  EXPECT_EQ(*it, 44);
+  EXPECT_EQ(hs.capacity(), 32);
+  EXPECT_EQ(hs.size(), 2);
+  EXPECT_FALSE(hs.empty());
+  EXPECT_TRUE(hs.contains(42));
+  EXPECT_FALSE(hs.contains(43));
+  EXPECT_TRUE(hs.contains(44));
+  EXPECT_THAT(hs, UnorderedElementsAre(42, 44));
+}
+
+TEST(LockFreeHashSetTest, InsertErased) {
+  lock_free_hash_set<int> hs{42, 43};
+  hs.erase(43);
+  auto const [it, inserted] = hs.insert(43);
+  EXPECT_TRUE(inserted);
+  EXPECT_NE(it, hs.end());
+  EXPECT_EQ(*it, 43);
+  EXPECT_EQ(hs.capacity(), 32);
+  EXPECT_EQ(hs.size(), 2);
+  EXPECT_FALSE(hs.empty());
+  EXPECT_TRUE(hs.contains(42));
+  EXPECT_TRUE(hs.contains(43));
+  EXPECT_FALSE(hs.contains(44));
+  EXPECT_THAT(hs, UnorderedElementsAre(42, 43));
+}
+
+TEST(LockFreeHashSetTest, EraseAgain) {
+  lock_free_hash_set<int> hs{42, 43, 44};
+  hs.erase(43);
+  hs.insert(43);
+  EXPECT_EQ(hs.erase(43), 1);
+  EXPECT_EQ(hs.capacity(), 32);
+  EXPECT_EQ(hs.size(), 2);
+  EXPECT_FALSE(hs.empty());
+  EXPECT_TRUE(hs.contains(42));
+  EXPECT_FALSE(hs.contains(43));
+  EXPECT_TRUE(hs.contains(44));
+  EXPECT_THAT(hs, UnorderedElementsAre(42, 44));
+}
+
+TEST(LockFreeHashSetTest, ReserveZeroFromEmpty) {
+  lock_free_hash_set<int> hs;
+  hs.reserve(0);
+  EXPECT_EQ(hs.capacity(), 0);
+  EXPECT_EQ(hs.size(), 0);
+  EXPECT_TRUE(hs.empty());
+  EXPECT_THAT(hs, UnorderedElementsAre());
+}
+
+TEST(LockFreeHashSetTest, ReserveOneFromEmpty) {
+  lock_free_hash_set<int> hs;
+  hs.reserve(1);
+  EXPECT_EQ(hs.capacity(), 32);
+  EXPECT_EQ(hs.size(), 0);
+  EXPECT_TRUE(hs.empty());
+  EXPECT_THAT(hs, UnorderedElementsAre());
+}
+
+TEST(LockFreeHashSetTest, ReserveTwoFromEmpty) {
+  lock_free_hash_set<int> hs;
+  hs.reserve(2);
+  EXPECT_EQ(hs.capacity(), 32);
+  EXPECT_EQ(hs.size(), 0);
+  EXPECT_TRUE(hs.empty());
+  EXPECT_THAT(hs, UnorderedElementsAre());
+}
+
+TEST(LockFreeHashSetTest, Reserve24FromEmpty) {
+  lock_free_hash_set<int> hs;
+  hs.reserve(24);
+  EXPECT_EQ(hs.capacity(), 32);
+  EXPECT_EQ(hs.size(), 0);
+  EXPECT_TRUE(hs.empty());
+  EXPECT_THAT(hs, UnorderedElementsAre());
+}
+
+TEST(LockFreeHashSetTest, Reserve25FromEmpty) {
+  lock_free_hash_set<int> hs;
+  hs.reserve(25);
+  EXPECT_EQ(hs.capacity(), 64);
+  EXPECT_EQ(hs.size(), 0);
+  EXPECT_TRUE(hs.empty());
+  EXPECT_THAT(hs, UnorderedElementsAre());
+}
+
+TEST(LockFreeHashSetTest, Reserve26FromEmpty) {
+  lock_free_hash_set<int> hs;
+  hs.reserve(26);
+  EXPECT_EQ(hs.capacity(), 64);
+  EXPECT_EQ(hs.size(), 0);
+  EXPECT_TRUE(hs.empty());
+  EXPECT_THAT(hs, UnorderedElementsAre());
+}
+
+TEST(LockFreeHashSetTest, ReserveZero) {
+  lock_free_hash_set<int> hs{42, 43, 44};
+  hs.reserve(0);
+  EXPECT_EQ(hs.capacity(), 32);
+  EXPECT_EQ(hs.size(), 3);
+  EXPECT_FALSE(hs.empty());
+  EXPECT_THAT(hs, UnorderedElementsAre(42, 43, 44));
+}
+
+TEST(LockFreeHashSetTest, ReserveOne) {
+  lock_free_hash_set<int> hs{42, 43, 44};
+  hs.reserve(1);
+  EXPECT_EQ(hs.capacity(), 32);
+  EXPECT_EQ(hs.size(), 3);
+  EXPECT_FALSE(hs.empty());
+  EXPECT_THAT(hs, UnorderedElementsAre(42, 43, 44));
+}
+
+TEST(LockFreeHashSetTest, ReserveThree) {
+  lock_free_hash_set<int> hs{42, 43, 44};
+  hs.reserve(3);
+  EXPECT_EQ(hs.capacity(), 32);
+  EXPECT_EQ(hs.size(), 3);
+  EXPECT_FALSE(hs.empty());
+  EXPECT_THAT(hs, UnorderedElementsAre(42, 43, 44));
+}
+
+TEST(LockFreeHashSetTest, ReserveFour) {
+  lock_free_hash_set<int> hs{42, 43, 44};
+  hs.reserve(4);
+  EXPECT_EQ(hs.capacity(), 32);
+  EXPECT_EQ(hs.size(), 3);
+  EXPECT_FALSE(hs.empty());
+  EXPECT_THAT(hs, UnorderedElementsAre(42, 43, 44));
+}
+
+TEST(LockFreeHashSetTest, Reserve24) {
+  lock_free_hash_set<int> hs{42, 43, 44};
+  hs.reserve(24);
+  EXPECT_EQ(hs.capacity(), 32);
+  EXPECT_EQ(hs.size(), 3);
+  EXPECT_FALSE(hs.empty());
+  EXPECT_THAT(hs, UnorderedElementsAre(42, 43, 44));
+}
+
+TEST(LockFreeHashSetTest, Reserve25) {
+  lock_free_hash_set<int> hs{42, 43, 44};
+  hs.reserve(25);
+  EXPECT_EQ(hs.capacity(), 64);
+  EXPECT_EQ(hs.size(), 3);
+  EXPECT_FALSE(hs.empty());
+  EXPECT_THAT(hs, UnorderedElementsAre(42, 43, 44));
+}
+
+TEST(LockFreeHashSetTest, Reserve26) {
+  lock_free_hash_set<int> hs{42, 43, 44};
+  hs.reserve(26);
+  EXPECT_EQ(hs.capacity(), 64);
+  EXPECT_EQ(hs.size(), 3);
+  EXPECT_FALSE(hs.empty());
+  EXPECT_THAT(hs, UnorderedElementsAre(42, 43, 44));
+}
+
+TEST(LockFreeHashSetTest, InsertAfterReserving) {
+  lock_free_hash_set<int> hs;
+  hs.reserve(3);
+  hs.insert(42);
+  hs.insert(43);
+  hs.insert(44);
+  EXPECT_EQ(hs.capacity(), 32);
+  EXPECT_EQ(hs.size(), 3);
+  EXPECT_FALSE(hs.empty());
+  EXPECT_THAT(hs, UnorderedElementsAre(42, 43, 44));
+}
+
+TEST(LockFreeHashSetTest, InsertMoreThanReserved) {
+  lock_free_hash_set<int> hs;
+  hs.reserve(3);
+  hs.insert(42);
+  hs.insert(43);
+  hs.insert(44);
+  hs.insert(45);
+  hs.insert(46);
+  EXPECT_EQ(hs.capacity(), 32);
+  EXPECT_EQ(hs.size(), 5);
+  EXPECT_FALSE(hs.empty());
+  EXPECT_THAT(hs, UnorderedElementsAre(42, 43, 44, 45, 46));
+}
+
+TEST(LockFreeHashSetTest, GrowAfterReserving) {
+  lock_free_hash_set<int> hs{
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+  };
+  hs.reserve(24);
+  hs.insert(24);
+  hs.insert(25);
+  EXPECT_EQ(hs.capacity(), 64);
+  EXPECT_EQ(hs.size(), 26);
+  EXPECT_FALSE(hs.empty());
+  EXPECT_THAT(hs, UnorderedElementsAre(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+                                       18, 19, 20, 21, 22, 23, 24, 25));
 }
 
 // TODO: concurrent benchmarks

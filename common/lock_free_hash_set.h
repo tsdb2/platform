@@ -397,7 +397,7 @@ class lock_free_hash_set {
   // Ensures the hash set has room for at least `size` elements, including some extra space to
   // account for the maximum load factor. This is a no-op if the hash set already has enough
   // capacity.
-  void reserve(size_type size);
+  void reserve(size_type const size) { Reserve(size); }
 
   // Returns the number of elements in the hash set.
   //
@@ -440,7 +440,7 @@ class lock_free_hash_set {
   }
 
   void insert(std::initializer_list<value_type> const list) {
-    reserve(list.end() - list.begin());
+    Reserve(list.end() - list.begin());
     for (auto &value : list) {
       Insert(value);
     }
@@ -517,6 +517,8 @@ class lock_free_hash_set {
 
   template <typename KeyArg>
   Iterator Find(KeyArg const &key) const;
+
+  void Reserve(size_t size);
 
   // Performs a re-hash and insertion, doubling the capacity of `old_array`. The new array is stored
   // in `ptr_`. The return value is the index at which the new node was inserted.
@@ -640,9 +642,11 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::GetOrCreateArray(uint8_t capaci
 
 template <typename Key, typename Hash, typename Equal, typename Allocator>
 void lock_free_hash_set<Key, Hash, Equal, Allocator>::DestroyArray(Array *const array) {
-  auto const capacity = array->capacity();
-  array->~Array();
-  array_alloc_.deallocate(array, Array::GetMinAllocCount(capacity));
+  if (array) {
+    auto const capacity = array->capacity();
+    array->~Array();
+    array_alloc_.deallocate(array, Array::GetMinAllocCount(capacity));
+  }
 }
 
 template <typename Key, typename Hash, typename Equal, typename Allocator>
@@ -693,6 +697,32 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Find(KeyArg const &key) const {
       }
     }
   }
+}
+
+template <typename Key, typename Hash, typename Equal, typename Allocator>
+void lock_free_hash_set<Key, Hash, Equal, Allocator>::Reserve(size_t const size) {
+  if (!size) {
+    return;
+  }
+  auto const min_capacity =
+      (size * kMaxLoadFactor.denominator + kMaxLoadFactor.numerator - 1) / kMaxLoadFactor.numerator;
+  auto const min_capacity_log2 = std::max(Array::kMinCapacityLog2, NextExponentOf2(min_capacity));
+  absl::MutexLock lock{&mutex_};
+  auto const old_array = ptr_.load(std::memory_order_relaxed);
+  if (old_array && old_array->capacity_log2 >= min_capacity_log2) {
+    return;
+  }
+  auto const new_array = GetOrCreateArray(min_capacity_log2);
+  if (old_array) {
+    auto const old_capacity = old_array->capacity();
+    for (size_t i = 0; i < old_capacity; ++i) {
+      auto const node = old_array->data[i].load(std::memory_order_relaxed);
+      if (node && !node->deleted.load(std::memory_order_relaxed)) {
+        new_array->InsertNodeRelaxed(node);
+      }
+    }
+  }
+  ptr_.store(new_array, std::memory_order_release);
 }
 
 template <typename Key, typename Hash, typename Equal, typename Allocator>
