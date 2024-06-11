@@ -691,11 +691,11 @@ template <typename Key, typename Hash, typename Equal, typename Allocator>
 template <typename KeyArg>
 typename lock_free_hash_set<Key, Hash, Equal, Allocator>::Iterator
 lock_free_hash_set<Key, Hash, Equal, Allocator>::Find(KeyArg const &key) const {
-  size_t const hash = hasher_(key);
   Array const *const array = ptr_.load(std::memory_order_acquire);
   if (!array) {
     return Iterator(Iterator::kEndIterator, this);
   }
+  size_t const hash = hasher_(key);
   size_t const mask = array->hash_mask();
   for (size_t i = 0, j = hash;; ++i, j += i) {
     auto const index = j & mask;
