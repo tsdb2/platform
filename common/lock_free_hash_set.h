@@ -440,7 +440,7 @@ class lock_free_hash_set {
   }
 
   void insert(std::initializer_list<value_type> const list) {
-    Reserve(list.end() - list.begin());
+    ReserveExtra(list.end() - list.begin());
     for (auto &value : list) {
       Insert(value);
     }
@@ -500,6 +500,9 @@ class lock_free_hash_set {
   // capacity in log2 format, as required by `GetOrCreateArray`.
   static uint8_t NextExponentOf2(uint64_t value);
 
+  // Returns `a / b` rounded up to the nearest integer.
+  static inline size_t DivideAndRoundUp(size_t const a, size_t const b) { return (a + b - 1) / b; }
+
   Array *CreateFreeArray(uint8_t capacity_log2);
 
   Array *GetOrCreateArray(uint8_t capacity_log2) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
@@ -518,7 +521,18 @@ class lock_free_hash_set {
   template <typename KeyArg>
   Iterator Find(KeyArg const &key) const;
 
-  void Reserve(size_t size);
+  // Internal implementation of `Reserve` and `ReserveExtra`.
+  Array *ReserveLocked(Array *array, uint8_t min_capacity_log2)
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+
+  // Reserves space for at least `num_elements` elements, rehashing if the current capacity doesn't
+  // allow it. The maximum load factor is taken into account, so the resulting capacity is
+  // guaranteed to be greater than or equal to `NextPowerOf2(size / kMaxLoadFactor)`.
+  void Reserve(size_t num_elements) ABSL_LOCKS_EXCLUDED(mutex_);
+
+  // Reserves space for at least the specified number of *new* elements. This is equivalent to
+  // calling `Reserve(size() + num_new_elements)` atomically.
+  void ReserveExtra(size_t num_new_elements) ABSL_LOCKS_EXCLUDED(mutex_);
 
   // Performs a re-hash and insertion, doubling the capacity of `old_array`. The new array is stored
   // in `ptr_`. The return value is the index at which the new node was inserted.
@@ -700,29 +714,53 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Find(KeyArg const &key) const {
 }
 
 template <typename Key, typename Hash, typename Equal, typename Allocator>
-void lock_free_hash_set<Key, Hash, Equal, Allocator>::Reserve(size_t const size) {
-  if (!size) {
-    return;
-  }
-  auto const min_capacity =
-      (size * kMaxLoadFactor.denominator + kMaxLoadFactor.numerator - 1) / kMaxLoadFactor.numerator;
-  auto const min_capacity_log2 = std::max(Array::kMinCapacityLog2, NextExponentOf2(min_capacity));
-  absl::MutexLock lock{&mutex_};
-  auto const old_array = ptr_.load(std::memory_order_relaxed);
-  if (old_array && old_array->capacity_log2 >= min_capacity_log2) {
-    return;
-  }
+typename lock_free_hash_set<Key, Hash, Equal, Allocator>::Array *
+lock_free_hash_set<Key, Hash, Equal, Allocator>::ReserveLocked(Array *const array,
+                                                               uint8_t const min_capacity_log2) {
   auto const new_array = GetOrCreateArray(min_capacity_log2);
-  if (old_array) {
-    auto const old_capacity = old_array->capacity();
+  if (array) {
+    auto const old_capacity = array->capacity();
     for (size_t i = 0; i < old_capacity; ++i) {
-      auto const node = old_array->data[i].load(std::memory_order_relaxed);
+      auto const node = array->data[i].load(std::memory_order_relaxed);
       if (node && !node->deleted.load(std::memory_order_relaxed)) {
         new_array->InsertNodeRelaxed(node);
       }
     }
   }
-  ptr_.store(new_array, std::memory_order_release);
+  return new_array;
+}
+
+template <typename Key, typename Hash, typename Equal, typename Allocator>
+void lock_free_hash_set<Key, Hash, Equal, Allocator>::Reserve(size_t const num_elements) {
+  if (!num_elements) {
+    return;
+  }
+  auto const min_capacity =
+      DivideAndRoundUp(num_elements * kMaxLoadFactor.denominator, kMaxLoadFactor.numerator);
+  auto const min_capacity_log2 = std::max(Array::kMinCapacityLog2, NextExponentOf2(min_capacity));
+  absl::MutexLock lock{&mutex_};
+  auto const array = ptr_.load(std::memory_order_relaxed);
+  if (array && array->capacity_log2 >= min_capacity_log2) {
+    return;
+  }
+  ptr_.store(ReserveLocked(array, min_capacity_log2), std::memory_order_release);
+}
+
+template <typename Key, typename Hash, typename Equal, typename Allocator>
+void lock_free_hash_set<Key, Hash, Equal, Allocator>::ReserveExtra(size_t const num_new_elements) {
+  if (!num_new_elements) {
+    return;
+  }
+  absl::MutexLock lock{&mutex_};
+  auto const array = ptr_.load(std::memory_order_relaxed);
+  auto const current_size = array ? array->size.load(std::memory_order_relaxed) : 0;
+  auto const min_capacity = DivideAndRoundUp(
+      (current_size + num_new_elements) * kMaxLoadFactor.denominator, kMaxLoadFactor.numerator);
+  auto const min_capacity_log2 = std::max(Array::kMinCapacityLog2, NextExponentOf2(min_capacity));
+  if (array && array->capacity_log2 >= min_capacity_log2) {
+    return;
+  }
+  ptr_.store(ReserveLocked(array, min_capacity_log2), std::memory_order_release);
 }
 
 template <typename Key, typename Hash, typename Equal, typename Allocator>
