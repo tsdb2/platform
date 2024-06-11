@@ -478,7 +478,8 @@ class lock_free_hash_set {
     return !Find(key).is_end();
   }
 
-  // TODO
+  // Swaps the content of this hash set with `other`. This algorithm is not lockless.
+  void swap(lock_free_hash_set &other) { Swap(other); }
 
  private:
   struct Fraction {
@@ -534,8 +535,9 @@ class lock_free_hash_set {
   // calling `Reserve(size() + num_new_elements)` atomically.
   void ReserveExtra(size_t num_new_elements) ABSL_LOCKS_EXCLUDED(mutex_);
 
-  // Performs a re-hash and insertion, doubling the capacity of `old_array`. The new array is stored
-  // in `ptr_`. The return value is the index at which the new node was inserted.
+  // Performs a re-hash and insertion, doubling the capacity of `old_array`. All elements are copied
+  // over, the new node is added, and the new array is stored in `ptr_`. The return value is the
+  // index at which the new node was inserted.
   size_t Grow(Array const *old_array, Node *new_node) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   // Performs a re-hash creating a new array with half the capacity of `old_array`. All elements are
@@ -553,6 +555,8 @@ class lock_free_hash_set {
 
   template <typename KeyArg>
   bool Erase(KeyArg const &key) ABSL_LOCKS_EXCLUDED(mutex_);
+
+  void Swap(lock_free_hash_set &other) ABSL_LOCKS_EXCLUDED(mutex_, other.mutex_);
 
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Hash hasher_;
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Equal equal_;
@@ -908,7 +912,34 @@ bool lock_free_hash_set<Key, Hash, Equal, Allocator>::Erase(KeyArg const &key) {
   }
 }
 
+template <typename Key, typename Hash, typename Equal, typename Allocator>
+void lock_free_hash_set<Key, Hash, Equal, Allocator>::Swap(lock_free_hash_set &other) {
+  absl::MutexLock lock{&mutex_};
+  absl::MutexLock other_lock{&other.mutex_};
+  if (std::allocator_traits<ArrayAllocator>::propagate_on_container_swap::value) {
+    std::swap(array_alloc_, other.array_alloc_);
+  }
+  if (std::allocator_traits<NodeAllocator>::propagate_on_container_swap::value) {
+    std::swap(node_alloc_, other.node_alloc_);
+  }
+  std::swap(arrays_, other.arrays_);
+  std::swap(nodes_, other.nodes_);
+  auto ptr = ptr_.load(std::memory_order_relaxed);
+  ptr = other.ptr_.exchange(ptr, std::memory_order_relaxed);
+  ptr_.store(ptr, std::memory_order_relaxed);
+}
+
 }  // namespace common
 }  // namespace tsdb2
+
+namespace std {
+
+template <typename Key, typename Hash, typename Equal, typename Allocator>
+void swap(::tsdb2::common::lock_free_hash_set<Key, Hash, Equal, Allocator> &lhs,
+          ::tsdb2::common::lock_free_hash_set<Key, Hash, Equal, Allocator> &rhs) {
+  lhs.swap(rhs);
+}
+
+}  // namespace std
 
 #endif  // __TSDB2_COMMON_LOCK_FREE_HASH_SET_H__

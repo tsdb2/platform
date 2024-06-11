@@ -1,5 +1,6 @@
 #include "common/lock_free_hash_set.h"
 
+#include <algorithm>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -602,6 +603,26 @@ TEST(LockFreeHashSetTest, GrowAfterReserving) {
   EXPECT_FALSE(hs.empty());
   EXPECT_THAT(hs, UnorderedElementsAre(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
                                        18, 19, 20, 21, 22, 23, 24, 25));
+}
+
+TEST(LockFreeHashSetTest, Swap) {
+  lock_free_hash_set<int> hs1{1, 2, 3, 4, 5};
+  lock_free_hash_set<int> hs2{5, 6, 7};
+  hs1.swap(hs2);
+  EXPECT_EQ(hs1.size(), 3);
+  EXPECT_THAT(hs1, UnorderedElementsAre(5, 6, 7));
+  EXPECT_EQ(hs2.size(), 5);
+  EXPECT_THAT(hs2, UnorderedElementsAre(1, 2, 3, 4, 5));
+}
+
+TEST(LockFreeHashSetTest, StdSwap) {
+  lock_free_hash_set<int> hs1{5, 6, 7};
+  lock_free_hash_set<int> hs2{1, 2, 3, 4, 5};
+  std::swap(hs1, hs2);
+  EXPECT_EQ(hs1.size(), 5);
+  EXPECT_THAT(hs1, UnorderedElementsAre(1, 2, 3, 4, 5));
+  EXPECT_EQ(hs2.size(), 3);
+  EXPECT_THAT(hs2, UnorderedElementsAre(5, 6, 7));
 }
 
 // TODO: concurrent benchmarks
