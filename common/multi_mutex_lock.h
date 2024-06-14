@@ -15,6 +15,7 @@ namespace common {
 
 namespace internal {
 
+// Internal implementation of `MultiMutexLock`.
 template <typename... Mutexex>
 class MultiMutexLockImpl;
 
@@ -60,9 +61,37 @@ class ABSL_SCOPED_LOCKABLE MultiMutexLockImpl<First, Rest...> : public MultiMute
 
 }  // namespace internal
 
+// `MultiMutexLock`s are scoped object that can lock and unlock a set of mutexes using RAII in a
+// deterministic order so as to avoid potential deadlocks. The mutexes are ordered by pointer and
+// acquired in that order; upon destruction they are released in the inverse order.
+//
+// In the following example, thread A and thread B are guaranteed to not deadlock:
+//
+//   absl::Mutex mutex1;
+//   absl::Mutex mutex2;
+//
+//   {
+//     // thread A
+//     MultiMutexLock lock{&mutex1, &mutex2};
+//   }
+//
+//   {
+//     // thread B
+//     MultiMutexLock lock{&mutex2, &mutex1};
+//   }
+//
+// Conditional locking is supported and it's also guaranteed to not cause any deadlocks. The
+// `absl::Condition` object must be the first argument:
+//
+//   absl::Condition condition{ /* ... */ };
+//   MultiMutexLock lock{condition, &mutex1, &mutex2};
+//
 template <typename... Mutex>
-class MultiMutexLock : private internal::MultiMutexLockImpl<Mutex...> {
+class MultiMutexLock {
  public:
+  static_assert((std::is_same_v<std::decay_t<Mutex>, absl::Mutex> && ...),
+                "MultiMutexLock only works with absl::Mutex");
+
   explicit MultiMutexLock(Mutex* const... mutexes)
       : MultiMutexLock(Sort(mutexes...), std::make_index_sequence<sizeof...(Mutex)>()) {}
 
@@ -70,7 +99,6 @@ class MultiMutexLock : private internal::MultiMutexLockImpl<Mutex...> {
       : MultiMutexLock(condition, Sort(mutexes...), std::make_index_sequence<sizeof...(Mutex)>()) {}
 
  private:
-  using Impl = internal::MultiMutexLockImpl<Mutex...>;
   using Array = std::array<absl::Mutex*, sizeof...(Mutex)>;
 
   template <
@@ -83,12 +111,14 @@ class MultiMutexLock : private internal::MultiMutexLockImpl<Mutex...> {
 
   template <size_t... Is>
   explicit MultiMutexLock(Array const& array, std::index_sequence<Is...> const&)
-      : Impl{array[Is]...} {}
+      : impl_{array[Is]...} {}
 
   template <size_t... Is>
   explicit MultiMutexLock(absl::Condition const& condition, Array const& array,
                           std::index_sequence<Is...> const&)
-      : Impl{condition, array[Is]...} {}
+      : impl_{condition, array[Is]...} {}
+
+  internal::MultiMutexLockImpl<Mutex...> impl_;
 };
 
 }  // namespace common
