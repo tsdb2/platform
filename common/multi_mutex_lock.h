@@ -61,7 +61,7 @@ class ABSL_SCOPED_LOCKABLE MultiMutexLockImpl<First, Rest...> : public MultiMute
 
 }  // namespace internal
 
-// `MultiMutexLock`s are scoped object that can lock and unlock a set of mutexes using RAII in a
+// A `MultiMutexLock` is a scoped object that can lock and unlock a set of mutexes using RAII in a
 // deterministic order so as to avoid potential deadlocks. The mutexes are ordered by pointer and
 // acquired in that order; upon destruction they are released in the inverse order.
 //
