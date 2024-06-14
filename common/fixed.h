@@ -8,12 +8,12 @@ namespace common {
 
 template <typename T, typename Unused>
 struct Fixed {
-  using type = T;
+  using Type = T;
   static T value(T&& t) { return std::move(t); }
 };
 
 template <typename T, typename Unused>
-using FixedT = typename Fixed<T, Unused>::type;
+using FixedT = typename Fixed<T, Unused>::Type;
 
 template <typename Unused, typename T>
 inline constexpr T FixedV(T&& t) {
