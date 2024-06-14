@@ -40,10 +40,10 @@ class ABSL_SCOPED_LOCKABLE MultiMutexLockImpl<First, Rest...> : public MultiMute
     mutex_->WriterLock();
   }
 
-  explicit MultiMutexLockImpl(First* const first_mutex, Rest* const... other_mutexes,
-                              absl::Condition const& condition)
+  explicit MultiMutexLockImpl(absl::Condition const& condition, First* const first_mutex,
+                              Rest* const... other_mutexes)
       ABSL_EXCLUSIVE_LOCK_FUNCTION(first_mutex)
-      : MultiMutexLockImpl<Rest...>(other_mutexes..., condition), mutex_(first_mutex) {
+      : MultiMutexLockImpl<Rest...>(condition, other_mutexes...), mutex_(first_mutex) {
     mutex_->WriterLockWhen(condition);
   }
 
@@ -88,7 +88,7 @@ class MultiMutexLock : private internal::MultiMutexLockImpl<Mutex...> {
   template <size_t... Is>
   explicit MultiMutexLock(absl::Condition const& condition, Array const& array,
                           std::index_sequence<Is...> const&)
-      : Impl{array[Is]..., condition} {}
+      : Impl{condition, array[Is]...} {}
 };
 
 }  // namespace common
