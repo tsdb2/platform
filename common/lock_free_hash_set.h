@@ -479,7 +479,7 @@ class lock_free_hash_set {
   }
 
   // Swaps the content of this hash set with `other`. This algorithm is not lockless.
-  void swap(lock_free_hash_set &other) { Swap(other); }
+  void swap(lock_free_hash_set &other) { Swap(*this, other); }
 
  private:
   struct Fraction {
@@ -556,7 +556,8 @@ class lock_free_hash_set {
   template <typename KeyArg>
   bool Erase(KeyArg const &key) ABSL_LOCKS_EXCLUDED(mutex_);
 
-  void Swap(lock_free_hash_set &other) ABSL_LOCKS_EXCLUDED(mutex_, other.mutex_);
+  static void Swap(lock_free_hash_set &lhs, lock_free_hash_set &rhs)
+      ABSL_LOCKS_EXCLUDED(lhs.mutex_, rhs.mutex_);
 
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Hash hasher_;
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Equal equal_;
@@ -913,20 +914,25 @@ bool lock_free_hash_set<Key, Hash, Equal, Allocator>::Erase(KeyArg const &key) {
 }
 
 template <typename Key, typename Hash, typename Equal, typename Allocator>
-void lock_free_hash_set<Key, Hash, Equal, Allocator>::Swap(lock_free_hash_set &other) {
-  absl::MutexLock lock{&mutex_};
-  absl::MutexLock other_lock{&other.mutex_};
+void lock_free_hash_set<Key, Hash, Equal, Allocator>::Swap(lock_free_hash_set &lhs,
+                                                           lock_free_hash_set &rhs) {
+  if (&rhs < &lhs) {
+    Swap(rhs, lhs);
+    return;
+  }
+  absl::MutexLock lhs_lock{&lhs.mutex_};
+  absl::MutexLock rhs_lock{&rhs.mutex_};
   if (std::allocator_traits<ArrayAllocator>::propagate_on_container_swap::value) {
-    std::swap(array_alloc_, other.array_alloc_);
+    std::swap(lhs.array_alloc_, rhs.array_alloc_);
   }
   if (std::allocator_traits<NodeAllocator>::propagate_on_container_swap::value) {
-    std::swap(node_alloc_, other.node_alloc_);
+    std::swap(lhs.node_alloc_, rhs.node_alloc_);
   }
-  std::swap(arrays_, other.arrays_);
-  std::swap(nodes_, other.nodes_);
-  auto ptr = ptr_.load(std::memory_order_relaxed);
-  ptr = other.ptr_.exchange(ptr, std::memory_order_relaxed);
-  ptr_.store(ptr, std::memory_order_relaxed);
+  std::swap(lhs.arrays_, rhs.arrays_);
+  std::swap(lhs.nodes_, rhs.nodes_);
+  auto ptr = lhs.ptr_.load(std::memory_order_relaxed);
+  ptr = rhs.ptr_.exchange(ptr, std::memory_order_relaxed);
+  lhs.ptr_.store(ptr, std::memory_order_relaxed);
 }
 
 }  // namespace common

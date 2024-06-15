@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <type_traits>
 
 #include "gmock/gmock.h"
@@ -619,6 +620,19 @@ TEST(LockFreeHashSetTest, StdSwap) {
   lock_free_hash_set<int> hs1{5, 6, 7};
   lock_free_hash_set<int> hs2{1, 2, 3, 4, 5};
   std::swap(hs1, hs2);
+  EXPECT_EQ(hs1.size(), 5);
+  EXPECT_THAT(hs1, UnorderedElementsAre(1, 2, 3, 4, 5));
+  EXPECT_EQ(hs2.size(), 3);
+  EXPECT_THAT(hs2, UnorderedElementsAre(5, 6, 7));
+}
+
+TEST(LockFreeHashSetTest, ConcurrentSwap) {
+  lock_free_hash_set<int> hs1{1, 2, 3, 4, 5};
+  lock_free_hash_set<int> hs2{5, 6, 7};
+  std::thread t1{[&] { std::swap(hs1, hs2); }};
+  std::thread t2{[&] { std::swap(hs2, hs1); }};
+  t1.join();
+  t2.join();
   EXPECT_EQ(hs1.size(), 5);
   EXPECT_THAT(hs1, UnorderedElementsAre(1, 2, 3, 4, 5));
   EXPECT_EQ(hs2.size(), 3);
