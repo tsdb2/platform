@@ -541,6 +541,14 @@ class lock_free_hash_set {
   // Used by `Insert` and `Emplace` as a fallback for the case of empty hash set.
   std::pair<Iterator, bool> InsertFirstNode(Node *node) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
+  // Inserts a new node assuming the hash set doesn't already contain one with the same key. It's
+  // okay if one or more existing nodes have a hash collision with the new one.
+  //
+  // Used by `Insert` and `Emplace` as a fallback for the case of inserting a new node that isn't
+  // already found in the hash set.
+  std::pair<Iterator, bool> InsertNewNode(Array *array, Node *node)
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+
   // Performs a re-hash and insertion, doubling the capacity of `old_array`. All elements are copied
   // over, the new node is added, and the new array is stored in `ptr_`. The return value is the
   // index at which the new node was inserted.
@@ -786,6 +794,18 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::InsertFirstNode(Node *const nod
 }
 
 template <typename Key, typename Hash, typename Equal, typename Allocator>
+std::pair<typename lock_free_hash_set<Key, Hash, Equal, Allocator>::Iterator, bool>
+lock_free_hash_set<Key, Hash, Equal, Allocator>::InsertNewNode(Array *const array,
+                                                               Node *const node) {
+  auto const size = array->size.load(std::memory_order_relaxed);
+  if ((size + 1) * kMaxLoadFactor.denominator > array->capacity() * kMaxLoadFactor.numerator) {
+    return std::make_pair(Iterator(this, Grow(array, node), node), true);
+  } else {
+    return std::make_pair(Iterator(this, array->InsertNodeRelaxed(node), node), true);
+  }
+}
+
+template <typename Key, typename Hash, typename Equal, typename Allocator>
 size_t lock_free_hash_set<Key, Hash, Equal, Allocator>::Grow(Array const *const old_array,
                                                              Node *const new_node) {
   auto const new_array = GetOrCreateArray(old_array->capacity_log2 + 1);
@@ -845,13 +865,7 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Insert(KeyArg &&key) {
       return std::make_pair(Iterator(this, index, node), true);
     }
   }
-  auto const node = CreateNode(Node::kHashed, hash, std::forward<KeyArg>(key));
-  auto const size = array->size.load(std::memory_order_relaxed);
-  if ((size + 1) * kMaxLoadFactor.denominator > array->capacity() * kMaxLoadFactor.numerator) {
-    return std::make_pair(Iterator(this, Grow(array, node), node), true);
-  } else {
-    return std::make_pair(Iterator(this, array->InsertNodeRelaxed(node), node), true);
-  }
+  return InsertNewNode(array, CreateNode(Node::kHashed, hash, std::forward<KeyArg>(key)));
 }
 
 template <typename Key, typename Hash, typename Equal, typename Allocator>
@@ -885,12 +899,7 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Emplace(Args &&...args) {
     }
   }
   nodes_.push_back(new_node);
-  auto const size = array->size.load(std::memory_order_relaxed);
-  if ((size + 1) * kMaxLoadFactor.denominator > array->capacity() * kMaxLoadFactor.numerator) {
-    return std::make_pair(Iterator(this, Grow(array, new_node), new_node), true);
-  } else {
-    return std::make_pair(Iterator(this, array->InsertNodeRelaxed(new_node), new_node), true);
-  }
+  return InsertNewNode(array, new_node);
 }
 
 template <typename Key, typename Hash, typename Equal, typename Allocator>
