@@ -265,6 +265,40 @@ TEST(LockFreeHashSetTest, TransparentLookup) {
   EXPECT_THAT(hs, UnorderedElementsAre("lorem", "ipsum", "dolor"));
 }
 
+TEST(LockFreeHashSetTest, LookUpWhileInserting) {
+  lock_free_hash_set<int> hs;
+  std::thread producer{[&] {
+    hs.insert(42);
+    hs.insert(43);
+    hs.insert(44);
+    hs.insert(45);
+  }};
+  std::thread consumer{[&] {
+    while (!hs.contains(45)) {
+      // loop
+    }
+  }};
+  producer.join();
+  consumer.join();
+}
+
+TEST(LockFreeHashSetTest, LookUpWhileEmplacing) {
+  lock_free_hash_set<int> hs;
+  std::thread producer{[&] {
+    hs.emplace(42);
+    hs.emplace(43);
+    hs.emplace(44);
+    hs.emplace(45);
+  }};
+  std::thread consumer{[&] {
+    while (!hs.contains(45)) {
+      // loop
+    }
+  }};
+  producer.join();
+  consumer.join();
+}
+
 TEST(LockFreeHashSetTest, ClearEmpty) {
   lock_free_hash_set<int> hs;
   hs.clear();
