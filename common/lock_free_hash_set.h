@@ -129,7 +129,7 @@ class lock_free_hash_set {
     // elements. This is only an advisory value used to implement methods like
     // `lock_free_hash_set::size()`, because keeping it atomically in sync with the content of
     // `data` is impossible.
-    std::atomic<size_t> size;
+    std::atomic<size_t> size{0};
 
     // The actual array of pointers. `Array` objects are always allocated with extra trailing space
     // so that `data` has exactly `capacity` elements.
@@ -535,6 +535,12 @@ class lock_free_hash_set {
   // calling `Reserve(size() + num_new_elements)` atomically.
   void ReserveExtra(size_t num_new_elements) ABSL_LOCKS_EXCLUDED(mutex_);
 
+  // Inserts a node in the hash set assuming it's empty. `ptr_` must be `nullptr` before entering
+  // this function.
+  //
+  // Used by `Insert` and `Emplace` as a fallback for the case of empty hash set.
+  std::pair<Iterator, bool> InsertFirstNode(Node *node) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+
   // Performs a re-hash and insertion, doubling the capacity of `old_array`. All elements are copied
   // over, the new node is added, and the new array is stored in `ptr_`. The return value is the
   // index at which the new node was inserted.
@@ -769,6 +775,17 @@ void lock_free_hash_set<Key, Hash, Equal, Allocator>::ReserveExtra(size_t const 
 }
 
 template <typename Key, typename Hash, typename Equal, typename Allocator>
+std::pair<typename lock_free_hash_set<Key, Hash, Equal, Allocator>::Iterator, bool>
+lock_free_hash_set<Key, Hash, Equal, Allocator>::InsertFirstNode(Node *const node) {
+  auto const array = GetOrCreateArray(Array::kMinCapacityLog2);
+  auto const index = node->hash & array->hash_mask();
+  array->data[index].store(node, std::memory_order_relaxed);
+  array->size.store(1, std::memory_order_relaxed);
+  ptr_.store(array, std::memory_order_release);
+  return std::make_pair(Iterator(this, index, node), true);
+}
+
+template <typename Key, typename Hash, typename Equal, typename Allocator>
 size_t lock_free_hash_set<Key, Hash, Equal, Allocator>::Grow(Array const *const old_array,
                                                              Node *const new_node) {
   auto const new_array = GetOrCreateArray(old_array->capacity_log2 + 1);
@@ -808,13 +825,7 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Insert(KeyArg &&key) {
   absl::MutexLock lock{&mutex_};
   auto array = ptr_.load(std::memory_order_relaxed);
   if (!array) {
-    auto const node = CreateNode(Node::kHashed, hash, std::forward<KeyArg>(key));
-    array = GetOrCreateArray(Array::kMinCapacityLog2);
-    auto const index = hash & array->hash_mask();
-    array->data[index].store(node, std::memory_order_relaxed);
-    array->size.store(1, std::memory_order_relaxed);
-    ptr_.store(array, std::memory_order_release);
-    return std::make_pair(Iterator(this, index, node), true);
+    return InsertFirstNode(CreateNode(Node::kHashed, hash, std::forward<KeyArg>(key)));
   }
   size_t const mask = array->hash_mask();
   for (size_t i = 0, j = hash;; ++i, j += i) {
@@ -851,12 +862,8 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Emplace(Args &&...args) {
   absl::MutexLock lock{&mutex_};
   auto array = ptr_.load(std::memory_order_relaxed);
   if (!array) {
-    array = GetOrCreateArray(Array::kMinCapacityLog2);
-    auto const index = new_node->hash & array->hash_mask();
-    array->data[index].store(new_node, std::memory_order_relaxed);
-    array->size.store(1, std::memory_order_relaxed);
-    ptr_.store(array, std::memory_order_release);
-    return std::make_pair(Iterator(this, index, new_node), true);
+    nodes_.push_back(new_node);
+    return InsertFirstNode(new_node);
   }
   size_t const mask = array->hash_mask();
   for (size_t i = 0, j = new_node->hash;; ++i, j += i) {
@@ -877,6 +884,7 @@ lock_free_hash_set<Key, Hash, Equal, Allocator>::Emplace(Args &&...args) {
       return std::make_pair(Iterator(this, index, node), true);
     }
   }
+  nodes_.push_back(new_node);
   auto const size = array->size.load(std::memory_order_relaxed);
   if ((size + 1) * kMaxLoadFactor.denominator > array->capacity() * kMaxLoadFactor.numerator) {
     return std::make_pair(Iterator(this, Grow(array, new_node), new_node), true);
@@ -917,8 +925,10 @@ template <typename Key, typename Hash, typename Equal, typename Allocator>
 void lock_free_hash_set<Key, Hash, Equal, Allocator>::Swap(lock_free_hash_set &lhs,
                                                            lock_free_hash_set &rhs) {
   if (&rhs < &lhs) {
-    Swap(rhs, lhs);
-    return;
+    // Make sure the mutexes are locked in a deterministic order by ordering the two hash sets by
+    // their memory address. This avoids deadlocks when `Swap` is called concurrently by multiple
+    // threads.
+    return Swap(rhs, lhs);
   }
   absl::MutexLock lhs_lock{&lhs.mutex_};
   absl::MutexLock rhs_lock{&rhs.mutex_};
