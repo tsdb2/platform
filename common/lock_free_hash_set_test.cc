@@ -272,6 +272,7 @@ TEST(LockFreeHashSetTest, LookUpWhileInserting) {
     hs.insert(43);
     hs.insert(44);
     hs.insert(45);
+    hs.insert(46);
   }};
   std::thread consumer{[&] {
     while (!hs.contains(45)) {
@@ -282,6 +283,44 @@ TEST(LockFreeHashSetTest, LookUpWhileInserting) {
   consumer.join();
 }
 
+TEST(LockFreeHashSetTest, GetSizeWhileInserting) {
+  lock_free_hash_set<int> hs;
+  std::thread producer{[&] {
+    hs.insert(42);
+    hs.insert(43);
+    hs.insert(44);
+    hs.insert(45);
+    hs.insert(46);
+  }};
+  std::thread consumer{[&] {
+    while (hs.size() < 5) {
+      // loop
+    }
+  }};
+  producer.join();
+  consumer.join();
+}
+
+TEST(LockFreeHashSetTest, EraseWhileInserting) {
+  lock_free_hash_set<int> hs;
+  std::thread producer{[&] {
+    hs.insert(42);
+    hs.insert(43);
+    hs.insert(44);
+    hs.insert(45);
+    hs.insert(46);
+  }};
+  std::thread consumer{[&] {
+    while (hs.erase(44) < 1) {
+      // loop
+    }
+  }};
+  producer.join();
+  consumer.join();
+  EXPECT_FALSE(hs.contains(44));
+  EXPECT_THAT(hs, UnorderedElementsAre(42, 43, 45, 46));
+}
+
 TEST(LockFreeHashSetTest, LookUpWhileEmplacing) {
   lock_free_hash_set<int> hs;
   std::thread producer{[&] {
@@ -289,6 +328,7 @@ TEST(LockFreeHashSetTest, LookUpWhileEmplacing) {
     hs.emplace(43);
     hs.emplace(44);
     hs.emplace(45);
+    hs.emplace(46);
   }};
   std::thread consumer{[&] {
     while (!hs.contains(45)) {
@@ -297,6 +337,44 @@ TEST(LockFreeHashSetTest, LookUpWhileEmplacing) {
   }};
   producer.join();
   consumer.join();
+}
+
+TEST(LockFreeHashSetTest, GetSizeWhileEmplacing) {
+  lock_free_hash_set<int> hs;
+  std::thread producer{[&] {
+    hs.emplace(42);
+    hs.emplace(43);
+    hs.emplace(44);
+    hs.emplace(45);
+    hs.emplace(46);
+  }};
+  std::thread consumer{[&] {
+    while (hs.size() < 5) {
+      // loop
+    }
+  }};
+  producer.join();
+  consumer.join();
+}
+
+TEST(LockFreeHashSetTest, EraseWhileEmplacing) {
+  lock_free_hash_set<int> hs;
+  std::thread producer{[&] {
+    hs.emplace(42);
+    hs.emplace(43);
+    hs.emplace(44);
+    hs.emplace(45);
+    hs.emplace(46);
+  }};
+  std::thread consumer{[&] {
+    while (hs.erase(44) < 1) {
+      // loop
+    }
+  }};
+  producer.join();
+  consumer.join();
+  EXPECT_FALSE(hs.contains(44));
+  EXPECT_THAT(hs, UnorderedElementsAre(42, 43, 45, 46));
 }
 
 TEST(LockFreeHashSetTest, ClearEmpty) {
