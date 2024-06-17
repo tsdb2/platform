@@ -2,7 +2,6 @@
 #define __TSDB2_COMMON_LOCK_FREE_HASH_SET_H__
 
 #include <initializer_list>
-#include <iterator>
 #include <memory>
 
 #include "absl/hash/hash.h"
@@ -56,8 +55,6 @@ class lock_free_hash_set
   using const_pointer = typename allocator_traits::const_pointer;
   using iterator = typename Base::ConstIterator;
   using const_iterator = typename Base::ConstIterator;
-  using reverse_iterator = std::reverse_iterator<iterator>;
-  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
   template <typename Arg>
   using key_arg_t =
