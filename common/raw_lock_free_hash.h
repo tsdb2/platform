@@ -57,7 +57,6 @@ struct Node final {
 
   Key const &key() const { return data.first; }
 
-  absl::Mutex mutable mutex;
   DataType data;
   size_t const hash;
   std::atomic<bool> deleted{false};
@@ -460,6 +459,7 @@ class RawLockFreeHash {
     using BaseIterator::is_end;
   };
 
+  using ValueType = typename Node::DataType;
   using AllocatorType = NodeAllocator;
   using AllocatorTraits = std::allocator_traits<AllocatorType>;
 

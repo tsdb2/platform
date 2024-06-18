@@ -1,19 +1,23 @@
 #include "common/lock_free_hash_set.h"
 
 #include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <thread>
 #include <type_traits>
 
+#include "absl/hash/hash.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace {
 
-using tsdb2::common::lock_free_hash_set;
-
 using ::testing::UnorderedElementsAre;
+using ::tsdb2::common::lock_free_hash_set;
 
 struct TriviallyDestructible {
   int foo;
@@ -34,6 +38,20 @@ TEST(LockFreeHashSetTest, Assumptions) {
   EXPECT_TRUE(std::is_trivially_destructible_v<std::atomic<TriviallyDestructible*>>);
   EXPECT_FALSE(std::is_trivially_destructible_v<NonTriviallyDestructible>);
   EXPECT_TRUE(std::is_trivially_destructible_v<std::atomic<NonTriviallyDestructible*>>);
+}
+
+TEST(LockFreeHashSetTest, Traits) {
+  EXPECT_TRUE((std::is_same_v<typename lock_free_hash_set<int>::key_type, int>));
+  EXPECT_TRUE((std::is_same_v<typename lock_free_hash_set<int>::value_type, int>));
+  EXPECT_TRUE((std::is_same_v<typename lock_free_hash_set<int>::size_type, size_t>));
+  EXPECT_TRUE((std::is_same_v<typename lock_free_hash_set<int>::difference_type, ptrdiff_t>));
+  EXPECT_TRUE((std::is_same_v<typename lock_free_hash_set<int>::hasher, absl::Hash<int>>));
+  EXPECT_TRUE((std::is_same_v<typename lock_free_hash_set<int>::key_equal, std::equal_to<int>>));
+  EXPECT_TRUE(
+      (std::is_same_v<typename lock_free_hash_set<int>::allocator_traits,
+                      std::allocator_traits<typename lock_free_hash_set<int>::allocator_type>>));
+  EXPECT_TRUE((std::is_same_v<typename lock_free_hash_set<int>::reference, int&>));
+  EXPECT_TRUE((std::is_same_v<typename lock_free_hash_set<int>::const_reference, int const&>));
 }
 
 TEST(LockFreeHashSetTest, Empty) {

@@ -206,7 +206,6 @@ cc_library(
     deps = [
         ":lock_free_container_internal",
         ":raw_lock_free_hash",
-        "@com_google_absl//absl/hash",
     ],
 )
 
@@ -216,6 +215,7 @@ cc_test(
     deps = [
         ":lock_free_hash_set",
         ":testing",
+        "@com_google_absl//absl/hash",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -224,7 +224,18 @@ cc_library(
     name = "lock_free_hash_map",
     hdrs = ["lock_free_hash_map.h"],
     deps = [
+        ":lock_free_container_internal",
         ":raw_lock_free_hash",
+    ],
+)
+
+cc_test(
+    name = "lock_free_hash_map_test",
+    srcs = ["lock_free_hash_map_test.cc"],
+    deps = [
+        ":lock_free_hash_map",
+        ":testing",
+        "@com_google_googletest//:gtest_main",
     ],
 )
 

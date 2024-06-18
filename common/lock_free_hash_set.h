@@ -1,10 +1,12 @@
 #ifndef __TSDB2_COMMON_LOCK_FREE_HASH_SET_H__
 #define __TSDB2_COMMON_LOCK_FREE_HASH_SET_H__
 
+#include <cstddef>
+#include <cstdint>
 #include <initializer_list>
 #include <memory>
+#include <utility>
 
-#include "absl/hash/hash.h"
 #include "common/lock_free_container_internal.h"
 #include "common/raw_lock_free_hash.h"
 
