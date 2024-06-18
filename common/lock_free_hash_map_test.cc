@@ -1,6 +1,5 @@
 #include "common/lock_free_hash_map.h"
 
-#include <atomic>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -13,27 +12,6 @@ namespace {
 using ::testing::UnorderedElementsAre;
 using ::tsdb2::common::KnownThreadSafe;
 using ::tsdb2::common::lock_free_hash_map;
-
-struct TriviallyDestructible {
-  int foo;
-};
-
-class NonTriviallyDestructible {
- public:
-  explicit NonTriviallyDestructible() : foo_(new int()) {}
-  ~NonTriviallyDestructible() { delete foo_; }
-
- private:
-  int* foo_;
-};
-
-TEST(LockFreeHashMapTest, Assumptions) {
-  EXPECT_TRUE(std::is_trivially_destructible_v<std::atomic<int*>>);
-  EXPECT_TRUE(std::is_trivially_destructible_v<TriviallyDestructible>);
-  EXPECT_TRUE(std::is_trivially_destructible_v<std::atomic<TriviallyDestructible*>>);
-  EXPECT_FALSE(std::is_trivially_destructible_v<NonTriviallyDestructible>);
-  EXPECT_TRUE(std::is_trivially_destructible_v<std::atomic<NonTriviallyDestructible*>>);
-}
 
 TEST(LockFreeHashMapTest, Traits) {
   EXPECT_TRUE((std::is_same_v<typename lock_free_hash_map<int, std::string>::key_type, int>));

@@ -19,27 +19,6 @@ namespace {
 using ::testing::UnorderedElementsAre;
 using ::tsdb2::common::lock_free_hash_set;
 
-struct TriviallyDestructible {
-  int foo;
-};
-
-class NonTriviallyDestructible {
- public:
-  explicit NonTriviallyDestructible() : foo_(new int()) {}
-  ~NonTriviallyDestructible() { delete foo_; }
-
- private:
-  int* foo_;
-};
-
-TEST(LockFreeHashSetTest, Assumptions) {
-  EXPECT_TRUE(std::is_trivially_destructible_v<std::atomic<int*>>);
-  EXPECT_TRUE(std::is_trivially_destructible_v<TriviallyDestructible>);
-  EXPECT_TRUE(std::is_trivially_destructible_v<std::atomic<TriviallyDestructible*>>);
-  EXPECT_FALSE(std::is_trivially_destructible_v<NonTriviallyDestructible>);
-  EXPECT_TRUE(std::is_trivially_destructible_v<std::atomic<NonTriviallyDestructible*>>);
-}
-
 TEST(LockFreeHashSetTest, Traits) {
   EXPECT_TRUE((std::is_same_v<typename lock_free_hash_set<int>::key_type, int>));
   EXPECT_TRUE((std::is_same_v<typename lock_free_hash_set<int>::value_type, int>));

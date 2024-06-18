@@ -200,6 +200,15 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "raw_lock_free_hash_test",
+    srcs = ["raw_lock_free_hash_test.cc"],
+    deps = [
+        ":testing",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
 cc_library(
     name = "lock_free_hash_set",
     hdrs = ["lock_free_hash_set.h"],
