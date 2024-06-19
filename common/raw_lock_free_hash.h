@@ -287,6 +287,10 @@ class RawLockFreeHash {
     explicit BaseIterator(RawLockFreeHash const &parent, size_t const index, Node *const node)
         : parent_(&parent), index_(index), node_(node) {}
 
+    // Returns the current index, or a negative value if this is the end iterator or a
+    // default-constructed iterator.
+    intptr_t index() const { return index_; }
+
     // Returns the current node, or nullptr if this is the end iterator or a default-constructed
     // iterator.
     Node *node() const { return node_; }
@@ -456,7 +460,9 @@ class RawLockFreeHash {
     explicit ConstIterator(RawLockFreeHash const &parent, size_t const index, Node *const node)
         : BaseIterator(parent, index, node) {}
 
+    using BaseIterator::index;
     using BaseIterator::is_end;
+    using BaseIterator::node;
   };
 
   using ValueType = typename Node::DataType;
@@ -554,6 +560,10 @@ class RawLockFreeHash {
   template <typename KeyArg>
   bool Erase(KeyArg const &key) ABSL_LOCKS_EXCLUDED(mutex_);
 
+  bool Erase(ConstIterator const &it) ABSL_LOCKS_EXCLUDED(mutex_);
+
+  bool Erase(Iterator const &it) { return Erase(ConstIterator(it)); }
+
   void Clear() noexcept;
 
   // Swaps the content of this hash table with `other`. This algorithm is not lockless.
@@ -576,6 +586,9 @@ class RawLockFreeHash {
   RawLockFreeHash &operator=(RawLockFreeHash const &) = delete;
   RawLockFreeHash(RawLockFreeHash &&) = delete;
   RawLockFreeHash &operator=(RawLockFreeHash &&) = delete;
+
+  // Rounds `value` up to the next power of 2. Used by `NextExponentOf2`.
+  static uint64_t NextPowerOf2(uint64_t value);
 
   // Rounds `value` up to the next power of 2 and return the exponent of such power. For example, if
   // `value` is 60 it's rounded up to 64 and 6 is returned. This is used to calculate the array
@@ -622,6 +635,12 @@ class RawLockFreeHash {
   std::pair<Iterator, bool> InsertNewNode(Array *array, Node *node)
       ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
+  bool EraseExistingNode(Array *array, Node *node) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+
+  template <typename KeyArg>
+  bool EraseLocked(Array *array, KeyArg const &key, size_t hash)
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+
   // Performs a re-hash and insertion, doubling the capacity of `old_array`. All elements are copied
   // over, the new node is added, and the new array is stored in `ptr_`. The return value is the
   // index at which the new node was inserted.
@@ -662,6 +681,36 @@ size_t RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Array::InsertNodeLoc
       data[index].store(new_node, std::memory_order_release);
       size.fetch_add(1, std::memory_order_relaxed);
       return index;
+    }
+  }
+}
+
+template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
+bool RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::EraseExistingNode(Array *const array,
+                                                                            Node *const node) {
+  if (node->deleted.exchange(true, std::memory_order_relaxed)) {
+    return false;
+  }
+  auto const size = array->size.fetch_sub(1, std::memory_order_relaxed) - 1;
+  if (size * kMinLoadFactor.denominator < array->capacity() * kMinLoadFactor.numerator) {
+    Shrink(array);
+  }
+  return true;
+}
+
+template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
+template <typename KeyArg>
+bool RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::EraseLocked(Array *const array,
+                                                                      KeyArg const &key,
+                                                                      size_t const hash) {
+  auto const mask = array->hash_mask();
+  for (size_t i = hash, j = 0;; i += ++j) {
+    auto const node = array->data[i & mask].load(std::memory_order_relaxed);
+    if (!node) {
+      return false;
+    }
+    if (node->hash == hash && equal_(key, node->key())) {
+      return EraseExistingNode(array, node);
     }
   }
 }
@@ -785,23 +834,28 @@ bool RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Erase(KeyArg const &ke
   if (!array) {
     return false;
   }
-  auto const mask = array->hash_mask();
-  for (size_t i = hash, j = 0;; i += ++j) {
-    auto const node = array->data[i & mask].load(std::memory_order_relaxed);
-    if (!node) {
-      return false;
-    }
-    if (node->hash == hash && equal_(key, node->key())) {
-      if (node->deleted.exchange(true, std::memory_order_relaxed)) {
-        return false;
-      }
-      auto const size = array->size.fetch_sub(1, std::memory_order_relaxed) - 1;
-      if (size * kMinLoadFactor.denominator < array->capacity() * kMinLoadFactor.numerator) {
-        Shrink(array);
-      }
-      return true;
+  return EraseLocked(array, key, hash);
+}
+
+template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
+bool RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Erase(ConstIterator const &it) {
+  if (it.is_end()) {
+    return false;
+  }
+  absl::MutexLock lock{&mutex_};
+  auto array = ptr_.load(std::memory_order_relaxed);
+  if (!array) {
+    return false;
+  }
+  auto const it_index = it.index();
+  auto const it_node = it.node();
+  if (it_index < array->capacity()) {
+    auto const node = array->data[it_index].load(std::memory_order_relaxed);
+    if (node->hash == it_node->hash && equal_(node->key(), it_node->key())) {
+      return EraseExistingNode(array, node);
     }
   }
+  return EraseLocked(array, it_node->key(), it_node->hash);
 }
 
 template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
@@ -835,7 +889,7 @@ void RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Swap(RawLockFreeHash &
 }
 
 template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
-uint8_t RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::NextExponentOf2(uint64_t value) {
+uint64_t RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::NextPowerOf2(uint64_t value) {
   --value;
   value |= value >> 1;
   value |= value >> 2;
@@ -843,7 +897,12 @@ uint8_t RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::NextExponentOf2(uin
   value |= value >> 8;
   value |= value >> 16;
   value |= value >> 32;
-  ++value;
+  return ++value;
+}
+
+template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
+uint8_t RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::NextExponentOf2(uint64_t value) {
+  value = NextPowerOf2(value);
   uint8_t log2 = 0;
   while ((value & 1) == 0) {
     ++log2;

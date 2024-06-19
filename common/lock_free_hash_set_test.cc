@@ -8,6 +8,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <tuple>
 #include <type_traits>
 
 #include "absl/hash/hash.h"
@@ -412,7 +413,7 @@ TEST(LockFreeHashSetTest, EraseEmpty) {
   EXPECT_THAT(hs, UnorderedElementsAre());
 }
 
-TEST(LockFreeHashSetTest, EraseElement) {
+TEST(LockFreeHashSetTest, EraseKey) {
   lock_free_hash_set<int> hs{42};
   EXPECT_EQ(hs.erase(42), 1);
   EXPECT_EQ(hs.capacity(), 32);
@@ -422,10 +423,33 @@ TEST(LockFreeHashSetTest, EraseElement) {
   EXPECT_THAT(hs, UnorderedElementsAre());
 }
 
-TEST(LockFreeHashSetTest, EraseElementTwice) {
+TEST(LockFreeHashSetTest, EraseIterator) {
+  lock_free_hash_set<int> hs;
+  auto const [it, inserted] = hs.insert(42);
+  EXPECT_EQ(hs.erase(it), 1);
+  EXPECT_EQ(hs.capacity(), 32);
+  EXPECT_EQ(hs.size(), 0);
+  EXPECT_TRUE(hs.empty());
+  EXPECT_FALSE(hs.contains(42));
+  EXPECT_THAT(hs, UnorderedElementsAre());
+}
+
+TEST(LockFreeHashSetTest, EraseKeyTwice) {
   lock_free_hash_set<int> hs{42};
   hs.erase(42);
   EXPECT_EQ(hs.erase(42), 0);
+  EXPECT_EQ(hs.capacity(), 32);
+  EXPECT_EQ(hs.size(), 0);
+  EXPECT_TRUE(hs.empty());
+  EXPECT_FALSE(hs.contains(42));
+  EXPECT_THAT(hs, UnorderedElementsAre());
+}
+
+TEST(LockFreeHashSetTest, EraseIteratorTwice) {
+  lock_free_hash_set<int> hs;
+  auto const [it, inserted] = hs.insert(42);
+  hs.erase(it);
+  EXPECT_EQ(hs.erase(it), 0);
   EXPECT_EQ(hs.capacity(), 32);
   EXPECT_EQ(hs.size(), 0);
   EXPECT_TRUE(hs.empty());
@@ -456,7 +480,7 @@ TEST(LockFreeHashSetTest, EraseMissingElementTwice) {
   EXPECT_THAT(hs, UnorderedElementsAre(42));
 }
 
-TEST(LockFreeHashSetTest, InsertAfterErasing) {
+TEST(LockFreeHashSetTest, InsertAfterErasingKey) {
   lock_free_hash_set<int> hs{42, 43};
   hs.erase(43);
   auto const [it, inserted] = hs.insert(44);
@@ -472,7 +496,24 @@ TEST(LockFreeHashSetTest, InsertAfterErasing) {
   EXPECT_THAT(hs, UnorderedElementsAre(42, 44));
 }
 
-TEST(LockFreeHashSetTest, InsertErased) {
+TEST(LockFreeHashSetTest, InsertAfterErasingIterator) {
+  lock_free_hash_set<int> hs{42};
+  auto [it, inserted] = hs.insert(43);
+  hs.erase(it);
+  std::tie(it, inserted) = hs.insert(44);
+  EXPECT_TRUE(inserted);
+  EXPECT_NE(it, hs.end());
+  EXPECT_EQ(*it, 44);
+  EXPECT_EQ(hs.capacity(), 32);
+  EXPECT_EQ(hs.size(), 2);
+  EXPECT_FALSE(hs.empty());
+  EXPECT_TRUE(hs.contains(42));
+  EXPECT_FALSE(hs.contains(43));
+  EXPECT_TRUE(hs.contains(44));
+  EXPECT_THAT(hs, UnorderedElementsAre(42, 44));
+}
+
+TEST(LockFreeHashSetTest, InsertErasedKey) {
   lock_free_hash_set<int> hs{42, 43};
   hs.erase(43);
   auto const [it, inserted] = hs.insert(43);
@@ -488,11 +529,43 @@ TEST(LockFreeHashSetTest, InsertErased) {
   EXPECT_THAT(hs, UnorderedElementsAre(42, 43));
 }
 
-TEST(LockFreeHashSetTest, EraseAgain) {
+TEST(LockFreeHashSetTest, InsertErasedIterator) {
+  lock_free_hash_set<int> hs{42};
+  auto [it, inserted] = hs.insert(43);
+  hs.erase(it);
+  std::tie(it, inserted) = hs.insert(43);
+  EXPECT_TRUE(inserted);
+  EXPECT_NE(it, hs.end());
+  EXPECT_EQ(*it, 43);
+  EXPECT_EQ(hs.capacity(), 32);
+  EXPECT_EQ(hs.size(), 2);
+  EXPECT_FALSE(hs.empty());
+  EXPECT_TRUE(hs.contains(42));
+  EXPECT_TRUE(hs.contains(43));
+  EXPECT_FALSE(hs.contains(44));
+  EXPECT_THAT(hs, UnorderedElementsAre(42, 43));
+}
+
+TEST(LockFreeHashSetTest, EraseKeyAgain) {
   lock_free_hash_set<int> hs{42, 43, 44};
   hs.erase(43);
   hs.insert(43);
   EXPECT_EQ(hs.erase(43), 1);
+  EXPECT_EQ(hs.capacity(), 32);
+  EXPECT_EQ(hs.size(), 2);
+  EXPECT_FALSE(hs.empty());
+  EXPECT_TRUE(hs.contains(42));
+  EXPECT_FALSE(hs.contains(43));
+  EXPECT_TRUE(hs.contains(44));
+  EXPECT_THAT(hs, UnorderedElementsAre(42, 44));
+}
+
+TEST(LockFreeHashSetTest, EraseIteratorAgain) {
+  lock_free_hash_set<int> hs{42, 44};
+  auto [it, inserted] = hs.insert(43);
+  hs.erase(it);
+  std::tie(it, inserted) = hs.insert(43);
+  EXPECT_EQ(hs.erase(it), 1);
   EXPECT_EQ(hs.capacity(), 32);
   EXPECT_EQ(hs.size(), 2);
   EXPECT_FALSE(hs.empty());

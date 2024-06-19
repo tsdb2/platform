@@ -167,6 +167,8 @@ class lock_free_hash_set
     return Base::Erase(key) ? 1 : 0;
   }
 
+  size_type erase(const_iterator const it) { return Base::Erase(it) ? 1 : 0; }
+
   template <typename KeyArg = key_type>
   size_type count(key_arg_t<KeyArg> const &key) const {
     return Base::is_end_iterator(Base::Find(key)) ? 0 : 1;
