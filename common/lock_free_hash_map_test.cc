@@ -3,12 +3,14 @@
 #include <string>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace {
 
+using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
 using ::tsdb2::common::KnownThreadSafe;
 using ::tsdb2::common::lock_free_hash_map;
@@ -50,6 +52,31 @@ TEST(LockFreeHashMapTest, Empty) {
   EXPECT_TRUE(hm.empty());
   EXPECT_THAT(hm, UnorderedElementsAre());
   EXPECT_FALSE(hm.contains(42));
+}
+
+TEST(LockFreeHashMapTest, ConstructWithInitializerList) {
+  lock_free_hash_map<int, std::string> hm{{42, "lorem"}, {43, "ipsum"}, {44, "dolor"}};
+  EXPECT_EQ(hm.capacity(), 32);
+  EXPECT_EQ(hm.size(), 3);
+  EXPECT_FALSE(hm.empty());
+  EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, "ipsum"), Pair(44, "dolor")));
+  EXPECT_TRUE(hm.contains(42));
+  EXPECT_TRUE(hm.contains(43));
+  EXPECT_TRUE(hm.contains(44));
+  EXPECT_FALSE(hm.contains(45));
+}
+
+TEST(LockFreeHashSetTest, ConstructFromIterators) {
+  std::vector<std::pair<int const, std::string>> v{{42, "lorem"}, {43, "ipsum"}, {44, "dolor"}};
+  lock_free_hash_map<int, std::string> hm{v.begin(), v.end()};
+  EXPECT_EQ(hm.capacity(), 32);
+  EXPECT_EQ(hm.size(), 3);
+  EXPECT_FALSE(hm.empty());
+  EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, "ipsum"), Pair(44, "dolor")));
+  EXPECT_TRUE(hm.contains(42));
+  EXPECT_TRUE(hm.contains(43));
+  EXPECT_TRUE(hm.contains(44));
+  EXPECT_FALSE(hm.contains(45));
 }
 
 // TODO

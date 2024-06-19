@@ -104,7 +104,33 @@ class lock_free_hash_map
   lock_free_hash_map(Hash const& hash, Allocator const& alloc)
       : lock_free_hash_map(hash, Equal(), alloc) {}
 
-  // TODO
+  template <typename InputIt>
+  lock_free_hash_map(InputIt first, InputIt last, Hash const& hash = Hash(),
+                     Equal const& equal = Equal(), Allocator const& alloc = Allocator())
+      : lock_free_hash_map(hash, equal, alloc) {
+    insert(first, last);
+  }
+
+  template <typename InputIt>
+  lock_free_hash_map(InputIt first, InputIt last, Allocator const& alloc = Allocator())
+      : lock_free_hash_map(first, last, Hash(), Equal(), alloc) {}
+
+  template <typename InputIt>
+  lock_free_hash_map(InputIt first, InputIt last, Hash const& hash, Allocator const& alloc)
+      : lock_free_hash_map(first, last, hash, Equal(), alloc) {}
+
+  lock_free_hash_map(std::initializer_list<value_type> const init, Hash const& hash = Hash(),
+                     Equal const& equal = Equal(), Allocator const& alloc = Allocator())
+      : lock_free_hash_map(hash, equal, alloc) {
+    insert(init);
+  }
+
+  lock_free_hash_map(std::initializer_list<value_type> const init, Allocator const& alloc)
+      : lock_free_hash_map(init, Hash(), Equal(), alloc) {}
+
+  lock_free_hash_map(std::initializer_list<value_type> const init, Hash const& hash,
+                     Allocator const& alloc)
+      : lock_free_hash_map(init, hash, Equal(), alloc) {}
 
   using Base::begin;
   using Base::cbegin;
@@ -147,7 +173,9 @@ class lock_free_hash_map
 
   std::pair<iterator, bool> insert(value_type const& value) { return Base::Insert(value); }
 
-  template <class InputIt>
+  std::pair<iterator, bool> insert(value_type&& value) { return Base::Insert(std::move(value)); }
+
+  template <typename InputIt>
   void insert(InputIt first, InputIt last) {
     for (; first != last; ++first) {
       Base::Insert(*first);
@@ -159,6 +187,13 @@ class lock_free_hash_map
     for (auto& value : list) {
       Base::Insert(value);
     }
+  }
+
+  // TODO: insert_or_assign
+
+  template <typename... Args>
+  std::pair<iterator, bool> emplace(Args&&... args) {
+    return Base::Emplace(std::forward<Args>(args)...);
   }
 
   // TODO

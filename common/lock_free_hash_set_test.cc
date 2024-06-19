@@ -10,6 +10,7 @@
 #include <thread>
 #include <tuple>
 #include <type_traits>
+#include <vector>
 
 #include "absl/hash/hash.h"
 #include "gmock/gmock.h"

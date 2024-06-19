@@ -143,7 +143,9 @@ class lock_free_hash_set
 
   std::pair<iterator, bool> insert(value_type const &value) { return Base::Insert(value); }
 
-  template <class InputIt>
+  std::pair<iterator, bool> insert(value_type &&value) { return Base::Insert(std::move(value)); }
+
+  template <typename InputIt>
   void insert(InputIt first, InputIt last) {
     for (; first != last; ++first) {
       Base::Insert(*first);
