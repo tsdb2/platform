@@ -13,40 +13,25 @@
 namespace tsdb2 {
 namespace common {
 
-// Used to annotate `lock_free_hash_map` values when they are known to be thread-safe. Examples:
-//
-//   // Foo is thread-safe.
-//   struct Foo {
-//     // ...
-//   };
-//
-//   // Bar is not thread-safe.
-//   struct Bar {
-//     // ...
-//   };
-//
-//   lock_free_hash_map<int, KnownThreadSafe<Foo>> foo_map;
-//
-//   lock_free_hash_map<int, Bar> bar_map;
-//
-// When the mapped value is thread-safe `lock_free_hash_map` will embed it in its nodes as it is,
-// while if it's not thread-safe it will embed it as const, preventing certain operations. Examples:
-//
-//   // The values of this map are not modifiable. Whole entries can still be erased.
-//   lock_free_hash_map<int, int> int_map;
-//
-//   // The values of this map can be modified using atomic operations.
-//   lock_free_hash_map<int, KnownThreadSafe<std::atomic<int>>> atomic_int_map;
-//
-template <typename Value>
-using KnownThreadSafe = internal::lock_free_container::KnownThreadSafe<Value>;
-
 // A lock-free, thread-safe hash map data structure. The provided API is a subset of
 // `std::unordered_map`.
 //
 // All reads (lookups and iterations) are lockless: all synchronization is performed by
 // `lock_free_hash_map` using atomics. Writers are automatically serialized by acquiring an
 // exclusive lock on an internal mutex.
+//
+// NOTE: thread safety of the mapped values is delegated to the user. Certain operations such as
+// assigning to a looked up value are not thread-safe if the `Value` type itself is not thread-safe.
+// Examples:
+//
+//   lock_free_hash_map<int, int> int_map1;
+//   int_map[42] = 123;  // ERROR: this operation is not thread-safe!
+//
+//   lock_free_hash_map<int, int const> int_map2;
+//   int_map.try_emplace(42, 123);  // this is fine, but the value cannot be modified.
+//
+//   lock_free_hash_map<int, std::atomic<int>> int_map3;
+//   int_map[42] = 123;  // this is OK because atomics are thread-safe.
 //
 // Under heavily contended read scenarios `lock_free_hash_map` can be much faster than other hash
 // map data structures guarded by a mutex. On the flip side, `lock_free_hash_map` does not free any
@@ -112,7 +97,7 @@ class lock_free_hash_map
   }
 
   template <typename InputIt>
-  lock_free_hash_map(InputIt first, InputIt last, Allocator const& alloc = Allocator())
+  lock_free_hash_map(InputIt first, InputIt last, Allocator const& alloc)
       : lock_free_hash_map(first, last, Hash(), Equal(), alloc) {}
 
   template <typename InputIt>

@@ -17,56 +17,12 @@ namespace common {
 namespace internal {
 namespace lock_free_container {
 
-// See the doc snippet in `lock_free_hash_map.h`.
-template <typename>
-struct KnownThreadSafe {};
-
 // Holds a single (pre-hashed) element.
 //
-// The main template is used for `lock_free_hash_map`s with `Value` types that are not known to be
-// thread-safe.
+// The main template stores both a key and a value and is used by `lock_free_hash_map`.
 template <typename Key, typename Value>
 struct Node final {
-  using DataType = std::pair<Key const, Value const>;
-  using ConstDataType = std::pair<Key const, Value const>;
-
-  // Resolves the `Node` constructor overload that receives the caller-provided hash.
-  struct Hashed {};
-  static inline Hashed constexpr kHashed;
-
-  // Resolves the `Node` constructor overload that hashes the key.
-  struct ToHash {};
-  static inline ToHash constexpr kToHash;
-
-  // Constructs a node with the caller-provided hash.
-  template <typename KeyArg, typename... ValueArgs>
-  explicit Node(Hashed const &, size_t const node_hash, KeyArg &&key_arg, ValueArgs &&...value_args)
-      : data(Key(std::forward<KeyArg>(key_arg)), Value(std::forward<ValueArgs>(value_args)...)),
-        hash(node_hash) {}
-
-  // Constructs a node, hashing it automatically.
-  template <typename Hash, typename KeyArg, typename... ValueArgs>
-  explicit Node(ToHash const &, Hash const &hasher, KeyArg &&key_arg, ValueArgs &&...value_args)
-      : data(Key(std::forward<KeyArg>(key_arg)), Value(std::forward<ValueArgs>(value_args)...)),
-        hash(hasher(data.first)) {}
-
-  Node(Node const &) = delete;
-  Node &operator=(Node const &) = delete;
-  Node(Node &&) = delete;
-  Node &operator=(Node &&) = delete;
-
-  Key const &key() const { return data.first; }
-
-  DataType data;
-  size_t const hash;
-  std::atomic<bool> deleted{false};
-};
-
-// Node specialization for `KnownThreadSafe` values.
-template <typename Key, typename Value>
-struct Node<Key, KnownThreadSafe<Value>> final {
   using DataType = std::pair<Key const, Value>;
-  using ConstDataType = std::pair<Key const, Value const>;
 
   // Resolves the `Node` constructor overload that receives the caller-provided hash.
   struct Hashed {};
@@ -76,16 +32,32 @@ struct Node<Key, KnownThreadSafe<Value>> final {
   struct ToHash {};
   static inline ToHash constexpr kToHash;
 
+  static Key const &ToKey(DataType const &data) { return data.first; }
+
   // Constructs a node with the caller-provided hash.
+  template <typename... Args>
+  explicit Node(Hashed const &, size_t const node_hash, Args &&...args)
+      : data(std::forward<Args>(args)...), hash(node_hash) {}
+
+  // Piecewise-constructs a node with the caller-provided hash.
   template <typename KeyArg, typename... ValueArgs>
-  explicit Node(Hashed const &, size_t const node_hash, KeyArg &&key_arg, ValueArgs &&...value_args)
-      : data(Key(std::forward<KeyArg>(key_arg)), Value(std::forward<ValueArgs>(value_args)...)),
+  explicit Node(Hashed const &, size_t const node_hash, std::piecewise_construct_t,
+                KeyArg &&key_arg, ValueArgs &&...value_args)
+      : data(std::piecewise_construct, std::forward<KeyArg>(key_arg),
+             std::forward<ValueArgs>(value_args)...),
         hash(node_hash) {}
 
-  // Constructs a node, hashing it automatically.
+  // Constructs a node, hashing it automatically with the given hasher.
+  template <typename Hash, typename... Args>
+  explicit Node(ToHash const &, Hash const &hasher, Args &&...args)
+      : data(std::forward<Args>(args)...), hash(hasher(data.first)) {}
+
+  // Piecewise-constructs a node, hashing it automatically with the given hasher.
   template <typename Hash, typename KeyArg, typename... ValueArgs>
-  explicit Node(ToHash const &, Hash const &hasher, KeyArg &&key_arg, ValueArgs &&...value_args)
-      : data(Key(std::forward<KeyArg>(key_arg)), Value(std::forward<ValueArgs>(value_args)...)),
+  explicit Node(ToHash const &, Hash const &hasher, std::piecewise_construct_t, KeyArg &&key_arg,
+                ValueArgs &&...value_args)
+      : data(std::piecewise_construct, std::forward<KeyArg>(key_arg),
+             std::forward<ValueArgs>(value_args)...),
         hash(hasher(data.first)) {}
 
   Node(Node const &) = delete;
@@ -104,7 +76,6 @@ struct Node<Key, KnownThreadSafe<Value>> final {
 template <typename Key>
 struct Node<Key, void> final {
   using DataType = Key const;
-  using ConstDataType = Key const;
 
   // Resolves the `Node` constructor overload that receives the caller-provided hash.
   struct Hashed {};
@@ -113,6 +84,8 @@ struct Node<Key, void> final {
   // Resolves the `Node` constructor overload that hashes the key.
   struct ToHash {};
   static inline ToHash constexpr kToHash;
+
+  static Key const &ToKey(DataType const &data) { return data; }
 
   // Constructs a node with the caller-provided hash.
   template <typename... Args>
@@ -420,8 +393,8 @@ class RawLockFreeHash {
       return BaseIterator::operator=(std::move(other));
     }
 
-    typename Node::ConstDataType &operator*() const { return this->node()->data; }
-    typename Node::ConstDataType *operator->() const { return &(this->node()->data); }
+    typename Node::DataType const &operator*() const { return this->node()->data; }
+    typename Node::DataType const *operator->() const { return &(this->node()->data); }
 
     ConstIterator &operator++() {
       BaseIterator::Advance();
@@ -551,8 +524,9 @@ class RawLockFreeHash {
   // calling `Reserve(size() + num_new_elements)` atomically.
   void ReserveExtra(size_t num_new_elements) ABSL_LOCKS_EXCLUDED(mutex_);
 
-  template <typename KeyArg>
-  std::pair<Iterator, bool> Insert(KeyArg &&key) ABSL_LOCKS_EXCLUDED(mutex_);
+  std::pair<Iterator, bool> Insert(ValueType &&value) ABSL_LOCKS_EXCLUDED(mutex_);
+
+  std::pair<Iterator, bool> Insert(ValueType const &value) { return Insert(ValueType(value)); }
 
   template <typename... Args>
   std::pair<Iterator, bool> Emplace(Args &&...args) ABSL_LOCKS_EXCLUDED(mutex_);
@@ -761,14 +735,14 @@ void RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::ReserveExtra(
 }
 
 template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
-template <typename KeyArg>
 std::pair<typename RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Iterator, bool>
-RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Insert(KeyArg &&key) {
+RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Insert(ValueType &&value) {
+  auto const &key = Node::ToKey(value);
   auto const hash = hasher_(key);
   absl::MutexLock lock{&mutex_};
   auto array = ptr_.load(std::memory_order_relaxed);
   if (!array) {
-    return InsertFirstNode(CreateNode(Node::kHashed, hash, std::forward<KeyArg>(key)));
+    return InsertFirstNode(CreateNode(Node::kHashed, hash, std::forward<ValueType>(value)));
   }
   size_t const mask = array->hash_mask();
   for (size_t i = hash, j = 0;; i += ++j) {
@@ -788,7 +762,7 @@ RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Insert(KeyArg &&key) {
       return std::make_pair(Iterator(*this, index, node), true);
     }
   }
-  return InsertNewNode(array, CreateNode(Node::kHashed, hash, std::forward<KeyArg>(key)));
+  return InsertNewNode(array, CreateNode(Node::kHashed, hash, std::forward<ValueType>(value)));
 }
 
 template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
