@@ -36,12 +36,12 @@ struct Node final {
 
   // Constructs a node with the caller-provided hash.
   template <typename... Args>
-  explicit Node(Hashed const &, size_t const node_hash, Args &&...args)
+  explicit Node(Hashed const, size_t const node_hash, Args &&...args)
       : data(std::forward<Args>(args)...), hash(node_hash) {}
 
   // Piecewise-constructs a node with the caller-provided hash.
   template <typename KeyArg, typename... ValueArgs>
-  explicit Node(Hashed const &, size_t const node_hash, std::piecewise_construct_t,
+  explicit Node(Hashed const, size_t const node_hash, std::piecewise_construct_t const,
                 KeyArg &&key_arg, ValueArgs &&...value_args)
       : data(std::piecewise_construct, std::forward<KeyArg>(key_arg),
              std::forward<ValueArgs>(value_args)...),
@@ -49,13 +49,13 @@ struct Node final {
 
   // Constructs a node, hashing it automatically with the given hasher.
   template <typename Hash, typename... Args>
-  explicit Node(ToHash const &, Hash const &hasher, Args &&...args)
+  explicit Node(ToHash const, Hash const &hasher, Args &&...args)
       : data(std::forward<Args>(args)...), hash(hasher(data.first)) {}
 
   // Piecewise-constructs a node, hashing it automatically with the given hasher.
   template <typename Hash, typename KeyArg, typename... ValueArgs>
-  explicit Node(ToHash const &, Hash const &hasher, std::piecewise_construct_t, KeyArg &&key_arg,
-                ValueArgs &&...value_args)
+  explicit Node(ToHash const, Hash const &hasher, std::piecewise_construct_t const,
+                KeyArg &&key_arg, ValueArgs &&...value_args)
       : data(std::piecewise_construct, std::forward<KeyArg>(key_arg),
              std::forward<ValueArgs>(value_args)...),
         hash(hasher(data.first)) {}
@@ -89,12 +89,12 @@ struct Node<Key, void> final {
 
   // Constructs a node with the caller-provided hash.
   template <typename... Args>
-  explicit Node(Hashed const &, size_t const node_hash, Args &&...args)
+  explicit Node(Hashed const, size_t const node_hash, Args &&...args)
       : data(std::forward<Args>(args)...), hash(node_hash) {}
 
   // Constructs a node, hashing it automatically.
   template <typename Hash, typename... Args>
-  explicit Node(ToHash const &, Hash const &hasher, Args &&...args)
+  explicit Node(ToHash const, Hash const &hasher, Args &&...args)
       : data(std::forward<Args>(args)...), hash(hasher(data)) {}
 
   Node(Node const &) = delete;
@@ -247,13 +247,13 @@ class RawLockFreeHash {
 
    protected:
     // Constructs the begin iterator.
-    explicit BaseIterator(BeginIterator const &, RawLockFreeHash const &parent)
+    explicit BaseIterator(BeginIterator const, RawLockFreeHash const &parent)
         : parent_(&parent), index_(-1), node_(nullptr) {
       Advance();
     }
 
     // Constructs the end iterator.
-    explicit BaseIterator(EndIterator const &, RawLockFreeHash const &parent)
+    explicit BaseIterator(EndIterator const, RawLockFreeHash const &parent)
         : parent_(&parent), index_(-1), node_(nullptr) {}
 
     // Constructs an iterator for a specific node & position.
@@ -362,11 +362,11 @@ class RawLockFreeHash {
     friend class ConstIterator;
 
     // Constructs the begin iterator.
-    explicit Iterator(BeginIterator const &, RawLockFreeHash const &parent)
+    explicit Iterator(BeginIterator const, RawLockFreeHash const &parent)
         : BaseIterator(kBeginIterator, parent) {}
 
     // Constructs the end iterator.
-    explicit Iterator(EndIterator const &, RawLockFreeHash const &parent)
+    explicit Iterator(EndIterator const, RawLockFreeHash const &parent)
         : BaseIterator(kEndIterator, parent) {}
 
     // Constructs an iterator for a specific node & position.
@@ -422,11 +422,11 @@ class RawLockFreeHash {
     friend class RawLockFreeHash;
 
     // Constructs the begin iterator.
-    explicit ConstIterator(BeginIterator const &, RawLockFreeHash const &parent)
+    explicit ConstIterator(BeginIterator const, RawLockFreeHash const &parent)
         : BaseIterator(kBeginIterator, parent) {}
 
     // Constructs the end iterator.
-    explicit ConstIterator(EndIterator const &, RawLockFreeHash const &parent)
+    explicit ConstIterator(EndIterator const, RawLockFreeHash const &parent)
         : BaseIterator(kEndIterator, parent) {}
 
     // Constructs an iterator for a specific node & position.

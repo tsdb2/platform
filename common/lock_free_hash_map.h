@@ -181,7 +181,11 @@ class lock_free_hash_map
     return Base::Emplace(std::forward<Args>(args)...);
   }
 
-  // TODO: try_emplace
+  template <typename KeyArg, typename... ValueArgs>
+  std::pair<iterator, bool> try_emplace(KeyArg&& key_arg, ValueArgs&&... value_args) {
+    return Base::Emplace(std::piecewise_construct, std::forward<KeyArg>(key_arg),
+                         std::forward<ValueArgs>(value_args)...);
+  }
 
   template <typename KeyArg = key_type>
   size_type erase(key_arg_t<KeyArg> const& key) {
