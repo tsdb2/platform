@@ -198,52 +198,11 @@ class RawLockFreeHash {
     BaseIterator &operator=(BaseIterator &&) noexcept = default;
 
     friend bool operator==(BaseIterator const &lhs, BaseIterator const &rhs) {
-      if (!lhs.parent_) {
-        return !rhs.parent_;
-      }
-      if (lhs.parent_ != rhs.parent_) {
-        return false;
-      }
-      if (lhs.index_ < 0) {
-        return rhs.index_ < 0;
-      }
-      return lhs.index_ == rhs.index_;
+      return lhs.node_ == rhs.node_;
     }
 
     friend bool operator!=(BaseIterator const &lhs, BaseIterator const &rhs) {
-      return !operator==(lhs, rhs);
-    }
-
-    friend bool operator<(BaseIterator const &lhs, BaseIterator const &rhs) {
-      if (!lhs.parent_) {
-        return rhs.parent_ != nullptr;
-      }
-      if (!rhs.parent_) {
-        return false;
-      }
-      if (lhs.parent_ < rhs.parent_) {
-        return true;
-      } else if (rhs.parent_ < lhs.parent_) {
-        return false;
-      } else if (lhs.index_ < 0) {
-        return false;
-      } else if (rhs.index_ < 0) {
-        return true;
-      } else {
-        return lhs.index_ < rhs.index_;
-      }
-    }
-
-    friend bool operator<=(BaseIterator const &lhs, BaseIterator const &rhs) {
-      return !operator<(rhs, lhs);
-    }
-
-    friend bool operator>(BaseIterator const &lhs, BaseIterator const &rhs) {
-      return operator<(rhs, lhs);
-    }
-
-    friend bool operator>=(BaseIterator const &lhs, BaseIterator const &rhs) {
-      return !operator<(lhs, rhs);
+      return lhs.node_ != rhs.node_;
     }
 
    protected:
