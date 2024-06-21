@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <initializer_list>
 #include <memory>
+#include <stdexcept>
 #include <utility>
 
 #include "common/lock_free_container_internal.h"
@@ -194,7 +195,23 @@ class lock_free_hash_map
 
   size_type erase(const_iterator const it) { return Base::Erase(it) ? 1 : 0; }
 
-  // TODO: `at` and `operator[]`.
+  template <typename KeyArg = key_type>
+  Value& at(key_arg_t<KeyArg> const& key) {
+    auto const it = Base::Find(key);
+    return it->second;
+  }
+
+  template <typename KeyArg = key_type>
+  Value const& at(key_arg_t<KeyArg> const& key) const {
+    auto const it = Base::Find(key);
+    return it->second;
+  }
+
+  template <typename KeyArg = key_type>
+  Value& operator[](key_arg_t<KeyArg> const& key) {
+    auto const [it, unused] = Base::InsertDefaultValue(key);
+    return it->second;
+  }
 
   template <typename KeyArg = key_type>
   size_type count(key_arg_t<KeyArg> const& key) const {

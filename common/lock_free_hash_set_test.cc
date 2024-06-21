@@ -173,6 +173,21 @@ TEST(LockFreeHashSetTest, InsertAfterGrow) {
                                        18, 19, 20, 21, 22, 23, 24, 25));
 }
 
+TEST(LockFreeHashSetTest, InsertingTwiceDoesntGrow) {
+  lock_free_hash_set<int> hs{
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+  };
+  auto const [it, inserted] = hs.insert(23);
+  EXPECT_FALSE(inserted);
+  EXPECT_NE(it, hs.end());
+  EXPECT_EQ(*it, 23);
+  EXPECT_EQ(hs.capacity(), 32);
+  EXPECT_EQ(hs.size(), 24);
+  EXPECT_FALSE(hs.empty());
+  EXPECT_THAT(hs, UnorderedElementsAre(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+                                       18, 19, 20, 21, 22, 23));
+}
+
 TEST(LockFreeHashSetTest, EmplaceOne) {
   lock_free_hash_set<int> hs;
   auto const [it, inserted] = hs.emplace(42);
@@ -217,6 +232,21 @@ TEST(LockFreeHashSetTest, EmplaceTwice) {
   EXPECT_THAT(hs, UnorderedElementsAre(42));
   EXPECT_TRUE(hs.contains(42));
   EXPECT_FALSE(hs.contains(43));
+}
+
+TEST(LockFreeHashSetTest, EmplacingTwiceDoesntGrow) {
+  lock_free_hash_set<int> hs{
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+  };
+  auto const [it, inserted] = hs.emplace(23);
+  EXPECT_FALSE(inserted);
+  EXPECT_NE(it, hs.end());
+  EXPECT_EQ(*it, 23);
+  EXPECT_EQ(hs.capacity(), 32);
+  EXPECT_EQ(hs.size(), 24);
+  EXPECT_FALSE(hs.empty());
+  EXPECT_THAT(hs, UnorderedElementsAre(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+                                       18, 19, 20, 21, 22, 23));
 }
 
 TEST(LockFreeHashSetTest, LookUpFromEmpty) {

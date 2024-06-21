@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -43,8 +44,8 @@ struct Node final {
   template <typename KeyArg, typename... ValueArgs>
   explicit Node(Hashed const, size_t const node_hash, std::piecewise_construct_t const,
                 KeyArg &&key_arg, ValueArgs &&...value_args)
-      : data(std::piecewise_construct, std::forward<KeyArg>(key_arg),
-             std::forward<ValueArgs>(value_args)...),
+      : data(std::piecewise_construct, std::forward_as_tuple(std::forward<KeyArg>(key_arg)),
+             std::forward_as_tuple(std::forward<ValueArgs>(value_args)...)),
         hash(node_hash) {}
 
   // Constructs a node, hashing it automatically with the given hasher.
@@ -56,8 +57,8 @@ struct Node final {
   template <typename Hash, typename KeyArg, typename... ValueArgs>
   explicit Node(ToHash const, Hash const &hasher, std::piecewise_construct_t const,
                 KeyArg &&key_arg, ValueArgs &&...value_args)
-      : data(std::piecewise_construct, std::forward<KeyArg>(key_arg),
-             std::forward<ValueArgs>(value_args)...),
+      : data(std::piecewise_construct, std::forward_as_tuple(std::forward<KeyArg>(key_arg)),
+             std::forward_as_tuple(std::forward<ValueArgs>(value_args)...)),
         hash(hasher(data.first)) {}
 
   Node(Node const &) = delete;
@@ -524,9 +525,15 @@ class RawLockFreeHash {
   // calling `Reserve(size() + num_new_elements)` atomically.
   void ReserveExtra(size_t num_new_elements) ABSL_LOCKS_EXCLUDED(mutex_);
 
-  std::pair<Iterator, bool> Insert(ValueType &&value) ABSL_LOCKS_EXCLUDED(mutex_);
+  std::pair<Iterator, bool> Insert(ValueType &&value) {
+    return InsertInternal(Node::ToKey(value), std::move(value));
+  }
 
   std::pair<Iterator, bool> Insert(ValueType const &value) { return Insert(ValueType(value)); }
+
+  std::pair<Iterator, bool> InsertDefaultValue(Key const &key) {
+    return InsertInternal(key, std::piecewise_construct, key);
+  }
 
   template <typename... Args>
   std::pair<Iterator, bool> Emplace(Args &&...args) ABSL_LOCKS_EXCLUDED(mutex_);
@@ -608,6 +615,11 @@ class RawLockFreeHash {
   // already found in the hash table.
   std::pair<Iterator, bool> InsertNewNode(Array *array, Node *node)
       ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+
+  // Internal implementation of `Insert` methods.
+  template <typename... Args>
+  std::pair<Iterator, bool> InsertInternal(Key const &key, Args &&...args)
+      ABSL_LOCKS_EXCLUDED(mutex_);
 
   bool EraseExistingNode(Array *array, Node *node) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
@@ -732,37 +744,6 @@ void RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::ReserveExtra(
     return;
   }
   ptr_.store(ReserveLocked(array, min_capacity_log2), std::memory_order_release);
-}
-
-template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
-std::pair<typename RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Iterator, bool>
-RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Insert(ValueType &&value) {
-  auto const &key = Node::ToKey(value);
-  auto const hash = hasher_(key);
-  absl::MutexLock lock{&mutex_};
-  auto array = ptr_.load(std::memory_order_relaxed);
-  if (!array) {
-    return InsertFirstNode(CreateNode(Node::kHashed, hash, std::forward<ValueType>(value)));
-  }
-  size_t const mask = array->hash_mask();
-  for (size_t i = hash, j = 0;; i += ++j) {
-    auto index = i & mask;
-    auto const node = array->data[index].load(std::memory_order_relaxed);
-    if (!node) {
-      break;
-    }
-    if (node->hash == hash && equal_(key, node->key())) {
-      if (!node->deleted.exchange(false, std::memory_order_relaxed)) {
-        return std::make_pair(Iterator(*this, index, node), false);
-      }
-      auto const size = array->size.fetch_add(1, std::memory_order_relaxed) + 1;
-      if (size * kMaxLoadFactor.denominator > array->capacity() * kMaxLoadFactor.numerator) {
-        index = Grow(array, node);
-      }
-      return std::make_pair(Iterator(*this, index, node), true);
-    }
-  }
-  return InsertNewNode(array, CreateNode(Node::kHashed, hash, std::forward<ValueType>(value)));
 }
 
 template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
@@ -1021,6 +1002,38 @@ RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::InsertNewNode(Array *const 
   } else {
     return std::make_pair(Iterator(*this, array->InsertNodeLocked(node), node), true);
   }
+}
+
+template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
+template <typename... Args>
+std::pair<typename RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Iterator, bool>
+RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::InsertInternal(Key const &key,
+                                                                    Args &&...args) {
+  auto const hash = hasher_(key);
+  absl::MutexLock lock{&mutex_};
+  auto array = ptr_.load(std::memory_order_relaxed);
+  if (!array) {
+    return InsertFirstNode(CreateNode(Node::kHashed, hash, std::forward<Args>(args)...));
+  }
+  size_t const mask = array->hash_mask();
+  for (size_t i = hash, j = 0;; i += ++j) {
+    auto index = i & mask;
+    auto const node = array->data[index].load(std::memory_order_relaxed);
+    if (!node) {
+      break;
+    }
+    if (node->hash == hash && equal_(key, node->key())) {
+      if (!node->deleted.exchange(false, std::memory_order_relaxed)) {
+        return std::make_pair(Iterator(*this, index, node), false);
+      }
+      auto const size = array->size.fetch_add(1, std::memory_order_relaxed) + 1;
+      if (size * kMaxLoadFactor.denominator > array->capacity() * kMaxLoadFactor.numerator) {
+        index = Grow(array, node);
+      }
+      return std::make_pair(Iterator(*this, index, node), true);
+    }
+  }
+  return InsertNewNode(array, CreateNode(Node::kHashed, hash, std::forward<Args>(args)...));
 }
 
 template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
