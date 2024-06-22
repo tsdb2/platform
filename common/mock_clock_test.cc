@@ -11,9 +11,8 @@
 
 namespace {
 
-using tsdb2::common::MockClock;
-
 using ::testing::_;
+using ::tsdb2::common::MockClock;
 
 TEST(MockClockTest, InitialTime) {
   auto const time = absl::UnixEpoch() + absl::Seconds(123);

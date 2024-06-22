@@ -8,8 +8,8 @@
 
 namespace {
 
-using tsdb2::common::MakeReffed;
-using tsdb2::common::reffed_ptr;
+using ::tsdb2::common::MakeReffed;
+using ::tsdb2::common::reffed_ptr;
 
 class RefCounted {
  public:

@@ -41,7 +41,7 @@ namespace net {
 
 namespace {
 
-using tsdb2::common::reffed_ptr;
+using ::tsdb2::common::reffed_ptr;
 
 size_t constexpr kMaxEvents = 1024;
 

@@ -7,7 +7,7 @@
 
 namespace {
 
-using tsdb2::io::FD;
+using ::tsdb2::io::FD;
 
 TEST(FDTest, Empty) {
   FD fd;

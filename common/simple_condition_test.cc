@@ -5,7 +5,7 @@
 
 namespace {
 
-using tsdb2::common::SimpleCondition;
+using ::tsdb2::common::SimpleCondition;
 
 TEST(SimpleConditionTest, Eval) {
   EXPECT_TRUE(SimpleCondition([] { return true; }).Eval());

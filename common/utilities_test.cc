@@ -12,12 +12,11 @@
 
 namespace {
 
-using tsdb2::util::IsIntegralStrictV;
-using tsdb2::util::OverloadedLambda;
-
 using ::testing::status::IsOk;
 using ::testing::status::IsOkAndHolds;
 using ::testing::status::StatusIs;
+using ::tsdb2::util::IsIntegralStrictV;
+using ::tsdb2::util::OverloadedLambda;
 
 absl::Status Foo(bool const fail) {
   if (fail) {

@@ -19,21 +19,20 @@
 
 namespace {
 
-using tsdb2::common::fixed_flat_map_of;
-using tsdb2::common::flat_map;
-using tsdb2::testing::OtherTestKey;
-using tsdb2::testing::ReverseTestCompare;
-using tsdb2::testing::TestCompare;
-using tsdb2::testing::TestKey;
-using tsdb2::testing::TestValue;
-using tsdb2::testing::TestValueRepresentation;
-using tsdb2::testing::TransparentTestCompare;
-
 using ::testing::_;
 using ::testing::ElementsAre;
 using ::testing::Ge;
 using ::testing::Pair;
 using ::testing::Property;
+using ::tsdb2::common::fixed_flat_map_of;
+using ::tsdb2::common::flat_map;
+using ::tsdb2::testing::OtherTestKey;
+using ::tsdb2::testing::ReverseTestCompare;
+using ::tsdb2::testing::TestCompare;
+using ::tsdb2::testing::TestKey;
+using ::tsdb2::testing::TestValue;
+using ::tsdb2::testing::TestValueRepresentation;
+using ::tsdb2::testing::TransparentTestCompare;
 
 using TestAllocator = tsdb2::testing::TestAllocator<std::pair<int, int>>;
 

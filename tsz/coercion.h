@@ -16,7 +16,7 @@ namespace util {
 
 // `fixed` utilities are re-exported here for convenience.
 
-using tsdb2::common::Fixed;
+using ::tsdb2::common::Fixed;
 
 template <typename T, typename Unused>
 using FixedT = tsdb2::common::FixedT<T, Unused>;
@@ -43,7 +43,7 @@ using CatTupleT = typename CatTuple<LHS, RHS>::Tuple;
 
 // `IsIntegralStrict` is re-exported here for convenience.
 
-using tsdb2::util::IsIntegralStrict;
+using ::tsdb2::util::IsIntegralStrict;
 
 template <typename Type>
 inline bool constexpr IsIntegralStrictV = tsdb2::util::IsIntegralStrictV<Type>;

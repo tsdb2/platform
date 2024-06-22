@@ -30,8 +30,6 @@ namespace {
 
 namespace json = tsdb2::json;
 
-using tsdb2::common::TypeStringT;
-
 using ::testing::AllOf;
 using ::testing::AnyOf;
 using ::testing::ElementsAre;
@@ -46,6 +44,7 @@ using ::testing::Property;
 using ::testing::UnorderedElementsAre;
 using ::testing::status::IsOk;
 using ::testing::status::IsOkAndHolds;
+using ::tsdb2::common::TypeStringT;
 
 char constexpr kFieldName1[] = "lorem";
 char constexpr kFieldName2[] = "ipsum";

@@ -7,8 +7,8 @@
 
 namespace {
 
-using tsdb2::common::TypeStringMatcher;
-using tsdb2::common::TypeStringT;
+using ::tsdb2::common::TypeStringMatcher;
+using ::tsdb2::common::TypeStringT;
 
 char constexpr kString1[] = "lorem";
 char constexpr kString2[] = "ipsum";

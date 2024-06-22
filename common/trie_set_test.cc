@@ -14,10 +14,9 @@
 
 namespace {
 
-using tsdb2::common::trie_set;
-
 using ::testing::ElementsAre;
 using ::testing::IsEmpty;
+using ::tsdb2::common::trie_set;
 
 TEST(TrieSetTest, Traits) {
   EXPECT_TRUE((std::is_same_v<typename trie_set<>::key_type, std::string>));

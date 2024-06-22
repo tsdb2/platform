@@ -7,7 +7,7 @@
 
 namespace {
 
-using tsdb2::common::SequenceNumber;
+using ::tsdb2::common::SequenceNumber;
 
 TEST(SequenceNumberTest, TriviallyDestructible) {
   EXPECT_TRUE(std::is_trivially_destructible_v<SequenceNumber>);

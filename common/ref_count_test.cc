@@ -8,10 +8,10 @@
 
 namespace {
 
-using tsdb2::common::MakeReffed;
-using tsdb2::common::RefCount;
-using tsdb2::common::RefCounted;
-using tsdb2::common::SimpleRefCounted;
+using ::tsdb2::common::MakeReffed;
+using ::tsdb2::common::RefCount;
+using ::tsdb2::common::RefCounted;
+using ::tsdb2::common::SimpleRefCounted;
 
 TEST(RefCountTest, Initial) {
   RefCount rc;

@@ -47,8 +47,8 @@
 namespace tsdb2 {
 namespace net {
 
-using tsdb2::common::Buffer;
-using tsdb2::io::FD;
+using ::tsdb2::common::Buffer;
+using ::tsdb2::io::FD;
 
 inline constexpr char kLocalHost[] = "::1";
 

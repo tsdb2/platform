@@ -10,7 +10,7 @@
 
 namespace {
 
-using tsdb2::common::NoDestructor;
+using ::tsdb2::common::NoDestructor;
 
 char constexpr kLoremName[] = "lorem";
 char constexpr kFooName[] = "foo";
