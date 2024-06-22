@@ -490,6 +490,11 @@ class RawLockFreeHash {
 
   std::pair<Iterator, bool> Insert(ValueType const &value) { return Insert(ValueType(value)); }
 
+  template <typename KeyArg, typename ValueArg>
+  std::pair<Iterator, bool> InsertOrAssign(KeyArg &&key, ValueArg &&value)
+      ABSL_LOCKS_EXCLUDED(mutex_);
+
+  // Used by `lock_free_hash_map`'s subscript operator.
   std::pair<Iterator, bool> InsertDefaultValue(Key const &key) {
     return InsertInternal(key, std::piecewise_construct, key);
   }
@@ -703,6 +708,38 @@ void RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::ReserveExtra(
     return;
   }
   ptr_.store(ReserveLocked(array, min_capacity_log2), std::memory_order_release);
+}
+
+template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
+template <typename KeyArg, typename ValueArg>
+std::pair<typename RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Iterator, bool>
+RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::InsertOrAssign(KeyArg &&key,
+                                                                    ValueArg &&value) {
+  auto const hash = hasher_(key);
+  absl::MutexLock lock{&mutex_};
+  auto array = ptr_.load(std::memory_order_relaxed);
+  if (!array) {
+    return InsertFirstNode(CreateNode(Node::kHashed, hash, std::piecewise_construct,
+                                      std::forward<KeyArg>(key), std::forward<ValueArg>(value)));
+  }
+  size_t const mask = array->hash_mask();
+  for (size_t i = hash, j = 0;; i += ++j) {
+    auto const index = i & mask;
+    auto const node = array->data[index].load(std::memory_order_relaxed);
+    if (!node) {
+      break;
+    }
+    if (node->hash == hash && equal_(key, node->key())) {
+      if (node->deleted.load(std::memory_order_relaxed)) {
+        break;
+      } else {
+        node->data.second = std::forward<ValueArg>(value);
+        return std::make_pair(Iterator(*this, index, node), false);
+      }
+    }
+  }
+  return InsertNewNode(array, CreateNode(Node::kHashed, hash, std::piecewise_construct,
+                                         std::forward<KeyArg>(key), std::forward<ValueArg>(value)));
 }
 
 template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
