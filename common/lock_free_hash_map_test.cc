@@ -1,6 +1,8 @@
 #include "common/lock_free_hash_map.h"
 
 #include <string>
+#include <thread>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -414,6 +416,444 @@ TEST(LockFreeHashMapTest, TransparentLookup) {
                                        Pair(std::string_view("ipsum"), 34),
                                        Pair(std::string_view("dolor"), 56)));
   EXPECT_THAT(hm, UnorderedElementsAre(Pair("lorem", 12), Pair("ipsum", 34), Pair("dolor", 56)));
+}
+
+TEST(LockFreeHashMapTest, LookUpWhileInserting) {
+  lock_free_hash_map<int, std::string const> hm;
+  std::thread producer{[&] {
+    hm.insert(std::make_pair(42, "lorem"));
+    hm.insert(std::make_pair(43, "ipsum"));
+    hm.insert(std::make_pair(44, "dolor"));
+    hm.insert(std::make_pair(45, "amet"));
+    hm.insert(std::make_pair(46, "consectetur"));
+  }};
+  std::thread consumer{[&] {
+    while (!hm.contains(45)) {
+      // loop
+    }
+  }};
+  producer.join();
+  consumer.join();
+}
+
+TEST(LockFreeHashMapTest, GetSizeWhileInserting) {
+  lock_free_hash_map<int, std::string const> hm;
+  std::thread producer{[&] {
+    hm.insert(std::make_pair(42, "lorem"));
+    hm.insert(std::make_pair(43, "ipsum"));
+    hm.insert(std::make_pair(44, "dolor"));
+    hm.insert(std::make_pair(45, "amet"));
+    hm.insert(std::make_pair(46, "consectetur"));
+  }};
+  std::thread consumer{[&] {
+    while (hm.size() < 5) {
+      // loop
+    }
+  }};
+  producer.join();
+  consumer.join();
+}
+
+TEST(LockFreeHashMapTest, EraseWhileInserting) {
+  lock_free_hash_map<int, std::string const> hm;
+  std::thread producer{[&] {
+    hm.insert(std::make_pair(42, "lorem"));
+    hm.insert(std::make_pair(43, "ipsum"));
+    hm.insert(std::make_pair(44, "dolor"));
+    hm.insert(std::make_pair(45, "amet"));
+    hm.insert(std::make_pair(46, "consectetur"));
+  }};
+  std::thread consumer{[&] {
+    while (hm.erase(44) < 1) {
+      // loop
+    }
+  }};
+  producer.join();
+  consumer.join();
+  EXPECT_FALSE(hm.contains(44));
+  EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, "ipsum"), Pair(45, "amet"),
+                                       Pair(46, "consectetur")));
+}
+
+TEST(LockFreeHashMapTest, LookUpWhileEmplacing) {
+  lock_free_hash_map<int, std::string const> hm;
+  std::thread producer{[&] {
+    hm.try_emplace(42, "lorem");
+    hm.try_emplace(43, "ipsum");
+    hm.try_emplace(44, "dolor");
+    hm.try_emplace(45, "amet");
+    hm.try_emplace(46, "consectetur");
+  }};
+  std::thread consumer{[&] {
+    while (!hm.contains(45)) {
+      // loop
+    }
+  }};
+  producer.join();
+  consumer.join();
+}
+
+TEST(LockFreeHashMapTest, GetSizeWhileEmplacing) {
+  lock_free_hash_map<int, std::string const> hm;
+  std::thread producer{[&] {
+    hm.try_emplace(42, "lorem");
+    hm.try_emplace(43, "ipsum");
+    hm.try_emplace(44, "dolor");
+    hm.try_emplace(45, "amet");
+    hm.try_emplace(46, "consectetur");
+  }};
+  std::thread consumer{[&] {
+    while (hm.size() < 5) {
+      // loop
+    }
+  }};
+  producer.join();
+  consumer.join();
+}
+
+TEST(LockFreeHashMapTest, EraseWhileEmplacing) {
+  lock_free_hash_map<int, std::string const> hm;
+  std::thread producer{[&] {
+    hm.try_emplace(42, "lorem");
+    hm.try_emplace(43, "ipsum");
+    hm.try_emplace(44, "dolor");
+    hm.try_emplace(45, "amet");
+    hm.try_emplace(46, "consectetur");
+  }};
+  std::thread consumer{[&] {
+    while (hm.erase(44) < 1) {
+      // loop
+    }
+  }};
+  producer.join();
+  consumer.join();
+  EXPECT_FALSE(hm.contains(44));
+  EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, "ipsum"), Pair(45, "amet"),
+                                       Pair(46, "consectetur")));
+}
+
+TEST(LockFreeHashMapTest, ClearEmpty) {
+  lock_free_hash_map<int, std::string> hm;
+  hm.clear();
+  EXPECT_EQ(hm.capacity(), 0);
+  EXPECT_EQ(hm.size(), 0);
+  EXPECT_TRUE(hm.empty());
+  EXPECT_THAT(hm, UnorderedElementsAre());
+}
+
+TEST(LockFreeHashMapTest, ClearNonEmpty) {
+  lock_free_hash_map<int, std::string> hm{{42, "lorem"}, {43, "ipsum"}};
+  hm.clear();
+  EXPECT_EQ(hm.capacity(), 0);
+  EXPECT_EQ(hm.size(), 0);
+  EXPECT_TRUE(hm.empty());
+  EXPECT_THAT(hm, UnorderedElementsAre());
+}
+
+TEST(LockFreeHashMapTest, EmplaceAfterClear) {
+  lock_free_hash_map<int, std::string> hm{{42, "lorem"}};
+  hm.clear();
+  hm.try_emplace(43, "ipsum");
+  EXPECT_EQ(hm.capacity(), 32);
+  EXPECT_EQ(hm.size(), 1);
+  EXPECT_FALSE(hm.empty());
+  EXPECT_THAT(hm, UnorderedElementsAre(Pair(43, "ipsum")));
+}
+
+TEST(LockFreeHashMapTest, EraseEmpty) {
+  lock_free_hash_map<int, std::string> hm;
+  EXPECT_EQ(hm.erase(42), 0);
+  EXPECT_EQ(hm.capacity(), 0);
+  EXPECT_EQ(hm.size(), 0);
+  EXPECT_TRUE(hm.empty());
+  EXPECT_FALSE(hm.contains(42));
+  EXPECT_THAT(hm, UnorderedElementsAre());
+}
+
+TEST(LockFreeHashMapTest, EraseKey) {
+  lock_free_hash_map<int, std::string> hm{{42, "lorem"}};
+  EXPECT_EQ(hm.erase(42), 1);
+  EXPECT_EQ(hm.capacity(), 32);
+  EXPECT_EQ(hm.size(), 0);
+  EXPECT_TRUE(hm.empty());
+  EXPECT_FALSE(hm.contains(42));
+  EXPECT_THAT(hm, UnorderedElementsAre());
+}
+
+TEST(LockFreeHashMapTest, EraseIterator) {
+  lock_free_hash_map<int, std::string> hm;
+  auto const [it, inserted] = hm.try_emplace(42, "lorem");
+  EXPECT_EQ(hm.erase(it), 1);
+  EXPECT_EQ(hm.capacity(), 32);
+  EXPECT_EQ(hm.size(), 0);
+  EXPECT_TRUE(hm.empty());
+  EXPECT_FALSE(hm.contains(42));
+  EXPECT_THAT(hm, UnorderedElementsAre());
+}
+
+TEST(LockFreeHashMapTest, EraseKeyTwice) {
+  lock_free_hash_map<int, std::string> hm{{42, "lorem"}};
+  hm.erase(42);
+  EXPECT_EQ(hm.erase(42), 0);
+  EXPECT_EQ(hm.capacity(), 32);
+  EXPECT_EQ(hm.size(), 0);
+  EXPECT_TRUE(hm.empty());
+  EXPECT_FALSE(hm.contains(42));
+  EXPECT_THAT(hm, UnorderedElementsAre());
+}
+
+TEST(LockFreeHashMapTest, EraseIteratorTwice) {
+  lock_free_hash_map<int, std::string> hm;
+  auto const [it, inserted] = hm.try_emplace(42, "lorem");
+  hm.erase(it);
+  EXPECT_EQ(hm.erase(it), 0);
+  EXPECT_EQ(hm.capacity(), 32);
+  EXPECT_EQ(hm.size(), 0);
+  EXPECT_TRUE(hm.empty());
+  EXPECT_FALSE(hm.contains(42));
+  EXPECT_THAT(hm, UnorderedElementsAre());
+}
+
+TEST(LockFreeHashMapTest, EraseMissingElement) {
+  lock_free_hash_map<int, std::string> hm{{42, "lorem"}};
+  EXPECT_EQ(hm.erase(43), 0);
+  EXPECT_EQ(hm.capacity(), 32);
+  EXPECT_EQ(hm.size(), 1);
+  EXPECT_FALSE(hm.empty());
+  EXPECT_TRUE(hm.contains(42));
+  EXPECT_FALSE(hm.contains(43));
+  EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem")));
+}
+
+TEST(LockFreeHashMapTest, EraseMissingElementTwice) {
+  lock_free_hash_map<int, std::string> hm{{42, "lorem"}};
+  hm.erase(43);
+  EXPECT_EQ(hm.erase(43), 0);
+  EXPECT_EQ(hm.capacity(), 32);
+  EXPECT_EQ(hm.size(), 1);
+  EXPECT_FALSE(hm.empty());
+  EXPECT_TRUE(hm.contains(42));
+  EXPECT_FALSE(hm.contains(43));
+  EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem")));
+}
+
+TEST(LockFreeHashMapTest, EmplaceAfterErasingKey) {
+  lock_free_hash_map<int, std::string> hm{{42, "lorem"}, {43, "ipsum"}};
+  hm.erase(43);
+  auto const [it, inserted] = hm.try_emplace(44, "dolor");
+  EXPECT_TRUE(inserted);
+  EXPECT_NE(it, hm.end());
+  EXPECT_THAT(*it, Pair(44, "dolor"));
+  EXPECT_EQ(hm.capacity(), 32);
+  EXPECT_EQ(hm.size(), 2);
+  EXPECT_FALSE(hm.empty());
+  EXPECT_TRUE(hm.contains(42));
+  EXPECT_FALSE(hm.contains(43));
+  EXPECT_TRUE(hm.contains(44));
+  EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(44, "dolor")));
+}
+
+TEST(LockFreeHashMapTest, EmplaceAfterErasingIterator) {
+  lock_free_hash_map<int, std::string> hm{{42, "lorem"}};
+  auto [it, inserted] = hm.try_emplace(43, "ipsum");
+  hm.erase(it);
+  std::tie(it, inserted) = hm.try_emplace(44, "dolor");
+  EXPECT_TRUE(inserted);
+  EXPECT_NE(it, hm.end());
+  EXPECT_THAT(*it, Pair(44, "dolor"));
+  EXPECT_EQ(hm.capacity(), 32);
+  EXPECT_EQ(hm.size(), 2);
+  EXPECT_FALSE(hm.empty());
+  EXPECT_TRUE(hm.contains(42));
+  EXPECT_FALSE(hm.contains(43));
+  EXPECT_TRUE(hm.contains(44));
+  EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(44, "dolor")));
+}
+
+TEST(LockFreeHashMapTest, EmplaceErasedKey) {
+  lock_free_hash_map<int, std::string> hm{{42, "lorem"}, {43, "ipsum"}};
+  hm.erase(43);
+  auto const [it, inserted] = hm.try_emplace(43, "dolor");
+  EXPECT_TRUE(inserted);
+  EXPECT_NE(it, hm.end());
+  EXPECT_THAT(*it, Pair(43, "dolor"));
+  EXPECT_EQ(hm.capacity(), 32);
+  EXPECT_EQ(hm.size(), 2);
+  EXPECT_FALSE(hm.empty());
+  EXPECT_TRUE(hm.contains(42));
+  EXPECT_TRUE(hm.contains(43));
+  EXPECT_FALSE(hm.contains(44));
+  EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, "dolor")));
+}
+
+TEST(LockFreeHashMapTest, EmplaceErasedIterator) {
+  lock_free_hash_map<int, std::string> hm{{42, "lorem"}};
+  auto [it, inserted] = hm.try_emplace(43, "ipsum");
+  hm.erase(it);
+  std::tie(it, inserted) = hm.try_emplace(43, "dolor");
+  EXPECT_TRUE(inserted);
+  EXPECT_NE(it, hm.end());
+  EXPECT_THAT(*it, Pair(43, "dolor"));
+  EXPECT_EQ(hm.capacity(), 32);
+  EXPECT_EQ(hm.size(), 2);
+  EXPECT_FALSE(hm.empty());
+  EXPECT_TRUE(hm.contains(42));
+  EXPECT_TRUE(hm.contains(43));
+  EXPECT_FALSE(hm.contains(44));
+  EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, "dolor")));
+}
+
+TEST(LockFreeHashMapTest, EraseKeyAgain) {
+  lock_free_hash_map<int, std::string> hm{{42, "lorem"}, {43, "ipsum"}, {44, "dolor"}};
+  hm.erase(43);
+  hm.try_emplace(43, "amet");
+  EXPECT_EQ(hm.erase(43), 1);
+  EXPECT_EQ(hm.capacity(), 32);
+  EXPECT_EQ(hm.size(), 2);
+  EXPECT_FALSE(hm.empty());
+  EXPECT_TRUE(hm.contains(42));
+  EXPECT_FALSE(hm.contains(43));
+  EXPECT_TRUE(hm.contains(44));
+  EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(44, "dolor")));
+}
+
+TEST(LockFreeHashMapTest, EraseIteratorAgain) {
+  lock_free_hash_map<int, std::string> hm{{42, "lorem"}, {44, "ipsum"}};
+  auto [it, inserted] = hm.try_emplace(43, "dolor");
+  hm.erase(it);
+  std::tie(it, inserted) = hm.try_emplace(43, "amet");
+  EXPECT_EQ(hm.erase(it), 1);
+  EXPECT_EQ(hm.capacity(), 32);
+  EXPECT_EQ(hm.size(), 2);
+  EXPECT_FALSE(hm.empty());
+  EXPECT_TRUE(hm.contains(42));
+  EXPECT_FALSE(hm.contains(43));
+  EXPECT_TRUE(hm.contains(44));
+  EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(44, "ipsum")));
+}
+
+TEST(LockFreeHashMapTest, Shrink) {
+  lock_free_hash_map<int, std::string> hm{
+      {0, "a"},  {1, "b"},  {2, "c"},  {3, "d"},  {4, "e"},  {5, "f"},  {6, "g"},
+      {7, "h"},  {8, "i"},  {9, "j"},  {10, "k"}, {11, "l"}, {12, "m"}, {13, "n"},
+      {14, "o"}, {15, "p"}, {16, "q"}, {17, "r"}, {18, "s"}, {19, "t"}, {20, "u"},
+      {21, "v"}, {22, "w"}, {23, "x"}, {24, "y"},
+  };
+  ASSERT_EQ(hm.capacity(), 64);
+  ASSERT_EQ(hm.size(), 25);
+  ASSERT_EQ(hm.erase(0), 1);
+  ASSERT_EQ(hm.erase(1), 1);
+  ASSERT_EQ(hm.erase(2), 1);
+  ASSERT_EQ(hm.erase(3), 1);
+  ASSERT_EQ(hm.erase(4), 1);
+  ASSERT_EQ(hm.erase(5), 1);
+  ASSERT_EQ(hm.erase(6), 1);
+  ASSERT_EQ(hm.erase(7), 1);
+  ASSERT_EQ(hm.erase(8), 1);
+  ASSERT_EQ(hm.erase(9), 1);
+  EXPECT_EQ(hm.capacity(), 32);
+  EXPECT_EQ(hm.size(), 15);
+  EXPECT_THAT(hm, UnorderedElementsAre(Pair(10, "k"), Pair(11, "l"), Pair(12, "m"), Pair(13, "n"),
+                                       Pair(14, "o"), Pair(15, "p"), Pair(16, "q"), Pair(17, "r"),
+                                       Pair(18, "s"), Pair(19, "t"), Pair(20, "u"), Pair(21, "v"),
+                                       Pair(22, "w"), Pair(23, "x"), Pair(24, "y")));
+}
+
+TEST(LockFreeHashMapTest, GrowAfterShrinking) {
+  lock_free_hash_map<int, std::string> hm{
+      {0, "a"},  {1, "b"},  {2, "c"},  {3, "d"},  {4, "e"},  {5, "f"},  {6, "g"},
+      {7, "h"},  {8, "i"},  {9, "j"},  {10, "k"}, {11, "l"}, {12, "m"}, {13, "n"},
+      {14, "o"}, {15, "p"}, {16, "q"}, {17, "r"}, {18, "s"}, {19, "t"}, {20, "u"},
+      {21, "v"}, {22, "w"}, {23, "x"}, {24, "y"},
+  };
+  ASSERT_EQ(hm.capacity(), 64);
+  ASSERT_EQ(hm.size(), 25);
+  ASSERT_EQ(hm.erase(0), 1);
+  ASSERT_EQ(hm.erase(1), 1);
+  ASSERT_EQ(hm.erase(2), 1);
+  ASSERT_EQ(hm.erase(3), 1);
+  ASSERT_EQ(hm.erase(4), 1);
+  ASSERT_EQ(hm.erase(5), 1);
+  ASSERT_EQ(hm.erase(6), 1);
+  ASSERT_EQ(hm.erase(7), 1);
+  ASSERT_EQ(hm.erase(8), 1);
+  ASSERT_EQ(hm.erase(9), 1);
+  ASSERT_EQ(hm.capacity(), 32);
+  ASSERT_EQ(hm.size(), 15);
+  hm.insert({
+      std::make_pair(0, "j"),
+      std::make_pair(1, "i"),
+      std::make_pair(2, "h"),
+      std::make_pair(3, "g"),
+      std::make_pair(4, "f"),
+      std::make_pair(5, "e"),
+      std::make_pair(6, "d"),
+      std::make_pair(7, "c"),
+      std::make_pair(8, "b"),
+      std::make_pair(9, "a"),
+  });
+  EXPECT_EQ(hm.capacity(), 64);
+  EXPECT_EQ(hm.size(), 25);
+  EXPECT_THAT(hm, UnorderedElementsAre(
+                      Pair(0, "j"), Pair(1, "i"), Pair(2, "h"), Pair(3, "g"), Pair(4, "f"),
+                      Pair(5, "e"), Pair(6, "d"), Pair(7, "c"), Pair(8, "b"), Pair(9, "a"),
+                      Pair(10, "k"), Pair(11, "l"), Pair(12, "m"), Pair(13, "n"), Pair(14, "o"),
+                      Pair(15, "p"), Pair(16, "q"), Pair(17, "r"), Pair(18, "s"), Pair(19, "t"),
+                      Pair(20, "u"), Pair(21, "v"), Pair(22, "w"), Pair(23, "x"), Pair(24, "y")));
+}
+
+TEST(LockFreeHashMapTest, ReserveZeroFromEmpty) {
+  lock_free_hash_map<int, std::string> hm;
+  hm.reserve(0);
+  EXPECT_EQ(hm.capacity(), 0);
+  EXPECT_EQ(hm.size(), 0);
+  EXPECT_TRUE(hm.empty());
+  EXPECT_THAT(hm, UnorderedElementsAre());
+}
+
+TEST(LockFreeHashMapTest, ReserveOneFromEmpty) {
+  lock_free_hash_map<int, std::string> hm;
+  hm.reserve(1);
+  EXPECT_EQ(hm.capacity(), 32);
+  EXPECT_EQ(hm.size(), 0);
+  EXPECT_TRUE(hm.empty());
+  EXPECT_THAT(hm, UnorderedElementsAre());
+}
+
+TEST(LockFreeHashMapTest, ReserveTwoFromEmpty) {
+  lock_free_hash_map<int, std::string> hm;
+  hm.reserve(2);
+  EXPECT_EQ(hm.capacity(), 32);
+  EXPECT_EQ(hm.size(), 0);
+  EXPECT_TRUE(hm.empty());
+  EXPECT_THAT(hm, UnorderedElementsAre());
+}
+
+TEST(LockFreeHashMapTest, Reserve24FromEmpty) {
+  lock_free_hash_map<int, std::string> hm;
+  hm.reserve(24);
+  EXPECT_EQ(hm.capacity(), 32);
+  EXPECT_EQ(hm.size(), 0);
+  EXPECT_TRUE(hm.empty());
+  EXPECT_THAT(hm, UnorderedElementsAre());
+}
+
+TEST(LockFreeHashMapTest, Reserve25FromEmpty) {
+  lock_free_hash_map<int, std::string> hm;
+  hm.reserve(25);
+  EXPECT_EQ(hm.capacity(), 64);
+  EXPECT_EQ(hm.size(), 0);
+  EXPECT_TRUE(hm.empty());
+  EXPECT_THAT(hm, UnorderedElementsAre());
+}
+
+TEST(LockFreeHashMapTest, Reserve26FromEmpty) {
+  lock_free_hash_map<int, std::string> hm;
+  hm.reserve(26);
+  EXPECT_EQ(hm.capacity(), 64);
+  EXPECT_EQ(hm.size(), 0);
+  EXPECT_TRUE(hm.empty());
+  EXPECT_THAT(hm, UnorderedElementsAre());
 }
 
 // TODO

@@ -718,21 +718,18 @@ RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Emplace(Args &&...args) {
   }
   size_t const mask = array->hash_mask();
   for (size_t i = new_node->hash, j = 0;; i += ++j) {
-    auto index = i & mask;
+    auto const index = i & mask;
     auto const node = array->data[index].load(std::memory_order_relaxed);
     if (!node) {
       break;
     }
     if (new_node->hash == node->hash && equal_(new_node->key(), node->key())) {
-      DestroyNode(new_node);
-      if (!node->deleted.exchange(false, std::memory_order_relaxed)) {
+      if (node->deleted.load(std::memory_order_relaxed)) {
+        break;
+      } else {
+        DestroyNode(new_node);
         return std::make_pair(Iterator(*this, index, node), false);
       }
-      auto const size = array->size.fetch_add(1, std::memory_order_relaxed) + 1;
-      if (size * kMaxLoadFactor.denominator > array->capacity() * kMaxLoadFactor.numerator) {
-        index = Grow(array, node);
-      }
-      return std::make_pair(Iterator(*this, index, node), true);
     }
   }
   nodes_.push_back(new_node);
@@ -976,20 +973,17 @@ RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::InsertInternal(Key const &k
   }
   size_t const mask = array->hash_mask();
   for (size_t i = hash, j = 0;; i += ++j) {
-    auto index = i & mask;
+    auto const index = i & mask;
     auto const node = array->data[index].load(std::memory_order_relaxed);
     if (!node) {
       break;
     }
     if (node->hash == hash && equal_(key, node->key())) {
-      if (!node->deleted.exchange(false, std::memory_order_relaxed)) {
+      if (node->deleted.load(std::memory_order_relaxed)) {
+        break;
+      } else {
         return std::make_pair(Iterator(*this, index, node), false);
       }
-      auto const size = array->size.fetch_add(1, std::memory_order_relaxed) + 1;
-      if (size * kMaxLoadFactor.denominator > array->capacity() * kMaxLoadFactor.numerator) {
-        index = Grow(array, node);
-      }
-      return std::make_pair(Iterator(*this, index, node), true);
     }
   }
   return InsertNewNode(array, CreateNode(Node::kHashed, hash, std::forward<Args>(args)...));
