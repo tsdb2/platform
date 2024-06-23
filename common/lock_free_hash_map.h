@@ -163,17 +163,16 @@ class lock_free_hash_map
   std::pair<iterator, bool> insert(value_type&& value) { return Base::Insert(std::move(value)); }
 
   template <typename InputIt>
-  void insert(InputIt first, InputIt last) {
-    for (; first != last; ++first) {
-      Base::Insert(*first);
-    }
+  void insert(InputIt const first, InputIt const last) {
+    // Don't specify a reserve count because we don't know if we can calculate `last - first`
+    // efficiently.
+    Base::InsertMany(first, last, /*reserve_count=*/0);
   }
 
   void insert(std::initializer_list<value_type> const list) {
-    Base::ReserveExtra(list.end() - list.begin());
-    for (auto& value : list) {
-      Base::Insert(value);
-    }
+    auto const first = list.begin();
+    auto const last = list.end();
+    Base::InsertMany(first, last, /*reserve_count=*/last - first);
   }
 
   template <typename ValueArg>

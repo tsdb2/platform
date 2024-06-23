@@ -490,6 +490,17 @@ class RawLockFreeHash {
 
   std::pair<Iterator, bool> Insert(ValueType const &value) { return Insert(ValueType(value)); }
 
+  // Inserts many elements. Better than calling `Insert` multiple times because `InsertMany`
+  // acquires the mutex only once. Even if the mutex is uncontended `InsertMany` is faster than
+  // `Insert` because the latter attempts an optimistic lock-free lookup, which we don't need for
+  // the use case of `InsertMany`.
+  //
+  // `reserve_count` is the expected number of new elements, typically `last - first`. It's used to
+  // reserve space before inserting the elements. It can be set 0, in which case no extra space is
+  // reserved beforehand but the hash table will grow as necessary during insertion.
+  template <typename InputIt>
+  void InsertMany(InputIt first, InputIt last, size_t reserve_count) ABSL_LOCKS_EXCLUDED(mutex_);
+
   template <typename KeyArg, typename ValueArg>
   std::pair<Iterator, bool> InsertOrAssign(KeyArg &&key, ValueArg &&value)
       ABSL_LOCKS_EXCLUDED(mutex_);
@@ -561,6 +572,13 @@ class RawLockFreeHash {
 
   template <typename Iterator, typename KeyArg>
   Iterator FindInternal(KeyArg const &key) const;
+
+  // Returns the minimum array capacity (in log2 format) required to store `num_elements`.
+  static uint8_t GetMinCapacityLog2(size_t const num_elements) {
+    auto const min_capacity =
+        DivideAndRoundUp(num_elements * kMaxLoadFactor.denominator, kMaxLoadFactor.numerator);
+    return std::max(Array::kMinCapacityLog2, NextExponentOf2(min_capacity));
+  }
 
   // Internal implementation of `Reserve` and `ReserveExtra`.
   Array *ReserveLocked(Array *array, uint8_t min_capacity_log2)
@@ -701,13 +719,51 @@ void RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::ReserveExtra(
   absl::MutexLock lock{&mutex_};
   auto const array = ptr_.load(std::memory_order_relaxed);
   auto const current_size = array ? array->size.load(std::memory_order_relaxed) : 0;
-  auto const min_capacity = DivideAndRoundUp(
-      (current_size + num_new_elements) * kMaxLoadFactor.denominator, kMaxLoadFactor.numerator);
-  auto const min_capacity_log2 = std::max(Array::kMinCapacityLog2, NextExponentOf2(min_capacity));
+  auto const min_capacity_log2 = GetMinCapacityLog2(current_size + num_new_elements);
   if (array && array->capacity_log2 >= min_capacity_log2) {
     return;
   }
   ptr_.store(ReserveLocked(array, min_capacity_log2), std::memory_order_release);
+}
+
+template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
+template <typename InputIt>
+void RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::InsertMany(InputIt first,
+                                                                     InputIt const last,
+                                                                     size_t const reserve_count) {
+  absl::MutexLock lock{&mutex_};
+  auto array = ptr_.load(std::memory_order_relaxed);
+  auto const current_size = array ? array->size.load(std::memory_order_relaxed) : 0;
+  auto const min_capacity_log2 = GetMinCapacityLog2(current_size + reserve_count);
+  if (!array || array->capacity_log2 < min_capacity_log2) {
+    array = ReserveLocked(array, min_capacity_log2);
+  }
+  size_t const mask = array->hash_mask();
+  for (; first != last; ++first) {
+    auto const &key = Node::ToKey(*first);
+    auto const hash = hasher_(key);
+    for (size_t i = hash, j = 0;; i += ++j) {
+      auto const index = i & mask;
+      auto const node = array->data[index].load(std::memory_order_relaxed);
+      if (!node) {
+        break;
+      }
+      if (node->hash == hash && equal_(key, node->key())) {
+        if (node->deleted.load(std::memory_order_relaxed)) {
+          break;
+        }
+      }
+    }
+    auto const node = CreateNode(Node::kHashed, hash, *first);
+    auto const size = array->size.load(std::memory_order_relaxed);
+    if ((size + 1) * kMaxLoadFactor.denominator > array->capacity() * kMaxLoadFactor.numerator) {
+      Grow(array, node);
+      array = ptr_.load(std::memory_order_relaxed);
+    } else {
+      array->InsertNodeLocked(node);
+    }
+  }
+  ptr_.store(array, std::memory_order_release);
 }
 
 template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
@@ -838,6 +894,9 @@ void RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Swap(RawLockFreeHash &
 
 template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
 uint64_t RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::NextPowerOf2(uint64_t value) {
+  if (!value) {
+    return 1;
+  }
   --value;
   value |= value >> 1;
   value |= value >> 2;
