@@ -13,6 +13,17 @@ namespace common {
 namespace internal {
 namespace lock_free_container {
 
+template <typename Hash, typename Equal, typename HasIsTransparent = void,
+          typename EqualIsTransparent = void>
+struct HashEqAreTransparent : std::false_type {};
+
+template <typename Hash, typename Equal>
+struct HashEqAreTransparent<Hash, Equal, std::void_t<typename Hash::is_transparent>,
+                            std::void_t<typename Equal::is_transparent>> : std::true_type {};
+
+template <typename Hash, typename Equal>
+inline bool constexpr HashEqAreTransparentV = HashEqAreTransparent<Hash, Equal>::value;
+
 template <typename Key>
 struct DefaultHashEq {
   using Hash = absl::Hash<Key>;

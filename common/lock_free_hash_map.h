@@ -186,9 +186,12 @@ class lock_free_hash_map
     return Base::InsertOrAssign(std::move(key), std::forward<ValueArg>(value));
   }
 
-  template <typename KeyArg, typename ValueArg>
+  template <typename KeyArg, typename ValueArg, typename HashAlias = Hash,
+            typename EqualAlias = Equal,
+            typename = std::enable_if_t<
+                internal::lock_free_container::HashEqAreTransparentV<HashAlias, EqualAlias>>>
   std::pair<iterator, bool> insert_or_assign(KeyArg&& key, ValueArg&& value) {
-    return insert_or_assign_helper(std::forward<KeyArg>(key), std::forward<ValueArg>(value));
+    return Base::InsertOrAssign(std::forward<KeyArg>(key), std::forward<ValueArg>(value));
   }
 
   template <typename... Args>
@@ -249,15 +252,6 @@ class lock_free_hash_map
 
   // Swaps the content of this hash set with `other`. This algorithm is not lockless.
   void swap(lock_free_hash_map& other) { Base::Swap(other); }
-
- private:
-  template <typename KeyArg, typename ValueArg, typename HashAlias = Hash,
-            typename HashIsTransparent = typename HashAlias::is_transparent,
-            typename EqualAlias = Equal,
-            typename EqualIsTransparent = typename EqualAlias::is_transparent>
-  std::pair<iterator, bool> insert_or_assign_helper(KeyArg&& key, ValueArg&& value) {
-    return Base::InsertOrAssign(std::forward<KeyArg>(key), std::forward<ValueArg>(value));
-  }
 };
 
 }  // namespace common
