@@ -1003,8 +1003,26 @@ std::pair<typename RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Iterator
 RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::InsertInternal(Key const &key,
                                                                     Args &&...args) {
   auto const hash = hasher_(key);
+  auto array = ptr_.load(std::memory_order_acquire);
+  if (array) {
+    size_t const mask = array->hash_mask();
+    for (size_t i = hash, j = 0;; i += ++j) {
+      auto const index = i & mask;
+      auto const node = array->data[index].load(std::memory_order_acquire);
+      if (!node) {
+        break;
+      }
+      if (node->hash == hash && equal_(key, node->key())) {
+        if (node->deleted.load(std::memory_order_relaxed)) {
+          break;
+        } else {
+          return std::make_pair(Iterator(*this, index, node), false);
+        }
+      }
+    }
+  }
   absl::MutexLock lock{&mutex_};
-  auto array = ptr_.load(std::memory_order_relaxed);
+  array = ptr_.load(std::memory_order_relaxed);
   if (!array) {
     return InsertFirstNode(CreateNode(Node::kHashed, hash, std::forward<Args>(args)...));
   }

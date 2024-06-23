@@ -186,10 +186,10 @@ class lock_free_hash_map
     return Base::InsertOrAssign(std::move(key), std::forward<ValueArg>(value));
   }
 
-  template <typename KeyArg, typename ValueArg, typename HashAlias = Hash,
-            typename EqualAlias = Equal,
-            typename = std::enable_if_t<
-                internal::lock_free_container::HashEqAreTransparentV<HashAlias, EqualAlias>>>
+  template <
+      typename KeyArg, typename ValueArg, typename HashAlias = Hash, typename EqualAlias = Equal,
+      std::enable_if_t<internal::lock_free_container::HashEqAreTransparentV<HashAlias, EqualAlias>,
+                       bool> = true>
   std::pair<iterator, bool> insert_or_assign(KeyArg&& key, ValueArg&& value) {
     return Base::InsertOrAssign(std::forward<KeyArg>(key), std::forward<ValueArg>(value));
   }
