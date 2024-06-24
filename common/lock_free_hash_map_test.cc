@@ -18,6 +18,8 @@ using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
 using ::tsdb2::common::lock_free_hash_map;
 
+inline double constexpr kEpsilon = 0.0001;
+
 TEST(LockFreeHashMapTest, Traits) {
   EXPECT_TRUE((std::is_same_v<typename lock_free_hash_map<int, std::string>::key_type, int>));
   EXPECT_TRUE((std::is_same_v<typename lock_free_hash_map<int, std::string>::value_type,
@@ -50,6 +52,8 @@ TEST(LockFreeHashMapTest, Empty) {
   EXPECT_EQ(hm.capacity(), 0);
   EXPECT_EQ(hm.size(), 0);
   EXPECT_TRUE(hm.empty());
+  EXPECT_NEAR(hm.max_load_factor(), 0.75, kEpsilon);
+  EXPECT_EQ(hm.load_factor(), 0);
   EXPECT_THAT(hm, UnorderedElementsAre());
   EXPECT_FALSE(hm.contains(42));
 }
@@ -59,6 +63,7 @@ TEST(LockFreeHashMapTest, ConstructWithInitializerList) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 3);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.09375, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, "ipsum"), Pair(44, "dolor")));
   EXPECT_TRUE(hm.contains(42));
   EXPECT_TRUE(hm.contains(43));
@@ -72,6 +77,7 @@ TEST(LockFreeHashMapTest, ConstructFromIterators) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 3);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.09375, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, "ipsum"), Pair(44, "dolor")));
   EXPECT_TRUE(hm.contains(42));
   EXPECT_TRUE(hm.contains(43));
@@ -89,6 +95,7 @@ TEST(LockFreeHashMapTest, InsertOneElement) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 1);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.03125, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem")));
   EXPECT_TRUE(hm.contains(42));
   EXPECT_FALSE(hm.contains(43));
@@ -104,6 +111,7 @@ TEST(LockFreeHashMapTest, InsertAnotherElement) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 1);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.03125, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(43, "ipsum")));
   EXPECT_TRUE(hm.contains(43));
   EXPECT_FALSE(hm.contains(42));
@@ -119,6 +127,7 @@ TEST(LockFreeHashMapTest, InsertTwoElements) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 2);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.0625, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, "ipsum")));
   EXPECT_TRUE(hm.contains(42));
   EXPECT_TRUE(hm.contains(43));
@@ -136,6 +145,7 @@ TEST(LockFreeHashMapTest, InsertTwice) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 1);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.03125, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem")));
   EXPECT_TRUE(hm.contains(42));
   EXPECT_FALSE(hm.contains(43));
@@ -150,6 +160,7 @@ TEST(LockFreeHashMapTest, MaxLoad) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 24);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.75, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(0, "a"), Pair(1, "b"), Pair(2, "c"), Pair(3, "d"),
                                        Pair(4, "e"), Pair(5, "f"), Pair(6, "g"), Pair(7, "h"),
                                        Pair(8, "i"), Pair(9, "j"), Pair(10, "k"), Pair(11, "l"),
@@ -171,6 +182,7 @@ TEST(LockFreeHashMapTest, Grow) {
   EXPECT_EQ(hm.capacity(), 64);
   EXPECT_EQ(hm.size(), 25);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.390625, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(
                       Pair(0, "a"), Pair(1, "b"), Pair(2, "c"), Pair(3, "d"), Pair(4, "e"),
                       Pair(5, "f"), Pair(6, "g"), Pair(7, "h"), Pair(8, "i"), Pair(9, "j"),
@@ -193,6 +205,7 @@ TEST(LockFreeHashMapTest, InsertAfterGrow) {
   EXPECT_EQ(hm.capacity(), 64);
   EXPECT_EQ(hm.size(), 26);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.40625, kEpsilon);
   EXPECT_THAT(
       hm, UnorderedElementsAre(Pair(0, "a"), Pair(1, "b"), Pair(2, "c"), Pair(3, "d"), Pair(4, "e"),
                                Pair(5, "f"), Pair(6, "g"), Pair(7, "h"), Pair(8, "i"), Pair(9, "j"),
@@ -215,6 +228,7 @@ TEST(LockFreeHashMapTest, InsertingTwiceDoesntGrow) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 24);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.75, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(0, "a"), Pair(1, "b"), Pair(2, "c"), Pair(3, "d"),
                                        Pair(4, "e"), Pair(5, "f"), Pair(6, "g"), Pair(7, "h"),
                                        Pair(8, "i"), Pair(9, "j"), Pair(10, "k"), Pair(11, "l"),
@@ -232,6 +246,7 @@ TEST(LockFreeHashMapTest, EmplaceOne) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 1);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.03125, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem")));
   EXPECT_TRUE(hm.contains(42));
   EXPECT_FALSE(hm.contains(43));
@@ -247,6 +262,7 @@ TEST(LockFreeHashMapTest, EmplaceTwo) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 2);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.0625, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, "ipsum")));
   EXPECT_TRUE(hm.contains(42));
   EXPECT_TRUE(hm.contains(43));
@@ -264,6 +280,7 @@ TEST(LockFreeHashMapTest, EmplaceTwice) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 1);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.03125, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem")));
   EXPECT_TRUE(hm.contains(42));
   EXPECT_FALSE(hm.contains(43));
@@ -282,6 +299,7 @@ TEST(LockFreeHashMapTest, EmplacingTwiceDoesntGrow) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 24);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.75, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(0, "a"), Pair(1, "b"), Pair(2, "c"), Pair(3, "d"),
                                        Pair(4, "e"), Pair(5, "f"), Pair(6, "g"), Pair(7, "h"),
                                        Pair(8, "i"), Pair(9, "j"), Pair(10, "k"), Pair(11, "l"),
@@ -299,6 +317,7 @@ TEST(LockFreeHashMapTest, TryEmplaceOne) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 1);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.03125, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem")));
   EXPECT_TRUE(hm.contains(42));
   EXPECT_FALSE(hm.contains(43));
@@ -314,6 +333,7 @@ TEST(LockFreeHashMapTest, TryEmplaceTwo) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 2);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.0625, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, "ipsum")));
   EXPECT_TRUE(hm.contains(42));
   EXPECT_TRUE(hm.contains(43));
@@ -331,6 +351,7 @@ TEST(LockFreeHashMapTest, TryEmplaceTwice) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 1);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.03125, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem")));
   EXPECT_TRUE(hm.contains(42));
   EXPECT_FALSE(hm.contains(43));
@@ -349,6 +370,7 @@ TEST(LockFreeHashMapTest, TryingToEmplaceTwiceDoesntGrow) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 24);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.75, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(0, "a"), Pair(1, "b"), Pair(2, "c"), Pair(3, "d"),
                                        Pair(4, "e"), Pair(5, "f"), Pair(6, "g"), Pair(7, "h"),
                                        Pair(8, "i"), Pair(9, "j"), Pair(10, "k"), Pair(11, "l"),
@@ -544,6 +566,7 @@ TEST(LockFreeHashMapTest, InsertOrAssignNew) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 1);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.03125, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem")));
   EXPECT_TRUE(hm.contains(42));
   EXPECT_FALSE(hm.contains(43));
@@ -559,6 +582,7 @@ TEST(LockFreeHashMapTest, InsertOrAssignTransparent) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 1);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.03125, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair("lorem", 42)));
   EXPECT_TRUE(hm.contains("lorem"));
   EXPECT_FALSE(hm.contains("ipsum"));
@@ -574,6 +598,7 @@ TEST(LockFreeHashMapTest, InsertOrAssignExisting) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 1);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.03125, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "ipsum")));
   EXPECT_TRUE(hm.contains(42));
   EXPECT_FALSE(hm.contains(43));
@@ -588,6 +613,7 @@ TEST(LockFreeHashMapTest, InsertOrAssignAnotherNewElement) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 2);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.0625, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, "ipsum")));
   EXPECT_TRUE(hm.contains(42));
   EXPECT_TRUE(hm.contains(43));
@@ -603,6 +629,7 @@ TEST(LockFreeHashMapTest, InsertOrAssignAnotherExistingElement) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 2);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.0625, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, "dolor")));
   EXPECT_TRUE(hm.contains(42));
   EXPECT_TRUE(hm.contains(43));
@@ -620,6 +647,7 @@ TEST(LockFreeHashMapTest, InsertOrAssignErased) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 1);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.03125, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "ipsum")));
   EXPECT_TRUE(hm.contains(42));
   EXPECT_FALSE(hm.contains(43));
@@ -638,6 +666,7 @@ TEST(LockFreeHashMapTest, InsertOrAssignGrows) {
   EXPECT_EQ(hm.capacity(), 64);
   EXPECT_EQ(hm.size(), 25);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.390625, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(
                       Pair(0, "a"), Pair(1, "b"), Pair(2, "c"), Pair(3, "d"), Pair(4, "e"),
                       Pair(5, "f"), Pair(6, "g"), Pair(7, "h"), Pair(8, "i"), Pair(9, "j"),
@@ -659,6 +688,7 @@ TEST(LockFreeHashMapTest, InsertOrAssignExistingDoesntGrow) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 24);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.75, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(0, "a"), Pair(1, "b"), Pair(2, "c"), Pair(3, "d"),
                                        Pair(4, "e"), Pair(5, "f"), Pair(6, "g"), Pair(7, "h"),
                                        Pair(8, "i"), Pair(9, "j"), Pair(10, "k"), Pair(11, "l"),
@@ -673,6 +703,7 @@ TEST(LockFreeHashMapTest, ClearEmpty) {
   EXPECT_EQ(hm.capacity(), 0);
   EXPECT_EQ(hm.size(), 0);
   EXPECT_TRUE(hm.empty());
+  EXPECT_EQ(hm.load_factor(), 0);
   EXPECT_THAT(hm, UnorderedElementsAre());
 }
 
@@ -682,6 +713,7 @@ TEST(LockFreeHashMapTest, ClearNonEmpty) {
   EXPECT_EQ(hm.capacity(), 0);
   EXPECT_EQ(hm.size(), 0);
   EXPECT_TRUE(hm.empty());
+  EXPECT_EQ(hm.load_factor(), 0);
   EXPECT_THAT(hm, UnorderedElementsAre());
 }
 
@@ -692,6 +724,7 @@ TEST(LockFreeHashMapTest, EmplaceAfterClear) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 1);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.03125, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(43, "ipsum")));
 }
 
@@ -701,6 +734,7 @@ TEST(LockFreeHashMapTest, EraseEmpty) {
   EXPECT_EQ(hm.capacity(), 0);
   EXPECT_EQ(hm.size(), 0);
   EXPECT_TRUE(hm.empty());
+  EXPECT_EQ(hm.load_factor(), 0);
   EXPECT_FALSE(hm.contains(42));
   EXPECT_THAT(hm, UnorderedElementsAre());
 }
@@ -711,6 +745,7 @@ TEST(LockFreeHashMapTest, EraseKey) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 0);
   EXPECT_TRUE(hm.empty());
+  EXPECT_EQ(hm.load_factor(), 0);
   EXPECT_FALSE(hm.contains(42));
   EXPECT_THAT(hm, UnorderedElementsAre());
 }
@@ -722,6 +757,7 @@ TEST(LockFreeHashMapTest, EraseIterator) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 0);
   EXPECT_TRUE(hm.empty());
+  EXPECT_EQ(hm.load_factor(), 0);
   EXPECT_FALSE(hm.contains(42));
   EXPECT_THAT(hm, UnorderedElementsAre());
 }
@@ -733,6 +769,7 @@ TEST(LockFreeHashMapTest, EraseKeyTwice) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 0);
   EXPECT_TRUE(hm.empty());
+  EXPECT_EQ(hm.load_factor(), 0);
   EXPECT_FALSE(hm.contains(42));
   EXPECT_THAT(hm, UnorderedElementsAre());
 }
@@ -745,6 +782,7 @@ TEST(LockFreeHashMapTest, EraseIteratorTwice) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 0);
   EXPECT_TRUE(hm.empty());
+  EXPECT_EQ(hm.load_factor(), 0);
   EXPECT_FALSE(hm.contains(42));
   EXPECT_THAT(hm, UnorderedElementsAre());
 }
@@ -755,6 +793,7 @@ TEST(LockFreeHashMapTest, EraseMissingElement) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 1);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.03125, kEpsilon);
   EXPECT_TRUE(hm.contains(42));
   EXPECT_FALSE(hm.contains(43));
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem")));
@@ -767,6 +806,7 @@ TEST(LockFreeHashMapTest, EraseMissingElementTwice) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 1);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.03125, kEpsilon);
   EXPECT_TRUE(hm.contains(42));
   EXPECT_FALSE(hm.contains(43));
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem")));
@@ -782,6 +822,7 @@ TEST(LockFreeHashMapTest, EmplaceAfterErasingKey) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 2);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.0625, kEpsilon);
   EXPECT_TRUE(hm.contains(42));
   EXPECT_FALSE(hm.contains(43));
   EXPECT_TRUE(hm.contains(44));
@@ -799,6 +840,7 @@ TEST(LockFreeHashMapTest, EmplaceAfterErasingIterator) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 2);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.0625, kEpsilon);
   EXPECT_TRUE(hm.contains(42));
   EXPECT_FALSE(hm.contains(43));
   EXPECT_TRUE(hm.contains(44));
@@ -815,6 +857,7 @@ TEST(LockFreeHashMapTest, EmplaceErasedKey) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 2);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.0625, kEpsilon);
   EXPECT_TRUE(hm.contains(42));
   EXPECT_TRUE(hm.contains(43));
   EXPECT_FALSE(hm.contains(44));
@@ -832,6 +875,7 @@ TEST(LockFreeHashMapTest, EmplaceErasedIterator) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 2);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.0625, kEpsilon);
   EXPECT_TRUE(hm.contains(42));
   EXPECT_TRUE(hm.contains(43));
   EXPECT_FALSE(hm.contains(44));
@@ -846,6 +890,7 @@ TEST(LockFreeHashMapTest, EraseKeyAgain) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 2);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.0625, kEpsilon);
   EXPECT_TRUE(hm.contains(42));
   EXPECT_FALSE(hm.contains(43));
   EXPECT_TRUE(hm.contains(44));
@@ -861,6 +906,7 @@ TEST(LockFreeHashMapTest, EraseIteratorAgain) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 2);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.0625, kEpsilon);
   EXPECT_TRUE(hm.contains(42));
   EXPECT_FALSE(hm.contains(43));
   EXPECT_TRUE(hm.contains(44));
@@ -888,6 +934,8 @@ TEST(LockFreeHashMapTest, Shrink) {
   ASSERT_EQ(hm.erase(9), 1);
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 15);
+  EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.46875, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(10, "k"), Pair(11, "l"), Pair(12, "m"), Pair(13, "n"),
                                        Pair(14, "o"), Pair(15, "p"), Pair(16, "q"), Pair(17, "r"),
                                        Pair(18, "s"), Pair(19, "t"), Pair(20, "u"), Pair(21, "v"),
@@ -915,6 +963,8 @@ TEST(LockFreeHashMapTest, GrowAfterShrinking) {
   ASSERT_EQ(hm.erase(9), 1);
   ASSERT_EQ(hm.capacity(), 32);
   ASSERT_EQ(hm.size(), 15);
+  EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.46875, kEpsilon);
   hm.insert({
       std::make_pair(0, "j"),
       std::make_pair(1, "i"),
@@ -929,6 +979,8 @@ TEST(LockFreeHashMapTest, GrowAfterShrinking) {
   });
   EXPECT_EQ(hm.capacity(), 64);
   EXPECT_EQ(hm.size(), 25);
+  EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.390625, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(
                       Pair(0, "j"), Pair(1, "i"), Pair(2, "h"), Pair(3, "g"), Pair(4, "f"),
                       Pair(5, "e"), Pair(6, "d"), Pair(7, "c"), Pair(8, "b"), Pair(9, "a"),
@@ -943,6 +995,7 @@ TEST(LockFreeHashMapTest, ReserveZeroFromEmpty) {
   EXPECT_EQ(hm.capacity(), 0);
   EXPECT_EQ(hm.size(), 0);
   EXPECT_TRUE(hm.empty());
+  EXPECT_EQ(hm.load_factor(), 0);
   EXPECT_THAT(hm, UnorderedElementsAre());
 }
 
@@ -952,6 +1005,7 @@ TEST(LockFreeHashMapTest, ReserveOneFromEmpty) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 0);
   EXPECT_TRUE(hm.empty());
+  EXPECT_EQ(hm.load_factor(), 0);
   EXPECT_THAT(hm, UnorderedElementsAre());
 }
 
@@ -961,6 +1015,7 @@ TEST(LockFreeHashMapTest, ReserveTwoFromEmpty) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 0);
   EXPECT_TRUE(hm.empty());
+  EXPECT_EQ(hm.load_factor(), 0);
   EXPECT_THAT(hm, UnorderedElementsAre());
 }
 
@@ -970,6 +1025,7 @@ TEST(LockFreeHashMapTest, Reserve24FromEmpty) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 0);
   EXPECT_TRUE(hm.empty());
+  EXPECT_EQ(hm.load_factor(), 0);
   EXPECT_THAT(hm, UnorderedElementsAre());
 }
 
@@ -979,6 +1035,7 @@ TEST(LockFreeHashMapTest, Reserve25FromEmpty) {
   EXPECT_EQ(hm.capacity(), 64);
   EXPECT_EQ(hm.size(), 0);
   EXPECT_TRUE(hm.empty());
+  EXPECT_EQ(hm.load_factor(), 0);
   EXPECT_THAT(hm, UnorderedElementsAre());
 }
 
@@ -988,6 +1045,7 @@ TEST(LockFreeHashMapTest, Reserve26FromEmpty) {
   EXPECT_EQ(hm.capacity(), 64);
   EXPECT_EQ(hm.size(), 0);
   EXPECT_TRUE(hm.empty());
+  EXPECT_EQ(hm.load_factor(), 0);
   EXPECT_THAT(hm, UnorderedElementsAre());
 }
 
@@ -997,6 +1055,7 @@ TEST(LockFreeHashMapTest, ReserveZero) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 3);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.09375, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, "ipsum"), Pair(44, "dolor")));
 }
 
@@ -1006,6 +1065,7 @@ TEST(LockFreeHashMapTest, ReserveOne) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 3);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.09375, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, "ipsum"), Pair(44, "dolor")));
 }
 
@@ -1015,6 +1075,7 @@ TEST(LockFreeHashMapTest, ReserveThree) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 3);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.09375, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, "ipsum"), Pair(44, "dolor")));
 }
 
@@ -1024,6 +1085,7 @@ TEST(LockFreeHashMapTest, ReserveFour) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 3);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.09375, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, "ipsum"), Pair(44, "dolor")));
 }
 
@@ -1033,6 +1095,7 @@ TEST(LockFreeHashMapTest, Reserve24) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 3);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.09375, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, "ipsum"), Pair(44, "dolor")));
 }
 
@@ -1042,6 +1105,7 @@ TEST(LockFreeHashMapTest, Reserve25) {
   EXPECT_EQ(hm.capacity(), 64);
   EXPECT_EQ(hm.size(), 3);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.046875, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, "ipsum"), Pair(44, "dolor")));
 }
 
@@ -1051,6 +1115,7 @@ TEST(LockFreeHashMapTest, Reserve26) {
   EXPECT_EQ(hm.capacity(), 64);
   EXPECT_EQ(hm.size(), 3);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.046875, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, "ipsum"), Pair(44, "dolor")));
 }
 
@@ -1061,6 +1126,7 @@ TEST(LockFreeHashMapTest, EmplaceAfterReserving) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 1);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.03125, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem")));
 }
 
@@ -1073,6 +1139,7 @@ TEST(LockFreeHashMapTest, EmplaceReserved) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 3);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.09375, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, "ipsum"), Pair(44, "dolor")));
 }
 
@@ -1087,6 +1154,7 @@ TEST(LockFreeHashMapTest, EmplaceMoreThanReserved) {
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 5);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.15625, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, "ipsum"), Pair(44, "dolor"),
                                        Pair(45, "amet"), Pair(46, "consectetur")));
 }
@@ -1103,6 +1171,7 @@ TEST(LockFreeHashMapTest, GrowAfterReserving) {
   EXPECT_EQ(hm.capacity(), 64);
   EXPECT_EQ(hm.size(), 26);
   EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.40625, kEpsilon);
   EXPECT_THAT(
       hm, UnorderedElementsAre(Pair(0, "a"), Pair(1, "b"), Pair(2, "c"), Pair(3, "d"), Pair(4, "e"),
                                Pair(5, "f"), Pair(6, "g"), Pair(7, "h"), Pair(8, "i"), Pair(9, "j"),

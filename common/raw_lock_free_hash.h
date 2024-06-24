@@ -465,6 +465,26 @@ class RawLockFreeHash {
   // using a mutex).
   bool is_empty() const noexcept { return size() == 0; }
 
+  // Returns the maximum load factor, that is the maximum number of elements in relation to the
+  // capacity that can be inserted without triggering a rehash.
+  float max_load_factor() const noexcept {
+    return static_cast<float>(kMaxLoadFactor.numerator) /
+           static_cast<float>(kMaxLoadFactor.denominator);
+  }
+
+  // Returns the current load factor, that is the number if elements in relation to the capacity.
+  //
+  // NOTE: this function relies on `size()`, so the returned value is purely advisory. By the time
+  // the function returns, any number of changes may have occurred in parallel.
+  float load_factor() const noexcept {
+    auto const array = ptr_.load(std::memory_order_acquire);
+    if (!array) {
+      return 0;
+    }
+    return static_cast<float>(array->size.load(std::memory_order_relaxed)) /
+           static_cast<float>(array->capacity());
+  }
+
   template <typename KeyArg>
   Iterator Find(KeyArg const &key) {
     return FindInternal<Iterator>(key);
@@ -552,7 +572,7 @@ class RawLockFreeHash {
   static uint8_t NextExponentOf2(uint64_t value);
 
   // Returns `a / b` rounded up to the nearest integer.
-  static inline size_t DivideAndRoundUp(size_t const a, size_t const b) { return (a + b - 1) / b; }
+  static size_t DivideAndRoundUp(size_t const a, size_t const b) { return (a + b - 1) / b; }
 
   // Constructs an array without adding it to `arrays_`.
   ArrayPtr CreateFreeArray(uint8_t capacity_log2);
@@ -699,9 +719,7 @@ void RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Reserve(size_t const n
   if (!num_elements) {
     return;
   }
-  auto const min_capacity =
-      DivideAndRoundUp(num_elements * kMaxLoadFactor.denominator, kMaxLoadFactor.numerator);
-  auto const min_capacity_log2 = std::max(Array::kMinCapacityLog2, NextExponentOf2(min_capacity));
+  auto const min_capacity_log2 = GetMinCapacityLog2(num_elements);
   absl::MutexLock lock{&mutex_};
   auto const array = ptr_.load(std::memory_order_relaxed);
   if (array && array->capacity_log2 >= min_capacity_log2) {

@@ -152,6 +152,16 @@ class lock_free_hash_map
   // using a mutex).
   [[nodiscard]] bool empty() const noexcept { return Base::is_empty(); }
 
+  // Returns the maximum load factor, that is the maximum number of elements in relation to the
+  // capacity that can be inserted without triggering a rehash.
+  using Base::max_load_factor;
+
+  // Returns the current load factor, that is the number if elements in relation to the capacity.
+  //
+  // NOTE: this function relies on `size()`, so the returned value is purely advisory. By the time
+  // the function returns, any number of changes may have occurred in parallel.
+  using Base::load_factor;
+
   // Erases all elements from the hash map.
   //
   // NOTE: as explained above, the memory taken by the removed elements is not actually freed. This
