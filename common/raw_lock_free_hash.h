@@ -270,14 +270,15 @@ class RawLockFreeHash {
     }
 
    private:
-    // Pointer to the parent hash set. nullptr means this is an empty, default-constructed iterator.
+    // Pointer to the parent hash table. nullptr means this is an empty, default-constructed
+    // iterator.
     RawLockFreeHash const *parent_;
 
     // Index to the current element. A negative value means this is the end iterator.
     intptr_t index_;
 
     // Caches the current element so that we can provide better consistency guarantees and avoid
-    // dereferencing null pointers if a writer modifies the hash set while one or more threads are
+    // dereferencing null pointers if a writer modifies the hash table while one or more threads are
     // enumerating it. This field is set to nullptr when the iterator passes the end.
     Node *node_;
   };
@@ -457,7 +458,7 @@ class RawLockFreeHash {
     }
   }
 
-  // Indicates whether the hash set is empty. Equivalent to `size() == 0`.
+  // Indicates whether the hash table is empty. Equivalent to `size() == 0`.
   //
   // WARNING: this function relies on `size()`, so the returned value is purely advisory. By the
   // time the function returns, any number of changes may have occurred in parallel. If you need to
@@ -760,6 +761,7 @@ void RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::InsertMany(InputIt fir
   for (; first != last; ++first) {
     auto const &key = Node::ToKey(*first);
     auto const hash = hasher_(key);
+    bool skip = false;
     for (size_t i = hash, j = 0;; i += ++j) {
       auto const index = i & mask;
       auto const node = array->data[index].load(std::memory_order_relaxed);
@@ -767,18 +769,21 @@ void RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::InsertMany(InputIt fir
         break;
       }
       if (node->hash == hash && equal_(key, node->key())) {
-        if (node->deleted.load(std::memory_order_relaxed)) {
-          break;
+        if (!node->deleted.load(std::memory_order_relaxed)) {
+          skip = true;
         }
+        break;
       }
     }
-    auto const node = CreateNode(Node::kHashed, hash, *first);
-    auto const size = array->size.load(std::memory_order_relaxed);
-    if ((size + 1) * kMaxLoadFactor.denominator > array->capacity() * kMaxLoadFactor.numerator) {
-      Grow(array, node);
-      array = ptr_.load(std::memory_order_relaxed);
-    } else {
-      array->InsertNodeLocked(node);
+    if (!skip) {
+      auto const node = CreateNode(Node::kHashed, hash, *first);
+      auto const size = array->size.load(std::memory_order_relaxed);
+      if ((size + 1) * kMaxLoadFactor.denominator > array->capacity() * kMaxLoadFactor.numerator) {
+        Grow(array, node);
+        array = ptr_.load(std::memory_order_relaxed);
+      } else {
+        array->InsertNodeLocked(node);
+      }
     }
   }
   ptr_.store(array, std::memory_order_release);

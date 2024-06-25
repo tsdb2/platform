@@ -14,6 +14,7 @@
 
 namespace {
 
+using ::testing::AnyOf;
 using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
 using ::tsdb2::common::lock_free_hash_map;
@@ -65,6 +66,21 @@ TEST(LockFreeHashMapTest, ConstructWithInitializerList) {
   EXPECT_FALSE(hm.empty());
   EXPECT_NEAR(hm.load_factor(), 0.09375, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, "ipsum"), Pair(44, "dolor")));
+  EXPECT_TRUE(hm.contains(42));
+  EXPECT_TRUE(hm.contains(43));
+  EXPECT_TRUE(hm.contains(44));
+  EXPECT_FALSE(hm.contains(45));
+}
+
+TEST(LockFreeHashMapTest, ConstructWithDuplicates) {
+  lock_free_hash_map<int, std::string> hm{
+      {42, "lorem"}, {43, "ipsum"}, {44, "dolor"}, {43, "amet"}};
+  EXPECT_EQ(hm.capacity(), 32);
+  EXPECT_EQ(hm.size(), 3);
+  EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.09375, kEpsilon);
+  EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, AnyOf("ipsum", "amet")),
+                                       Pair(44, "dolor")));
   EXPECT_TRUE(hm.contains(42));
   EXPECT_TRUE(hm.contains(43));
   EXPECT_TRUE(hm.contains(44));
@@ -235,6 +251,35 @@ TEST(LockFreeHashMapTest, InsertingTwiceDoesntGrow) {
                                        Pair(12, "m"), Pair(13, "n"), Pair(14, "o"), Pair(15, "p"),
                                        Pair(16, "q"), Pair(17, "r"), Pair(18, "s"), Pair(19, "t"),
                                        Pair(20, "u"), Pair(21, "v"), Pair(22, "w"), Pair(23, "x")));
+}
+
+TEST(LockFreeHashMapTest, InsertFromInitializerList) {
+  lock_free_hash_map<int, std::string> hm;
+  hm.insert({{42, "lorem"}, {43, "ipsum"}, {44, "dolor"}});
+  EXPECT_EQ(hm.capacity(), 32);
+  EXPECT_EQ(hm.size(), 3);
+  EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.09375, kEpsilon);
+  EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, "ipsum"), Pair(44, "dolor")));
+  EXPECT_TRUE(hm.contains(42));
+  EXPECT_TRUE(hm.contains(43));
+  EXPECT_TRUE(hm.contains(44));
+  EXPECT_FALSE(hm.contains(45));
+}
+
+TEST(LockFreeHashMapTest, InsertWithDuplicates) {
+  lock_free_hash_map<int, std::string> hm;
+  hm.insert({{42, "lorem"}, {43, "ipsum"}, {44, "dolor"}, {43, "amet"}});
+  EXPECT_EQ(hm.capacity(), 32);
+  EXPECT_EQ(hm.size(), 3);
+  EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.09375, kEpsilon);
+  EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, AnyOf("ipsum", "amet")),
+                                       Pair(44, "dolor")));
+  EXPECT_TRUE(hm.contains(42));
+  EXPECT_TRUE(hm.contains(43));
+  EXPECT_TRUE(hm.contains(44));
+  EXPECT_FALSE(hm.contains(45));
 }
 
 TEST(LockFreeHashMapTest, EmplaceOne) {

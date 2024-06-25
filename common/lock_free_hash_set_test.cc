@@ -61,6 +61,19 @@ TEST(LockFreeHashSetTest, ConstructWithInitializerList) {
   EXPECT_FALSE(hs.contains(45));
 }
 
+TEST(LockFreeHashSetTest, ConstructWithDuplicates) {
+  lock_free_hash_set<int> hs{42, 43, 44, 43};
+  EXPECT_EQ(hs.capacity(), 32);
+  EXPECT_EQ(hs.size(), 3);
+  EXPECT_FALSE(hs.empty());
+  EXPECT_NEAR(hs.load_factor(), 0.09375, kEpsilon);
+  EXPECT_THAT(hs, UnorderedElementsAre(42, 43, 44));
+  EXPECT_TRUE(hs.contains(42));
+  EXPECT_TRUE(hs.contains(43));
+  EXPECT_TRUE(hs.contains(44));
+  EXPECT_FALSE(hs.contains(45));
+}
+
 TEST(LockFreeHashSetTest, ConstructFromIterators) {
   std::vector<int> v{42, 43, 44};
   lock_free_hash_set<int> hs{v.begin(), v.end()};
@@ -200,6 +213,34 @@ TEST(LockFreeHashSetTest, InsertingTwiceDoesntGrow) {
   EXPECT_NEAR(hs.load_factor(), 0.75, kEpsilon);
   EXPECT_THAT(hs, UnorderedElementsAre(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
                                        18, 19, 20, 21, 22, 23));
+}
+
+TEST(LockFreeHashSetTest, InsertFromInitializerList) {
+  lock_free_hash_set<int> hs;
+  hs.insert({42, 43, 44});
+  EXPECT_EQ(hs.capacity(), 32);
+  EXPECT_EQ(hs.size(), 3);
+  EXPECT_FALSE(hs.empty());
+  EXPECT_NEAR(hs.load_factor(), 0.09375, kEpsilon);
+  EXPECT_THAT(hs, UnorderedElementsAre(42, 43, 44));
+  EXPECT_TRUE(hs.contains(42));
+  EXPECT_TRUE(hs.contains(43));
+  EXPECT_TRUE(hs.contains(44));
+  EXPECT_FALSE(hs.contains(45));
+}
+
+TEST(LockFreeHashSetTest, InsertWithDuplicates) {
+  lock_free_hash_set<int> hs;
+  hs.insert({42, 43, 44, 43});
+  EXPECT_EQ(hs.capacity(), 32);
+  EXPECT_EQ(hs.size(), 3);
+  EXPECT_FALSE(hs.empty());
+  EXPECT_NEAR(hs.load_factor(), 0.09375, kEpsilon);
+  EXPECT_THAT(hs, UnorderedElementsAre(42, 43, 44));
+  EXPECT_TRUE(hs.contains(42));
+  EXPECT_TRUE(hs.contains(43));
+  EXPECT_TRUE(hs.contains(44));
+  EXPECT_FALSE(hs.contains(45));
 }
 
 TEST(LockFreeHashSetTest, EmplaceOne) {
