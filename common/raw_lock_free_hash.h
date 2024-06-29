@@ -592,6 +592,9 @@ class RawLockFreeHash {
   void DestroyNode(NodePtr node);
 
   template <typename Iterator, typename KeyArg>
+  Iterator FindInArray(Array const &array, KeyArg const &key, size_t hash) const;
+
+  template <typename Iterator, typename KeyArg>
   Iterator FindInternal(KeyArg const &key) const;
 
   // Returns the minimum array capacity (in log2 format) required to store `num_elements`.
@@ -783,8 +786,16 @@ std::pair<typename RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Iterator
 RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::InsertOrAssign(KeyArg &&key,
                                                                     ValueArg &&value) {
   auto const hash = hasher_(key);
+  auto array = ptr_.load(std::memory_order_acquire);
+  if (array) {
+    auto it = FindInArray<Iterator>(*array, key, hash);
+    if (!it.is_end()) {
+      it->second = std::forward<ValueArg>(value);
+      return std::make_pair(std::move(it), false);
+    }
+  }
   absl::MutexLock lock{&mutex_};
-  auto array = ptr_.load(std::memory_order_relaxed);
+  array = ptr_.load(std::memory_order_relaxed);
   if (!array) {
     return InsertFirstNode(CreateNode(Node::kHashed, hash, std::piecewise_construct,
                                       std::forward<KeyArg>(key), std::forward<ValueArg>(value)));
@@ -814,8 +825,16 @@ template <typename... Args>
 std::pair<typename RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Iterator, bool>
 RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Emplace(Args &&...args) {
   auto const new_node = CreateFreeNode(Node::kToHash, hasher_, std::forward<Args>(args)...);
+  auto array = ptr_.load(std::memory_order_acquire);
+  if (array) {
+    auto it = FindInArray<Iterator>(*array, new_node->key(), new_node->hash);
+    if (!it.is_end()) {
+      DestroyNode(new_node);
+      return std::make_pair(std::move(it), false);
+    }
+  }
   absl::MutexLock lock{&mutex_};
-  auto array = ptr_.load(std::memory_order_relaxed);
+  array = ptr_.load(std::memory_order_relaxed);
   if (!array) {
     nodes_.push_back(new_node);
     return InsertFirstNode(&*new_node);
@@ -975,17 +994,13 @@ void RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::DestroyNode(NodePtr co
 
 template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
 template <typename Iterator, typename KeyArg>
-Iterator RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::FindInternal(
-    KeyArg const &key) const {
-  Array const *const array = ptr_.load(std::memory_order_acquire);
-  if (!array) {
-    return Iterator(kEndIterator, *this);
-  }
-  size_t const hash = hasher_(key);
-  size_t const mask = array->hash_mask();
+Iterator RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::FindInArray(Array const &array,
+                                                                          KeyArg const &key,
+                                                                          size_t const hash) const {
+  size_t const mask = array.hash_mask();
   for (size_t i = hash, j = 0;; i += ++j) {
     auto const index = i & mask;
-    auto const node = array->data[index].load(std::memory_order_acquire);
+    auto const node = array.data[index].load(std::memory_order_acquire);
     if (!node) {
       return Iterator(kEndIterator, *this);
     }
@@ -996,6 +1011,18 @@ Iterator RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::FindInternal(
         return Iterator(*this, index, node);
       }
     }
+  }
+}
+
+template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
+template <typename Iterator, typename KeyArg>
+Iterator RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::FindInternal(
+    KeyArg const &key) const {
+  Array const *const array = ptr_.load(std::memory_order_acquire);
+  if (array) {
+    return FindInArray<Iterator>(*array, key, hasher_(key));
+  } else {
+    return Iterator(kEndIterator, *this);
   }
 }
 
@@ -1045,20 +1072,9 @@ RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::InsertInternal(Key const &k
   auto const hash = hasher_(key);
   auto array = ptr_.load(std::memory_order_acquire);
   if (array) {
-    size_t const mask = array->hash_mask();
-    for (size_t i = hash, j = 0;; i += ++j) {
-      auto const index = i & mask;
-      auto const node = array->data[index].load(std::memory_order_acquire);
-      if (!node) {
-        break;
-      }
-      if (node->hash == hash && equal_(key, node->key())) {
-        if (node->deleted.load(std::memory_order_relaxed)) {
-          break;
-        } else {
-          return std::make_pair(Iterator(*this, index, node), false);
-        }
-      }
+    auto it = FindInArray<Iterator>(*array, key, hash);
+    if (!it.is_end()) {
+      return std::make_pair(std::move(it), false);
     }
   }
   absl::MutexLock lock{&mutex_};
