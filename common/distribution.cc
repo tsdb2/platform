@@ -6,10 +6,8 @@
 #include <cstdint>
 #include <limits>
 
-#include "absl/base/attributes.h"
-#include "absl/container/node_hash_set.h"
 #include "absl/status/status.h"
-#include "absl/synchronization/mutex.h"
+#include "common/lock_free_hash_set.h"
 #include "common/no_destructor.h"
 
 namespace tsdb2 {
@@ -67,9 +65,7 @@ class BucketerImpl final : public Bucketer {
 Bucketer const& Bucketer::GetCanonicalBucketer(double const width, double const growth_factor,
                                                double const scale_factor,
                                                size_t const num_finite_buckets) {
-  static NoDestructor<absl::node_hash_set<BucketerImpl>> bucketers;
-  ABSL_CONST_INIT static absl::Mutex mutex{absl::kConstInit};
-  absl::MutexLock lock{&mutex};
+  static NoDestructor<lock_free_hash_set<BucketerImpl>> bucketers;
   auto const [it, _] = bucketers->emplace(width, growth_factor, scale_factor,
                                           std::min(num_finite_buckets, kMaxNumFiniteBuckets));
   return *it;
