@@ -557,7 +557,7 @@ class RawLockFreeHash {
     size_t denominator;
   };
 
-  static inline Fraction constexpr kMaxLoadFactor{.numerator = 3, .denominator = 4};
+  static inline Fraction constexpr kMaxLoadFactor{.numerator = 1, .denominator = 2};
   static inline float constexpr kMaxLoadFactorFloat =
       static_cast<float>(kMaxLoadFactor.numerator) / static_cast<float>(kMaxLoadFactor.denominator);
 

@@ -54,7 +54,7 @@ TEST(LockFreeHashMapTest, Empty) {
   EXPECT_EQ(hm.capacity(), 0);
   EXPECT_EQ(hm.size(), 0);
   EXPECT_TRUE(hm.empty());
-  EXPECT_NEAR(hm.max_load_factor(), 0.75, kEpsilon);
+  EXPECT_NEAR(hm.max_load_factor(), 0.5, kEpsilon);
   EXPECT_EQ(hm.load_factor(), 0);
   EXPECT_THAT(hm, UnorderedElementsAre());
   EXPECT_FALSE(hm.contains(42));
@@ -178,88 +178,77 @@ TEST(LockFreeHashMapTest, InsertTwice) {
 
 TEST(LockFreeHashMapTest, MaxLoad) {
   lock_free_hash_map<int, std::string> hm{
-      {0, "a"},  {1, "b"},  {2, "c"},  {3, "d"},  {4, "e"},  {5, "f"},  {6, "g"},  {7, "h"},
-      {8, "i"},  {9, "j"},  {10, "k"}, {11, "l"}, {12, "m"}, {13, "n"}, {14, "o"}, {15, "p"},
-      {16, "q"}, {17, "r"}, {18, "s"}, {19, "t"}, {20, "u"}, {21, "v"}, {22, "w"}, {23, "x"},
+      {0, "a"}, {1, "b"}, {2, "c"},  {3, "d"},  {4, "e"},  {5, "f"},  {6, "g"},  {7, "h"},
+      {8, "i"}, {9, "j"}, {10, "k"}, {11, "l"}, {12, "m"}, {13, "n"}, {14, "o"}, {15, "p"},
   };
   EXPECT_EQ(hm.capacity(), 32);
-  EXPECT_EQ(hm.size(), 24);
+  EXPECT_EQ(hm.size(), 16);
   EXPECT_FALSE(hm.empty());
-  EXPECT_NEAR(hm.load_factor(), 0.75, kEpsilon);
+  EXPECT_NEAR(hm.load_factor(), 0.5, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(0, "a"), Pair(1, "b"), Pair(2, "c"), Pair(3, "d"),
                                        Pair(4, "e"), Pair(5, "f"), Pair(6, "g"), Pair(7, "h"),
                                        Pair(8, "i"), Pair(9, "j"), Pair(10, "k"), Pair(11, "l"),
-                                       Pair(12, "m"), Pair(13, "n"), Pair(14, "o"), Pair(15, "p"),
-                                       Pair(16, "q"), Pair(17, "r"), Pair(18, "s"), Pair(19, "t"),
-                                       Pair(20, "u"), Pair(21, "v"), Pair(22, "w"), Pair(23, "x")));
+                                       Pair(12, "m"), Pair(13, "n"), Pair(14, "o"), Pair(15, "p")));
 }
 
 TEST(LockFreeHashMapTest, Grow) {
   lock_free_hash_map<int, std::string> hm{
-      {0, "a"},  {1, "b"},  {2, "c"},  {3, "d"},  {4, "e"},  {5, "f"},  {6, "g"},  {7, "h"},
-      {8, "i"},  {9, "j"},  {10, "k"}, {11, "l"}, {12, "m"}, {13, "n"}, {14, "o"}, {15, "p"},
-      {16, "q"}, {17, "r"}, {18, "s"}, {19, "t"}, {20, "u"}, {21, "v"}, {22, "w"}, {23, "x"},
+      {0, "a"}, {1, "b"}, {2, "c"},  {3, "d"},  {4, "e"},  {5, "f"},  {6, "g"},  {7, "h"},
+      {8, "i"}, {9, "j"}, {10, "k"}, {11, "l"}, {12, "m"}, {13, "n"}, {14, "o"}, {15, "p"},
   };
-  auto const [it, inserted] = hm.insert(std::make_pair(24, "y"));
+  auto const [it, inserted] = hm.insert(std::make_pair(16, "q"));
   EXPECT_TRUE(inserted);
   EXPECT_NE(it, hm.end());
-  EXPECT_THAT(*it, Pair(24, "y"));
+  EXPECT_THAT(*it, Pair(16, "q"));
   EXPECT_EQ(hm.capacity(), 64);
-  EXPECT_EQ(hm.size(), 25);
+  EXPECT_EQ(hm.size(), 17);
   EXPECT_FALSE(hm.empty());
-  EXPECT_NEAR(hm.load_factor(), 0.390625, kEpsilon);
-  EXPECT_THAT(hm, UnorderedElementsAre(
-                      Pair(0, "a"), Pair(1, "b"), Pair(2, "c"), Pair(3, "d"), Pair(4, "e"),
-                      Pair(5, "f"), Pair(6, "g"), Pair(7, "h"), Pair(8, "i"), Pair(9, "j"),
-                      Pair(10, "k"), Pair(11, "l"), Pair(12, "m"), Pair(13, "n"), Pair(14, "o"),
-                      Pair(15, "p"), Pair(16, "q"), Pair(17, "r"), Pair(18, "s"), Pair(19, "t"),
-                      Pair(20, "u"), Pair(21, "v"), Pair(22, "w"), Pair(23, "x"), Pair(24, "y")));
-}
-
-TEST(LockFreeHashMapTest, InsertAfterGrow) {
-  lock_free_hash_map<int, std::string> hm{
-      {0, "a"},  {1, "b"},  {2, "c"},  {3, "d"},  {4, "e"},  {5, "f"},  {6, "g"},  {7, "h"},
-      {8, "i"},  {9, "j"},  {10, "k"}, {11, "l"}, {12, "m"}, {13, "n"}, {14, "o"}, {15, "p"},
-      {16, "q"}, {17, "r"}, {18, "s"}, {19, "t"}, {20, "u"}, {21, "v"}, {22, "w"}, {23, "x"},
-  };
-  hm.insert(std::make_pair(24, "y"));
-  auto const [it, inserted] = hm.insert(std::make_pair(25, "z"));
-  EXPECT_TRUE(inserted);
-  EXPECT_NE(it, hm.end());
-  EXPECT_THAT(*it, Pair(25, "z"));
-  EXPECT_EQ(hm.capacity(), 64);
-  EXPECT_EQ(hm.size(), 26);
-  EXPECT_FALSE(hm.empty());
-  EXPECT_NEAR(hm.load_factor(), 0.40625, kEpsilon);
+  EXPECT_NEAR(hm.load_factor(), 0.265625, kEpsilon);
   EXPECT_THAT(
       hm, UnorderedElementsAre(Pair(0, "a"), Pair(1, "b"), Pair(2, "c"), Pair(3, "d"), Pair(4, "e"),
                                Pair(5, "f"), Pair(6, "g"), Pair(7, "h"), Pair(8, "i"), Pair(9, "j"),
                                Pair(10, "k"), Pair(11, "l"), Pair(12, "m"), Pair(13, "n"),
-                               Pair(14, "o"), Pair(15, "p"), Pair(16, "q"), Pair(17, "r"),
-                               Pair(18, "s"), Pair(19, "t"), Pair(20, "u"), Pair(21, "v"),
-                               Pair(22, "w"), Pair(23, "x"), Pair(24, "y"), Pair(25, "z")));
+                               Pair(14, "o"), Pair(15, "p"), Pair(16, "q")));
+}
+
+TEST(LockFreeHashMapTest, InsertAfterGrow) {
+  lock_free_hash_map<int, std::string> hm{
+      {0, "a"}, {1, "b"}, {2, "c"},  {3, "d"},  {4, "e"},  {5, "f"},  {6, "g"},  {7, "h"},
+      {8, "i"}, {9, "j"}, {10, "k"}, {11, "l"}, {12, "m"}, {13, "n"}, {14, "o"}, {15, "p"},
+  };
+  hm.insert(std::make_pair(16, "q"));
+  auto const [it, inserted] = hm.insert(std::make_pair(17, "r"));
+  EXPECT_TRUE(inserted);
+  EXPECT_NE(it, hm.end());
+  EXPECT_THAT(*it, Pair(17, "r"));
+  EXPECT_EQ(hm.capacity(), 64);
+  EXPECT_EQ(hm.size(), 18);
+  EXPECT_FALSE(hm.empty());
+  EXPECT_NEAR(hm.load_factor(), 0.28125, kEpsilon);
+  EXPECT_THAT(
+      hm, UnorderedElementsAre(Pair(0, "a"), Pair(1, "b"), Pair(2, "c"), Pair(3, "d"), Pair(4, "e"),
+                               Pair(5, "f"), Pair(6, "g"), Pair(7, "h"), Pair(8, "i"), Pair(9, "j"),
+                               Pair(10, "k"), Pair(11, "l"), Pair(12, "m"), Pair(13, "n"),
+                               Pair(14, "o"), Pair(15, "p"), Pair(16, "q"), Pair(17, "r")));
 }
 
 TEST(LockFreeHashMapTest, InsertingTwiceDoesntGrow) {
   lock_free_hash_map<int, std::string> hm{
-      {0, "a"},  {1, "b"},  {2, "c"},  {3, "d"},  {4, "e"},  {5, "f"},  {6, "g"},  {7, "h"},
-      {8, "i"},  {9, "j"},  {10, "k"}, {11, "l"}, {12, "m"}, {13, "n"}, {14, "o"}, {15, "p"},
-      {16, "q"}, {17, "r"}, {18, "s"}, {19, "t"}, {20, "u"}, {21, "v"}, {22, "w"}, {23, "x"},
+      {0, "a"}, {1, "b"}, {2, "c"},  {3, "d"},  {4, "e"},  {5, "f"},  {6, "g"},  {7, "h"},
+      {8, "i"}, {9, "j"}, {10, "k"}, {11, "l"}, {12, "m"}, {13, "n"}, {14, "o"}, {15, "p"},
   };
-  auto const [it, inserted] = hm.insert(std::make_pair(23, "y"));
+  auto const [it, inserted] = hm.insert(std::make_pair(15, "q"));
   EXPECT_FALSE(inserted);
   EXPECT_NE(it, hm.end());
-  EXPECT_THAT(*it, Pair(23, "x"));
+  EXPECT_THAT(*it, Pair(15, "p"));
   EXPECT_EQ(hm.capacity(), 32);
-  EXPECT_EQ(hm.size(), 24);
+  EXPECT_EQ(hm.size(), 16);
   EXPECT_FALSE(hm.empty());
-  EXPECT_NEAR(hm.load_factor(), 0.75, kEpsilon);
+  EXPECT_NEAR(hm.load_factor(), 0.5, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(0, "a"), Pair(1, "b"), Pair(2, "c"), Pair(3, "d"),
                                        Pair(4, "e"), Pair(5, "f"), Pair(6, "g"), Pair(7, "h"),
                                        Pair(8, "i"), Pair(9, "j"), Pair(10, "k"), Pair(11, "l"),
-                                       Pair(12, "m"), Pair(13, "n"), Pair(14, "o"), Pair(15, "p"),
-                                       Pair(16, "q"), Pair(17, "r"), Pair(18, "s"), Pair(19, "t"),
-                                       Pair(20, "u"), Pair(21, "v"), Pair(22, "w"), Pair(23, "x")));
+                                       Pair(12, "m"), Pair(13, "n"), Pair(14, "o"), Pair(15, "p")));
 }
 
 TEST(LockFreeHashMapTest, InsertFromInitializerList) {
@@ -342,24 +331,21 @@ TEST(LockFreeHashMapTest, EmplaceTwice) {
 
 TEST(LockFreeHashMapTest, EmplacingTwiceDoesntGrow) {
   lock_free_hash_map<int, std::string> hm{
-      {0, "a"},  {1, "b"},  {2, "c"},  {3, "d"},  {4, "e"},  {5, "f"},  {6, "g"},  {7, "h"},
-      {8, "i"},  {9, "j"},  {10, "k"}, {11, "l"}, {12, "m"}, {13, "n"}, {14, "o"}, {15, "p"},
-      {16, "q"}, {17, "r"}, {18, "s"}, {19, "t"}, {20, "u"}, {21, "v"}, {22, "w"}, {23, "x"},
+      {0, "a"}, {1, "b"}, {2, "c"},  {3, "d"},  {4, "e"},  {5, "f"},  {6, "g"},  {7, "h"},
+      {8, "i"}, {9, "j"}, {10, "k"}, {11, "l"}, {12, "m"}, {13, "n"}, {14, "o"}, {15, "p"},
   };
-  auto const [it, inserted] = hm.emplace(23, "y");
+  auto const [it, inserted] = hm.emplace(15, "q");
   EXPECT_FALSE(inserted);
   EXPECT_NE(it, hm.end());
-  EXPECT_THAT(*it, Pair(23, "x"));
+  EXPECT_THAT(*it, Pair(15, "p"));
   EXPECT_EQ(hm.capacity(), 32);
-  EXPECT_EQ(hm.size(), 24);
+  EXPECT_EQ(hm.size(), 16);
   EXPECT_FALSE(hm.empty());
-  EXPECT_NEAR(hm.load_factor(), 0.75, kEpsilon);
+  EXPECT_NEAR(hm.load_factor(), 0.5, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(0, "a"), Pair(1, "b"), Pair(2, "c"), Pair(3, "d"),
                                        Pair(4, "e"), Pair(5, "f"), Pair(6, "g"), Pair(7, "h"),
                                        Pair(8, "i"), Pair(9, "j"), Pair(10, "k"), Pair(11, "l"),
-                                       Pair(12, "m"), Pair(13, "n"), Pair(14, "o"), Pair(15, "p"),
-                                       Pair(16, "q"), Pair(17, "r"), Pair(18, "s"), Pair(19, "t"),
-                                       Pair(20, "u"), Pair(21, "v"), Pair(22, "w"), Pair(23, "x")));
+                                       Pair(12, "m"), Pair(13, "n"), Pair(14, "o"), Pair(15, "p")));
 }
 
 TEST(LockFreeHashMapTest, TryEmplaceOne) {
@@ -413,24 +399,21 @@ TEST(LockFreeHashMapTest, TryEmplaceTwice) {
 
 TEST(LockFreeHashMapTest, TryingToEmplaceTwiceDoesntGrow) {
   lock_free_hash_map<int, std::string> hm{
-      {0, "a"},  {1, "b"},  {2, "c"},  {3, "d"},  {4, "e"},  {5, "f"},  {6, "g"},  {7, "h"},
-      {8, "i"},  {9, "j"},  {10, "k"}, {11, "l"}, {12, "m"}, {13, "n"}, {14, "o"}, {15, "p"},
-      {16, "q"}, {17, "r"}, {18, "s"}, {19, "t"}, {20, "u"}, {21, "v"}, {22, "w"}, {23, "x"},
+      {0, "a"}, {1, "b"}, {2, "c"},  {3, "d"},  {4, "e"},  {5, "f"},  {6, "g"},  {7, "h"},
+      {8, "i"}, {9, "j"}, {10, "k"}, {11, "l"}, {12, "m"}, {13, "n"}, {14, "o"}, {15, "p"},
   };
-  auto const [it, inserted] = hm.try_emplace(23, "y");
+  auto const [it, inserted] = hm.try_emplace(15, "q");
   EXPECT_FALSE(inserted);
   EXPECT_NE(it, hm.end());
-  EXPECT_THAT(*it, Pair(23, "x"));
+  EXPECT_THAT(*it, Pair(15, "p"));
   EXPECT_EQ(hm.capacity(), 32);
-  EXPECT_EQ(hm.size(), 24);
+  EXPECT_EQ(hm.size(), 16);
   EXPECT_FALSE(hm.empty());
-  EXPECT_NEAR(hm.load_factor(), 0.75, kEpsilon);
+  EXPECT_NEAR(hm.load_factor(), 0.5, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(0, "a"), Pair(1, "b"), Pair(2, "c"), Pair(3, "d"),
                                        Pair(4, "e"), Pair(5, "f"), Pair(6, "g"), Pair(7, "h"),
                                        Pair(8, "i"), Pair(9, "j"), Pair(10, "k"), Pair(11, "l"),
-                                       Pair(12, "m"), Pair(13, "n"), Pair(14, "o"), Pair(15, "p"),
-                                       Pair(16, "q"), Pair(17, "r"), Pair(18, "s"), Pair(19, "t"),
-                                       Pair(20, "u"), Pair(21, "v"), Pair(22, "w"), Pair(23, "x")));
+                                       Pair(12, "m"), Pair(13, "n"), Pair(14, "o"), Pair(15, "p")));
 }
 
 TEST(LockFreeHashMapTest, LookUpFromEmpty) {
@@ -709,46 +692,41 @@ TEST(LockFreeHashMapTest, InsertOrAssignErased) {
 
 TEST(LockFreeHashMapTest, InsertOrAssignGrows) {
   lock_free_hash_map<int, std::string> hm{
-      {0, "a"},  {1, "b"},  {2, "c"},  {3, "d"},  {4, "e"},  {5, "f"},  {6, "g"},  {7, "h"},
-      {8, "i"},  {9, "j"},  {10, "k"}, {11, "l"}, {12, "m"}, {13, "n"}, {14, "o"}, {15, "p"},
-      {16, "q"}, {17, "r"}, {18, "s"}, {19, "t"}, {20, "u"}, {21, "v"}, {22, "w"}, {23, "x"},
+      {0, "a"}, {1, "b"}, {2, "c"},  {3, "d"},  {4, "e"},  {5, "f"},  {6, "g"},  {7, "h"},
+      {8, "i"}, {9, "j"}, {10, "k"}, {11, "l"}, {12, "m"}, {13, "n"}, {14, "o"}, {15, "p"},
   };
-  auto [it, inserted] = hm.insert_or_assign(24, "y");
+  auto [it, inserted] = hm.insert_or_assign(16, "q");
   EXPECT_TRUE(inserted);
   EXPECT_NE(it, hm.end());
-  EXPECT_THAT(*it, Pair(24, "y"));
+  EXPECT_THAT(*it, Pair(16, "q"));
   EXPECT_EQ(hm.capacity(), 64);
-  EXPECT_EQ(hm.size(), 25);
+  EXPECT_EQ(hm.size(), 17);
   EXPECT_FALSE(hm.empty());
-  EXPECT_NEAR(hm.load_factor(), 0.390625, kEpsilon);
-  EXPECT_THAT(hm, UnorderedElementsAre(
-                      Pair(0, "a"), Pair(1, "b"), Pair(2, "c"), Pair(3, "d"), Pair(4, "e"),
-                      Pair(5, "f"), Pair(6, "g"), Pair(7, "h"), Pair(8, "i"), Pair(9, "j"),
-                      Pair(10, "k"), Pair(11, "l"), Pair(12, "m"), Pair(13, "n"), Pair(14, "o"),
-                      Pair(15, "p"), Pair(16, "q"), Pair(17, "r"), Pair(18, "s"), Pair(19, "t"),
-                      Pair(20, "u"), Pair(21, "v"), Pair(22, "w"), Pair(23, "x"), Pair(24, "y")));
+  EXPECT_NEAR(hm.load_factor(), 0.265625, kEpsilon);
+  EXPECT_THAT(
+      hm, UnorderedElementsAre(Pair(0, "a"), Pair(1, "b"), Pair(2, "c"), Pair(3, "d"), Pair(4, "e"),
+                               Pair(5, "f"), Pair(6, "g"), Pair(7, "h"), Pair(8, "i"), Pair(9, "j"),
+                               Pair(10, "k"), Pair(11, "l"), Pair(12, "m"), Pair(13, "n"),
+                               Pair(14, "o"), Pair(15, "p"), Pair(16, "q")));
 }
 
 TEST(LockFreeHashMapTest, InsertOrAssignExistingDoesntGrow) {
   lock_free_hash_map<int, std::string> hm{
-      {0, "a"},  {1, "b"},  {2, "c"},  {3, "d"},  {4, "e"},  {5, "f"},  {6, "g"},  {7, "h"},
-      {8, "i"},  {9, "j"},  {10, "k"}, {11, "l"}, {12, "m"}, {13, "n"}, {14, "o"}, {15, "p"},
-      {16, "q"}, {17, "r"}, {18, "s"}, {19, "t"}, {20, "u"}, {21, "v"}, {22, "w"}, {23, "x"},
+      {0, "a"}, {1, "b"}, {2, "c"},  {3, "d"},  {4, "e"},  {5, "f"},  {6, "g"},  {7, "h"},
+      {8, "i"}, {9, "j"}, {10, "k"}, {11, "l"}, {12, "m"}, {13, "n"}, {14, "o"}, {15, "p"},
   };
-  auto [it, inserted] = hm.insert_or_assign(23, "y");
+  auto [it, inserted] = hm.insert_or_assign(15, "q");
   EXPECT_FALSE(inserted);
   EXPECT_NE(it, hm.end());
-  EXPECT_THAT(*it, Pair(23, "y"));
+  EXPECT_THAT(*it, Pair(15, "q"));
   EXPECT_EQ(hm.capacity(), 32);
-  EXPECT_EQ(hm.size(), 24);
+  EXPECT_EQ(hm.size(), 16);
   EXPECT_FALSE(hm.empty());
-  EXPECT_NEAR(hm.load_factor(), 0.75, kEpsilon);
+  EXPECT_NEAR(hm.load_factor(), 0.5, kEpsilon);
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(0, "a"), Pair(1, "b"), Pair(2, "c"), Pair(3, "d"),
                                        Pair(4, "e"), Pair(5, "f"), Pair(6, "g"), Pair(7, "h"),
                                        Pair(8, "i"), Pair(9, "j"), Pair(10, "k"), Pair(11, "l"),
-                                       Pair(12, "m"), Pair(13, "n"), Pair(14, "o"), Pair(15, "p"),
-                                       Pair(16, "q"), Pair(17, "r"), Pair(18, "s"), Pair(19, "t"),
-                                       Pair(20, "u"), Pair(21, "v"), Pair(22, "w"), Pair(23, "y")));
+                                       Pair(12, "m"), Pair(13, "n"), Pair(14, "o"), Pair(15, "q")));
 }
 
 TEST(LockFreeHashMapTest, ClearEmpty) {
@@ -997,9 +975,9 @@ TEST(LockFreeHashMapTest, ReserveTwoFromEmpty) {
   EXPECT_THAT(hm, UnorderedElementsAre());
 }
 
-TEST(LockFreeHashMapTest, Reserve24FromEmpty) {
+TEST(LockFreeHashMapTest, Reserve16FromEmpty) {
   lock_free_hash_map<int, std::string> hm;
-  hm.reserve(24);
+  hm.reserve(16);
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 0);
   EXPECT_TRUE(hm.empty());
@@ -1007,9 +985,9 @@ TEST(LockFreeHashMapTest, Reserve24FromEmpty) {
   EXPECT_THAT(hm, UnorderedElementsAre());
 }
 
-TEST(LockFreeHashMapTest, Reserve25FromEmpty) {
+TEST(LockFreeHashMapTest, Reserve17FromEmpty) {
   lock_free_hash_map<int, std::string> hm;
-  hm.reserve(25);
+  hm.reserve(17);
   EXPECT_EQ(hm.capacity(), 64);
   EXPECT_EQ(hm.size(), 0);
   EXPECT_TRUE(hm.empty());
@@ -1017,9 +995,9 @@ TEST(LockFreeHashMapTest, Reserve25FromEmpty) {
   EXPECT_THAT(hm, UnorderedElementsAre());
 }
 
-TEST(LockFreeHashMapTest, Reserve26FromEmpty) {
+TEST(LockFreeHashMapTest, Reserve18FromEmpty) {
   lock_free_hash_map<int, std::string> hm;
-  hm.reserve(26);
+  hm.reserve(18);
   EXPECT_EQ(hm.capacity(), 64);
   EXPECT_EQ(hm.size(), 0);
   EXPECT_TRUE(hm.empty());
@@ -1067,9 +1045,9 @@ TEST(LockFreeHashMapTest, ReserveFour) {
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, "ipsum"), Pair(44, "dolor")));
 }
 
-TEST(LockFreeHashMapTest, Reserve24) {
+TEST(LockFreeHashMapTest, Reserve16) {
   lock_free_hash_map<int, std::string> hm{{42, "lorem"}, {43, "ipsum"}, {44, "dolor"}};
-  hm.reserve(24);
+  hm.reserve(16);
   EXPECT_EQ(hm.capacity(), 32);
   EXPECT_EQ(hm.size(), 3);
   EXPECT_FALSE(hm.empty());
@@ -1077,9 +1055,9 @@ TEST(LockFreeHashMapTest, Reserve24) {
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, "ipsum"), Pair(44, "dolor")));
 }
 
-TEST(LockFreeHashMapTest, Reserve25) {
+TEST(LockFreeHashMapTest, Reserve17) {
   lock_free_hash_map<int, std::string> hm{{42, "lorem"}, {43, "ipsum"}, {44, "dolor"}};
-  hm.reserve(25);
+  hm.reserve(17);
   EXPECT_EQ(hm.capacity(), 64);
   EXPECT_EQ(hm.size(), 3);
   EXPECT_FALSE(hm.empty());
@@ -1087,9 +1065,9 @@ TEST(LockFreeHashMapTest, Reserve25) {
   EXPECT_THAT(hm, UnorderedElementsAre(Pair(42, "lorem"), Pair(43, "ipsum"), Pair(44, "dolor")));
 }
 
-TEST(LockFreeHashMapTest, Reserve26) {
+TEST(LockFreeHashMapTest, Reserve18) {
   lock_free_hash_map<int, std::string> hm{{42, "lorem"}, {43, "ipsum"}, {44, "dolor"}};
-  hm.reserve(26);
+  hm.reserve(18);
   EXPECT_EQ(hm.capacity(), 64);
   EXPECT_EQ(hm.size(), 3);
   EXPECT_FALSE(hm.empty());
@@ -1138,25 +1116,38 @@ TEST(LockFreeHashMapTest, EmplaceMoreThanReserved) {
 }
 
 TEST(LockFreeHashMapTest, GrowAfterReserving) {
-  lock_free_hash_map<int, std::string> hm{
-      {0, "a"},  {1, "b"},  {2, "c"},  {3, "d"},  {4, "e"},  {5, "f"},  {6, "g"},  {7, "h"},
-      {8, "i"},  {9, "j"},  {10, "k"}, {11, "l"}, {12, "m"}, {13, "n"}, {14, "o"}, {15, "p"},
-      {16, "q"}, {17, "r"}, {18, "s"}, {19, "t"}, {20, "u"}, {21, "v"}, {22, "w"}, {23, "x"},
-  };
-  hm.reserve(24);
-  hm.try_emplace(24, "y");
-  hm.try_emplace(25, "z");
+  lock_free_hash_map<int, std::string> hm;
+  hm.reserve(16);
+  hm.insert({
+      {0, "a"},
+      {1, "b"},
+      {2, "c"},
+      {3, "d"},
+      {4, "e"},
+      {5, "f"},
+      {6, "g"},
+      {7, "h"},
+      {8, "i"},
+      {9, "j"},
+      {10, "k"},
+      {11, "l"},
+      {12, "m"},
+      {13, "n"},
+      {14, "o"},
+      {15, "p"},
+  });
+  ASSERT_EQ(hm.capacity(), 32);
+  hm.try_emplace(16, "q");
+  hm.try_emplace(17, "r");
   EXPECT_EQ(hm.capacity(), 64);
-  EXPECT_EQ(hm.size(), 26);
+  EXPECT_EQ(hm.size(), 18);
   EXPECT_FALSE(hm.empty());
-  EXPECT_NEAR(hm.load_factor(), 0.40625, kEpsilon);
+  EXPECT_NEAR(hm.load_factor(), 0.28125, kEpsilon);
   EXPECT_THAT(
       hm, UnorderedElementsAre(Pair(0, "a"), Pair(1, "b"), Pair(2, "c"), Pair(3, "d"), Pair(4, "e"),
                                Pair(5, "f"), Pair(6, "g"), Pair(7, "h"), Pair(8, "i"), Pair(9, "j"),
                                Pair(10, "k"), Pair(11, "l"), Pair(12, "m"), Pair(13, "n"),
-                               Pair(14, "o"), Pair(15, "p"), Pair(16, "q"), Pair(17, "r"),
-                               Pair(18, "s"), Pair(19, "t"), Pair(20, "u"), Pair(21, "v"),
-                               Pair(22, "w"), Pair(23, "x"), Pair(24, "y"), Pair(25, "z")));
+                               Pair(14, "o"), Pair(15, "p"), Pair(16, "q"), Pair(17, "r")));
 }
 
 TEST(LockFreeHashMapTest, Swap) {
