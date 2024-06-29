@@ -194,6 +194,7 @@ cc_library(
 cc_library(
     name = "raw_lock_free_hash",
     hdrs = ["raw_lock_free_hash.h"],
+    visibility = ["//visibility:private"],
     deps = [
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/synchronization",
