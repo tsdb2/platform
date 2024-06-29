@@ -259,7 +259,8 @@ class lock_free_hash_map
     return !Base::is_end_iterator(Base::Find(key));
   }
 
-  // Swaps the content of this hash set with `other`. This algorithm is not lockless.
+  // Swaps the content of this hash set with `other`. All existing iterators are invalidated. This
+  // algorithm is not lockless.
   void swap(lock_free_hash_map& other) { Base::Swap(other); }
 };
 

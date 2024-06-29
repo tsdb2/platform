@@ -543,10 +543,12 @@ class RawLockFreeHash {
 
   void Clear() noexcept;
 
-  // Swaps the content of this hash table with `other`. This algorithm is not lockless.
+  // Swaps the content of this hash table with `other`. All existing iterators are invalidated. This
+  // algorithm is not lockless.
   void Swap(RawLockFreeHash &other) { Swap(*this, other); }
 
-  // Swaps the content of two hash tables. This algorithm is not lockless.
+  // Swaps the content of two hash tables. All existing iterators are invalidated. This algorithm is
+  // not lockless.
   static void Swap(RawLockFreeHash &lhs, RawLockFreeHash &rhs);
 
  private:
