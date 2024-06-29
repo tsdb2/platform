@@ -555,7 +555,6 @@ class RawLockFreeHash {
     size_t denominator;
   };
 
-  static inline Fraction constexpr kMinLoadFactor{.numerator = 1, .denominator = 4};
   static inline Fraction constexpr kMaxLoadFactor{.numerator = 3, .denominator = 4};
 
   // No moves & copies because they wouldn't be thread-safe.
@@ -569,16 +568,13 @@ class RawLockFreeHash {
 
   // Rounds `value` up to the next power of 2 and return the exponent of such power. For example, if
   // `value` is 60 it's rounded up to 64 and 6 is returned. This is used to calculate the array
-  // capacity in log2 format, as required by `GetOrCreateArray`.
+  // capacity in log2 format, as required by `Array`.
   static uint8_t NextExponentOf2(uint64_t value);
 
   // Returns `a / b` rounded up to the nearest integer.
   static size_t DivideAndRoundUp(size_t const a, size_t const b) { return (a + b - 1) / b; }
 
-  // Constructs an array without adding it to `arrays_`.
-  ArrayPtr CreateFreeArray(uint8_t capacity_log2);
-
-  Array *GetOrCreateArray(uint8_t capacity_log2) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  Array *CreateArray(uint8_t capacity_log2) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   void DestroyArray(ArrayPtr array);
 
@@ -635,13 +631,6 @@ class RawLockFreeHash {
   // index at which the new node was inserted.
   size_t Grow(Array const *old_array, Node *new_node) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
-  // Performs a re-hash creating a new array with half the capacity of `old_array`. All elements are
-  // copied over and the new array is stored in `ptr_`.
-  //
-  // REQUIRES: `old_array->size` MUST be strictly less than `old_array->capacity() *
-  // kMinLoadFactor`.
-  void Shrink(Array const *old_array) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
-
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Hash hasher_;
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Equal equal_;
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS ArrayAllocator array_alloc_;
@@ -680,10 +669,7 @@ bool RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::EraseExistingNode(Arra
   if (node->deleted.exchange(true, std::memory_order_relaxed)) {
     return false;
   }
-  auto const size = array->size.fetch_sub(1, std::memory_order_relaxed) - 1;
-  if (size * kMinLoadFactor.denominator < array->capacity() * kMinLoadFactor.numerator) {
-    Shrink(array);
-  }
+  array->size.fetch_sub(1, std::memory_order_relaxed);
   return true;
 }
 
@@ -723,10 +709,9 @@ void RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Reserve(size_t const n
   auto const min_capacity_log2 = GetMinCapacityLog2(num_elements);
   absl::MutexLock lock{&mutex_};
   auto const array = ptr_.load(std::memory_order_relaxed);
-  if (array && array->capacity_log2 >= min_capacity_log2) {
-    return;
+  if (!array || array->capacity_log2 < min_capacity_log2) {
+    ptr_.store(ReserveLocked(array, min_capacity_log2), std::memory_order_release);
   }
-  ptr_.store(ReserveLocked(array, min_capacity_log2), std::memory_order_release);
 }
 
 template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
@@ -739,10 +724,9 @@ void RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::ReserveExtra(
   auto const array = ptr_.load(std::memory_order_relaxed);
   auto const current_size = array ? array->size.load(std::memory_order_relaxed) : 0;
   auto const min_capacity_log2 = GetMinCapacityLog2(current_size + num_new_elements);
-  if (array && array->capacity_log2 >= min_capacity_log2) {
-    return;
+  if (!array || array->capacity_log2 < min_capacity_log2) {
+    ptr_.store(ReserveLocked(array, min_capacity_log2), std::memory_order_release);
   }
-  ptr_.store(ReserveLocked(array, min_capacity_log2), std::memory_order_release);
 }
 
 template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
@@ -942,42 +926,14 @@ uint8_t RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::NextExponentOf2(uin
 }
 
 template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
-typename RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::ArrayPtr
-RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::CreateFreeArray(uint8_t const capacity_log2) {
-  size_t const capacity = size_t{1} << capacity_log2;
-  ArrayPtr const array = array_alloc_.allocate(Array::GetMinAllocCount(capacity));
-  new (&*array) Array(capacity_log2);
-  return array;
-}
-
-template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
 typename RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Array *
-RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::GetOrCreateArray(uint8_t capacity_log2) {
-  if (capacity_log2 < Array::kMinCapacityLog2) {
-    capacity_log2 = Array::kMinCapacityLog2;
-  }
-  auto const index = capacity_log2 - Array::kMinCapacityLog2;
-  if (index < arrays_.size()) {
-    auto &array = arrays_[index];
-    if (array) {
-      auto const capacity = array->capacity();
-      for (size_t i = 0; i < capacity; ++i) {
-        array->data[i].store(nullptr, std::memory_order_relaxed);
-      }
-      array->size.store(0, std::memory_order_relaxed);
-    } else {
-      array = CreateFreeArray(capacity_log2);
-    }
-    return &*array;
-  } else {
-    arrays_.reserve(index + 1);
-    for (auto i = arrays_.size(); i < index; ++i) {
-      arrays_.emplace_back(nullptr);
-    }
-    auto const array = CreateFreeArray(capacity_log2);
-    arrays_.emplace_back(array);
-    return &*array;
-  }
+RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::CreateArray(uint8_t const capacity_log2) {
+  size_t const capacity = size_t{1} << capacity_log2;
+  ArrayPtr const array_ptr = array_alloc_.allocate(Array::GetMinAllocCount(capacity));
+  arrays_.emplace_back(array_ptr);
+  Array *const array = &*array_ptr;
+  new (array) Array(capacity_log2);
+  return array;
 }
 
 template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
@@ -1043,7 +999,7 @@ template <typename Key, typename Value, typename Hash, typename Equal, typename 
 typename RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Array *
 RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::ReserveLocked(
     Array *const array, uint8_t const min_capacity_log2) {
-  auto const new_array = GetOrCreateArray(min_capacity_log2);
+  auto const new_array = CreateArray(min_capacity_log2);
   if (array) {
     auto const old_capacity = array->capacity();
     for (size_t i = 0; i < old_capacity; ++i) {
@@ -1059,10 +1015,8 @@ RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::ReserveLocked(
 template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
 std::pair<typename RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Iterator, bool>
 RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::InsertFirstNode(Node *const node) {
-  auto const array = GetOrCreateArray(Array::kMinCapacityLog2);
-  auto const index = node->hash & array->hash_mask();
-  array->data[index].store(node, std::memory_order_release);
-  array->size.store(1, std::memory_order_relaxed);
+  auto const array = CreateArray(Array::kMinCapacityLog2);
+  auto const index = array->InsertNodeLocked(node);
   ptr_.store(array, std::memory_order_release);
   return std::make_pair(Iterator(*this, index, node), true);
 }
@@ -1129,7 +1083,7 @@ RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::InsertInternal(Key const &k
 template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
 size_t RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Grow(Array const *const old_array,
                                                                  Node *const new_node) {
-  auto const new_array = GetOrCreateArray(old_array->capacity_log2 + 1);
+  auto const new_array = CreateArray(old_array->capacity_log2 + 1);
   auto const old_capacity = old_array->capacity();
   for (size_t i = 0; i < old_capacity; ++i) {
     auto const node = old_array->data[i].load(std::memory_order_relaxed);
@@ -1140,22 +1094,6 @@ size_t RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Grow(Array const *co
   auto const node_index = new_array->InsertNodeLocked(new_node);
   ptr_.store(new_array, std::memory_order_release);
   return node_index;
-}
-
-template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
-void RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Shrink(Array const *const old_array) {
-  if (old_array->capacity_log2 <= Array::kMinCapacityLog2) {
-    return;
-  }
-  auto const new_array = GetOrCreateArray(old_array->capacity_log2 - 1);
-  auto const old_capacity = old_array->capacity();
-  for (size_t i = 0; i < old_capacity; ++i) {
-    auto const node = old_array->data[i].load(std::memory_order_relaxed);
-    if (node && !node->deleted.load(std::memory_order_relaxed)) {
-      new_array->InsertNodeLocked(node);
-    }
-  }
-  ptr_.store(new_array, std::memory_order_release);
 }
 
 }  // namespace lock_free_container

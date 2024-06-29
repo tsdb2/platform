@@ -681,58 +681,6 @@ TEST(LockFreeHashSetTest, EraseIteratorAgain) {
   EXPECT_THAT(hs, UnorderedElementsAre(42, 44));
 }
 
-TEST(LockFreeHashSetTest, Shrink) {
-  lock_free_hash_set<int> hs{
-      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
-  };
-  ASSERT_EQ(hs.capacity(), 64);
-  ASSERT_EQ(hs.size(), 25);
-  ASSERT_EQ(hs.erase(0), 1);
-  ASSERT_EQ(hs.erase(1), 1);
-  ASSERT_EQ(hs.erase(2), 1);
-  ASSERT_EQ(hs.erase(3), 1);
-  ASSERT_EQ(hs.erase(4), 1);
-  ASSERT_EQ(hs.erase(5), 1);
-  ASSERT_EQ(hs.erase(6), 1);
-  ASSERT_EQ(hs.erase(7), 1);
-  ASSERT_EQ(hs.erase(8), 1);
-  ASSERT_EQ(hs.erase(9), 1);
-  EXPECT_EQ(hs.capacity(), 32);
-  EXPECT_EQ(hs.size(), 15);
-  EXPECT_FALSE(hs.empty());
-  EXPECT_NEAR(hs.load_factor(), 0.46875, kEpsilon);
-  EXPECT_THAT(hs, UnorderedElementsAre(10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24));
-}
-
-TEST(LockFreeHashSetTest, GrowAfterShrinking) {
-  lock_free_hash_set<int> hs{
-      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
-  };
-  ASSERT_EQ(hs.capacity(), 64);
-  ASSERT_EQ(hs.size(), 25);
-  ASSERT_EQ(hs.erase(0), 1);
-  ASSERT_EQ(hs.erase(1), 1);
-  ASSERT_EQ(hs.erase(2), 1);
-  ASSERT_EQ(hs.erase(3), 1);
-  ASSERT_EQ(hs.erase(4), 1);
-  ASSERT_EQ(hs.erase(5), 1);
-  ASSERT_EQ(hs.erase(6), 1);
-  ASSERT_EQ(hs.erase(7), 1);
-  ASSERT_EQ(hs.erase(8), 1);
-  ASSERT_EQ(hs.erase(9), 1);
-  ASSERT_EQ(hs.capacity(), 32);
-  ASSERT_EQ(hs.size(), 15);
-  EXPECT_FALSE(hs.empty());
-  EXPECT_NEAR(hs.load_factor(), 0.46875, kEpsilon);
-  hs.insert({0, 1, 2, 3, 4, 5, 6, 7, 8, 9});
-  EXPECT_EQ(hs.capacity(), 64);
-  EXPECT_EQ(hs.size(), 25);
-  EXPECT_FALSE(hs.empty());
-  EXPECT_NEAR(hs.load_factor(), 0.390625, kEpsilon);
-  EXPECT_THAT(hs, UnorderedElementsAre(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
-                                       18, 19, 20, 21, 22, 23, 24));
-}
-
 TEST(LockFreeHashSetTest, ReserveZeroFromEmpty) {
   lock_free_hash_set<int> hs;
   hs.reserve(0);
