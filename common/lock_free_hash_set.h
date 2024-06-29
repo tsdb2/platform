@@ -107,6 +107,8 @@ class lock_free_hash_set
   using Base::cend;
   using Base::end;
   using Base::get_alloc;
+  using Base::hash_function;
+  using Base::key_eq;
 
   // Returns the number of available slots in the hash set.
   //

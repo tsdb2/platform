@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/hash/hash.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -57,6 +58,14 @@ TEST(LockFreeHashMapTest, Empty) {
   EXPECT_EQ(hm.load_factor(), 0);
   EXPECT_THAT(hm, UnorderedElementsAre());
   EXPECT_FALSE(hm.contains(42));
+}
+
+TEST(LockFreeHashMapTest, Observers) {
+  lock_free_hash_map<int, std::string> hm;
+  EXPECT_EQ(absl::HashOf(42), hm.hash_function()(42));
+  EXPECT_EQ(absl::HashOf(43), hm.hash_function()(43));
+  EXPECT_TRUE(hm.key_eq()(42, 42));
+  EXPECT_FALSE(hm.key_eq()(42, 43));
 }
 
 TEST(LockFreeHashMapTest, ConstructWithInitializerList) {

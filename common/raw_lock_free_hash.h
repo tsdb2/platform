@@ -468,10 +468,7 @@ class RawLockFreeHash {
 
   // Returns the maximum load factor, that is the maximum number of elements in relation to the
   // capacity that can be inserted without triggering a rehash.
-  float max_load_factor() const noexcept {
-    return static_cast<float>(kMaxLoadFactor.numerator) /
-           static_cast<float>(kMaxLoadFactor.denominator);
-  }
+  float max_load_factor() const noexcept { return kMaxLoadFactorFloat; }
 
   // Returns the current load factor, that is the number if elements in relation to the capacity.
   //
@@ -485,6 +482,9 @@ class RawLockFreeHash {
     return static_cast<float>(array->size.load(std::memory_order_relaxed)) /
            static_cast<float>(array->capacity());
   }
+
+  Hash const &hash_function() const noexcept { return hasher_; }
+  Equal const &key_eq() const noexcept { return equal_; }
 
   template <typename KeyArg>
   Iterator Find(KeyArg const &key) {
@@ -558,6 +558,8 @@ class RawLockFreeHash {
   };
 
   static inline Fraction constexpr kMaxLoadFactor{.numerator = 3, .denominator = 4};
+  static inline float constexpr kMaxLoadFactorFloat =
+      static_cast<float>(kMaxLoadFactor.numerator) / static_cast<float>(kMaxLoadFactor.denominator);
 
   // No moves & copies because they wouldn't be thread-safe.
   RawLockFreeHash(RawLockFreeHash const &) = delete;

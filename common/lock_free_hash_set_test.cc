@@ -48,6 +48,14 @@ TEST(LockFreeHashSetTest, Empty) {
   EXPECT_FALSE(hs.contains(42));
 }
 
+TEST(LockFreeHashMapTest, Observers) {
+  lock_free_hash_set<int> hs;
+  EXPECT_EQ(absl::HashOf(42), hs.hash_function()(42));
+  EXPECT_EQ(absl::HashOf(43), hs.hash_function()(43));
+  EXPECT_TRUE(hs.key_eq()(42, 42));
+  EXPECT_FALSE(hs.key_eq()(42, 43));
+}
+
 TEST(LockFreeHashSetTest, ConstructWithInitializerList) {
   lock_free_hash_set<int> hs{42, 43, 44};
   EXPECT_EQ(hs.capacity(), 32);

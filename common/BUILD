@@ -244,6 +244,7 @@ cc_test(
     deps = [
         ":lock_free_hash_map",
         ":testing",
+        "@com_google_absl//absl/hash",
         "@com_google_googletest//:gtest_main",
     ],
 )
