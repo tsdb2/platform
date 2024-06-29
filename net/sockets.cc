@@ -29,7 +29,6 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "common/buffer.h"
-#include "common/mutex_lock.h"
 #include "common/reffed_ptr.h"
 #include "common/utilities.h"
 #include "io/fd.h"
@@ -159,7 +158,7 @@ absl::Status Socket::Read(size_t const length, ReadCallback callback) {
     return absl::InvalidArgumentError("the read callback must not be empty");
   }
   Buffer buffer{length};
-  tsdb2::common::MutexLock lock{&mutex_};
+  absl::ReleasableMutexLock lock{&mutex_};
   if (!fd_) {
     return absl::FailedPreconditionError("this socket has been shut down");
   }
@@ -181,7 +180,7 @@ absl::Status Socket::Read(size_t const length, ReadCallback callback) {
     } else if (result > 0) {
       buffer.Advance(result);
       if (buffer.is_full()) {
-        lock.Unlock();
+        lock.Release();
         return MaybeClose(callback(std::move(buffer)));
       }
     } else {
@@ -207,7 +206,7 @@ absl::Status Socket::Write(Buffer buffer, WriteCallback callback) {
   if (!callback) {
     return absl::InvalidArgumentError("the write callback must not be empty");
   }
-  tsdb2::common::MutexLock lock{&mutex_};
+  absl::ReleasableMutexLock lock{&mutex_};
   if (!fd_) {
     return absl::FailedPreconditionError("this socket has been shut down");
   }
@@ -229,7 +228,7 @@ absl::Status Socket::Write(Buffer buffer, WriteCallback callback) {
     } else if (result > 0) {
       offset += result;
       if (!(offset < buffer.size())) {
-        lock.Unlock();
+        lock.Release();
         return MaybeClose(callback(absl::OkStatus()));
       }
     } else {
@@ -254,7 +253,7 @@ void Socket::OnError() {
 }
 
 void Socket::OnInput() {
-  tsdb2::common::MutexLock lock{&mutex_};
+  absl::ReleasableMutexLock lock{&mutex_};
   MaybeFinalizeConnect();
   while (fd_ && read_status_) {
     auto& buffer = read_status_->buffer;
@@ -273,7 +272,7 @@ void Socket::OnInput() {
       if (buffer.is_full()) {
         ReadStatus read_status = std::move(read_status_).value();
         read_status_ = std::nullopt;
-        lock.Unlock();
+        lock.Release();
         MaybeClose(read_status.callback(std::move(read_status.buffer))).IgnoreError();
         return;
       }

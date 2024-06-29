@@ -6,7 +6,6 @@ cc_library(
     hdrs = ["sockets.h"],
     deps = [
         "//common:buffer",
-        "//common:mutex_lock",
         "//common:ref_count",
         "//common:reffed_ptr",
         "//common:utilities",

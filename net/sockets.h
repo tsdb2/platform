@@ -196,7 +196,7 @@ class Socket : public BaseSocket {
   //
   // It usually doesn't make sense to issue multiple concurrent reads on the same socket, but if you
   // absolutely must then a read queue must be managed by the caller.
-  absl::Status Read(size_t length, ReadCallback callback);
+  absl::Status Read(size_t length, ReadCallback callback) ABSL_LOCKS_EXCLUDED(mutex_);
 
   // Cancels the read operation currently in progress, if any. Returns true iff a read operation was
   // in progress and cancelled. The callback function of the cancelled operation will be invoked
@@ -218,7 +218,7 @@ class Socket : public BaseSocket {
   //
   // It usually doesn't make sense to issue multiple concurrent writes on the same socket, but if
   // you absolutely must then a write queue must be managed by the caller.
-  absl::Status Write(Buffer buffer, WriteCallback callback);
+  absl::Status Write(Buffer buffer, WriteCallback callback) ABSL_LOCKS_EXCLUDED(mutex_);
 
   // Cancels the write operation currently in progress, if any. Returns true iff a write operation
   // was in progress and cancelled. The callback function of the cancelled operation will be invoked
@@ -239,8 +239,8 @@ class Socket : public BaseSocket {
       : BaseSocket(parent, std::move(fd)), connect_status_(std::move(callback)) {}
 
   void OnError() override;
-  void OnInput() override;
-  void OnOutput() override;
+  void OnInput() override ABSL_LOCKS_EXCLUDED(mutex_);
+  void OnOutput() override ABSL_LOCKS_EXCLUDED(mutex_);
 
  private:
   friend class SelectServer;
