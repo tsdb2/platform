@@ -229,7 +229,7 @@ class trie_map {
     if (inserted) {
       ++size_;
     } else {
-      (*it).second = std::move(value);
+      (*it).second = std::forward<V>(value);
     }
     return std::make_pair(it, inserted);
   }
