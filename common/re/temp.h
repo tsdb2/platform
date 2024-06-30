@@ -1,0 +1,86 @@
+#ifndef __TSDB2_COMMON_RE_TEMP_H__
+#define __TSDB2_COMMON_RE_TEMP_H__
+
+#include <cstddef>
+#include <memory>
+
+#include "absl/container/btree_map.h"
+#include "common/re/automaton.h"
+#include "common/re/dfa.h"
+#include "common/re/nfa.h"
+
+namespace tsdb2 {
+namespace common {
+namespace regexp_internal {
+
+using State = NFA::State;
+
+// Represents an NFA under construction.
+//
+// `TempNFA` is used by the `Parser` to perform various manipulations during construction.
+class TempNFA final {
+ public:
+  using States = absl::btree_map<size_t, State>;
+
+  // TESTS ONLY: force `Finalize()` to always generate an NFA even if it's deterministic. Defaults
+  // to false.
+  static bool force_nfa_for_testing;
+
+  explicit TempNFA() = default;
+
+  explicit TempNFA(States states, size_t const initial_state, size_t const final_state)
+      : states_(std::move(states)), initial_state_(initial_state), final_state_(final_state) {}
+
+  TempNFA(TempNFA const &) = default;
+  TempNFA &operator=(TempNFA const &) = default;
+  TempNFA(TempNFA &&) noexcept = default;
+  TempNFA &operator=(TempNFA &&) noexcept = default;
+
+  size_t initial_state() const { return initial_state_; }
+  size_t final_state() const { return final_state_; }
+
+  // Checks if the automaton is deterministic (that is, for each state each label is at most on one
+  // edge and either there's no epsilon-move or the epsilon-move is the only one).
+  bool IsDeterministic() const;
+
+  // TODO
+
+  // Finalizes this automaton by converting it into a `DFA` object if it's deterministic or an `NFA`
+  // if it's not.
+  std::unique_ptr<AutomatonInterface> Finalize() &&;
+
+ private:
+  // TODO
+
+  // Checks whether the given state has exactly one outbound edge towards a single destination
+  // state, and that edge is epsilon-labeled. In that case `CollapseNextEpsilonMove` will collpase
+  // it into the destination state.
+  bool HasOnlyOneEpsilonMove(size_t state) const;
+
+  // Auxiliary method for the implementation of `CollapseEpsilonMoves`.
+  bool CollapseNextEpsilonMove();
+
+  // Collapses epsilon-moves by merging states that are separated by such a move.
+  //
+  // REQUIRES: the automaton must be deterministic, in which case two states separated by an
+  // epsilon-move can't have any other edge in between.
+  void CollapseEpsilonMoves();
+
+  // Finalizes this NFA by converting it to an `DFA` object, assuming the automaton is deterministic
+  // (`IsDeterministic()` must return true) and has no epsilon-moves (`CollapseEpsilonMoves()` must
+  // have been called).
+  DFA ToDFA() &&;
+
+  // Finalizes this NFA by converting it to an `NFA` object.
+  NFA ToNFA() &&;
+
+  States states_;
+  size_t initial_state_ = 0;
+  size_t final_state_ = 0;
+};
+
+}  // namespace regexp_internal
+}  // namespace common
+}  // namespace tsdb2
+
+#endif  // __TSDB2_COMMON_RE_TEMP_H__
