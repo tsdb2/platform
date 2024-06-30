@@ -36,6 +36,24 @@ bool TempNFA::IsDeterministic() const {
 
 // TODO
 
+void TempNFA::AddEdge(char const label, size_t const from, size_t const to) {
+  states_[from][label].emplace_back(to);
+}
+
+// TODO
+
+void TempNFA::Merge(TempNFA&& other, size_t const initial_state, size_t const final_state) {
+  for (auto& [state, edges] : other.states_) {
+    MergeState(state, std::move(edges));
+  }
+  states_.try_emplace(initial_state, State{{0, {initial_state_, other.initial_state_}}});
+  states_.try_emplace(final_state, State{});
+  AddEdge(0, final_state_, final_state);
+  AddEdge(0, other.final_state_, final_state);
+  initial_state_ = initial_state;
+  final_state_ = final_state;
+}
+
 std::unique_ptr<AutomatonInterface> TempNFA::Finalize() && {
   CollapseEpsilonMoves();
   if (IsDeterministic()) {
@@ -45,7 +63,16 @@ std::unique_ptr<AutomatonInterface> TempNFA::Finalize() && {
   }
 }
 
-// TODO
+void TempNFA::MergeState(size_t const state_num, State&& new_state) {
+  auto const [it, inserted] = states_.try_emplace(state_num, std::move(new_state));
+  if (!inserted) {
+    auto& old_state = it->second;
+    for (auto const& [ch, new_edges] : new_state) {
+      auto& old_edges = old_state[ch];
+      old_edges.insert(old_edges.end(), new_edges.begin(), new_edges.end());
+    }
+  }
+}
 
 bool TempNFA::HasOnlyOneEpsilonMove(size_t const state) const {
   auto const& edges = states_.find(state)->second;
