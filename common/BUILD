@@ -6,11 +6,6 @@ cc_library(
 )
 
 cc_library(
-    name = "preprocessor",
-    hdrs = ["preprocessor.h"],
-)
-
-cc_library(
     name = "utilities",
     hdrs = ["utilities.h"],
     deps = [
