@@ -409,10 +409,10 @@ class RawLockFreeHash {
                            Allocator const &alloc = Allocator())
       : hasher_(hasher),
         equal_(equal),
-        array_alloc_(alloc),
         node_alloc_(alloc),
-        arrays_(alloc),
-        nodes_(alloc) {}
+        array_alloc_(alloc),
+        nodes_(alloc),
+        arrays_(alloc) {}
 
   ~RawLockFreeHash();
 
@@ -640,16 +640,16 @@ class RawLockFreeHash {
 
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Hash hasher_;
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Equal equal_;
-  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS ArrayAllocator array_alloc_;
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS NodeAllocator node_alloc_;
+  ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS ArrayAllocator array_alloc_;
 
   // All arrays and elements ever allocated by this hash table are kept in the `arrays_` and
   // `nodes_` vectors. They are freed up only when the whole hash table is destroyed. This allows us
   // to implement CAS algorithms without incurring ABA bugs.
 
   absl::Mutex mutable mutex_;
-  std::vector<ArrayPtr, ArrayPtrAllocator> arrays_ ABSL_GUARDED_BY(mutex_);
   std::vector<NodePtr, NodePtrAllocator> nodes_ ABSL_GUARDED_BY(mutex_);
+  std::vector<ArrayPtr, ArrayPtrAllocator> arrays_ ABSL_GUARDED_BY(mutex_);
 
   // Points to the current data.
   std::atomic<Array *> ptr_ = nullptr;
@@ -700,11 +700,12 @@ bool RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::EraseLocked(Array *con
 template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
 RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::~RawLockFreeHash() {
   absl::MutexLock lock{&mutex_};
-  for (auto const node : nodes_) {
-    DestroyNode(node);
-  }
+  ptr_.store(nullptr, std::memory_order_release);
   for (auto const array : arrays_) {
     DestroyArray(array);
+  }
+  for (auto const node : nodes_) {
+    DestroyNode(node);
   }
 }
 
@@ -909,14 +910,14 @@ void RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Swap(RawLockFreeHash &
   }
   absl::MutexLock lhs_lock{&lhs.mutex_};
   absl::MutexLock rhs_lock{&rhs.mutex_};
-  if (std::allocator_traits<ArrayAllocator>::propagate_on_container_swap::value) {
-    std::swap(lhs.array_alloc_, rhs.array_alloc_);
-  }
   if (std::allocator_traits<NodeAllocator>::propagate_on_container_swap::value) {
     std::swap(lhs.node_alloc_, rhs.node_alloc_);
   }
-  std::swap(lhs.arrays_, rhs.arrays_);
+  if (std::allocator_traits<ArrayAllocator>::propagate_on_container_swap::value) {
+    std::swap(lhs.array_alloc_, rhs.array_alloc_);
+  }
   std::swap(lhs.nodes_, rhs.nodes_);
+  std::swap(lhs.arrays_, rhs.arrays_);
   auto ptr = lhs.ptr_.load(std::memory_order_relaxed);
   ptr = rhs.ptr_.exchange(ptr, std::memory_order_relaxed);
   lhs.ptr_.store(ptr, std::memory_order_relaxed);
