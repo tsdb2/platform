@@ -48,9 +48,18 @@ class StatsCounter {
   // Atomically increments the value by 1 and returns the value before the increment.
   uintptr_t Increment() { return value_.fetch_add(1, std::memory_order_relaxed); }
 
+  uintptr_t operator++() { return Increment() + 1; }
+
+  uintptr_t operator++(int) { return Increment(); }
+
   // Atomically increments the value by `delta` and returns the value before the increment.
   uintptr_t IncrementBy(uintptr_t const delta) {
     return value_.fetch_add(delta, std::memory_order_relaxed);
+  }
+
+  StatsCounter& operator+=(uintptr_t const delta) {
+    IncrementBy(delta);
+    return *this;
   }
 
   // Atomically resets the counter to 0.

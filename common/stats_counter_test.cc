@@ -45,6 +45,18 @@ TEST(StatsCounterTest, IncrementInitialValueTwice) {
   EXPECT_EQ(counter.Fetch(), 44);
 }
 
+TEST(StatsCounterTest, PrefixIncrement) {
+  StatsCounter counter{42};
+  EXPECT_EQ(++counter, 43);
+  EXPECT_EQ(counter.Fetch(), 43);
+}
+
+TEST(StatsCounterTest, PostfixIncrement) {
+  StatsCounter counter{42};
+  EXPECT_EQ(counter++, 42);
+  EXPECT_EQ(counter.Fetch(), 43);
+}
+
 TEST(StatsCounterTest, IncrementByDeltaOnce) {
   StatsCounter counter;
   counter.IncrementBy(12);
@@ -69,6 +81,12 @@ TEST(StatsCounterTest, IncrementInitialValueByDeltaTwice) {
   counter.IncrementBy(12);
   counter.IncrementBy(34);
   EXPECT_EQ(counter.Fetch(), 88);
+}
+
+TEST(StatsCounterTest, CompoundAssignment) {
+  StatsCounter counter{42};
+  auto const value = (counter += 24).Fetch();
+  EXPECT_EQ(value, 66);
 }
 
 TEST(StatsCounterTest, Reset) {
