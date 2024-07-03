@@ -27,6 +27,21 @@ cc_test(
 )
 
 cc_library(
+    name = "stats_counter",
+    hdrs = ["stats_counter.h"],
+)
+
+cc_test(
+    name = "stats_counter_test",
+    srcs = ["stats_counter_test.cc"],
+    deps = [
+        ":stats_counter",
+        ":testing",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "type_string",
     hdrs = ["type_string.h"],
 )
