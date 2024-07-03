@@ -20,7 +20,7 @@ bool TempNFA::IsDeterministic() const {
   }
   for (auto const& [state, edges] : states_) {
     auto const it = edges.find(0);
-    int const num_epsilon = it != edges.end() ? it->second.size() : 0;
+    size_t const num_epsilon = it != edges.end() ? it->second.size() : 0;
     if (num_epsilon > 1) {
       return false;
     }
@@ -32,6 +32,29 @@ bool TempNFA::IsDeterministic() const {
     }
   }
   return true;
+}
+
+void TempNFA::RenameState(size_t const old_name, size_t const new_name) {
+  auto const it = states_.find(old_name);
+  if (it != states_.end()) {
+    auto node = states_.extract(it);
+    MergeState(new_name, std::move(node.mapped()));
+  }
+  for (auto& [state, edges] : states_) {
+    for (auto& [ch, edge] : edges) {
+      for (auto& transition : edge) {
+        if (transition == old_name) {
+          transition = new_name;
+        }
+      }
+    }
+  }
+  if (initial_state_ == old_name) {
+    initial_state_ = new_name;
+  }
+  if (final_state_ == old_name) {
+    final_state_ = new_name;
+  }
 }
 
 // TODO
@@ -74,18 +97,45 @@ void TempNFA::MergeState(size_t const state_num, State&& new_state) {
   }
 }
 
-bool TempNFA::HasOnlyOneEpsilonMove(size_t const state) const {
-  auto const& edges = states_.find(state)->second;
-  auto const it = edges.find(0);
-  if (it == edges.end() || it->second.size() != 1) {
+namespace {
+
+// Checks whether the given state has exactly one outbound edge towards a single destination state,
+// and that edge is epsilon-labeled. In that case `CollapseNextEpsilonMove` will collpase it into
+// the destination state.
+bool HasOnlyOneEpsilonMove(State const& state) {
+  auto const it = state.find(0);
+  if (it == state.end() || it->second.size() != 1) {
     return false;
   }
-  for (auto const& [ch, transitions] : edges) {
-    if (!transitions.empty()) {
+  for (auto const& [ch, transitions] : state) {
+    if (ch != 0 && !transitions.empty()) {
       return false;
     }
   }
   return true;
+}
+
+}  // namespace
+
+bool TempNFA::CollapseNextEpsilonMove() {
+  for (auto& [state, edges] : states_) {
+    if (HasOnlyOneEpsilonMove(edges)) {
+      auto& epsilon_edges = edges[0];
+      size_t const destination = epsilon_edges[0];
+      if (state == destination || state != final_state_) {
+        epsilon_edges.clear();
+        RenameState(destination, state);
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+void TempNFA::CollapseEpsilonMoves() {
+  while (CollapseNextEpsilonMove()) {
+    // nothing to do.
+  }
 }
 
 // TODO

@@ -43,6 +43,10 @@ class TempNFA final {
   // edge and either there's no epsilon-move or the epsilon-move is the only one).
   bool IsDeterministic() const;
 
+  // Renames state `old_name` to `new_name`, updating the whole graph and doing the necessary
+  // merges.
+  void RenameState(size_t old_name, size_t new_name);
+
   // TODO
 
   // Adds a new edge labeled with character `label` from state `from` to state `to`.
@@ -61,11 +65,6 @@ class TempNFA final {
  private:
   // Adds a state and its edges to the NFA, or merges it with an existing one.
   void MergeState(size_t state, State &&edges);
-
-  // Checks whether the given state has exactly one outbound edge towards a single destination
-  // state, and that edge is epsilon-labeled. In that case `CollapseNextEpsilonMove` will collpase
-  // it into the destination state.
-  bool HasOnlyOneEpsilonMove(size_t state) const;
 
   // Auxiliary method for the implementation of `CollapseEpsilonMoves`.
   bool CollapseNextEpsilonMove();
