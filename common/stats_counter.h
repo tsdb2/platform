@@ -18,7 +18,7 @@ namespace common {
 //   bool flag = false;
 //
 //   std::thread thread1{[&] {
-//     while (counter.Fetch() < 42) {}
+//     while (counter.value() < 42) {}
 //     std::count << flag << std::endl;
 //   }};
 //
@@ -41,9 +41,9 @@ class StatsCounter {
 
   // Reads the current value.
   //
-  // The returned value is purely advisory: by the time this function returns, aby number of changes
+  // The returned value is purely advisory: by the time this function returns, any number of changes
   // might have occurred in parallel.
-  uintptr_t Fetch() const { return value_.load(std::memory_order_relaxed); }
+  uintptr_t value() const { return value_.load(std::memory_order_relaxed); }
 
   // Atomically increments the value by 1 and returns the value before the increment.
   uintptr_t Increment() { return value_.fetch_add(1, std::memory_order_relaxed); }
