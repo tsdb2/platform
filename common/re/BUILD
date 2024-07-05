@@ -36,6 +36,7 @@ cc_library(
         ":dfa",
         ":nfa",
         "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_map",
     ],
 )
 

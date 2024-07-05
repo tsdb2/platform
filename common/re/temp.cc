@@ -4,6 +4,7 @@
 #include <memory>
 #include <utility>
 
+#include "absl/container/flat_hash_map.h"
 #include "common/re/automaton.h"
 #include "common/re/dfa.h"
 #include "common/re/nfa.h"
@@ -138,7 +139,49 @@ void TempNFA::CollapseEpsilonMoves() {
   }
 }
 
-// TODO
+DFA TempNFA::ToDFA() && {
+  absl::flat_hash_map<size_t, size_t> state_map;
+  DFA::States dfa_states;
+  dfa_states.reserve(states_.size());
+  size_t next_state = 0;
+  for (auto const& [state, edges] : states_) {
+    state_map.try_emplace(state, next_state++);
+    DFA::State dfa_state;
+    for (auto const& [ch, transitions] : edges) {
+      dfa_state[ch] = transitions[0];
+    }
+    dfa_states.emplace_back(std::move(dfa_state));
+  }
+  state_map.try_emplace(initial_state_, next_state++);
+  state_map.try_emplace(final_state_, next_state++);
+  for (auto& state : dfa_states) {
+    for (auto& [ch, transition] : state) {
+      transition = state_map[transition];
+    }
+  }
+  return DFA(std::move(dfa_states), state_map[initial_state_], state_map[final_state_]);
+}
+
+NFA TempNFA::ToNFA() && {
+  absl::flat_hash_map<size_t, size_t> state_map;
+  NFA::States nfa_states;
+  nfa_states.reserve(states_.size());
+  size_t next_state = 0;
+  for (auto& [state, edges] : states_) {
+    state_map.try_emplace(state, next_state++);
+    nfa_states.emplace_back(std::move(edges));
+  }
+  state_map.try_emplace(initial_state_, next_state++);
+  state_map.try_emplace(final_state_, next_state++);
+  for (auto& state : nfa_states) {
+    for (auto& [ch, transitions] : state) {
+      for (auto& transition : transitions) {
+        transition = state_map[transition];
+      }
+    }
+  }
+  return NFA(std::move(nfa_states), state_map[initial_state_], state_map[final_state_]);
+}
 
 }  // namespace regexp_internal
 }  // namespace common
