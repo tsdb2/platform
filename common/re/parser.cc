@@ -1,6 +1,7 @@
 #include "common/re/parser.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string_view>
 #include <utility>
@@ -42,7 +43,11 @@ class Parser final {
   absl::StatusOr<reffed_ptr<AutomatonInterface>> Parse();
 
  private:
-  // Indicates whether the parser has reached the end of the input pattern.
+  // Returns the number of pattern characters not yet consumed by `Advance` or `ConsumePrefix`.
+  size_t characters_left() const { return pattern_.size() - offset_; }
+
+  // Indicates whether the parser has reached the end of the input pattern. Equivalent to
+  // `characters_left() == 0`.
   bool at_end() const { return offset_ >= pattern_.size(); }
 
   // Returns the next character of the input pattern. Undefined behavior if `at_end` returns true.
@@ -55,10 +60,6 @@ class Parser final {
     ++offset_;
     return ch;
   }
-
-  // Advances the current position by `count`. Undefined behavior if there are less than `count`
-  // characters left.
-  void AdvanceBy(size_t const count) { offset_ += count; }
 
   // If the pattern contains the provided `prefix` string at the current position then advance the
   // current position by the number of characters in `prefix` and return true, otherwise do nothing
@@ -91,9 +92,18 @@ class Parser final {
                      "\" at position ", offset_, ": ", message));
   }
 
+  // Parses a hex digit. Used by `ParseHexCode` to parse hex escape codes.
+  absl::StatusOr<uint8_t> ParseHexDigit(char ch);
+
+  // Parses the next two characters as a hex byte. Used to parse hex escape codes.
+  absl::StatusOr<uint8_t> ParseHexCode();
+
   TempNFA MakeSingleCharacterNFA(char ch);
   TempNFA MakeCharacterClassNFA(std::string_view chars);
   TempNFA MakeNegatedCharacterClassNFA(std::string_view chars);
+
+  static absl::Status UpdateCharacterClassEdge(bool negated, State* start_state, char ch,
+                                               size_t stop_state_num);
 
   // Called by `ParseCharacterClass` to parse escape codes. `negated` indicates whether the
   // character class is negated (i.e. it begins with ^). `state` is the NFA state to update with the
@@ -136,6 +146,27 @@ absl::StatusOr<reffed_ptr<AutomatonInterface>> Parser::Parse() {
     return SyntaxError("expected end of string");
   }
   return std::move(nfa).Finalize();
+}
+
+absl::StatusOr<uint8_t> Parser::ParseHexDigit(char const ch) {
+  if (ch >= '0' && ch <= '9') {
+    return ch - '0';
+  } else if (ch >= 'A' && ch <= 'F') {
+    return ch - 'A' + 10;
+  } else if (ch >= 'a' && ch <= 'f') {
+    return ch - 'a' + 10;
+  } else {
+    return SyntaxError("invalid hex digit");
+  }
+}
+
+absl::StatusOr<uint8_t> Parser::ParseHexCode() {
+  if (characters_left() < 2) {
+    return SyntaxError("invalid escape code");
+  }
+  ASSIGN_VAR_OR_RETURN(int, digit1, ParseHexDigit(Advance()));
+  ASSIGN_VAR_OR_RETURN(int, digit2, ParseHexDigit(Advance()));
+  return digit1 * 16 + digit2;
 }
 
 TempNFA Parser::MakeSingleCharacterNFA(char const ch) {
@@ -182,6 +213,16 @@ TempNFA Parser::MakeNegatedCharacterClassNFA(std::string_view const chars) {
       start, stop);
 }
 
+absl::Status Parser::UpdateCharacterClassEdge(bool const negated, State* const start_state,
+                                              char const ch, size_t const stop_state_num) {
+  if (negated) {
+    start_state->erase(ch);
+  } else {
+    (*start_state)[ch].emplace_back(stop_state_num);
+  }
+  return absl::OkStatus();
+}
+
 absl::Status Parser::ParseCharacterClassEscapeCode(bool const negated, State* const start_state,
                                                    size_t const stop_state_num) {
   if (at_end()) {
@@ -189,7 +230,37 @@ absl::Status Parser::ParseCharacterClassEscapeCode(bool const negated, State* co
   }
   char const ch = Advance();
   switch (ch) {
-    // TODO
+    case '\\':
+    case '^':
+    case '$':
+    case '.':
+    case '(':
+    case ')':
+    case '[':
+    case ']':
+    case '{':
+    case '}':
+    case '|':
+    case '?':
+    case '*':
+    case '+':
+      return UpdateCharacterClassEdge(negated, start_state, ch, stop_state_num);
+    case 't':
+      return UpdateCharacterClassEdge(negated, start_state, '\t', stop_state_num);
+    case 'r':
+      return UpdateCharacterClassEdge(negated, start_state, '\r', stop_state_num);
+    case 'n':
+      return UpdateCharacterClassEdge(negated, start_state, '\n', stop_state_num);
+    case 'v':
+      return UpdateCharacterClassEdge(negated, start_state, '\v', stop_state_num);
+    case 'f':
+      return UpdateCharacterClassEdge(negated, start_state, '\f', stop_state_num);
+    case 'b':
+      return UpdateCharacterClassEdge(negated, start_state, '\b', stop_state_num);
+    case 'x': {
+      ASSIGN_VAR_OR_RETURN(uint8_t, code, ParseHexCode());
+      return UpdateCharacterClassEdge(negated, start_state, code, stop_state_num);
+    }
     case '0':
     case '1':
     case '2':
@@ -270,7 +341,28 @@ absl::StatusOr<TempNFA> Parser::ParseEscape() {
     case 'W':
       return MakeNegatedCharacterClassNFA(
           "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_");
-    // TODO
+    case 's':
+      // TODO: add Unicode spaces.
+      return MakeCharacterClassNFA("\f\n\r\t\v");
+    case 'S':
+      // TODO: add Unicode spaces.
+      return MakeNegatedCharacterClassNFA("\f\n\r\t\v");
+    case 't':
+      return MakeSingleCharacterNFA('\t');
+    case 'r':
+      return MakeSingleCharacterNFA('\r');
+    case 'n':
+      return MakeSingleCharacterNFA('\n');
+    case 'v':
+      return MakeSingleCharacterNFA('\v');
+    case 'f':
+      return MakeSingleCharacterNFA('\f');
+      // TODO: handle word boundary (`\b`).
+    case 'x': {
+      ASSIGN_VAR_OR_RETURN(uint8_t, code, ParseHexCode());
+      return MakeSingleCharacterNFA(code);
+    }
+    // TODO: handle Unicode escape codes.
     case '0':
     case '1':
     case '2':
