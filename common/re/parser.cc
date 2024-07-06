@@ -90,6 +90,10 @@ class Parser final {
                      "\" at position ", offset_, ": ", message));
   }
 
+  TempNFA MakeSingleCharacterNFA(char ch);
+  TempNFA MakeCharacterClassNFA(std::string_view chars);
+  TempNFA MakeNegatedCharacterClassNFA(std::string_view chars);
+
   // Called by `ParseCharacterClass` to parse escape codes. `negated` indicates whether the
   // character class is negated (i.e. it begins with ^). `state` is the NFA state to update with the
   // characters resulting from the escape code. Returns an error status if the escape code is
@@ -131,6 +135,50 @@ absl::StatusOr<std::unique_ptr<AutomatonInterface>> Parser::Parse() {
     return SyntaxError("expected end of string");
   }
   return std::move(nfa).Finalize();
+}
+
+TempNFA Parser::MakeSingleCharacterNFA(char const ch) {
+  size_t const start = next_state_++;
+  size_t const stop = next_state_++;
+  return TempNFA(
+      {
+          {start, State({{ch, {stop}}})},
+          {stop, State()},
+      },
+      start, stop);
+}
+
+TempNFA Parser::MakeCharacterClassNFA(std::string_view const chars) {
+  size_t const start = next_state_++;
+  size_t const stop = next_state_++;
+  State state;
+  for (char const ch : chars) {
+    state[ch].emplace_back(stop);
+  }
+  return TempNFA(
+      {
+          {start, std::move(state)},
+          {stop, State()},
+      },
+      start, stop);
+}
+
+TempNFA Parser::MakeNegatedCharacterClassNFA(std::string_view const chars) {
+  size_t const start = next_state_++;
+  size_t const stop = next_state_++;
+  State state;
+  for (int ch = 1; ch < 256; ++ch) {
+    state[ch].emplace_back(stop);
+  }
+  for (char const ch : chars) {
+    state.erase(ch);
+  }
+  return TempNFA(
+      {
+          {start, std::move(state)},
+          {stop, State()},
+      },
+      start, stop);
 }
 
 absl::Status Parser::ParseCharacterClassEscapeCode(bool const negated, State* const start_state,
@@ -178,7 +226,7 @@ absl::StatusOr<TempNFA> Parser::ParseCharacterClass() {
       char const ch = Advance();
       // TODO: ranges.
       if (negated) {
-        state[ch].clear();
+        state.erase(ch);
       } else {
         state[ch].emplace_back(stop);
       }
@@ -199,6 +247,28 @@ absl::StatusOr<TempNFA> Parser::ParseEscape() {
   }
   char const ch = Advance();
   switch (ch) {
+    case '\\':
+    case '^':
+    case '$':
+    case '.':
+    case '(':
+    case ')':
+    case '[':
+    case ']':
+    case '{':
+    case '}':
+    case '|':
+      return MakeSingleCharacterNFA(ch);
+    case 'd':
+      return MakeCharacterClassNFA("0123456789");
+    case 'D':
+      return MakeNegatedCharacterClassNFA("0123456789");
+    case 'w':
+      return MakeCharacterClassNFA(
+          "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_");
+    case 'W':
+      return MakeNegatedCharacterClassNFA(
+          "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_");
     // TODO
     case '0':
     case '1':
@@ -235,7 +305,7 @@ absl::StatusOr<TempNFA> Parser::Parse0() {
     return TempNFA(
         {
             {start, State(std::move(edges))},
-            {stop, {}},
+            {stop, State()},
         },
         start, stop);
   }
@@ -266,7 +336,7 @@ absl::StatusOr<TempNFA> Parser::Parse0() {
       return TempNFA(
           {
               {start, State({{ch, {stop}}})},
-              {stop, {}},
+              {stop, State()},
           },
           start, stop);
   }
@@ -378,10 +448,10 @@ absl::StatusOr<TempNFA> Parser::Parse3() {
   ASSIGN_VAR_OR_RETURN(TempNFA, nfa, Parse2());
   while (!at_end() && front() != ')') {
     RETURN_IF_ERROR(ExpectPrefix("|", "expected pipe operator"));
-    ASSIGN_OR_RETURN(nfa, Parse2());
+    ASSIGN_VAR_OR_RETURN(TempNFA, next, Parse2());
     size_t const initial_state = next_state_++;
     size_t const final_state = next_state_++;
-    nfa.Merge(std::move(nfa), initial_state, final_state);
+    nfa.Merge(std::move(next), initial_state, final_state);
   }
   return nfa;
 }

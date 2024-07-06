@@ -32,6 +32,9 @@ bool NFA::Run(std::string_view input) const {
         }
       }
     }
+    if (next_states.empty()) {
+      return false;
+    }
     EpsilonClosure(&next_states);
     states = std::move(next_states);
     next_states = absl::flat_hash_set<size_t>();

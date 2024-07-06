@@ -147,10 +147,9 @@ bool HasOnlyOneEpsilonMove(State const& state) {
 bool TempNFA::CollapseNextEpsilonMove() {
   for (auto& [state, edges] : states_) {
     if (HasOnlyOneEpsilonMove(edges)) {
-      auto& epsilon_edges = edges[0];
-      size_t const destination = epsilon_edges[0];
+      size_t const destination = edges[0][0];
       if (state == destination || state != final_state_) {
-        epsilon_edges.clear();
+        edges.erase(0);
         RenameState(destination, state);
         return true;
       }
