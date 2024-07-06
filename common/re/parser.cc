@@ -8,6 +8,7 @@
 #include "absl/container/inlined_vector.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/strip.h"
@@ -271,6 +272,50 @@ absl::StatusOr<TempNFA> Parser::Parse0() {
   }
 }
 
+absl::StatusOr<std::pair<int, int>> Parser::ParseQuantifier() {
+  if (ConsumePrefix("}")) {
+    return std::make_pair(-1, -1);
+  }
+  if (at_end() || !absl::ascii_isdigit(front())) {
+    return SyntaxError("invalid quantifier");
+  }
+  char ch = Advance();
+  int min = ch - '0';
+  if (ch != 0) {
+    while (!at_end() && absl::ascii_isdigit(front())) {
+      min = min * 10 + (Advance() - '0');
+      if (min > kMaxNumericQuantifier) {
+        return SyntaxError("numeric quantifiers greater than 1000 are not supported");
+      }
+    }
+  }
+  if (ConsumePrefix("}")) {
+    return std::make_pair(min, min);
+  }
+  RETURN_IF_ERROR(ExpectPrefix(",", "invalid quantifier"));
+  if (ConsumePrefix("}")) {
+    return std::make_pair(min, -1);
+  }
+  if (at_end() || !absl::ascii_isdigit(front())) {
+    return absl::InvalidArgumentError("invalid quantifier");
+  }
+  ch = Advance();
+  int max = ch - '0';
+  if (ch != 0) {
+    while (!at_end() && absl::ascii_isdigit(front())) {
+      max = max * 10 + (Advance() - '0');
+      if (max > kMaxNumericQuantifier) {
+        return SyntaxError("numeric quantifiers greater than 1000 are not supported");
+      }
+    }
+  }
+  if (ConsumePrefix("}")) {
+    return std::make_pair(min, max);
+  } else {
+    return SyntaxError("invalid quantifier");
+  }
+}
+
 absl::StatusOr<TempNFA> Parser::Parse1() {
   ASSIGN_VAR_OR_RETURN(TempNFA, nfa, Parse0());
   if (at_end()) {
@@ -316,6 +361,15 @@ absl::StatusOr<TempNFA> Parser::Parse1() {
         }
       }
     }
+  }
+  return nfa;
+}
+
+absl::StatusOr<TempNFA> Parser::Parse2() {
+  ASSIGN_VAR_OR_RETURN(TempNFA, nfa, Parse1());
+  while (!at_end() && front() != '|' && front() != ')') {
+    ASSIGN_VAR_OR_RETURN(TempNFA, next, Parse1());
+    nfa.Chain(std::move(next));
   }
   return nfa;
 }
