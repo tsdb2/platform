@@ -4,6 +4,7 @@
 #include <memory>
 #include <utility>
 
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "common/re/automaton.h"
 #include "common/re/dfa.h"
@@ -58,13 +59,38 @@ void TempNFA::RenameState(size_t const old_name, size_t const new_name) {
   }
 }
 
-// TODO
+void TempNFA::RenameAllStates(size_t* const next_state) {
+  absl::flat_hash_map<size_t, size_t> state_map;
+  for (auto& [state, edges] : states_) {
+    state_map.try_emplace(state, (*next_state)++);
+  }
+  state_map.try_emplace(initial_state_, (*next_state)++);
+  state_map.try_emplace(final_state_, (*next_state)++);
+  absl::btree_map<size_t, State> new_states;
+  for (auto& [state, edges] : states_) {
+    for (auto& [ch, transitions] : edges) {
+      for (auto& transition : transitions) {
+        transition = state_map[transition];
+      }
+    }
+    new_states.try_emplace(state_map[state], std::move(edges));
+  }
+  states_ = std::move(new_states);
+  initial_state_ = state_map[initial_state_];
+  final_state_ = state_map[final_state_];
+}
 
 void TempNFA::AddEdge(char const label, size_t const from, size_t const to) {
   states_[from][label].emplace_back(to);
 }
 
-// TODO
+void TempNFA::Chain(TempNFA other) {
+  for (auto& [state, edges] : other.states_) {
+    MergeState(state, std::move(edges));
+  }
+  AddEdge(0, final_state_, other.initial_state_);
+  final_state_ = other.final_state_;
+}
 
 void TempNFA::Merge(TempNFA&& other, size_t const initial_state, size_t const final_state) {
   for (auto& [state, edges] : other.states_) {
