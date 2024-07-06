@@ -1,5 +1,5 @@
-#ifndef __TSDB2_COMMON_DISTRIBUTION_H__
-#define __TSDB2_COMMON_DISTRIBUTION_H__
+#ifndef __TSDB2_TSZ_DISTRIBUTION_H__
+#define __TSDB2_TSZ_DISTRIBUTION_H__
 
 #include <cmath>
 #include <cstddef>
@@ -10,7 +10,7 @@
 #include "absl/status/status.h"
 
 namespace tsdb2 {
-namespace common {
+namespace tsz {
 
 // Determines the number and boundaries of the buckets of a `Distribution`.
 //
@@ -195,7 +195,7 @@ class Distribution {
   double ssd_ = 0;
 };
 
-}  // namespace common
+}  // namespace tsz
 }  // namespace tsdb2
 
-#endif  // __TSDB2_COMMON_DISTRIBUTION_H__
+#endif  // __TSDB2_TSZ_DISTRIBUTION_H__

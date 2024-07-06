@@ -1,4 +1,4 @@
-#include "common/distribution.h"
+#include "tsz/distribution.h"
 
 #include <algorithm>
 #include <cmath>
@@ -11,7 +11,7 @@
 #include "common/no_destructor.h"
 
 namespace tsdb2 {
-namespace common {
+namespace tsz {
 
 Bucketer const& Bucketer::FixedWidth(double const width, size_t const num_finite_buckets) {
   return GetCanonicalBucketer(width, /*growth_factor=*/0.0, /*scale_factor=*/1.0,
@@ -65,7 +65,7 @@ class BucketerImpl final : public Bucketer {
 Bucketer const& Bucketer::GetCanonicalBucketer(double const width, double const growth_factor,
                                                double const scale_factor,
                                                size_t const num_finite_buckets) {
-  static NoDestructor<lock_free_hash_set<BucketerImpl>> bucketers;
+  static tsdb2::common::NoDestructor<tsdb2::common::lock_free_hash_set<BucketerImpl>> bucketers;
   auto const [it, _] = bucketers->emplace(width, growth_factor, scale_factor,
                                           std::min(num_finite_buckets, kMaxNumFiniteBuckets));
   return *it;
@@ -117,5 +117,5 @@ absl::Status Distribution::Add(Distribution const& other) {
   return absl::OkStatus();
 }
 
-}  // namespace common
+}  // namespace tsz
 }  // namespace tsdb2

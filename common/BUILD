@@ -356,28 +356,6 @@ cc_test(
 )
 
 cc_library(
-    name = "distribution",
-    srcs = ["distribution.cc"],
-    hdrs = ["distribution.h"],
-    deps = [
-        ":lock_free_hash_set",
-        ":no_destructor",
-        "@com_google_absl//absl/status",
-    ],
-)
-
-cc_test(
-    name = "distribution_test",
-    srcs = ["distribution_test.cc"],
-    deps = [
-        ":distribution",
-        ":testing",
-        "@com_google_absl//absl/functional:bind_front",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_library(
     name = "json",
     srcs = ["json.cc"],
     hdrs = ["json.h"],

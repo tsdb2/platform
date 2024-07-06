@@ -1,4 +1,4 @@
-#include "common/distribution.h"
+#include "tsz/distribution.h"
 
 #include <cstdint>
 #include <functional>
@@ -10,8 +10,8 @@
 
 namespace {
 
-using ::tsdb2::common::Bucketer;
-using ::tsdb2::common::Distribution;
+using ::tsdb2::tsz::Bucketer;
+using ::tsdb2::tsz::Distribution;
 
 class CanonicalBucketerTest : public ::testing::TestWithParam<std::function<Bucketer const&()>> {};
 

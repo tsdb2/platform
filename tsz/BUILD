@@ -1,4 +1,26 @@
 cc_library(
+    name = "distribution",
+    srcs = ["distribution.cc"],
+    hdrs = ["distribution.h"],
+    deps = [
+        "//common:lock_free_hash_set",
+        "//common:no_destructor",
+        "@com_google_absl//absl/status",
+    ],
+)
+
+cc_test(
+    name = "distribution_test",
+    srcs = ["distribution_test.cc"],
+    deps = [
+        ":distribution",
+        "//common:testing",
+        "@com_google_absl//absl/functional:bind_front",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "base",
     hdrs = [
         "base.h",
