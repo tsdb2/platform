@@ -2,7 +2,6 @@
 #define __TSDB2_COMMON_RE_NFA_H__
 
 #include <cstddef>
-#include <memory>
 #include <string_view>
 #include <vector>
 
@@ -24,26 +23,17 @@ class NFA final : public AutomatonInterface {
   using State = flat_map<char, absl::InlinedVector<size_t, 1>>;
   using States = std::vector<State>;
 
-  explicit NFA() = default;
-
   explicit NFA(States states, size_t const initial_state, size_t const final_state)
       : states_(std::move(states)), initial_state_(initial_state), final_state_(final_state) {}
-
-  NFA(NFA const &) = default;
-  NFA &operator=(NFA const &) = default;
-  NFA(NFA &&) noexcept = default;
-  NFA &operator=(NFA &&) noexcept = default;
-
-  std::unique_ptr<AutomatonInterface> Clone() const override;
 
   bool Run(std::string_view input) const override;
 
  private:
   void EpsilonClosure(absl::flat_hash_set<size_t> *states) const;
 
-  States states_;
-  size_t initial_state_ = 0;
-  size_t final_state_ = 0;
+  States const states_;
+  size_t const initial_state_ = 0;
+  size_t const final_state_ = 0;
 };
 
 }  // namespace regexp_internal

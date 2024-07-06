@@ -3,6 +3,9 @@ package(default_visibility = ["//common:__subpackages__"])
 cc_library(
     name = "automaton",
     hdrs = ["automaton.h"],
+    deps = [
+        "//common:ref_count",
+    ],
 )
 
 cc_library(
@@ -35,6 +38,7 @@ cc_library(
         ":automaton",
         ":dfa",
         ":nfa",
+        "//common:reffed_ptr",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
     ],
@@ -47,6 +51,7 @@ cc_library(
     deps = [
         ":automaton",
         ":temp",
+        "//common:reffed_ptr",
         "//common:utilities",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/status",

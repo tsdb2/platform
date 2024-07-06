@@ -261,6 +261,29 @@ cc_test(
 )
 
 cc_library(
+    name = "re",
+    srcs = ["re.cc"],
+    hdrs = ["re.h"],
+    deps = [
+        ":reffed_ptr",
+        ":utilities",
+        "//common/re:automaton",
+        "//common/re:parser",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "re_test",
+    srcs = ["re.cc"],
+    deps = [
+        ":re",
+        ":testing",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "raw_trie",
     hdrs = ["raw_trie.h"],
     visibility = ["//visibility:private"],

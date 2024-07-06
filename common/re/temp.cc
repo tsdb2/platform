@@ -9,6 +9,7 @@
 #include "common/re/automaton.h"
 #include "common/re/dfa.h"
 #include "common/re/nfa.h"
+#include "common/reffed_ptr.h"
 
 namespace tsdb2 {
 namespace common {
@@ -104,12 +105,12 @@ void TempNFA::Merge(TempNFA&& other, size_t const initial_state, size_t const fi
   final_state_ = final_state;
 }
 
-std::unique_ptr<AutomatonInterface> TempNFA::Finalize() && {
+reffed_ptr<AutomatonInterface> TempNFA::Finalize() && {
   CollapseEpsilonMoves();
   if (IsDeterministic()) {
-    return std::make_unique<DFA>(std::move(*this).ToDFA());
+    return std::move(*this).ToDFA();
   } else {
-    return std::make_unique<NFA>(std::move(*this).ToNFA());
+    return std::move(*this).ToNFA();
   }
 }
 
@@ -164,7 +165,7 @@ void TempNFA::CollapseEpsilonMoves() {
   }
 }
 
-DFA TempNFA::ToDFA() && {
+reffed_ptr<DFA> TempNFA::ToDFA() && {
   absl::flat_hash_map<size_t, size_t> state_map;
   DFA::States dfa_states;
   dfa_states.reserve(states_.size());
@@ -184,10 +185,10 @@ DFA TempNFA::ToDFA() && {
       transition = state_map[transition];
     }
   }
-  return DFA(std::move(dfa_states), state_map[initial_state_], state_map[final_state_]);
+  return MakeReffed<DFA>(std::move(dfa_states), state_map[initial_state_], state_map[final_state_]);
 }
 
-NFA TempNFA::ToNFA() && {
+reffed_ptr<NFA> TempNFA::ToNFA() && {
   absl::flat_hash_map<size_t, size_t> state_map;
   NFA::States nfa_states;
   nfa_states.reserve(states_.size());
@@ -205,7 +206,7 @@ NFA TempNFA::ToNFA() && {
       }
     }
   }
-  return NFA(std::move(nfa_states), state_map[initial_state_], state_map[final_state_]);
+  return MakeReffed<NFA>(std::move(nfa_states), state_map[initial_state_], state_map[final_state_]);
 }
 
 }  // namespace regexp_internal

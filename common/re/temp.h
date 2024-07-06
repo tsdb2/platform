@@ -8,6 +8,7 @@
 #include "common/re/automaton.h"
 #include "common/re/dfa.h"
 #include "common/re/nfa.h"
+#include "common/reffed_ptr.h"
 
 namespace tsdb2 {
 namespace common {
@@ -68,7 +69,7 @@ class TempNFA final {
 
   // Finalizes this automaton by converting it into a `DFA` object if it's deterministic or an `NFA`
   // if it's not.
-  std::unique_ptr<AutomatonInterface> Finalize() &&;
+  reffed_ptr<AutomatonInterface> Finalize() &&;
 
  private:
   // Adds a state and its edges to the NFA, or merges it with an existing one.
@@ -86,10 +87,10 @@ class TempNFA final {
   // Finalizes this NFA by converting it to an `DFA` object, assuming the automaton is deterministic
   // (`IsDeterministic()` must return true) and has no epsilon-moves (`CollapseEpsilonMoves()` must
   // have been called).
-  DFA ToDFA() &&;
+  reffed_ptr<DFA> ToDFA() &&;
 
   // Finalizes this NFA by converting it to an `NFA` object.
-  NFA ToNFA() &&;
+  reffed_ptr<NFA> ToNFA() &&;
 
   States states_;
   size_t initial_state_ = 0;

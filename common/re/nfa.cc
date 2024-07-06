@@ -1,7 +1,6 @@
 #include "common/re/nfa.h"
 
 #include <cstddef>
-#include <memory>
 #include <string_view>
 #include <utility>
 
@@ -11,8 +10,6 @@
 namespace tsdb2 {
 namespace common {
 namespace regexp_internal {
-
-std::unique_ptr<AutomatonInterface> NFA::Clone() const { return std::make_unique<NFA>(*this); }
 
 bool NFA::Run(std::string_view input) const {
   absl::flat_hash_set<size_t> states{initial_state_};

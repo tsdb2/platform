@@ -1,7 +1,6 @@
 #include "common/re/dfa.h"
 
 #include <cstddef>
-#include <memory>
 #include <string_view>
 
 #include "common/re/automaton.h"
@@ -9,8 +8,6 @@
 namespace tsdb2 {
 namespace common {
 namespace regexp_internal {
-
-std::unique_ptr<AutomatonInterface> DFA::Clone() const { return std::make_unique<DFA>(*this); }
 
 bool DFA::Run(std::string_view input) const {
   size_t state = initial_state_;

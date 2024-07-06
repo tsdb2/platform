@@ -14,6 +14,7 @@
 #include "absl/strings/strip.h"
 #include "common/re/automaton.h"
 #include "common/re/temp.h"
+#include "common/reffed_ptr.h"
 #include "common/utilities.h"
 
 namespace tsdb2 {
@@ -38,7 +39,7 @@ class Parser final {
   // Parses the pattern provided at construction and returns a runnable automaton. The automaton is
   // initially an `NFA` but it's automatically converted to a `DFA` if it's found to be
   // deterministic. We do that because DFAs run faster.
-  absl::StatusOr<std::unique_ptr<AutomatonInterface>> Parse();
+  absl::StatusOr<reffed_ptr<AutomatonInterface>> Parse();
 
  private:
   // Indicates whether the parser has reached the end of the input pattern.
@@ -129,7 +130,7 @@ class Parser final {
   size_t next_state_ = 0;
 };
 
-absl::StatusOr<std::unique_ptr<AutomatonInterface>> Parser::Parse() {
+absl::StatusOr<reffed_ptr<AutomatonInterface>> Parser::Parse() {
   ASSIGN_VAR_OR_RETURN(TempNFA, nfa, Parse3());
   if (!at_end()) {
     return SyntaxError("expected end of string");
@@ -458,7 +459,7 @@ absl::StatusOr<TempNFA> Parser::Parse3() {
 
 }  // namespace
 
-absl::StatusOr<std::unique_ptr<AutomatonInterface>> Parse(std::string_view const pattern) {
+absl::StatusOr<reffed_ptr<AutomatonInterface>> Parse(std::string_view const pattern) {
   return Parser(pattern).Parse();
 }
 
