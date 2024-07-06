@@ -164,8 +164,8 @@ TEST(ReffedPtrTest, AssignableMoveOperator) {
 
 TEST(ReffedPtrTest, PointerAssignmentOperator) {
   RefCounted rc1;
-  reffed_ptr<RefCounted> ptr{&rc1};
   Derived rc2;
+  reffed_ptr<RefCounted> ptr{&rc1};
   ptr = &rc2;
   EXPECT_EQ(ptr.get(), &rc2);
   EXPECT_TRUE(ptr.operator bool());
@@ -194,8 +194,8 @@ TEST(ReffedPtrTest, Reset) {
 
 TEST(ReffedPtrTest, ResetWith) {
   RefCounted rc1;
-  reffed_ptr<RefCounted> ptr{&rc1};
   Derived rc2;
+  reffed_ptr<RefCounted> ptr{&rc1};
   ptr.reset(&rc2);
   EXPECT_EQ(ptr.get(), &rc2);
   EXPECT_TRUE(ptr.operator bool());
@@ -205,8 +205,8 @@ TEST(ReffedPtrTest, ResetWith) {
 
 TEST(ReffedPtrTest, Swap) {
   RefCounted rc1;
-  reffed_ptr<RefCounted> ptr1{&rc1};
   RefCounted rc2;
+  reffed_ptr<RefCounted> ptr1{&rc1};
   reffed_ptr<RefCounted> ptr2{&rc2};
   ptr1.swap(ptr2);
   EXPECT_EQ(ptr1.get(), &rc2);
@@ -316,7 +316,7 @@ class HeapRefCounted {
   int label() const { return label_; }
 
  private:
-  intptr_t ref_count_ = 1;
+  intptr_t ref_count_ = 0;
   int const label_;
 };
 

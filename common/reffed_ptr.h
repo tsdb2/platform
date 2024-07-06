@@ -210,6 +210,9 @@ class reffed_ptr final {
 // WARNING: since the wrapped object is constructed using the `new` operator, the implementation of
 // `Unref` in the wrapped object MUST delete the object using the `delete` operator when the
 // reference count drops to zero, otherwise the object's memory gets leaked.
+//
+// NOTE: the reference count of `T` must be initialized to 0. The returned `reffed_ptr` will bump it
+// to 1 when acquiring the pointer.
 template <typename T, typename... Args>
 auto MakeReffed(Args&&... args) {
   return reffed_ptr<T>(new T(std::forward<Args>(args)...));
