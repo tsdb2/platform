@@ -15,6 +15,20 @@ namespace tsdb2 {
 namespace common {
 namespace regexp_internal {
 
+namespace {
+
+Transitions RemapTransitions(Transitions const& transitions,
+                             absl::flat_hash_map<size_t, size_t> const& state_map) {
+  Transitions remapped;
+  remapped.reserve(transitions.size());
+  for (auto const& transition : transitions) {
+    remapped.emplace(state_map.at(transition));
+  }
+  return remapped;
+}
+
+}  // namespace
+
 bool TempNFA::force_nfa_for_testing = false;
 
 bool TempNFA::IsDeterministic() const {
@@ -44,11 +58,9 @@ void TempNFA::RenameState(size_t const old_name, size_t const new_name) {
     MergeState(new_name, std::move(node.mapped()));
   }
   for (auto& [state, edges] : states_) {
-    for (auto& [ch, edge] : edges) {
-      for (auto& transition : edge) {
-        if (transition == old_name) {
-          transition = new_name;
-        }
+    for (auto& [ch, transitions] : edges) {
+      if (transitions.erase(old_name)) {
+        transitions.emplace(new_name);
       }
     }
   }
@@ -70,9 +82,7 @@ void TempNFA::RenameAllStates(size_t* const next_state) {
   absl::btree_map<size_t, State> new_states;
   for (auto& [state, edges] : states_) {
     for (auto& [ch, transitions] : edges) {
-      for (auto& transition : transitions) {
-        transition = state_map[transition];
-      }
+      transitions = RemapTransitions(transitions, state_map);
     }
     new_states.try_emplace(state_map[state], std::move(edges));
   }
@@ -82,7 +92,7 @@ void TempNFA::RenameAllStates(size_t* const next_state) {
 }
 
 void TempNFA::AddEdge(char const label, size_t const from, size_t const to) {
-  states_[from][label].emplace_back(to);
+  states_[from][label].emplace(to);
 }
 
 void TempNFA::Chain(TempNFA other) {
@@ -98,7 +108,7 @@ void TempNFA::Merge(TempNFA&& other, size_t const initial_state, size_t const fi
     MergeState(state, std::move(edges));
   }
   states_.try_emplace(initial_state, State{{0, {initial_state_, other.initial_state_}}});
-  states_.try_emplace(final_state, State{});
+  states_.try_emplace(final_state);
   AddEdge(0, final_state_, final_state);
   AddEdge(0, other.final_state_, final_state);
   initial_state_ = initial_state;
@@ -120,16 +130,16 @@ void TempNFA::MergeState(size_t const state_num, State&& new_state) {
     auto& old_state = it->second;
     for (auto const& [ch, new_edges] : new_state) {
       auto& old_edges = old_state[ch];
-      old_edges.insert(old_edges.end(), new_edges.begin(), new_edges.end());
+      old_edges.insert(new_edges.begin(), new_edges.end());
     }
   }
 }
 
 namespace {
 
-// Checks whether the given state has exactly one outbound edge towards a single destination state,
-// and that edge is epsilon-labeled. In that case `CollapseNextEpsilonMove` will collpase it into
-// the destination state.
+// True iff the given state has exactly one outbound edge towards a single destination state, and
+// that edge is epsilon-labeled. In that case `CollapseNextEpsilonMove` will collpase it into the
+// destination state.
 bool HasOnlyOneEpsilonMove(State const& state) {
   auto const it = state.find(0);
   if (it == state.end() || it->second.size() != 1) {
@@ -148,9 +158,10 @@ bool HasOnlyOneEpsilonMove(State const& state) {
 bool TempNFA::CollapseNextEpsilonMove() {
   for (auto& [state, edges] : states_) {
     if (HasOnlyOneEpsilonMove(edges)) {
-      size_t const destination = edges[0][0];
+      auto const it = edges.find(0);
+      size_t const destination = *(it->second.begin());
       if (state == destination || state != final_state_) {
-        edges.erase(0);
+        edges.erase(it);
         RenameState(destination, state);
         return true;
       }
@@ -174,7 +185,7 @@ reffed_ptr<DFA> TempNFA::ToDFA() && {
     state_map.try_emplace(state, next_state++);
     DFA::State dfa_state;
     for (auto const& [ch, transitions] : edges) {
-      dfa_state[ch] = transitions[0];
+      dfa_state[ch] = *transitions.begin();
     }
     dfa_states.emplace_back(std::move(dfa_state));
   }
@@ -201,9 +212,7 @@ reffed_ptr<NFA> TempNFA::ToNFA() && {
   state_map.try_emplace(final_state_, next_state++);
   for (auto& state : nfa_states) {
     for (auto& [ch, transitions] : state) {
-      for (auto& transition : transitions) {
-        transition = state_map[transition];
-      }
+      transitions = RemapTransitions(transitions, state_map);
     }
   }
   return MakeReffed<NFA>(std::move(nfa_states), state_map[initial_state_], state_map[final_state_]);

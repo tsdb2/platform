@@ -25,6 +25,7 @@ cc_library(
     deps = [
         ":automaton",
         "//common:flat_map",
+        "//common:flat_set",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/container:inlined_vector",
     ],

@@ -14,6 +14,7 @@ namespace tsdb2 {
 namespace common {
 namespace regexp_internal {
 
+using Transitions = NFA::Transitions;
 using State = NFA::State;
 
 // Represents an NFA under construction.

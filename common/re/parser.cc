@@ -29,8 +29,8 @@ class Parser final {
  public:
   // Maximum number of repetitions for quantified expression, e.g. `(abc){42}`. We need to prevent
   // patterns coming from untrusted sources from creating large automata with small inputs, e.g.
-  // `(abc){1000000000}`, as that would exposes us to DoS attacks. The Kleene star is not affected
-  // by this limit, so a sub-expression can repeat either an infinite number of times or a number of
+  // `(abc){1000000000}`, as that would expose us to DoS attacks. The Kleene star is not affected by
+  // this limit, so a sub-expression can repeat either an infinite number of times or a number of
   // times that's no larger than 1000.
   static inline int constexpr kMaxNumericQuantifier = 1000;
 
@@ -185,7 +185,7 @@ TempNFA Parser::MakeCharacterClassNFA(std::string_view const chars) {
   size_t const stop = next_state_++;
   State state;
   for (char const ch : chars) {
-    state[ch].emplace_back(stop);
+    state[ch].emplace(stop);
   }
   return TempNFA(
       {
@@ -200,7 +200,7 @@ TempNFA Parser::MakeNegatedCharacterClassNFA(std::string_view const chars) {
   size_t const stop = next_state_++;
   State state;
   for (int ch = 1; ch < 256; ++ch) {
-    state[ch].emplace_back(stop);
+    state[ch].emplace(stop);
   }
   for (char const ch : chars) {
     state.erase(ch);
@@ -218,7 +218,7 @@ absl::Status Parser::UpdateCharacterClassEdge(bool const negated, State* const s
   if (negated) {
     start_state->erase(ch);
   } else {
-    (*start_state)[ch].emplace_back(stop_state_num);
+    (*start_state)[ch].emplace(stop_state_num);
   }
   return absl::OkStatus();
 }
@@ -285,7 +285,7 @@ absl::StatusOr<TempNFA> Parser::ParseCharacterClass() {
   bool const negated = ConsumePrefix("^");
   if (negated) {
     for (int ch = 1; ch < 256; ++ch) {
-      state[ch].emplace_back(stop);
+      state[ch].emplace(stop);
     }
   }
   while (!ConsumePrefix("]")) {
@@ -300,7 +300,7 @@ absl::StatusOr<TempNFA> Parser::ParseCharacterClass() {
       if (negated) {
         state.erase(ch);
       } else {
-        state[ch].emplace_back(stop);
+        state[ch].emplace(stop);
       }
     }
   }
@@ -393,7 +393,7 @@ absl::StatusOr<TempNFA> Parser::Parse0() {
   if (ConsumePrefix(".")) {
     State edges;
     for (int ch = 1; ch < 256; ++ch) {
-      edges.try_emplace(ch, absl::InlinedVector<size_t, 1>{stop});
+      edges.try_emplace(ch, Transitions{stop});
     }
     return TempNFA(
         {
