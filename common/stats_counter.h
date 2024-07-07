@@ -19,7 +19,7 @@ namespace common {
 //
 //   std::thread thread1{[&] {
 //     while (counter.value() < 42) {}
-//     std::count << flag << std::endl;
+//     std::cout << flag << std::endl;
 //   }};
 //
 //   std::thread thread2{[&] {
