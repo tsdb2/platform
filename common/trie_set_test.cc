@@ -752,12 +752,36 @@ TEST(TrieSetTest, EqualRange) {
   EXPECT_EQ(*ub, "loremipsum");
 }
 
-TEST(TrieSetTest, ContainsPattern) {
-  auto const status_or_pattern = RE::Create("lorem(ipsum|amet)");
+TEST(TrieSetTest, ContainsDeterministicPattern) {
+  auto const status_or_pattern = RE::Create("loremipsum");
   ASSERT_OK(status_or_pattern);
   auto const &pattern = status_or_pattern.value();
-  trie_set const ts{"loremamet", "loremipsum"};
+  trie_set const ts{"loremamet", "loremipsum", "consectetur", "adipisci"};
   EXPECT_TRUE(ts.contains(pattern));
+}
+
+TEST(TrieSetTest, ContainsNonDeterministicPattern) {
+  auto const status_or_pattern = RE::Create("lore(mipsum|mamet)");
+  ASSERT_OK(status_or_pattern);
+  auto const &pattern = status_or_pattern.value();
+  trie_set const ts{"loremamet", "loremipsum", "consectetur", "adipisci"};
+  EXPECT_TRUE(ts.contains(pattern));
+}
+
+TEST(TrieSetTest, DoesntContainDeterministicPattern) {
+  auto const status_or_pattern = RE::Create("loremipsum");
+  ASSERT_OK(status_or_pattern);
+  auto const &pattern = status_or_pattern.value();
+  trie_set const ts{"consectetur", "adipisci", "loremlorem"};
+  EXPECT_FALSE(ts.contains(pattern));
+}
+
+TEST(TrieSetTest, DoesntContainNonDeterministicPattern) {
+  auto const status_or_pattern = RE::Create("lore(mipsum|mamet)");
+  ASSERT_OK(status_or_pattern);
+  auto const &pattern = status_or_pattern.value();
+  trie_set const ts{"consectetur", "adipisci", "loremlorem"};
+  EXPECT_FALSE(ts.contains(pattern));
 }
 
 TEST(TrieSetTest, EraseIteratorFromSingleElementSet) {

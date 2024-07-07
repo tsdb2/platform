@@ -47,6 +47,10 @@ class DFA final : public AutomatonInterface {
   //     // no match.
   //   }
   //
+  // If `Finish` returns false the state of the runner will either not change or change in a way
+  // that makes it possible to perform further `Step` calls on subsequent pieces of input. This
+  // property makes runners easily usable to find strings in tries. If, on the other hand, `Finish`
+  // returns true, the automaton is no longer usable and must be discarded.
   class Runner {
    public:
     explicit Runner(DFA const *const dfa) : dfa_(dfa), current_state_(dfa_->initial_state_) {}

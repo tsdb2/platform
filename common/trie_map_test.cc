@@ -1011,12 +1011,36 @@ TEST(TrieMapTest, EqualRange) {
   EXPECT_THAT(*ub, Pair("loremipsum", 12));
 }
 
-TEST(TrieMapTest, ContainsPattern) {
-  auto const status_or_pattern = RE::Create("lorem(ipsum|amet)");
+TEST(TrieMapTest, ContainsDeterministicPattern) {
+  auto const status_or_pattern = RE::Create("loremipsum");
   ASSERT_OK(status_or_pattern);
   auto const &pattern = status_or_pattern.value();
-  trie_map const tm{{"loremamet", 34}, {"loremipsum", 12}};
+  trie_map const tm{{"loremipsum", 12}, {"loremamet", 34}, {"consectetur", 56}, {"adipisci", 78}};
   EXPECT_TRUE(tm.contains(pattern));
+}
+
+TEST(TrieMapTest, ContainsNonDeterministicPattern) {
+  auto const status_or_pattern = RE::Create("lore(mipsum|mamet)");
+  ASSERT_OK(status_or_pattern);
+  auto const &pattern = status_or_pattern.value();
+  trie_map const tm{{"loremipsum", 12}, {"loremamet", 34}, {"consectetur", 56}, {"adipisci", 78}};
+  EXPECT_TRUE(tm.contains(pattern));
+}
+
+TEST(TrieMapTest, DoesntContainDeterministicPattern) {
+  auto const status_or_pattern = RE::Create("loremipsum");
+  ASSERT_OK(status_or_pattern);
+  auto const &pattern = status_or_pattern.value();
+  trie_map const tm{{"consectetur", 12}, {"adipisci", 34}, {"loremlorem", 56}};
+  EXPECT_FALSE(tm.contains(pattern));
+}
+
+TEST(TrieMapTest, DoesntContainNonDeterministicPattern) {
+  auto const status_or_pattern = RE::Create("lore(mipsum|mamet)");
+  ASSERT_OK(status_or_pattern);
+  auto const &pattern = status_or_pattern.value();
+  trie_map const tm{{"consectetur", 12}, {"adipisci", 34}, {"loremlorem", 56}};
+  EXPECT_FALSE(tm.contains(pattern));
 }
 
 TEST(TrieMapTest, EraseIteratorFromSingleElementMap) {

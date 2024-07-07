@@ -706,11 +706,8 @@ bool TrieNode<Label, Allocator>::Contains(Automaton const& automaton) const {
   for (auto const& [key, child] : children_) {
     Automaton child_automaton = automaton;
     if (child_automaton.Step(key)) {
-      if (child.TestLabel()) {
-        Automaton finish_automaton = child_automaton;
-        if (finish_automaton.Finish()) {
-          return true;
-        }
+      if (child.TestLabel() && child_automaton.Finish()) {
+        return true;
       }
       if (child.Contains(child_automaton)) {
         return true;

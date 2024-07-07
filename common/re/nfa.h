@@ -58,6 +58,10 @@ class NFA final : public AutomatonInterface {
   //     // no match.
   //   }
   //
+  // If `Finish` returns false the state of the runner will either not change or change in a way
+  // that makes it possible to perform further `Step` calls on subsequent pieces of input. This
+  // property makes runners easily usable to find strings in tries. If, on the other hand, `Finish`
+  // returns true, the automaton is no longer usable and must be discarded.
   class Runner final {
    public:
     explicit Runner(NFA *const nfa) : nfa_(nfa), states_{nfa_->initial_state_} { EpsilonClosure(); }
