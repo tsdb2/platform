@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/inlined_vector.h"
 #include "absl/hash/hash.h"
 #include "common/flat_container_testing.h"
 #include "gmock/gmock.h"
@@ -444,7 +445,6 @@ TYPED_TEST_P(FlatMapWithRepresentationTest, MoveConstruct) {
       {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
   };
   flat_map<TestKey, std::string, TestCompare, TypeParam> fm2{std::move(fm1)};
-  EXPECT_THAT(fm1, TestValuesAre<TypeParam>());
   EXPECT_THAT(fm2, TestValuesAre<TypeParam>(-3, "ipsum", -2, "lorem", -1, "sit", 1, "consectetur",
                                             4, "dolor", 5, "adipisci"));
 }
@@ -456,7 +456,6 @@ TYPED_TEST_P(FlatMapWithRepresentationTest, Move) {
   };
   flat_map<TestKey, std::string, TestCompare, TypeParam> fm2;
   fm2 = std::move(fm1);
-  EXPECT_THAT(fm1, TestValuesAre<TypeParam>());
   EXPECT_THAT(fm2, TestValuesAre<TypeParam>(-3, "ipsum", -2, "lorem", -1, "sit", 1, "consectetur",
                                             4, "dolor", 5, "adipisci"));
 }
@@ -1106,6 +1105,8 @@ REGISTER_TYPED_TEST_SUITE_P(
 using RepresentationElement = std::pair<TestKey, std::string>;
 using RepresentationTypes =
     ::testing::Types<std::vector<RepresentationElement>, std::deque<RepresentationElement>,
+                     absl::InlinedVector<RepresentationElement, 1>,
+                     absl::InlinedVector<RepresentationElement, 10>,
                      std::vector<RepresentationElement, std::allocator<RepresentationElement>>>;
 INSTANTIATE_TYPED_TEST_SUITE_P(FlatMapWithRepresentationTest, FlatMapWithRepresentationTest,
                                RepresentationTypes);

@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/inlined_vector.h"
 #include "absl/hash/hash.h"
 #include "common/fixed.h"
 #include "common/flat_container_testing.h"
@@ -261,7 +262,6 @@ TYPED_TEST_P(FlatSetWithRepresentationTest, Copy) {
 TYPED_TEST_P(FlatSetWithRepresentationTest, MoveConstruct) {
   flat_set<TestKey, TestCompare, TypeParam> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
   flat_set<TestKey, TestCompare, TypeParam> fs2{std::move(fs1)};
-  EXPECT_THAT(fs1, TestKeysAre<TypeParam>());
   EXPECT_THAT(fs2, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
 }
 
@@ -269,7 +269,6 @@ TYPED_TEST_P(FlatSetWithRepresentationTest, Move) {
   flat_set<TestKey, TestCompare, TypeParam> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
   flat_set<TestKey, TestCompare, TypeParam> fs2;
   fs2 = std::move(fs1);
-  EXPECT_THAT(fs1, TestKeysAre<TypeParam>());
   EXPECT_THAT(fs2, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
 }
 
@@ -632,8 +631,10 @@ REGISTER_TYPED_TEST_SUITE_P(
     ConstLowerBoundInclusive, UpperBoundExclusive, ConstUpperBoundExclusive, UpperBoundInclusive,
     ConstUpperBoundInclusive);
 
-using RepresentationTypes = ::testing::Types<std::vector<TestKey>, std::deque<TestKey>,
-                                             std::vector<TestKey, TestAllocator<TestKey>>>;
+using RepresentationTypes =
+    ::testing::Types<std::vector<TestKey>, std::deque<TestKey>, absl::InlinedVector<TestKey, 1>,
+                     absl::InlinedVector<TestKey, 10>,
+                     std::vector<TestKey, TestAllocator<TestKey>>>;
 INSTANTIATE_TYPED_TEST_SUITE_P(FlatSetWithRepresentationTest, FlatSetWithRepresentationTest,
                                RepresentationTypes);
 
