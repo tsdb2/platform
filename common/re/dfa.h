@@ -23,6 +23,30 @@ class DFA final : public AutomatonInterface {
   using State = flat_map<char, size_t>;
   using States = std::vector<State>;
 
+  // Runs a DFA in steps, allowing the caller to process the input string character by character.
+  //
+  // The caller needs to call `Step` repeatedly for every character or for every chunk of the input
+  // string, and then needs to call `Finish`. The Runner keeps the current state of the automaton
+  // internally and updates it as necessary at every call.
+  //
+  // Example usage:
+  //
+  //   DFA::Runner runner{&dfa};
+  //   runner.Step(input);
+  //   if (runner.Finish()) {
+  //     // match!
+  //   } else {
+  //     // no match.
+  //   }
+  //
+  // The above is equivalent to:
+  //
+  //   if (dfa.Run(input)) {
+  //     // match!
+  //   } else {
+  //     // no match.
+  //   }
+  //
   class Runner {
    public:
     explicit Runner(DFA const *const dfa) : dfa_(dfa), current_state_(dfa_->initial_state_) {}
@@ -35,8 +59,16 @@ class DFA final : public AutomatonInterface {
     Runner(Runner &&) noexcept = default;
     Runner &operator=(Runner &&) noexcept = default;
 
+    // Transitions the automaton into the next state, or returns false if `ch` has no transition
+    // (i.e. the string doesn't match).
     bool Step(char ch);
+
+    // Runs the automaton on every character in `chars`, effectively processing a chunk of the input
+    // string. Bails out early and returns false iff a character doesn't match.
     bool Step(std::string_view chars);
+
+    // Processes the end of the input string and returns a boolean indicating whether the string
+    // matched.
     bool Finish();
 
    private:

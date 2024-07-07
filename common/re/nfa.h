@@ -34,6 +34,30 @@ class NFA final : public AutomatonInterface {
   // `Transitions` sets.
   using States = std::vector<State>;
 
+  // Runs an NFA in steps, allowing the caller to process the input string character by character.
+  //
+  // The caller needs to call `Step` repeatedly for every character or for every chunk of the input
+  // string, and then needs to call `Finish`. The Runner keeps the running state (i.e. the set of
+  // the current states) of the automaton internally and updates it as necessary at every call.
+  //
+  // Example usage:
+  //
+  //   DFA::Runner runner{&nfa};
+  //   runner.Step(input);
+  //   if (runner.Finish()) {
+  //     // match!
+  //   } else {
+  //     // no match.
+  //   }
+  //
+  // The above is equivalent to:
+  //
+  //   if (nfa.Run(input)) {
+  //     // match!
+  //   } else {
+  //     // no match.
+  //   }
+  //
   class Runner final {
    public:
     explicit Runner(NFA *const nfa) : nfa_(nfa), states_{nfa_->initial_state_} { EpsilonClosure(); }
@@ -46,9 +70,16 @@ class NFA final : public AutomatonInterface {
     Runner(Runner &&) noexcept = default;
     Runner &operator=(Runner &&) noexcept = default;
 
+    // Transitions the automaton into the next state, or returns false if `ch` has no transition
+    // (i.e. the string doesn't match).
     bool Step(char ch);
+
+    // Runs the automaton on every character in `chars`, effectively processing a chunk of the input
+    // string. Bails out early and returns false iff a character doesn't match.
     bool Step(std::string_view chars);
 
+    // Processes the end of the input string and returns a boolean indicating whether the string
+    // matched.
     bool Finish() const;
 
    private:
