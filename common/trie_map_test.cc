@@ -7,6 +7,8 @@
 #include <vector>
 
 #include "absl/hash/hash.h"
+#include "common/re.h"
+#include "common/testing.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -18,6 +20,7 @@ using ::testing::_;
 using ::testing::ElementsAre;
 using ::testing::IsEmpty;
 using ::testing::Pair;
+using ::tsdb2::common::RE;
 
 TEST(TrieMapTest, Traits) {
   EXPECT_TRUE((std::is_same_v<typename trie_map::key_type, std::string>));
@@ -1006,6 +1009,14 @@ TEST(TrieMapTest, EqualRange) {
   EXPECT_THAT(*lb, Pair("loremamet", 34));
   EXPECT_NE(ub, tm.end());
   EXPECT_THAT(*ub, Pair("loremipsum", 12));
+}
+
+TEST(TrieMapTest, ContainsPattern) {
+  auto const status_or_pattern = RE::Create("lorem(ipsum|amet)");
+  ASSERT_OK(status_or_pattern);
+  auto const &pattern = status_or_pattern.value();
+  trie_map const tm{{"loremamet", 34}, {"loremipsum", 12}};
+  EXPECT_TRUE(tm.contains(pattern));
 }
 
 TEST(TrieMapTest, EraseIteratorFromSingleElementMap) {

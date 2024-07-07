@@ -9,6 +9,8 @@
 #include <vector>
 
 #include "absl/hash/hash.h"
+#include "common/re.h"
+#include "common/testing.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -16,6 +18,7 @@ namespace {
 
 using ::testing::ElementsAre;
 using ::testing::IsEmpty;
+using ::tsdb2::common::RE;
 using ::tsdb2::common::trie_set;
 
 TEST(TrieSetTest, Traits) {
@@ -747,6 +750,14 @@ TEST(TrieSetTest, EqualRange) {
   EXPECT_EQ(*lb, "loremamet");
   EXPECT_NE(ub, ts.end());
   EXPECT_EQ(*ub, "loremipsum");
+}
+
+TEST(TrieSetTest, ContainsPattern) {
+  auto const status_or_pattern = RE::Create("lorem(ipsum|amet)");
+  ASSERT_OK(status_or_pattern);
+  auto const &pattern = status_or_pattern.value();
+  trie_set const ts{"loremamet", "loremipsum"};
+  EXPECT_TRUE(ts.contains(pattern));
 }
 
 TEST(TrieSetTest, EraseIteratorFromSingleElementSet) {

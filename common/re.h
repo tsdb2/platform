@@ -14,6 +14,15 @@
 namespace tsdb2 {
 namespace common {
 
+namespace internal {
+
+// This forward declaration refers to the internal implementation of tries. We need it here so that
+// we can declare `TrieNode` as a friend of `RE`, allowing integration between the two.
+template <typename Label, typename Allocator>
+class TrieNode;
+
+}  // namespace internal
+
 // `RE` is the interface to TSDB2's own implementation of regular expressions.
 //
 // TSDB2 uses its own implementation rather than the one provided by STL or any other C++ regular
@@ -25,6 +34,10 @@ namespace common {
 //   2. We need an implementation that can be integrated with our tries so that we can run finite
 //      state automata algorithms on tries, allowing for efficient retrieval of strings based on
 //      regular expression patterns.
+//
+// Our regular expression are always anchored. If a user needs to do an unanchored match (i.e.
+// search a substring) they need to surround their pattern with `.*`. For example, `.*foo.*`
+// searches the substring `foo` inside the provided string.
 //
 // TODO: describe the syntax.
 //
@@ -62,6 +75,9 @@ class RE {
   absl::StatusOr<std::vector<std::string>> Match(std::string_view input) const;
 
  private:
+  template <typename Label, typename Allocator>
+  friend class internal::TrieNode;
+
   explicit RE(reffed_ptr<regexp_internal::AutomatonInterface> automaton)
       : automaton_(std::move(automaton)) {}
 

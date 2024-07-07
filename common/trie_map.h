@@ -13,6 +13,7 @@
 
 #include "absl/base/attributes.h"
 #include "common/raw_trie.h"
+#include "common/re.h"
 
 namespace tsdb2 {
 namespace common {
@@ -307,6 +308,9 @@ class trie_map {
   const_iterator find(std::string_view const key) const { return Node::FindConst(roots_, key); }
 
   bool contains(std::string_view const key) const { return root().Contains(key); }
+
+  // Checks the presence of any strings that match the provided regular expression.
+  bool contains(RE const& re) const { return root().Contains(re); }
 
   iterator lower_bound(std::string_view const key) { return Node::LowerBound(roots_, key); }
 

@@ -292,6 +292,7 @@ cc_library(
     visibility = ["//visibility:private"],
     deps = [
         ":flat_map",
+        ":re",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -301,6 +302,7 @@ cc_library(
     hdrs = ["trie_set.h"],
     deps = [
         ":raw_trie",
+        ":re",
         "@com_google_absl//absl/base",
     ],
 )
@@ -309,6 +311,7 @@ cc_test(
     name = "trie_set_test",
     srcs = ["trie_set_test.cc"],
     deps = [
+        ":re",
         ":testing",
         ":trie_set",
         "@com_google_absl//absl/hash",
@@ -321,6 +324,7 @@ cc_library(
     hdrs = ["trie_map.h"],
     deps = [
         ":raw_trie",
+        ":re",
         "@com_google_absl//absl/base",
     ],
 )
@@ -329,6 +333,7 @@ cc_test(
     name = "trie_map_test",
     srcs = ["trie_map_test.cc"],
     deps = [
+        ":re",
         ":testing",
         ":trie_map",
         "@com_google_absl//absl/hash",

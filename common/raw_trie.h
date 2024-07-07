@@ -15,6 +15,9 @@
 #include "absl/strings/match.h"
 #include "absl/strings/strip.h"
 #include "common/flat_map.h"
+#include "common/re.h"
+#include "common/re/dfa.h"
+#include "common/re/nfa.h"
 
 namespace tsdb2 {
 namespace common {
@@ -414,6 +417,17 @@ class TrieNode {
   // Determines whether the trie rooted at this node contains the specified key.
   bool Contains(std::string_view key) const;
 
+  // Determines whether the trie rooted at this node contains any strings matching the provided
+  // regular expression.
+  bool Contains(RE const& re) const {
+    auto const& automaton = re.automaton_;
+    if (automaton->IsDeterministic()) {
+      return Contains(regexp_internal::DFA::Runner(automaton.get()));
+    } else {
+      return Contains(regexp_internal::NFA::Runner(automaton.get()));
+    }
+  }
+
   // Finds the first element whose key is greater than or equal to `key`. Returns the end iterator
   // if no such element exists.
   static Iterator LowerBound(NodeSet const& roots, std::string_view key);
@@ -489,6 +503,9 @@ class TrieNode {
   bool ResetLabel() { return Traits::ResetLabel(label_); }
 
   typename NodeSet::iterator LowerBound(std::string_view needle);
+
+  template <typename Automaton>
+  bool Contains(Automaton const& automaton) const;
 
   template <typename... Args>
   std::pair<Iterator, bool> InsertChild(std::vector<DirectStateFrame> frames, std::string_view key,
@@ -681,6 +698,26 @@ typename TrieNode<Label, Allocator>::Iterator TrieNode<Label, Allocator>::UpperB
   Iterator result{std::move(frames)};
   result.Advance();
   return result;
+}
+
+template <typename Label, typename Allocator>
+template <typename Automaton>
+bool TrieNode<Label, Allocator>::Contains(Automaton const& automaton) const {
+  for (auto const& [key, child] : children_) {
+    Automaton child_automaton = automaton;
+    if (child_automaton.Step(key)) {
+      if (child.TestLabel()) {
+        Automaton finish_automaton = child_automaton;
+        if (finish_automaton.Finish()) {
+          return true;
+        }
+      }
+      if (child.Contains(child_automaton)) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 template <typename Label, typename Allocator>
