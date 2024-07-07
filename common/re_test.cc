@@ -2,6 +2,7 @@
 
 #include <utility>
 
+#include "absl/status/status.h"
 #include "common/testing.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

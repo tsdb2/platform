@@ -281,6 +281,7 @@ cc_test(
     deps = [
         ":re",
         ":testing",
+        "@com_google_absl//absl/status",
         "@com_google_googletest//:gtest_main",
     ],
 )
