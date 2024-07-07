@@ -423,7 +423,7 @@ absl::StatusOr<TempNFA> Parser::Parse0() {
       return SyntaxError("question mark operator in invalid position");
     case '^':
     case '$':
-      return SyntaxError("anchors are disallowed in this position");
+      return SyntaxError("anchors are not allowed");
     default:
       Advance();
       return TempNFA(

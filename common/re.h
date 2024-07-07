@@ -1,6 +1,7 @@
 #ifndef __TSDB2_COMMON_RE_H__
 #define __TSDB2_COMMON_RE_H__
 
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -37,13 +38,16 @@ class RE {
   // human.
   static bool Test(std::string_view input, std::string_view pattern);
 
-  // Checks if `input` matches `pattern` and returns an array of strings containing the strings
-  // captured by capture groups. An error status is returned if the `pattern` fails to compile.
+  // Checks if `input` matches `pattern` and returns an array of the strings captured by the capture
+  // groups. An error status is returned if the `pattern` fails to compile.
   static absl::StatusOr<std::vector<std::string>> Match(std::string_view input,
                                                         std::string_view pattern);
 
   // Compiles the provided `pattern` into a `RE` object that can be run efficiently multiple times.
   static absl::StatusOr<RE> Create(std::string_view pattern);
+
+  // Moves and copies are efficient because the inner automaton is immutable and is managed by means
+  // of reference counting, so we never move or copy the whole automaton, just a pointer to it.
 
   RE(RE const &) = default;
   RE &operator=(RE const &) = default;
@@ -52,6 +56,10 @@ class RE {
 
   // Checks if the provided `input` string matches this compiled regular expression.
   bool Test(std::string_view const input) const { return automaton_->Run(input); }
+
+  // Checks if `input` matches this compiled regular expression and returns an array of the strings
+  // captured by the capture groups. An error status is returned if the `pattern` fails to compile.
+  absl::StatusOr<std::vector<std::string>> Match(std::string_view input) const;
 
  private:
   explicit RE(reffed_ptr<regexp_internal::AutomatonInterface> automaton)

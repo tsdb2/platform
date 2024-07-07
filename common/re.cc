@@ -1,7 +1,9 @@
 #include "common/re.h"
 
+#include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "common/re/automaton.h"
@@ -21,10 +23,25 @@ bool RE::Test(std::string_view const input, std::string_view const pattern) {
   }
 }
 
+absl::StatusOr<std::vector<std::string>> RE::Match(std::string_view const input,
+                                                   std::string_view const pattern) {
+  auto status_or_re = RE::Create(pattern);
+  if (status_or_re.ok()) {
+    return status_or_re->Match(input);
+  } else {
+    return std::move(status_or_re).status();
+  }
+}
+
 absl::StatusOr<RE> RE::Create(std::string_view const pattern) {
   ASSIGN_VAR_OR_RETURN(reffed_ptr<regexp_internal::AutomatonInterface>, automaton,
                        regexp_internal::Parse(pattern));
   return RE(std::move(automaton));
+}
+
+absl::StatusOr<std::vector<std::string>> RE::Match(std::string_view input) const {
+  // TODO
+  return std::vector<std::string>{};
 }
 
 }  // namespace common

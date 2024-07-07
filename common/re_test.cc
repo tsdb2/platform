@@ -1,10 +1,14 @@
 #include "common/re.h"
 
+#include <utility>
+
+#include "common/testing.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace {
 
+using ::testing::status::StatusIs;
 using ::tsdb2::common::RE;
 
 TEST(RegexpTest, StaticTest) {
@@ -13,6 +17,80 @@ TEST(RegexpTest, StaticTest) {
   EXPECT_FALSE(RE::Test("lrem", "lo+rem?"));
 }
 
-// TODO
+TEST(RegexpTest, InvalidPattern) {
+  EXPECT_THAT(RE::Create("?invalid"), StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(RegexpTest, Test) {
+  auto const status_or_re = RE::Create("lo+rem?");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_TRUE(re.Test("lore"));
+  EXPECT_TRUE(re.Test("looorem"));
+  EXPECT_FALSE(re.Test("lrem"));
+}
+
+TEST(RegexpTest, CopyConstruct) {
+  auto const status_or_re = RE::Create("lo+rem?");
+  ASSERT_OK(status_or_re);
+  auto const& re1 = status_or_re.value();
+  RE const re2{re1};
+  EXPECT_TRUE(re1.Test("lore"));
+  EXPECT_TRUE(re1.Test("looorem"));
+  EXPECT_FALSE(re1.Test("lrem"));
+  EXPECT_TRUE(re2.Test("lore"));
+  EXPECT_TRUE(re2.Test("looorem"));
+  EXPECT_FALSE(re2.Test("lrem"));
+}
+
+TEST(RegexpTest, Copy) {
+  auto status_or_re1 = RE::Create("lo+rem?");
+  ASSERT_OK(status_or_re1);
+  auto& re1 = status_or_re1.value();
+  auto const status_or_re2 = RE::Create("ipsu*m");
+  ASSERT_OK(status_or_re2);
+  auto const& re2 = status_or_re2.value();
+  re1 = re2;
+  EXPECT_FALSE(re1.Test("lore"));
+  EXPECT_FALSE(re1.Test("lorem"));
+  EXPECT_FALSE(re1.Test("looorem"));
+  EXPECT_TRUE(re1.Test("ipsm"));
+  EXPECT_TRUE(re1.Test("ipsum"));
+  EXPECT_TRUE(re1.Test("ipsuuum"));
+  EXPECT_FALSE(re2.Test("lore"));
+  EXPECT_FALSE(re2.Test("lorem"));
+  EXPECT_FALSE(re2.Test("looorem"));
+  EXPECT_TRUE(re2.Test("ipsm"));
+  EXPECT_TRUE(re2.Test("ipsum"));
+  EXPECT_TRUE(re2.Test("ipsuuum"));
+}
+
+TEST(RegexpTest, MoveConstruct) {
+  auto status_or_re = RE::Create("lo+rem?");
+  ASSERT_OK(status_or_re);
+  auto& re1 = status_or_re.value();
+  RE const re2{std::move(re1)};
+  EXPECT_TRUE(re2.Test("lore"));
+  EXPECT_TRUE(re2.Test("looorem"));
+  EXPECT_FALSE(re2.Test("lrem"));
+}
+
+TEST(RegexpTest, Move) {
+  auto status_or_re1 = RE::Create("lo+rem?");
+  ASSERT_OK(status_or_re1);
+  auto& re1 = status_or_re1.value();
+  auto const status_or_re2 = RE::Create("ipsu*m");
+  ASSERT_OK(status_or_re2);
+  auto const& re2 = status_or_re2.value();
+  re1 = std::move(re2);
+  EXPECT_FALSE(re1.Test("lore"));
+  EXPECT_FALSE(re1.Test("lorem"));
+  EXPECT_FALSE(re1.Test("looorem"));
+  EXPECT_TRUE(re1.Test("ipsm"));
+  EXPECT_TRUE(re1.Test("ipsum"));
+  EXPECT_TRUE(re1.Test("ipsuuum"));
+}
+
+// TODO: test `Match` functions when they're available.
 
 }  // namespace

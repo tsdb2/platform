@@ -277,7 +277,7 @@ cc_library(
 
 cc_test(
     name = "re_test",
-    srcs = ["re.cc"],
+    srcs = ["re_test.cc"],
     deps = [
         ":re",
         ":testing",
