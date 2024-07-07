@@ -34,8 +34,34 @@ class NFA final : public AutomatonInterface {
   // `Transitions` sets.
   using States = std::vector<State>;
 
+  class Runner final {
+   public:
+    explicit Runner(NFA *const nfa) : nfa_(nfa), states_{nfa_->initial_state_} { EpsilonClosure(); }
+
+    // REQUIRES: `automaton` MUST be an `NFA` instance.
+    explicit Runner(AutomatonInterface *const automaton) : Runner(dynamic_cast<NFA *>(automaton)) {}
+
+    Runner(Runner const &) = default;
+    Runner &operator=(Runner const &) = default;
+    Runner(Runner &&) noexcept = default;
+    Runner &operator=(Runner &&) noexcept = default;
+
+    bool Step(char ch);
+    bool Step(std::string_view chars);
+
+    bool Finish() const;
+
+   private:
+    void EpsilonClosure();
+
+    NFA const *nfa_;
+    absl::flat_hash_set<size_t> states_;
+  };
+
   explicit NFA(States states, size_t const initial_state, size_t const final_state)
       : states_(std::move(states)), initial_state_(initial_state), final_state_(final_state) {}
+
+  bool IsDeterministic() const override;
 
   bool Run(std::string_view input) const override;
 
