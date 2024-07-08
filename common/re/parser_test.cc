@@ -1934,6 +1934,15 @@ TEST_P(ParserTest, QuantifierOrQuantifier) {
   EXPECT_FALSE(Run(pattern, "aabb"));
 }
 
+TEST_P(ParserTest, Search) {
+  auto const status_or_pattern = Parse(".*do+lor.*");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_TRUE(Run(pattern, "lorem ipsum dolor sic amat"));
+  EXPECT_FALSE(Run(pattern, "lorem ipsum color sic amat"));
+  EXPECT_FALSE(Run(pattern, "lorem ipsum dolet et amat"));
+}
+
 TEST_P(ParserTest, HeavyBacktracker) {
   auto const status_or_pattern = Parse(
       "a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
