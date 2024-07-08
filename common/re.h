@@ -35,8 +35,8 @@ class TrieNode;
 //      state automata algorithms on tries, allowing for efficient retrieval of strings based on
 //      regular expression patterns.
 //
-// Our regular expression are always anchored. If a user needs to do an unanchored match (i.e.
-// search a substring) they need to surround their pattern with `.*`. For example, `.*foo.*`
+// Our regular expressions are always anchored. If a user needs to do an unanchored match (i.e.
+// search a substring) they need to surround their pattern with ".*". For example, ".*foo.*"
 // searches the substring `foo` inside the provided string.
 //
 // TODO: describe the syntax.

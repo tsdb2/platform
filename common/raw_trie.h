@@ -179,8 +179,6 @@ class TrieNode {
     Automaton automaton;
   };
 
-  using DirectFilteredStateFrame = FilteredStateFrame<false>;
-
  public:
   // Base class for iterators.
   template <typename StateFrame>

@@ -23,10 +23,10 @@ bool NFA::Runner::Step(char const ch) {
       }
     }
   }
-  if (next_states.empty()) {
+  states_ = std::move(next_states);
+  if (states_.empty()) {
     return false;
   }
-  states_ = std::move(next_states);
   EpsilonClosure();
   return true;
 }
