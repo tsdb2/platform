@@ -1,6 +1,7 @@
 #include "common/re/dfa.h"
 
 #include <cstddef>
+#include <memory>
 #include <string_view>
 
 #include "common/re/automaton.h"
@@ -8,6 +9,10 @@
 namespace tsdb2 {
 namespace common {
 namespace regexp_internal {
+
+std::unique_ptr<AutomatonInterface::RunnerInterface> DFA::Runner::Clone() const {
+  return std::make_unique<Runner>(*this);
+}
 
 bool DFA::Runner::Step(char const ch) {
   auto const& edges = dfa_->states_[current_state_];
@@ -44,6 +49,10 @@ bool DFA::Runner::Finish() {
 }
 
 bool DFA::IsDeterministic() const { return true; }
+
+std::unique_ptr<AutomatonInterface::RunnerInterface> DFA::CreateRunner() const {
+  return std::make_unique<Runner>(this);
+}
 
 bool DFA::Run(std::string_view input) const {
   size_t state = initial_state_;

@@ -38,13 +38,8 @@ class ParserTest : public ::testing::TestWithParam<ParserTestParams> {
 bool ParserTest::Run(reffed_ptr<AutomatonInterface> const& automaton,
                      std::string_view const input) {
   if (GetParam().use_runner) {
-    if (automaton->IsDeterministic()) {
-      DFA::Runner runner{automaton.get()};
-      return runner.Step(input) && runner.Finish();
-    } else {
-      NFA::Runner runner{automaton.get()};
-      return runner.Step(input) && runner.Finish();
-    }
+    auto const runner = automaton->CreateRunner();
+    return runner->Step(input) && runner->Finish();
   } else {
     return automaton->Run(input);
   }

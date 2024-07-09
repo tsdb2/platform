@@ -2,6 +2,7 @@
 #define __TSDB2_COMMON_RE_DFA_H__
 
 #include <cstddef>
+#include <memory>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -23,57 +24,18 @@ class DFA final : public AutomatonInterface {
   using State = flat_map<char, size_t>;
   using States = std::vector<State>;
 
-  // Runs a DFA in steps, allowing the caller to process the input string character by character.
-  //
-  // The caller needs to call `Step` repeatedly for every character or for every chunk of the input
-  // string, and then needs to call `Finish`. The Runner keeps the current state of the automaton
-  // internally and updates it as necessary at every call.
-  //
-  // Example usage:
-  //
-  //   DFA::Runner runner{&dfa};
-  //   runner.Step(input);
-  //   if (runner.Finish()) {
-  //     // match!
-  //   } else {
-  //     // no match.
-  //   }
-  //
-  // The above is equivalent to:
-  //
-  //   if (dfa.Run(input)) {
-  //     // match!
-  //   } else {
-  //     // no match.
-  //   }
-  //
-  // If `Finish` returns false the state of the runner will either not change or change in a way
-  // that makes it possible to perform further `Step` calls on subsequent pieces of input. This
-  // property makes runners easily usable to find strings in tries. If, on the other hand, `Finish`
-  // returns true, the automaton is no longer usable and must be discarded.
-  class Runner {
+  // Runner implementation for DFAs.
+  class Runner final : public RunnerInterface {
    public:
     explicit Runner(DFA const *const dfa) : dfa_(dfa), current_state_(dfa_->initial_state_) {}
 
-    // REQUIRES: `automaton` MUST be a `DFA` instance.
-    explicit Runner(AutomatonInterface *const automaton) : Runner(dynamic_cast<DFA *>(automaton)) {}
-
     Runner(Runner const &) = default;
     Runner &operator=(Runner const &) = default;
-    Runner(Runner &&) noexcept = default;
-    Runner &operator=(Runner &&) noexcept = default;
 
-    // Transitions the automaton into the next state, or returns false if `ch` has no transition
-    // (i.e. the string doesn't match).
-    bool Step(char ch);
-
-    // Runs the automaton on every character in `chars`, effectively processing a chunk of the input
-    // string. Bails out early and returns false iff a character doesn't match.
-    bool Step(std::string_view chars);
-
-    // Processes the end of the input string and returns a boolean indicating whether the string
-    // matched.
-    bool Finish();
+    std::unique_ptr<RunnerInterface> Clone() const override;
+    bool Step(char ch) override;
+    bool Step(std::string_view chars) override;
+    bool Finish() override;
 
    private:
     DFA const *dfa_;
@@ -84,6 +46,8 @@ class DFA final : public AutomatonInterface {
       : states_(std::move(states)), initial_state_(initial_state), final_state_(final_state) {}
 
   bool IsDeterministic() const override;
+
+  std::unique_ptr<RunnerInterface> CreateRunner() const override;
 
   bool Run(std::string_view input) const override;
 

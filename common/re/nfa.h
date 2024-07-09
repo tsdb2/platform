@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <functional>
+#include <memory>
 #include <string_view>
 #include <vector>
 
@@ -34,57 +35,20 @@ class NFA final : public AutomatonInterface {
   // `Transitions` sets.
   using States = std::vector<State>;
 
-  // Runs an NFA in steps, allowing the caller to process the input string character by character.
-  //
-  // The caller needs to call `Step` repeatedly for every character or for every chunk of the input
-  // string, and then needs to call `Finish`. The Runner keeps the running state (i.e. the set of
-  // the current states) of the automaton internally and updates it as necessary at every call.
-  //
-  // Example usage:
-  //
-  //   DFA::Runner runner{&nfa};
-  //   runner.Step(input);
-  //   if (runner.Finish()) {
-  //     // match!
-  //   } else {
-  //     // no match.
-  //   }
-  //
-  // The above is equivalent to:
-  //
-  //   if (nfa.Run(input)) {
-  //     // match!
-  //   } else {
-  //     // no match.
-  //   }
-  //
-  // If `Finish` returns false the state of the runner will either not change or change in a way
-  // that makes it possible to perform further `Step` calls on subsequent pieces of input. This
-  // property makes runners easily usable to find strings in tries. If, on the other hand, `Finish`
-  // returns true, the automaton is no longer usable and must be discarded.
-  class Runner final {
+  // Runner implementation for NFAs.
+  class Runner final : public RunnerInterface {
    public:
-    explicit Runner(NFA *const nfa) : nfa_(nfa), states_{nfa_->initial_state_} { EpsilonClosure(); }
-
-    // REQUIRES: `automaton` MUST be an `NFA` instance.
-    explicit Runner(AutomatonInterface *const automaton) : Runner(dynamic_cast<NFA *>(automaton)) {}
+    explicit Runner(NFA const *const nfa) : nfa_(nfa), states_{nfa_->initial_state_} {
+      EpsilonClosure();
+    }
 
     Runner(Runner const &) = default;
     Runner &operator=(Runner const &) = default;
-    Runner(Runner &&) noexcept = default;
-    Runner &operator=(Runner &&) noexcept = default;
 
-    // Transitions the automaton into the next state, or returns false if `ch` has no transition
-    // (i.e. the string doesn't match).
-    bool Step(char ch);
-
-    // Runs the automaton on every character in `chars`, effectively processing a chunk of the input
-    // string. Bails out early and returns false iff a character doesn't match.
-    bool Step(std::string_view chars);
-
-    // Processes the end of the input string and returns a boolean indicating whether the string
-    // matched.
-    bool Finish() const;
+    std::unique_ptr<RunnerInterface> Clone() const override;
+    bool Step(char ch) override;
+    bool Step(std::string_view chars) override;
+    bool Finish() override;
 
    private:
     void EpsilonClosure();
@@ -97,6 +61,8 @@ class NFA final : public AutomatonInterface {
       : states_(std::move(states)), initial_state_(initial_state), final_state_(final_state) {}
 
   bool IsDeterministic() const override;
+
+  std::unique_ptr<RunnerInterface> CreateRunner() const override;
 
   bool Run(std::string_view input) const override;
 

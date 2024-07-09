@@ -1,6 +1,7 @@
 #include "common/re/nfa.h"
 
 #include <cstddef>
+#include <memory>
 #include <string_view>
 #include <utility>
 
@@ -10,6 +11,10 @@
 namespace tsdb2 {
 namespace common {
 namespace regexp_internal {
+
+std::unique_ptr<AutomatonInterface::RunnerInterface> NFA::Runner::Clone() const {
+  return std::make_unique<Runner>(*this);
+}
 
 bool NFA::Runner::Step(char const ch) {
   absl::flat_hash_set<size_t> next_states;
@@ -40,11 +45,15 @@ bool NFA::Runner::Step(std::string_view const chars) {
   return true;
 }
 
-bool NFA::Runner::Finish() const { return states_.contains(nfa_->final_state_); }
+bool NFA::Runner::Finish() { return states_.contains(nfa_->final_state_); }
 
 void NFA::Runner::EpsilonClosure() { nfa_->EpsilonClosure(&states_); }
 
 bool NFA::IsDeterministic() const { return false; }
+
+std::unique_ptr<AutomatonInterface::RunnerInterface> NFA::CreateRunner() const {
+  return std::make_unique<Runner>(this);
+}
 
 bool NFA::Run(std::string_view input) const {
   absl::flat_hash_set<size_t> states{initial_state_};

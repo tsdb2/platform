@@ -293,6 +293,9 @@ cc_library(
     deps = [
         ":flat_map",
         ":re",
+        "//common/re:automaton",
+        "//common/re:dfa",
+        "//common/re:nfa",
         "@com_google_absl//absl/strings",
     ],
 )

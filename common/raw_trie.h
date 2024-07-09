@@ -16,6 +16,7 @@
 #include "absl/strings/strip.h"
 #include "common/flat_map.h"
 #include "common/re.h"
+#include "common/re/automaton.h"
 #include "common/re/dfa.h"
 #include "common/re/nfa.h"
 
@@ -426,14 +427,7 @@ class TrieNode {
 
   // Determines whether the trie rooted at this node contains any strings matching the provided
   // regular expression.
-  bool Contains(RE const& re) const {
-    auto const& automaton = re.automaton_;
-    if (automaton->IsDeterministic()) {
-      return Contains(regexp_internal::DFA::Runner(automaton.get()));
-    } else {
-      return Contains(regexp_internal::NFA::Runner(automaton.get()));
-    }
-  }
+  bool Contains(RE const& re) const { return Contains(re.automaton_->CreateRunner()); }
 
   // Finds the first element whose key is greater than or equal to `key`. Returns the end iterator
   // if no such element exists.
@@ -511,8 +505,8 @@ class TrieNode {
 
   typename NodeSet::iterator LowerBound(std::string_view needle);
 
-  template <typename Automaton>
-  bool Contains(Automaton const& automaton) const;
+  bool Contains(
+      std::unique_ptr<regexp_internal::AutomatonInterface::RunnerInterface> const& runner) const;
 
   template <typename... Args>
   std::pair<Iterator, bool> InsertChild(std::vector<DirectStateFrame> frames, std::string_view key,
@@ -702,15 +696,15 @@ typename TrieNode<Label, Allocator>::Iterator TrieNode<Label, Allocator>::UpperB
 }
 
 template <typename Label, typename Allocator>
-template <typename Automaton>
-bool TrieNode<Label, Allocator>::Contains(Automaton const& automaton) const {
+bool TrieNode<Label, Allocator>::Contains(
+    std::unique_ptr<regexp_internal::AutomatonInterface::RunnerInterface> const& runner) const {
   for (auto const& [key, child] : children_) {
-    Automaton child_automaton = automaton;
-    if (child_automaton.Step(key)) {
-      if (child.TestLabel() && child_automaton.Finish()) {
+    auto const child_runner = runner->Clone();
+    if (child_runner->Step(key)) {
+      if (child.TestLabel() && child_runner->Finish()) {
         return true;
       }
-      if (child.Contains(child_automaton)) {
+      if (child.Contains(child_runner)) {
         return true;
       }
     }
