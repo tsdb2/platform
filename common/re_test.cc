@@ -22,6 +22,20 @@ TEST(RegexpTest, InvalidPattern) {
   EXPECT_THAT(RE::Create("?invalid"), StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
+TEST(RegexpTest, IsDeterministic) {
+  auto const status_or_re = RE::Create("lorem");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_TRUE(re.IsDeterministic());
+}
+
+TEST(RegexpTest, IsNotDeterministic) {
+  auto const status_or_re = RE::Create("lorem(ipsum|dolor)");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_FALSE(re.IsDeterministic());
+}
+
 TEST(RegexpTest, Test) {
   auto const status_or_re = RE::Create("lo+rem?");
   ASSERT_OK(status_or_re);

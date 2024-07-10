@@ -67,6 +67,8 @@ class RE {
   RE(RE &&) noexcept = default;
   RE &operator=(RE &&) noexcept = default;
 
+  bool IsDeterministic() const { return automaton_->IsDeterministic(); }
+
   // Checks if the provided `input` string matches this compiled regular expression.
   bool Test(std::string_view const input) const { return automaton_->Run(input); }
 

@@ -1,11 +1,10 @@
-#include "common/re/parser.h"
-
 #include <string_view>
 
 #include "absl/status/status.h"
 #include "common/re/automaton.h"
 #include "common/re/dfa.h"
 #include "common/re/nfa.h"
+#include "common/re/parser.h"
 #include "common/re/temp.h"
 #include "common/reffed_ptr.h"
 #include "common/testing.h"
@@ -32,8 +31,18 @@ class ParserTest : public ::testing::TestWithParam<ParserTestParams> {
  protected:
   explicit ParserTest() { TempNFA::force_nfa_for_testing = GetParam().force_nfa; }
   ~ParserTest() { TempNFA::force_nfa_for_testing = false; }
+  bool CheckDeterministic(reffed_ptr<AutomatonInterface> const& automaton);
+  bool CheckNotDeterministic(reffed_ptr<AutomatonInterface> const& automaton);
   bool Run(reffed_ptr<AutomatonInterface> const& automaton, std::string_view input);
 };
+
+bool ParserTest::CheckDeterministic(reffed_ptr<AutomatonInterface> const& automaton) {
+  return GetParam().force_nfa || automaton->IsDeterministic();
+}
+
+bool ParserTest::CheckNotDeterministic(reffed_ptr<AutomatonInterface> const& automaton) {
+  return GetParam().force_nfa || !automaton->IsDeterministic();
+}
 
 bool ParserTest::Run(reffed_ptr<AutomatonInterface> const& automaton,
                      std::string_view const input) {
@@ -43,6 +52,27 @@ bool ParserTest::Run(reffed_ptr<AutomatonInterface> const& automaton,
   } else {
     return automaton->Run(input);
   }
+}
+
+TEST_P(ParserTest, EmptyIsDeterministic) {
+  auto const status_or_pattern = Parse("");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_TRUE(CheckDeterministic(pattern));
+}
+
+TEST_P(ParserTest, SimpleStringIsDeterministic) {
+  auto const status_or_pattern = Parse("lorem");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_TRUE(CheckDeterministic(pattern));
+}
+
+TEST_P(ParserTest, PipeIsNotDeterministic) {
+  auto const status_or_pattern = Parse("lorem(ipsum|dolor)");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_TRUE(CheckNotDeterministic(pattern));
 }
 
 TEST_P(ParserTest, Empty) {

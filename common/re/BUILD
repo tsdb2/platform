@@ -62,8 +62,8 @@ cc_library(
 )
 
 cc_test(
-    name = "parser_test",
-    srcs = ["parser_test.cc"],
+    name = "re_test",
+    srcs = ["re_test.cc"],
     deps = [
         ":automaton",
         ":dfa",
