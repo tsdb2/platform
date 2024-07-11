@@ -561,6 +561,50 @@ TEST_P(ParserTest, NegatedCharacterClassWithCircumflex) {
   EXPECT_FALSE(Run(pattern, "ab^cd"));
 }
 
+TEST_P(ParserTest, CharacterClassWithSpecialCharacters) {
+  auto const status_or_pattern = Parse("[a^$.(){}|?*+b]");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_FALSE(Run(pattern, ""));
+  EXPECT_TRUE(Run(pattern, "a"));
+  EXPECT_TRUE(Run(pattern, "b"));
+  EXPECT_TRUE(Run(pattern, "^"));
+  EXPECT_TRUE(Run(pattern, "$"));
+  EXPECT_TRUE(Run(pattern, "."));
+  EXPECT_TRUE(Run(pattern, "("));
+  EXPECT_TRUE(Run(pattern, ")"));
+  EXPECT_TRUE(Run(pattern, "{"));
+  EXPECT_TRUE(Run(pattern, "}"));
+  EXPECT_TRUE(Run(pattern, "|"));
+  EXPECT_TRUE(Run(pattern, "?"));
+  EXPECT_TRUE(Run(pattern, "*"));
+  EXPECT_TRUE(Run(pattern, "+"));
+  EXPECT_FALSE(Run(pattern, "x"));
+  EXPECT_FALSE(Run(pattern, "y"));
+}
+
+TEST_P(ParserTest, NegatedCharacterClassWithSpecialCharacters) {
+  auto const status_or_pattern = Parse("[^a^$.(){}|?*+b]");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_FALSE(Run(pattern, ""));
+  EXPECT_FALSE(Run(pattern, "a"));
+  EXPECT_FALSE(Run(pattern, "b"));
+  EXPECT_FALSE(Run(pattern, "^"));
+  EXPECT_FALSE(Run(pattern, "$"));
+  EXPECT_FALSE(Run(pattern, "."));
+  EXPECT_FALSE(Run(pattern, "("));
+  EXPECT_FALSE(Run(pattern, ")"));
+  EXPECT_FALSE(Run(pattern, "{"));
+  EXPECT_FALSE(Run(pattern, "}"));
+  EXPECT_FALSE(Run(pattern, "|"));
+  EXPECT_FALSE(Run(pattern, "?"));
+  EXPECT_FALSE(Run(pattern, "*"));
+  EXPECT_FALSE(Run(pattern, "+"));
+  EXPECT_TRUE(Run(pattern, "x"));
+  EXPECT_TRUE(Run(pattern, "y"));
+}
+
 TEST_P(ParserTest, CharacterClassWithEscapes) {
   auto const status_or_pattern = Parse("[a\\\\\\^\\$\\.\\(\\)\\[\\]\\{\\}\\|\\?\\*\\+b]");
   EXPECT_OK(status_or_pattern);
@@ -1964,6 +2008,7 @@ TEST_P(ParserTest, Search) {
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_TRUE(Run(pattern, "lorem ipsum dolor sic amat"));
+  EXPECT_TRUE(Run(pattern, "lorem ipsum dooolor sic amat"));
   EXPECT_FALSE(Run(pattern, "lorem ipsum color sic amat"));
   EXPECT_FALSE(Run(pattern, "lorem ipsum dolet et amat"));
 }
