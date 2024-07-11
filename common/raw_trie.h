@@ -238,11 +238,14 @@ class TrieNode {
 
     // Runs `Step` on the runner.
     //
-    // WARNING: this must be run only once per frame.
+    // WARNING: this MUST be run exactly once every time the `pos_` iterator of the frame changes:
+    // once after construction and once after each successful `Advance` call.
+    // `BaseIterator::Advance` achieves that: it calls `StepRunner` every time `NextNode` returns,
+    // which happens either when a new frame is constructed or when its `pos_` iterator is advanced.
     bool StepRunner() { return runner_->Step(Base::key()); }
 
     // Runs `Finish` on a temporary clone of the runner. The frame and its runner are still usable
-    // after `FinishRunner` even if it returns true, because the original runner is clone and not
+    // after `FinishRunner` even if it returns true, because the original runner is cloned and not
     // affected.
     //
     // REQUIRES: `StepRunner` must have run successfully.
