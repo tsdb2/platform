@@ -178,9 +178,6 @@ class TrieNode {
     using Base = StateFrame<reverse>;
     using AutomatonRunner = std::unique_ptr<regexp_internal::AutomatonInterface::RunnerInterface>;
 
-    using Base::end;
-    using Base::pos;
-
     explicit FilteredStateFrame(NodeSet& nodes, AutomatonRunner automaton_runner)
         : Base(nodes), runner(std::move(runner)) {}
 
@@ -190,6 +187,9 @@ class TrieNode {
     explicit FilteredStateFrame(typename NodeSet::iterator pos_it,
                                 typename NodeSet::iterator end_it, AutomatonRunner automaton_runner)
         : Base(pos_it, end_it), runner(std::move(runner)) {}
+
+    using Base::end;
+    using Base::pos;
 
     AutomatonRunner runner;
   };
@@ -307,6 +307,58 @@ class TrieNode {
 
   using DirectBaseIterator = BaseIterator<StateFrame<false>>;
 
+  // Specializes `BaseIterator` for filtered state frames.
+  template <bool reverse>
+  class BaseIterator<FilteredStateFrame<reverse>> {
+   public:
+    BaseIterator(BaseIterator const&) = default;
+    BaseIterator& operator=(BaseIterator const&) = default;
+    BaseIterator(BaseIterator&&) noexcept = default;
+    BaseIterator& operator=(BaseIterator&&) noexcept = default;
+
+    friend bool operator==(BaseIterator const& lhs, BaseIterator const& rhs) {
+      return lhs.frames_ == rhs.frames_;
+    }
+
+    friend bool operator!=(BaseIterator const& lhs, BaseIterator const& rhs) {
+      return lhs.frames_ != rhs.frames_;
+    }
+
+   protected:
+    friend class TrieNode;
+
+    // Constructs the "begin" iterator.
+    explicit BaseIterator(NodeSet const& roots,
+                          reffed_ptr<regexp_internal::AutomatonInterface> const& automaton) {
+      auto const& frame = frames_.emplace_back(roots, automaton->CreateRunner());
+      if (frame.pos != frame.end && !frame.pos->second.TestLabel()) {
+        Advance();
+      }
+    }
+
+    // Constructs the "end" iterator.
+    explicit BaseIterator() = default;
+
+    // Constructs an iterator with the given state frames.
+    explicit BaseIterator(std::vector<FilteredStateFrame<reverse>> frames)
+        : frames_(std::move(frames)) {}
+
+    // Returns true iff this is the end iterator.
+    bool is_end() const { return frames_.empty(); }
+
+    std::string GetKey() const { return GetElementKey(frames_); }
+
+    void NextNode() {
+      // TODO
+    }
+
+    void Advance() {
+      // TODO
+    }
+
+    std::vector<FilteredStateFrame<reverse>> frames_;
+  };
+
  private:
   // Bidirectional node iterator.
   template <typename Value, typename StateFrame>
@@ -355,10 +407,10 @@ class TrieNode {
 
    private:
     friend class TrieNode;
-    explicit GenericIterator(NodeSet const& roots) : BaseIterator<StateFrame>(roots) {}
-    explicit GenericIterator() = default;
-    explicit GenericIterator(std::vector<StateFrame> frames)
-        : BaseIterator<StateFrame>(std::move(frames)) {}
+
+    template <typename... Args>
+    explicit GenericIterator(Args&&... args)
+        : BaseIterator<StateFrame>(std::forward<Args>(args)...) {}
   };
 
   // Bidirectional const iterator.
@@ -413,10 +465,10 @@ class TrieNode {
 
    private:
     friend class TrieNode;
-    explicit GenericConstIterator(NodeSet const& roots) : BaseIterator<StateFrame>(roots) {}
-    explicit GenericConstIterator() = default;
-    explicit GenericConstIterator(std::vector<StateFrame> frames)
-        : BaseIterator<StateFrame>(std::move(frames)) {}
+
+    template <typename... Args>
+    explicit GenericConstIterator(Args&&... args)
+        : BaseIterator<StateFrame>(std::forward<Args>(args)...) {}
   };
 
  public:
@@ -424,6 +476,65 @@ class TrieNode {
   using ConstIterator = GenericConstIterator<typename Traits::Mapped, StateFrame<false>>;
   using ReverseIterator = GenericIterator<typename Traits::Mapped, StateFrame<true>>;
   using ConstReverseIterator = GenericConstIterator<typename Traits::Mapped, StateFrame<true>>;
+  using FilteredIterator = GenericIterator<typename Traits::Mapped, FilteredStateFrame<false>>;
+  using ConstFilteredIterator =
+      GenericConstIterator<typename Traits::Mapped, FilteredStateFrame<false>>;
+  using ReverseFilteredIterator =
+      GenericIterator<typename Traits::Mapped, FilteredStateFrame<true>>;
+  using ConstReverseFilteredIterator =
+      GenericConstIterator<typename Traits::Mapped, FilteredStateFrame<true>>;
+
+  // Provides a view of the trie filtered by a regular expression, allowing the user to enumerate
+  // only the elements whose key matches the regular expression.
+  //
+  // Under the hood `FilteredView` uses efficient algorithms that can entirely skip mismatching
+  // subtrees, so it's much more efficient than just iterating over all elements and checking each
+  // one against the regular expression.
+  //
+  // You can get a `FilteredView` instance by calling `TrieNode::Filter`.
+  //
+  // NOTE: the `FilteredView` refers to the parent trie internally, so the trie must not be moved or
+  // destroyed while one or more `FilteredView` instances exist. It is okay to move and copy the
+  // `FilteredView` itself.
+  class FilteredView {
+   public:
+    FilteredView(FilteredView const&) = default;
+    FilteredView& operator=(FilteredView const&) = default;
+    FilteredView(FilteredView&&) noexcept = default;
+    FilteredView& operator=(FilteredView&&) noexcept = default;
+
+    FilteredIterator begin() { return FilteredIterator(*roots_, automaton_); }
+    ConstFilteredIterator begin() const { return ConstFilteredIterator(*roots_, automaton_); }
+    ConstFilteredIterator cbegin() const { return ConstFilteredIterator(*roots_, automaton_); }
+
+    FilteredIterator end() { return FilteredIterator(); }
+    ConstFilteredIterator end() const { return ConstFilteredIterator(); }
+    ConstFilteredIterator cend() const { return ConstFilteredIterator(); }
+
+    ReverseFilteredIterator rbegin() { return ReverseFilteredIterator(*roots_, automaton_); }
+
+    ConstReverseFilteredIterator rbegin() const {
+      return ConstReverseFilteredIterator(*roots_, automaton_);
+    }
+
+    ConstReverseFilteredIterator crbegin() const {
+      return ConstReverseFilteredIterator(*roots_, automaton_);
+    }
+
+    ReverseFilteredIterator rend() { return ReverseFilteredIterator(); }
+    ConstReverseFilteredIterator rend() const { return ConstReverseFilteredIterator(); }
+    ConstReverseFilteredIterator crend() const { return ConstReverseFilteredIterator(); }
+
+   private:
+    friend class TrieNode;
+
+    explicit FilteredView(NodeSet const& roots,
+                          reffed_ptr<regexp_internal::AutomatonInterface> automaton)
+        : roots_(&roots), automaton_(std::move(automaton)) {}
+
+    NodeSet const* roots_;
+    reffed_ptr<regexp_internal::AutomatonInterface> automaton_;
+  };
 
   template <typename... Args>
   explicit TrieNode(EntryAllocator const& alloc, Args&&... args)
@@ -486,6 +597,13 @@ class TrieNode {
   // end iterator if the element is not found.
   static ConstIterator FindConst(NodeSet const& roots, std::string_view const key) {
     return ConstIterator(Find(roots, key));
+  }
+
+  // Creates a view of this trie filtered with the provided regular expression pattern. The returned
+  // `FilteredView` allows efficiently enumerating only the elements whose key matches the regular
+  // expression.
+  static FilteredView Filter(NodeSet const& roots, RE re) {
+    return FilteredView(roots, std::move(re.automaton_));
   }
 
   // Determines whether the trie rooted at this node contains the specified key.
