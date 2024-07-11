@@ -12,6 +12,9 @@ namespace regexp_internal {
 
 // Abstract interface of a finite state automaton that recognizes and decides a regular expression
 // language. `NFA` and `DFA` inherit this class.
+//
+// Automata are thread-safe because they are immutable except for the reference count, which is
+// implemented by `SimpleRefCounted` in a thread-safe way.
 class AutomatonInterface : public SimpleRefCounted {
  public:
   // Abstract interface for an automaton runner.
@@ -50,9 +53,6 @@ class AutomatonInterface : public SimpleRefCounted {
     explicit RunnerInterface() = default;
     virtual ~RunnerInterface() = default;
 
-    RunnerInterface(RunnerInterface const &) = default;
-    RunnerInterface &operator=(RunnerInterface const &) = default;
-
     // Clones the runner, duplicating its internal state.
     virtual std::unique_ptr<RunnerInterface> Clone() const = 0;
 
@@ -74,7 +74,13 @@ class AutomatonInterface : public SimpleRefCounted {
     // `Finish` returns true, the automaton is no longer usable and must be discarded.
     virtual bool Finish() = 0;
 
+   protected:
+    // Copies are performed by `Clone`.
+    RunnerInterface(RunnerInterface const &) = default;
+    RunnerInterface &operator=(RunnerInterface const &) = default;
+
    private:
+    // Moves forbidden: the trie search algorithms require pointer stability.
     RunnerInterface(RunnerInterface &&) = delete;
     RunnerInterface &operator=(RunnerInterface &&) = delete;
   };
@@ -92,12 +98,13 @@ class AutomatonInterface : public SimpleRefCounted {
   virtual bool Run(std::string_view input) const = 0;
 
  private:
-  // Copies are not needed: automata are immutable and reference-countable.
+  // Copies are not needed: automata are immutable and reference-counted, so we can share them
+  // rather than copying them.
   AutomatonInterface(AutomatonInterface const &) = delete;
   AutomatonInterface &operator=(AutomatonInterface const &) = delete;
 
-  // Moves are forbidden: we need pointer stability for several reasons, e.g. we need to manage the
-  // reference count, runners keep a pointer to the parent automaton, etc.
+  // Moves are forbidden: we need pointer stability because runners keep a pointer to the parent
+  // automaton.
   AutomatonInterface(AutomatonInterface &&) = delete;
   AutomatonInterface &operator=(AutomatonInterface &&) = delete;
 };

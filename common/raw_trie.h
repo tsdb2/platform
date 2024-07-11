@@ -116,6 +116,7 @@ class TrieNode {
   template <bool reverse>
   class StateFrame;
 
+  // Specializes `StateFrame` for forward iterators.
   template <>
   class StateFrame<false> {
    public:
@@ -160,6 +161,7 @@ class TrieNode {
     typename NodeSet::iterator end_;
   };
 
+  // Specializes `StateFrame` for reverse iterators.
   template <>
   class StateFrame<true> {
    public:
@@ -205,15 +207,17 @@ class TrieNode {
     using AutomatonRunner = std::unique_ptr<regexp_internal::AutomatonInterface::RunnerInterface>;
 
     explicit FilteredStateFrame(NodeSet& nodes, AutomatonRunner const& parent_runner)
-        : Base(nodes), parent_runner_(&parent_runner), runner_(parent_runner->Clone()) {}
+        : Base(nodes), parent_runner_(parent_runner.get()), runner_(parent_runner->Clone()) {}
 
     explicit FilteredStateFrame(NodeSet const& nodes, AutomatonRunner const& parent_runner)
-        : Base(nodes), parent_runner_(&parent_runner), runner_(parent_runner->Clone()) {}
+        : Base(nodes), parent_runner_(parent_runner.get()), runner_(parent_runner->Clone()) {}
 
     explicit FilteredStateFrame(typename NodeSet::iterator pos_it,
                                 typename NodeSet::iterator end_it,
                                 AutomatonRunner const& parent_runner)
-        : Base(pos_it, end_it), parent_runner_(&parent_runner), runner_(parent_runner->Clone()) {}
+        : Base(pos_it, end_it),
+          parent_runner_(parent_runner.get()),
+          runner_(parent_runner->Clone()) {}
 
     FilteredStateFrame(FilteredStateFrame const&) = default;
     FilteredStateFrame& operator=(FilteredStateFrame const&) = default;
@@ -224,7 +228,7 @@ class TrieNode {
 
     bool Advance() {
       if (Base::Advance()) {
-        runner_ = (*parent_runner_)->Clone();
+        runner_ = parent_runner_->Clone();
         return true;
       } else {
         runner_.reset();
@@ -236,7 +240,7 @@ class TrieNode {
     bool FinishRunner() { return runner_->Finish(); }
 
    private:
-    AutomatonRunner const* parent_runner_;
+    regexp_internal::AutomatonInterface::RunnerInterface const* parent_runner_;
     AutomatonRunner runner_;
   };
 
