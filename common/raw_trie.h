@@ -114,15 +114,16 @@ class TrieNode {
   // The `reverse` flag indicates whether the `StateFrame` embeds reverse iterators or not. Reverse
   // iterators are retrieved by calling `rbegin()` / `rend()` on a node set.
   template <bool reverse>
-  struct StateFrame;
+  class StateFrame;
 
   template <>
-  struct StateFrame<false> {
-    explicit StateFrame(NodeSet& nodes) : pos(nodes.begin()), end(nodes.end()) {}
+  class StateFrame<false> {
+   public:
+    explicit StateFrame(NodeSet& nodes) : pos_(nodes.begin()), end_(nodes.end()) {}
     explicit StateFrame(NodeSet const& nodes) : StateFrame(const_cast<NodeSet&>(nodes)) {}
 
     explicit StateFrame(typename NodeSet::iterator pos_it, typename NodeSet::iterator end_it)
-        : pos(std::move(pos_it)), end(std::move(end_it)) {}
+        : pos_(std::move(pos_it)), end_(std::move(end_it)) {}
 
     StateFrame(StateFrame const&) = default;
     StateFrame& operator=(StateFrame const&) = default;
@@ -130,26 +131,43 @@ class TrieNode {
     StateFrame& operator=(StateFrame&&) noexcept = default;
 
     friend bool operator==(StateFrame const& lhs, StateFrame const& rhs) {
-      if (lhs.pos != lhs.end) {
-        return rhs.pos != rhs.end && lhs.pos->first == rhs.pos->first;
+      if (lhs.pos_ != lhs.end_) {
+        return rhs.pos_ != rhs.end_ && lhs.pos_->first == rhs.pos_->first;
       } else {
-        return rhs.pos == rhs.end;
+        return rhs.pos_ == rhs.end_;
       }
     }
 
     friend bool operator!=(StateFrame const& lhs, StateFrame const& rhs) { return !(lhs == rhs); }
 
-    typename NodeSet::iterator pos;
-    typename NodeSet::iterator end;
+    bool at_end() const { return pos_ == end_; }
+    std::string_view key() const { return pos_->first; }
+    TrieNode& node() const { return pos_->second; }
+
+    bool Advance() { return ++pos_ != end_; }
+
+    void AppendToKey(std::string_view const suffix) { pos_->first += suffix; }
+
+    void EraseFrom(NodeSet* const nodes) & {
+      pos_ = nodes->erase(pos_);
+      end_ = nodes->end();
+    }
+
+    void EraseFrom(NodeSet* const nodes) && { nodes->erase(pos_); }
+
+   private:
+    typename NodeSet::iterator pos_;
+    typename NodeSet::iterator end_;
   };
 
   template <>
-  struct StateFrame<true> {
-    explicit StateFrame(NodeSet& nodes) : pos(nodes.rbegin()), end(nodes.rend()) {}
+  class StateFrame<true> {
+   public:
+    explicit StateFrame(NodeSet& nodes) : pos_(nodes.rbegin()), end_(nodes.rend()) {}
     explicit StateFrame(NodeSet const& nodes) : StateFrame(const_cast<NodeSet&>(nodes)) {}
 
     explicit StateFrame(typename NodeSet::iterator pos_it, typename NodeSet::iterator end_it)
-        : pos(std::move(pos_it)), end(std::move(end_it)) {}
+        : pos_(std::move(pos_it)), end_(std::move(end_it)) {}
 
     StateFrame(StateFrame const&) = default;
     StateFrame& operator=(StateFrame const&) = default;
@@ -157,41 +175,62 @@ class TrieNode {
     StateFrame& operator=(StateFrame&&) noexcept = default;
 
     friend bool operator==(StateFrame const& lhs, StateFrame const& rhs) {
-      if (lhs.pos != lhs.end) {
-        return rhs.pos != rhs.end && lhs.pos->first == rhs.pos->first;
+      if (lhs.pos_ != lhs.end_) {
+        return rhs.pos_ != rhs.end_ && lhs.pos_->first == rhs.pos_->first;
       } else {
-        return rhs.pos == rhs.end;
+        return rhs.pos_ == rhs.end_;
       }
     }
 
     friend bool operator!=(StateFrame const& lhs, StateFrame const& rhs) { return !(lhs == rhs); }
 
-    typename NodeSet::reverse_iterator pos;
-    typename NodeSet::reverse_iterator end;
+    bool at_end() const { return pos_ == end_; }
+    std::string_view key() const { return pos_->first; }
+    TrieNode& node() const { return pos_->second; }
+
+    bool Advance() { return ++pos_ != end_; }
+
+   private:
+    typename NodeSet::reverse_iterator pos_;
+    typename NodeSet::reverse_iterator end_;
   };
 
   using DirectStateFrame = StateFrame<false>;
 
   // This type of state frames is used in filtered views (See `FilteredView` below).
   template <bool reverse>
-  struct FilteredStateFrame : public StateFrame<reverse> {
+  class FilteredStateFrame : public StateFrame<reverse> {
+   public:
     using Base = StateFrame<reverse>;
     using AutomatonRunner = std::unique_ptr<regexp_internal::AutomatonInterface::RunnerInterface>;
 
-    explicit FilteredStateFrame(NodeSet& nodes, AutomatonRunner automaton_runner)
-        : Base(nodes), runner(std::move(runner)) {}
+    explicit FilteredStateFrame(NodeSet& nodes, AutomatonRunner const& parent_runner)
+        : Base(nodes), parent_runner_(&parent_runner), runner_(parent_runner->Clone()) {}
 
-    explicit FilteredStateFrame(NodeSet const& nodes, AutomatonRunner automaton_runner)
-        : Base(nodes), runner(std::move(runner)) {}
+    explicit FilteredStateFrame(NodeSet const& nodes, AutomatonRunner const& parent_runner)
+        : Base(nodes), parent_runner_(&parent_runner), runner_(parent_runner->Clone()) {}
 
     explicit FilteredStateFrame(typename NodeSet::iterator pos_it,
-                                typename NodeSet::iterator end_it, AutomatonRunner automaton_runner)
-        : Base(pos_it, end_it), runner(std::move(runner)) {}
+                                typename NodeSet::iterator end_it,
+                                AutomatonRunner const& parent_runner)
+        : Base(pos_it, end_it), parent_runner_(&parent_runner), runner_(parent_runner->Clone()) {}
 
-    using Base::end;
-    using Base::pos;
+    FilteredStateFrame(FilteredStateFrame const&) = default;
+    FilteredStateFrame& operator=(FilteredStateFrame const&) = default;
+    FilteredStateFrame(FilteredStateFrame&&) noexcept = default;
+    FilteredStateFrame& operator=(FilteredStateFrame&&) noexcept = default;
 
-    AutomatonRunner runner;
+    bool Advance() {
+      if (Base::Advance()) {
+        runner_ = (*parent_runner_)->Clone();
+      } else {
+        runner_.reset();
+      }
+    }
+
+   private:
+    AutomatonRunner const* parent_runner_;
+    AutomatonRunner runner_;
   };
 
   template <typename StateFrameType>
@@ -238,9 +277,11 @@ class TrieNode {
 
     // Constructs the "begin" iterator.
     explicit BaseIterator(NodeSet const& roots) {
-      auto const& frame = frames_.emplace_back(roots);
-      if (frame.pos != frame.end && !frame.pos->second.TestLabel()) {
-        Advance();
+      if (!roots.empty()) {
+        auto const& frame = frames_.emplace_back(roots);
+        if (!frame.node().TestLabel()) {
+          Advance();
+        }
       }
     }
 
@@ -263,23 +304,23 @@ class TrieNode {
     //  3. if the current node has no peers, backtrack to the parent (by removing the last frame)
     //     and repeat #2.
     //
-    // NOTE: this algorithm won't necessarily find the next *leaf* node, it will simply advance to
-    // the next one. The caller needs to repeat until either a leaf node is found or there are no
-    // more nodes. That is achieved by the `Advance` method.
+    // NOTE: this algorithm won't necessarily find the next *terminal* node, it will simply advance
+    // to the next one. The caller needs to repeat until either a terminal node is found or there
+    // are no more nodes. That is achieved by the `Advance` method.
     void NextNode() {
       auto const& frame = frames_.back();
-      if (frame.pos != frame.end) {
-        auto const& node = frame.pos->second;
+      if (frame.at_end()) {
+        frames_.pop_back();
+      } else {
+        auto const& node = frame.node();
         if (!node.children_.empty()) {
           frames_.emplace_back(node.children_);
           return;
         }
-      } else {
-        frames_.pop_back();
       }
       while (!frames_.empty()) {
         auto& frame = frames_.back();
-        if (++frame.pos != frame.end) {
+        if (frame.Advance()) {
           return;
         } else {
           frames_.pop_back();
@@ -287,15 +328,15 @@ class TrieNode {
       }
     }
 
-    // Advances the iterator to the next node repeatedly until either the next leaf node is found or
-    // there are no more nodes. In the latter case the iterator becomes the end iterator of the
-    // trie.
+    // Advances the iterator to the next node repeatedly until either the next terminal node is
+    // found or there are no more nodes. In the latter case the iterator becomes the end iterator of
+    // the trie.
     //
     // This is the main iterator advancement algorithm invoked by `operator++`.
     void Advance() {
       while (NextNode(), !frames_.empty()) {
         auto const& frame = frames_.back();
-        auto const& node = frame.pos->second;
+        auto const& node = frame.node();
         if (node.TestLabel()) {
           return;
         }
@@ -329,33 +370,62 @@ class TrieNode {
 
     // Constructs the "begin" iterator.
     explicit BaseIterator(NodeSet const& roots,
-                          reffed_ptr<regexp_internal::AutomatonInterface> const& automaton) {
-      auto const& frame = frames_.emplace_back(roots, automaton->CreateRunner());
-      if (frame.pos != frame.end && !frame.pos->second.TestLabel()) {
-        Advance();
+                          reffed_ptr<regexp_internal::AutomatonInterface> const& automaton)
+        : runner_(roots.empty() ? nullptr : automaton->CreateRunner()) {
+      if (!roots.empty()) {
+        auto const& frame = frames_.emplace_back(roots, runner_);
+        if (!frame.node().TestLabel()) {
+          Advance();
+        }
       }
     }
 
     // Constructs the "end" iterator.
     explicit BaseIterator() = default;
 
-    // Constructs an iterator with the given state frames.
-    explicit BaseIterator(std::vector<FilteredStateFrame<reverse>> frames)
-        : frames_(std::move(frames)) {}
-
     // Returns true iff this is the end iterator.
     bool is_end() const { return frames_.empty(); }
 
     std::string GetKey() const { return GetElementKey(frames_); }
 
+    // Advances the iterator to the next node accepted by the automaton. The next node is found by
+    // attempting the following, in order:
+    //
+    //  1. descend to the leftmost child;
+    //  2. if the current node has no children, advance to the next peer;
+    //  3. if the current node has no peers, backtrack to the parent (by removing the last frame)
+    //     and repeat #2;
+    //  4. if the key of the current node is not accepted by the automaton, repeat everything.
+    //
+    // NOTE: this algorithm won't necessarily find the next *terminal* node, it will simply advance
+    // to the next one. The caller needs to repeat until either a terminal node is found or there
+    // are no more nodes. That is achieved by the `Advance` method.
     void NextNode() {
-      // TODO
+      auto const& frame = frames_.back();
+      if (frame.at_end()) {
+        frames_.pop_back();
+      } else {
+        auto const& node = frame.node();
+        if (!node.children_.empty()) {
+          frames_.emplace_back(node.children_, frame.runner);
+          return;
+        }
+      }
+      while (!frames_.empty()) {
+        auto& frame = frames_.back();
+        if (frame.Advance()) {
+          return;
+        } else {
+          frames_.pop_back();
+        }
+      }
     }
 
     void Advance() {
       // TODO
     }
 
+    std::unique_ptr<regexp_internal::AutomatonInterface::RunnerInterface> runner_;
     std::vector<FilteredStateFrame<reverse>> frames_;
   };
 
@@ -381,13 +451,13 @@ class TrieNode {
 
     template <typename Alias = Value, std::enable_if_t<!std::is_void_v<Alias>, bool> = true>
     std::pair<std::string const, Alias&> operator*() const {
-      auto& node = this->frames_.back().pos->second;
+      auto& node = this->frames_.back().node();
       return {this->GetKey(), node.label_.value()};
     }
 
     template <typename Alias = Value, std::enable_if_t<!std::is_void_v<Alias>, bool> = true>
     std::unique_ptr<std::pair<std::string const, Alias&>> operator->() const {
-      auto& node = this->frames_.back().pos->second;
+      auto& node = this->frames_.back().node();
       return std::make_unique<std::pair<std::string const, Alias&>>(this->GetKey(),
                                                                     node.label_.value());
     }
@@ -439,13 +509,13 @@ class TrieNode {
 
     template <typename Alias = Value, std::enable_if_t<!std::is_void_v<Alias>, bool> = true>
     std::pair<std::string const, Alias const&> operator*() const {
-      auto& node = this->frames_.back().pos->second;
+      auto& node = this->frames_.back().node();
       return {this->GetKey(), node.label_.value()};
     }
 
     template <typename Alias = Value, std::enable_if_t<!std::is_void_v<Alias>, bool> = true>
     std::unique_ptr<std::pair<std::string const, Alias const&>> operator->() const {
-      auto& node = this->frames_.back().pos->second;
+      auto& node = this->frames_.back().node();
       return std::make_unique<std::pair<std::string const, Alias const&>>(this->GetKey(),
                                                                           node.label_.value());
     }
@@ -705,12 +775,12 @@ template <typename StateFrameType>
 std::string TrieNode<Label, Allocator>::GetElementKey(std::vector<StateFrameType> const& frames) {
   size_t size = 0;
   for (auto const& frame : frames) {
-    size += frame.pos->first.size();
+    size += frame.key().size();
   }
   std::string key;
   key.reserve(size);
   for (auto const& frame : frames) {
-    key += frame.pos->first;
+    key += frame.key();
   }
   return key;
 }
@@ -726,7 +796,7 @@ typename TrieNode<Label, Allocator>::Iterator TrieNode<Label, Allocator>::Find(
     NodeSet const& roots, std::string_view key) {
   std::vector<DirectStateFrame> frames{DirectStateFrame(roots)};
   while (!key.empty()) {
-    auto& node = frames.back().pos->second;
+    auto& node = frames.back().node();
     auto const end = node.children_.end();
     auto const it = node.children_.lower_bound(key.substr(0, 1));
     if (it == end || !absl::ConsumePrefix(&key, it->first)) {
@@ -734,7 +804,7 @@ typename TrieNode<Label, Allocator>::Iterator TrieNode<Label, Allocator>::Find(
     }
     frames.emplace_back(it, end);
   }
-  auto const& node = frames.back().pos->second;
+  auto const& node = frames.back().node();
   if (node.TestLabel()) {
     return Iterator(std::move(frames));
   } else {
@@ -787,7 +857,7 @@ typename TrieNode<Label, Allocator>::Iterator TrieNode<Label, Allocator>::LowerB
     NodeSet const& roots, std::string_view key) {
   std::vector<DirectStateFrame> frames{DirectStateFrame(roots)};
   while (!key.empty()) {
-    auto& node = frames.back().pos->second;
+    auto& node = frames.back().node();
     auto const it = node.LowerBound(key);
     auto const end = node.children_.end();
     frames.emplace_back(it, end);
@@ -800,9 +870,9 @@ typename TrieNode<Label, Allocator>::Iterator TrieNode<Label, Allocator>::LowerB
     }
   }
   auto const& frame = frames.back();
-  bool const leaf = frame.pos != frame.end && frame.pos->second.TestLabel();
+  bool const terminal = !frame.at_end() && frame.node().TestLabel();
   Iterator result{std::move(frames)};
-  if (!leaf) {
+  if (!terminal) {
     result.Advance();
   }
   return result;
@@ -813,7 +883,7 @@ typename TrieNode<Label, Allocator>::Iterator TrieNode<Label, Allocator>::UpperB
     NodeSet const& roots, std::string_view key) {
   std::vector<DirectStateFrame> frames{DirectStateFrame(roots)};
   while (!key.empty()) {
-    auto& node = frames.back().pos->second;
+    auto& node = frames.back().node();
     auto const it = node.LowerBound(key);
     auto const end = node.children_.end();
     frames.emplace_back(it, end);
@@ -869,7 +939,7 @@ std::pair<typename TrieNode<Label, Allocator>::Iterator, bool> TrieNode<Label, A
     NodeSet* const roots, std::string_view key, Args&&... args) {
   std::vector<DirectStateFrame> frames{DirectStateFrame(*roots)};
   while (!key.empty()) {
-    auto& node = frames.back().pos->second;
+    auto& node = frames.back().node();
     auto const it = node.children_.lower_bound(key.substr(0, 1));
     if (it == node.children_.end()) {
       return node.InsertChild(std::move(frames), key, std::forward<Args>(args)...);
@@ -893,7 +963,7 @@ std::pair<typename TrieNode<Label, Allocator>::Iterator, bool> TrieNode<Label, A
     }
     key.remove_prefix(i);
   }
-  auto& node = frames.back().pos->second;
+  auto& node = frames.back().node();
   bool const inserted = node.TrySetLabel(std::forward<Args>(args)...);
   return std::make_pair(Iterator(std::move(frames)), inserted);
 }
@@ -930,20 +1000,19 @@ typename TrieNode<Label, Allocator>::Iterator TrieNode<Label, Allocator>::Remove
   auto& frames = it.frames_;
   NodeSet* nodes = roots;
   if (frames.size() > 1) {
-    nodes = &(frames[frames.size() - 2].pos->second.children_);
+    nodes = &(frames[frames.size() - 2].node().children_);
   }
   auto& last_frame = frames.back();
-  auto& node = last_frame.pos->second;
+  auto& node = last_frame.node();
   if (node.children_.size() > 1) {
     node.ResetLabel();
   } else if (node.children_.size() > 0) {
     auto child_node = node.children_.extract(node.children_.begin());
-    last_frame.pos->first += child_node.key();
+    last_frame.AppendToKey(child_node.key());
     node = std::move(child_node).mapped();
   } else {
-    last_frame.pos = nodes->erase(last_frame.pos);
-    last_frame.end = nodes->end();
-    if (last_frame.pos != last_frame.end && last_frame.pos->second.TestLabel()) {
+    last_frame.EraseFrom(nodes);
+    if (!last_frame.at_end() && last_frame.node().TestLabel()) {
       return Iterator(std::move(it.frames_));
     }
   }
@@ -956,18 +1025,18 @@ void TrieNode<Label, Allocator>::RemoveFast(NodeSet* const roots, DirectBaseIter
   auto const& frames = it.frames_;
   NodeSet* nodes = roots;
   if (frames.size() > 1) {
-    nodes = &(frames[frames.size() - 2].pos->second.children_);
+    nodes = &(frames[frames.size() - 2].node().children_);
   }
-  auto const& last_frame = frames.back();
-  auto& node = last_frame.pos->second;
+  auto& last_frame = const_cast<DirectStateFrame&>(frames.back());
+  auto& node = last_frame.node();
   if (node.children_.size() > 1) {
     node.ResetLabel();
   } else if (node.children_.size() > 0) {
     auto child_node = node.children_.extract(node.children_.begin());
-    last_frame.pos->first += child_node.key();
+    last_frame.AppendToKey(child_node.key());
     node = std::move(child_node).mapped();
   } else {
-    nodes->erase(last_frame.pos);
+    std::move(last_frame).EraseFrom(nodes);
   }
 }
 

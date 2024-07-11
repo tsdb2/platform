@@ -56,6 +56,11 @@ class trie_map {
   using const_iterator = typename Node::ConstIterator;
   using reverse_iterator = typename Node::ReverseIterator;
   using const_reverse_iterator = typename Node::ConstReverseIterator;
+  using filtered_iterator = typename Node::FilteredIterator;
+  using const_filtered_iterator = typename Node::ConstFilteredIterator;
+  using reverse_filtered_iterator = typename Node::ReverseFilteredIterator;
+  using const_reverse_filtered_iterator = typename Node::ConstReverseFilteredIterator;
+  using filtered_view = typename Node::FilteredView;
 
   trie_map() = default;
 
@@ -306,6 +311,35 @@ class trie_map {
   iterator find(std::string_view const key) { return Node::Find(roots_, key); }
 
   const_iterator find(std::string_view const key) const { return Node::FindConst(roots_, key); }
+
+  // Provides a view of the trie filtered by a regular expression, allowing the user to enumerate
+  // only the elements whose key matches the regular expression.
+  //
+  // Example:
+  //
+  //   trie_map<int> const tm{
+  //       {"lorem", 1},
+  //       {"ipsum", 2},
+  //       {"dolor", 3},
+  //       {"color", 4},
+  //   };
+  //   for (auto const& [key, value] : tm.filter(RE::Create(".*lor"))) {
+  //     std::cout << key << std::endl;
+  //   }
+  //
+  // The above example will print "dolor" and "color".
+  //
+  // Under the hood `filtered_view` uses efficient algorithms that can entirely skip mismatching
+  // subtrees, so it's much more efficient than just iterating over all elements and checking each
+  // one against the regular expression.
+  //
+  // NOTE: the `filtered_view` refers to the parent trie internally, so the trie must not be moved
+  // or destroyed while one or more `filtered_view` instances exist. It is okay to move and copy the
+  // `filtered_view` itself.
+  filtered_view filter(RE re) const { return Node::Filter(roots_, std::move(re)); }
+
+  // Shorthand for `filter(RE::Create(pattern))`.
+  filtered_view filter(std::string_view const pattern) const { return filter(RE::Create(pattern)); }
 
   bool contains(std::string_view const key) const { return root().Contains(key); }
 
