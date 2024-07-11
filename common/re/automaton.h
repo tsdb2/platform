@@ -10,8 +10,8 @@ namespace tsdb2 {
 namespace common {
 namespace regexp_internal {
 
-// Abstract interface of a finite state automaton that recognizes a regular expression language.
-// `NFA` and `DFA` inherit this class.
+// Abstract interface of a finite state automaton that recognizes and decides a regular expression
+// language. `NFA` and `DFA` inherit this class.
 class AutomatonInterface : public SimpleRefCounted {
  public:
   // Abstract interface for an automaton runner.

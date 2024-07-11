@@ -61,6 +61,11 @@ class RE {
 
   // Moves and copies are efficient because the inner automaton is immutable and is managed by means
   // of reference counting, so we never move or copy the whole automaton, just a pointer to it.
+  //
+  // For reference counting the automaton uses `SimpleRefCounted` which is lock-free and
+  // thread-safe, so it's okay for different threads to keep `RE` objects referring to the same
+  // automaton. It is however not okay for different threads to use the same `RE` object without any
+  // synchronization. Only the internal automaton is thread-safe, `RE` is not.
 
   RE(RE const &) = default;
   RE &operator=(RE const &) = default;

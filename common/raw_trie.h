@@ -172,18 +172,53 @@ class TrieNode {
 
   using DirectStateFrame = StateFrame<false>;
 
-  template <bool reverse, typename Automaton>
+  // This type of state frames is used in filtered views (See `FilteredView` below).
+  template <bool reverse>
   struct FilteredStateFrame : public StateFrame<reverse> {
     using Base = StateFrame<reverse>;
+    using AutomatonRunner = std::unique_ptr<regexp_internal::AutomatonInterface::RunnerInterface>;
+
     using Base::end;
     using Base::pos;
-    Automaton automaton;
+
+    explicit FilteredStateFrame(NodeSet& nodes, AutomatonRunner automaton_runner)
+        : Base(nodes), runner(std::move(runner)) {}
+
+    explicit FilteredStateFrame(NodeSet const& nodes, AutomatonRunner automaton_runner)
+        : Base(nodes), runner(std::move(runner)) {}
+
+    explicit FilteredStateFrame(typename NodeSet::iterator pos_it,
+                                typename NodeSet::iterator end_it, AutomatonRunner automaton_runner)
+        : Base(pos_it, end_it), runner(std::move(runner)) {}
+
+    AutomatonRunner runner;
   };
 
+  template <typename StateFrameType>
+  static std::string GetElementKey(std::vector<StateFrameType> const& frames);
+
  public:
-  // Base class for iterators.
+  // Base class of all iterators.
+  //
+  // `StateFrame` is the type of state frames contained in the iterator, which may vary based on the
+  // type of iterators and other variables in the frame.
+  //
+  // Four state frame types are supported:
+  //
+  //   - direct unfiltered frames (`StateFrame<false>`);
+  //   - reverse unfiltered frames (`StateFrame<true>`);
+  //   - direct filtered frames (`FilteredStateFrame<false>`);
+  //   - reverse filtered frames (`FilteredStateFrame<true>`).
+  //
+  // Direct state frames are used by forward iterators, while reverse ones are used by reverse
+  // iterators. Filtered state frames are used by the iterators of filtered views, while unfiltered
+  // ones are for regular iterations.
   template <typename StateFrame>
-  class BaseIterator {
+  class BaseIterator;
+
+  // Specializes `BaseIterator` for unfiltered state frames.
+  template <bool reverse>
+  class BaseIterator<StateFrame<reverse>> {
    public:
     BaseIterator(BaseIterator const&) = default;
     BaseIterator& operator=(BaseIterator const&) = default;
@@ -202,19 +237,23 @@ class TrieNode {
     friend class TrieNode;
 
     // Constructs the "begin" iterator.
-    // REQUIRES: `roots` must not be empty.
-    explicit BaseIterator(NodeSet const& roots);
+    explicit BaseIterator(NodeSet const& roots) {
+      auto const& frame = frames_.emplace_back(roots);
+      if (frame.pos != frame.end && !frame.pos->second.TestLabel()) {
+        Advance();
+      }
+    }
 
     // Constructs the "end" iterator.
     explicit BaseIterator() = default;
 
     // Constructs an iterator with the given state frames.
-    explicit BaseIterator(std::vector<StateFrame> frames) : frames_(std::move(frames)) {}
+    explicit BaseIterator(std::vector<StateFrame<reverse>> frames) : frames_(std::move(frames)) {}
 
     // Returns true iff this is the end iterator.
     bool is_end() const { return frames_.empty(); }
 
-    std::string GetKey() const;
+    std::string GetKey() const { return GetElementKey(frames_); }
 
     // Advances the iterator to the next node. The next node is found by attempting the following,
     // in order:
@@ -227,16 +266,43 @@ class TrieNode {
     // NOTE: this algorithm won't necessarily find the next *leaf* node, it will simply advance to
     // the next one. The caller needs to repeat until either a leaf node is found or there are no
     // more nodes. That is achieved by the `Advance` method.
-    void NextNode();
+    void NextNode() {
+      auto const& frame = frames_.back();
+      if (frame.pos != frame.end) {
+        auto const& node = frame.pos->second;
+        if (!node.children_.empty()) {
+          frames_.emplace_back(node.children_);
+          return;
+        }
+      } else {
+        frames_.pop_back();
+      }
+      while (!frames_.empty()) {
+        auto& frame = frames_.back();
+        if (++frame.pos != frame.end) {
+          return;
+        } else {
+          frames_.pop_back();
+        }
+      }
+    }
 
     // Advances the iterator to the next node repeatedly until either the next leaf node is found or
     // there are no more nodes. In the latter case the iterator becomes the end iterator of the
     // trie.
     //
     // This is the main iterator advancement algorithm invoked by `operator++`.
-    void Advance();
+    void Advance() {
+      while (NextNode(), !frames_.empty()) {
+        auto const& frame = frames_.back();
+        auto const& node = frame.pos->second;
+        if (node.TestLabel()) {
+          return;
+        }
+      }
+    }
 
-    std::vector<StateFrame> frames_;
+    std::vector<StateFrame<reverse>> frames_;
   };
 
   using DirectBaseIterator = BaseIterator<StateFrame<false>>;
@@ -517,62 +583,18 @@ class TrieNode {
 };
 
 template <typename Label, typename Allocator>
-template <typename StateFrame>
-TrieNode<Label, Allocator>::BaseIterator<StateFrame>::BaseIterator(NodeSet const& roots) {
-  auto const& frame = frames_.emplace_back(roots);
-  if (frame.pos != frame.end && !frame.pos->second.TestLabel()) {
-    Advance();
-  }
-}
-
-template <typename Label, typename Allocator>
-template <typename StateFrame>
-std::string TrieNode<Label, Allocator>::BaseIterator<StateFrame>::GetKey() const {
+template <typename StateFrameType>
+std::string TrieNode<Label, Allocator>::GetElementKey(std::vector<StateFrameType> const& frames) {
   size_t size = 0;
-  for (auto const& frame : frames_) {
+  for (auto const& frame : frames) {
     size += frame.pos->first.size();
   }
   std::string key;
   key.reserve(size);
-  for (auto const& frame : frames_) {
+  for (auto const& frame : frames) {
     key += frame.pos->first;
   }
   return key;
-}
-
-template <typename Label, typename Allocator>
-template <typename StateFrame>
-void TrieNode<Label, Allocator>::BaseIterator<StateFrame>::NextNode() {
-  auto const& frame = frames_.back();
-  if (frame.pos != frame.end) {
-    auto const& node = frame.pos->second;
-    if (!node.children_.empty()) {
-      frames_.emplace_back(node.children_);
-      return;
-    }
-  } else {
-    frames_.pop_back();
-  }
-  while (!frames_.empty()) {
-    auto& frame = frames_.back();
-    if (++frame.pos != frame.end) {
-      return;
-    } else {
-      frames_.pop_back();
-    }
-  }
-}
-
-template <typename Label, typename Allocator>
-template <typename StateFrame>
-void TrieNode<Label, Allocator>::BaseIterator<StateFrame>::Advance() {
-  while (NextNode(), !frames_.empty()) {
-    auto const& frame = frames_.back();
-    auto const& node = frame.pos->second;
-    if (node.TestLabel()) {
-      return;
-    }
-  }
 }
 
 template <typename Label, typename Allocator>
