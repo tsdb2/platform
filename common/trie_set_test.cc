@@ -752,6 +752,13 @@ TEST(TrieSetTest, EqualRange) {
   EXPECT_EQ(*ub, "loremipsum");
 }
 
+TEST(TrieSetTest, FilteredView) {
+  auto status_or_pattern = RE::Create("loremipsum");
+  ASSERT_OK(status_or_pattern);
+  trie_set const ts{"loremamet", "loremipsum", "consectetur", "adipisci"};
+  EXPECT_THAT(ts.filter(std::move(status_or_pattern).value()), ElementsAre("loremipsum"));
+}
+
 TEST(TrieSetTest, ContainsDeterministicPattern) {
   auto const status_or_pattern = RE::Create("loremipsum");
   ASSERT_OK(status_or_pattern);

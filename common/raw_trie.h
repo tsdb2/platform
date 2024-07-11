@@ -220,13 +220,20 @@ class TrieNode {
     FilteredStateFrame(FilteredStateFrame&&) noexcept = default;
     FilteredStateFrame& operator=(FilteredStateFrame&&) noexcept = default;
 
+    AutomatonRunner const& runner() const { return runner_; }
+
     bool Advance() {
       if (Base::Advance()) {
         runner_ = (*parent_runner_)->Clone();
+        return true;
       } else {
         runner_.reset();
+        return false;
       }
     }
+
+    bool StepRunner() { return runner_->Step(Base::key()); }
+    bool FinishRunner() { return runner_->Finish(); }
 
    private:
     AutomatonRunner const* parent_runner_;
@@ -296,6 +303,22 @@ class TrieNode {
 
     std::string GetKey() const { return GetElementKey(frames_); }
 
+    // Advances the iterator to the next node repeatedly until either the next terminal node is
+    // found or there are no more nodes. In the latter case the iterator becomes the end iterator of
+    // the trie.
+    //
+    // This is the main iterator advancement algorithm invoked by `operator++`.
+    void Advance() {
+      while (NextNode(), !frames_.empty()) {
+        auto const& frame = frames_.back();
+        auto const& node = frame.node();
+        if (node.TestLabel()) {
+          return;
+        }
+      }
+    }
+
+   private:
     // Advances the iterator to the next node. The next node is found by attempting the following,
     // in order:
     //
@@ -324,21 +347,6 @@ class TrieNode {
           return;
         } else {
           frames_.pop_back();
-        }
-      }
-    }
-
-    // Advances the iterator to the next node repeatedly until either the next terminal node is
-    // found or there are no more nodes. In the latter case the iterator becomes the end iterator of
-    // the trie.
-    //
-    // This is the main iterator advancement algorithm invoked by `operator++`.
-    void Advance() {
-      while (NextNode(), !frames_.empty()) {
-        auto const& frame = frames_.back();
-        auto const& node = frame.node();
-        if (node.TestLabel()) {
-          return;
         }
       }
     }
@@ -388,6 +396,24 @@ class TrieNode {
 
     std::string GetKey() const { return GetElementKey(frames_); }
 
+    // Advances the iterator to the next node repeatedly until either the next terminal node is
+    // found or there are no more nodes. In the latter case the iterator becomes the end iterator of
+    // the trie.
+    //
+    // This is the main iterator advancement algorithm invoked by `operator++`.
+    void Advance() {
+      while (NextNode(), !frames_.empty()) {
+        auto& frame = frames_.back();
+        if (frame.StepRunner()) {
+          auto const& node = frame.node();
+          if (node.TestLabel() && frame.FinishRunner()) {
+            return;
+          }
+        }
+      }
+    }
+
+   private:
     // Advances the iterator to the next node accepted by the automaton. The next node is found by
     // attempting the following, in order:
     //
@@ -395,11 +421,11 @@ class TrieNode {
     //  2. if the current node has no children, advance to the next peer;
     //  3. if the current node has no peers, backtrack to the parent (by removing the last frame)
     //     and repeat #2;
-    //  4. if the key of the current node is not accepted by the automaton, repeat everything.
     //
-    // NOTE: this algorithm won't necessarily find the next *terminal* node, it will simply advance
-    // to the next one. The caller needs to repeat until either a terminal node is found or there
-    // are no more nodes. That is achieved by the `Advance` method.
+    // NOTE: this algorithm won't necessarily find the next *terminal* node, much less the next
+    // terminal node matching the regular expression pattern in the filter. It will simply advance
+    // to the next node of the trie. The caller needs to repeat until either a matching terminal
+    // node is found or there are no more nodes. That is achieved by the `Advance` method.
     void NextNode() {
       auto const& frame = frames_.back();
       if (frame.at_end()) {
@@ -407,7 +433,7 @@ class TrieNode {
       } else {
         auto const& node = frame.node();
         if (!node.children_.empty()) {
-          frames_.emplace_back(node.children_, frame.runner);
+          frames_.emplace_back(node.children_, frame.runner());
           return;
         }
       }
@@ -419,10 +445,6 @@ class TrieNode {
           frames_.pop_back();
         }
       }
-    }
-
-    void Advance() {
-      // TODO
     }
 
     std::unique_ptr<regexp_internal::AutomatonInterface::RunnerInterface> runner_;

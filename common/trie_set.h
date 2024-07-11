@@ -56,7 +56,43 @@ class trie_set {
   using const_filtered_iterator = typename Node::ConstFilteredIterator;
   using reverse_filtered_iterator = typename Node::ConstReverseFilteredIterator;
   using const_reverse_filtered_iterator = typename Node::ConstReverseFilteredIterator;
-  using filtered_view = typename Node::FilteredView;
+
+  class filtered_view : public Node::FilteredView {
+   public:
+    using key_type = std::string;
+    using value_type = key_type;
+    using size_type = size_t;
+    using difference_type = ptrdiff_t;
+    using allocator_type = typename Node::EntryAllocator;
+    using allocator_traits = std::allocator_traits<allocator_type>;
+    using reference = value_type&;
+    using const_reference = value_type const&;
+    using pointer = typename std::allocator_traits<Allocator>::pointer;
+    using const_pointer = typename std::allocator_traits<Allocator>::const_pointer;
+    using iterator = typename Node::ConstFilteredIterator;
+    using const_iterator = typename Node::ConstFilteredIterator;
+    using reverse_iterator = typename Node::ConstReverseFilteredIterator;
+    using const_reverse_iterator = typename Node::ConstReverseFilteredIterator;
+
+    filtered_view(filtered_view const&) = default;
+    filtered_view& operator=(filtered_view const&) = default;
+    filtered_view(filtered_view&&) noexcept = default;
+    filtered_view& operator=(filtered_view&&) noexcept = default;
+
+    using Node::FilteredView::begin;
+    using Node::FilteredView::cbegin;
+    using Node::FilteredView::cend;
+    using Node::FilteredView::crbegin;
+    using Node::FilteredView::crend;
+    using Node::FilteredView::end;
+    using Node::FilteredView::rbegin;
+    using Node::FilteredView::rend;
+
+   private:
+    friend class trie_set;
+    explicit filtered_view(typename Node::FilteredView&& view)
+        : Node::FilteredView(std::move(view)) {}
+  };
 
   trie_set() = default;
 
@@ -261,10 +297,7 @@ class trie_set {
   // NOTE: the `filtered_view` refers to the parent trie internally, so the trie must not be moved
   // or destroyed while one or more `filtered_view` instances exist. It is okay to move and copy the
   // `filtered_view` itself.
-  filtered_view filter(RE re) const { return Node::Filter(roots_, std::move(re)); }
-
-  // Shorthand for `filter(RE::Create(pattern))`.
-  filtered_view filter(std::string_view const pattern) const { return filter(RE::Create(pattern)); }
+  filtered_view filter(RE re) const { return filtered_view(Node::Filter(roots_, std::move(re))); }
 
   bool contains(std::string_view const key) const { return root().Contains(key); }
 

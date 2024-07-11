@@ -338,9 +338,6 @@ class trie_map {
   // `filtered_view` itself.
   filtered_view filter(RE re) const { return Node::Filter(roots_, std::move(re)); }
 
-  // Shorthand for `filter(RE::Create(pattern))`.
-  filtered_view filter(std::string_view const pattern) const { return filter(RE::Create(pattern)); }
-
   bool contains(std::string_view const key) const { return root().Contains(key); }
 
   // Checks the presence of any strings that match the provided regular expression.
