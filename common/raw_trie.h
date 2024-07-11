@@ -236,8 +236,17 @@ class TrieNode {
       }
     }
 
+    // Runs `Step` on the runner.
+    //
+    // WARNING: this must be run only once per frame.
     bool StepRunner() { return runner_->Step(Base::key()); }
-    bool FinishRunner() { return runner_->Finish(); }
+
+    // Runs `Finish` on a temporary clone of the runner. The frame and its runner are still usable
+    // after `FinishRunner` even if it returns true, because the original runner is clone and not
+    // affected.
+    //
+    // REQUIRES: `StepRunner` must have run successfully.
+    bool FinishRunner() const { return runner_->Clone()->Finish(); }
 
    private:
     regexp_internal::AutomatonInterface::RunnerInterface const* parent_runner_;

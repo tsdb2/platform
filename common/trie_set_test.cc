@@ -755,9 +755,9 @@ TEST(TrieSetTest, EqualRange) {
 TEST(TrieSetTest, FilteredView) {
   auto status_or_pattern = RE::Create("lorem.*");
   ASSERT_OK(status_or_pattern);
-  trie_set const ts{"loremamet", "loremipsum", "consectetur", "adipisci"};
+  trie_set const ts{"lorem", "loremamet", "loremipsum", "consectetur", "adipisci"};
   EXPECT_THAT(ts.filter(std::move(status_or_pattern).value()),
-              ElementsAre("loremamet", "loremipsum"));
+              ElementsAre("lorem", "loremamet", "loremipsum"));
 }
 
 TEST(TrieSetTest, ContainsDeterministicPattern) {

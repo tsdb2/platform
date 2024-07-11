@@ -1014,9 +1014,11 @@ TEST(TrieMapTest, EqualRange) {
 TEST(TrieMapTest, FilteredView) {
   auto status_or_pattern = RE::Create("lorem.*");
   ASSERT_OK(status_or_pattern);
-  trie_map const tm{{"loremipsum", 12}, {"loremamet", 34}, {"consectetur", 56}, {"adipisci", 78}};
+  trie_map const tm{
+      {"lorem", 12}, {"loremipsum", 34}, {"loremamet", 56}, {"consectetur", 78}, {"adipisci", 90},
+  };
   EXPECT_THAT(tm.filter(std::move(status_or_pattern).value()),
-              ElementsAre(Pair("loremamet", 34), Pair("loremipsum", 12)));
+              ElementsAre(Pair("lorem", 12), Pair("loremamet", 56), Pair("loremipsum", 34)));
 }
 
 TEST(TrieMapTest, ContainsDeterministicPattern) {
