@@ -168,9 +168,6 @@ class TrieNode {
     explicit StateFrame(NodeSet& nodes) : pos_(nodes.rbegin()), end_(nodes.rend()) {}
     explicit StateFrame(NodeSet const& nodes) : StateFrame(const_cast<NodeSet&>(nodes)) {}
 
-    explicit StateFrame(typename NodeSet::iterator pos_it, typename NodeSet::iterator end_it)
-        : pos_(std::move(pos_it)), end_(std::move(end_it)) {}
-
     StateFrame(StateFrame const&) = default;
     StateFrame& operator=(StateFrame const&) = default;
     StateFrame(StateFrame&&) noexcept = default;
@@ -238,7 +235,7 @@ class TrieNode {
 
     // Runs `Step` on the runner.
     //
-    // WARNING: this MUST be run exactly once every time the `pos_` iterator of the frame changes:
+    // NOTE: this MUST be called exactly once every time the `pos_` iterator of the frame changes:
     // once after construction and once after each successful `Advance` call.
     // `BaseIterator::Advance` achieves that: it calls `StepRunner` every time `NextNode` returns,
     // which happens either when a new frame is constructed or when its `pos_` iterator is advanced.
