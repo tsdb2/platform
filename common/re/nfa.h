@@ -25,10 +25,28 @@ class NFA final : public AutomatonInterface {
   // label, so we use `absl::InlinedVector<..., 1>` as the underlying representation.
   using Transitions = flat_set<size_t, std::less<size_t>, absl::InlinedVector<size_t, 1>>;
 
-  // `State` is represented by a map of input characters to transitions. Each character is
-  // associated to all the edges that are labeled with it (the `Transitions` set). Character 0 is
-  // used to label epsilon-moves.
-  using State = flat_map<char, Transitions>;
+  // Represents a state of the automaton.
+  struct State {
+    using Edges = flat_map<char, Transitions>;
+
+    explicit State(size_t const capture_group, Edges edges)
+        : capture_group(capture_group), edges(std::move(edges)) {}
+
+    State(State const &) = default;
+    State &operator=(State const &) = default;
+    State(State &&) noexcept = default;
+    State &operator=(State &&) noexcept = default;
+
+    // What capture group this state belongs to. Every time this state processes a character (that
+    // is, every time a character is looked up in the `edges`) that character is added to the string
+    // captured by the group.
+    size_t capture_group;
+
+    // The edges are represented by a map of input characters to transitions. Each character is
+    // associated to all the edges that are labeled with it (the `Transitions` set). Character 0 is
+    // used to label epsilon-moves.
+    Edges edges;
+  };
 
   // The array of states. The state numbers are the indices in this array. For example, `states[0]`
   // is state 0, `states[1]` is state 1, and so on. State numbers are used as values in

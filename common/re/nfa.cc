@@ -20,7 +20,7 @@ bool NFA::Runner::Step(char const ch) {
   absl::flat_hash_set<size_t> next_states;
   next_states.reserve(nfa_->states_.size());
   for (auto const state : states_) {
-    auto const& edges = nfa_->states_[state];
+    auto const& edges = nfa_->states_[state].edges;
     auto const it = edges.find(ch);
     if (it != edges.end()) {
       for (auto const transition : it->second) {
@@ -65,7 +65,7 @@ bool NFA::Run(std::string_view input) const {
     input.remove_prefix(1);
     next_states.reserve(states_.size());
     for (auto const state : states) {
-      auto const& edges = states_[state];
+      auto const& edges = states_[state].edges;
       auto const it = edges.find(ch);
       if (it != edges.end()) {
         for (auto const transition : it->second) {
@@ -88,7 +88,7 @@ void NFA::EpsilonClosure(absl::flat_hash_set<size_t>* const states) const {
   do {
     new_state_found = false;
     for (auto const state : *states) {
-      auto const& edges = states_[state];
+      auto const& edges = states_[state].edges;
       auto const it = edges.find(0);
       if (it != edges.end()) {
         for (auto const transition : it->second) {

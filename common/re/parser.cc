@@ -98,9 +98,9 @@ class Parser final {
   // Parses the next two characters as a hex byte. Used to parse hex escape codes.
   absl::StatusOr<uint8_t> ParseHexCode();
 
-  TempNFA MakeSingleCharacterNFA(char ch);
-  TempNFA MakeCharacterClassNFA(std::string_view chars);
-  TempNFA MakeNegatedCharacterClassNFA(std::string_view chars);
+  TempNFA MakeSingleCharacterNFA(size_t capture_group, char ch);
+  TempNFA MakeCharacterClassNFA(size_t capture_group, std::string_view chars);
+  TempNFA MakeNegatedCharacterClassNFA(size_t capture_group, std::string_view chars);
 
   static absl::Status UpdateCharacterClassEdge(bool negated, State* start_state, char ch,
                                                size_t stop_state_num);
@@ -115,33 +115,34 @@ class Parser final {
                                              size_t stop_state_num);
 
   // Called by `Parse0` to parse character classes (i.e. square brackets).
-  absl::StatusOr<TempNFA> ParseCharacterClass();
+  absl::StatusOr<TempNFA> ParseCharacterClass(size_t capture_group);
 
   // Called by `Parse0` to parse escape codes (e.g. `\d`, `\w`, etc.).
-  absl::StatusOr<TempNFA> ParseEscape();
+  absl::StatusOr<TempNFA> ParseEscape(size_t capture_group);
 
   // Parses single character, escape code, dot, round brackets, square brackets, or end of input.
-  absl::StatusOr<TempNFA> Parse0();
+  absl::StatusOr<TempNFA> Parse0(size_t capture_group);
 
   // Parses the content of the curly braces in quantifiers.
   absl::StatusOr<std::pair<int, int>> ParseQuantifier();
 
   // Parses Kleene star, plus, question mark, or quantifier.
-  absl::StatusOr<TempNFA> Parse1();
+  absl::StatusOr<TempNFA> Parse1(size_t capture_group);
 
   // Parses sequences.
-  absl::StatusOr<TempNFA> Parse2();
+  absl::StatusOr<TempNFA> Parse2(size_t capture_group);
 
   // Parses the pipe operator.
-  absl::StatusOr<TempNFA> Parse3();
+  absl::StatusOr<TempNFA> Parse3(size_t capture_group);
 
   std::string_view const pattern_;
   size_t offset_ = 0;
   size_t next_state_ = 0;
+  size_t next_capture_group_ = 0;
 };
 
 absl::StatusOr<reffed_ptr<AutomatonInterface>> Parser::Parse() {
-  ASSIGN_VAR_OR_RETURN(TempNFA, nfa, Parse3());
+  ASSIGN_VAR_OR_RETURN(TempNFA, nfa, Parse3(next_capture_group_++));
   if (!at_end()) {
     return SyntaxError("expected end of string");
   }
@@ -169,46 +170,47 @@ absl::StatusOr<uint8_t> Parser::ParseHexCode() {
   return digit1 * 16 + digit2;
 }
 
-TempNFA Parser::MakeSingleCharacterNFA(char const ch) {
+TempNFA Parser::MakeSingleCharacterNFA(size_t const capture_group, char const ch) {
   size_t const start = next_state_++;
   size_t const stop = next_state_++;
   return TempNFA(
       {
-          {start, State({{ch, {stop}}})},
-          {stop, State()},
+          {start, State(capture_group, {{ch, {stop}}})},
+          {stop, State(capture_group, {})},
       },
       start, stop);
 }
 
-TempNFA Parser::MakeCharacterClassNFA(std::string_view const chars) {
+TempNFA Parser::MakeCharacterClassNFA(size_t const capture_group, std::string_view const chars) {
   size_t const start = next_state_++;
   size_t const stop = next_state_++;
-  State state;
+  State state{capture_group, {}};
   for (char const ch : chars) {
-    state[ch].emplace(stop);
+    state.edges[ch].emplace(stop);
   }
   return TempNFA(
       {
           {start, std::move(state)},
-          {stop, State()},
+          {stop, State(capture_group, {})},
       },
       start, stop);
 }
 
-TempNFA Parser::MakeNegatedCharacterClassNFA(std::string_view const chars) {
+TempNFA Parser::MakeNegatedCharacterClassNFA(size_t const capture_group,
+                                             std::string_view const chars) {
   size_t const start = next_state_++;
   size_t const stop = next_state_++;
-  State state;
+  State state{capture_group, {}};
   for (int ch = 1; ch < 256; ++ch) {
-    state[ch].emplace(stop);
+    state.edges[ch].emplace(stop);
   }
   for (char const ch : chars) {
-    state.erase(ch);
+    state.edges.erase(ch);
   }
   return TempNFA(
       {
           {start, std::move(state)},
-          {stop, State()},
+          {stop, State(capture_group, {})},
       },
       start, stop);
 }
@@ -216,9 +218,9 @@ TempNFA Parser::MakeNegatedCharacterClassNFA(std::string_view const chars) {
 absl::Status Parser::UpdateCharacterClassEdge(bool const negated, State* const start_state,
                                               char const ch, size_t const stop_state_num) {
   if (negated) {
-    start_state->erase(ch);
+    start_state->edges.erase(ch);
   } else {
-    (*start_state)[ch].emplace(stop_state_num);
+    start_state->edges[ch].emplace(stop_state_num);
   }
   return absl::OkStatus();
 }
@@ -277,15 +279,15 @@ absl::Status Parser::ParseCharacterClassEscapeCode(bool const negated, State* co
   }
 }
 
-absl::StatusOr<TempNFA> Parser::ParseCharacterClass() {
+absl::StatusOr<TempNFA> Parser::ParseCharacterClass(size_t const capture_group) {
   RETURN_IF_ERROR(ExpectPrefix("[", "expected ["));
   size_t const start = next_state_++;
   size_t const stop = next_state_++;
-  State state;
+  State state{capture_group, {}};
   bool const negated = ConsumePrefix("^");
   if (negated) {
     for (int ch = 1; ch < 256; ++ch) {
-      state[ch].emplace(stop);
+      state.edges[ch].emplace(stop);
     }
   }
   while (!ConsumePrefix("]")) {
@@ -298,21 +300,21 @@ absl::StatusOr<TempNFA> Parser::ParseCharacterClass() {
       char const ch = Advance();
       // TODO: ranges.
       if (negated) {
-        state.erase(ch);
+        state.edges.erase(ch);
       } else {
-        state[ch].emplace(stop);
+        state.edges[ch].emplace(stop);
       }
     }
   }
   return TempNFA(
       {
           {start, std::move(state)},
-          {stop, {}},
+          {stop, State(capture_group, {})},
       },
       start, stop);
 }
 
-absl::StatusOr<TempNFA> Parser::ParseEscape() {
+absl::StatusOr<TempNFA> Parser::ParseEscape(size_t const capture_group) {
   RETURN_IF_ERROR(ExpectPrefix("\\", "expected \\"));
   if (at_end()) {
     return SyntaxError("invalid escape code");
@@ -330,37 +332,37 @@ absl::StatusOr<TempNFA> Parser::ParseEscape() {
     case '{':
     case '}':
     case '|':
-      return MakeSingleCharacterNFA(ch);
+      return MakeSingleCharacterNFA(capture_group, ch);
     case 'd':
-      return MakeCharacterClassNFA("0123456789");
+      return MakeCharacterClassNFA(capture_group, "0123456789");
     case 'D':
-      return MakeNegatedCharacterClassNFA("0123456789");
+      return MakeNegatedCharacterClassNFA(capture_group, "0123456789");
     case 'w':
       return MakeCharacterClassNFA(
-          "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_");
+          capture_group, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_");
     case 'W':
       return MakeNegatedCharacterClassNFA(
-          "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_");
+          capture_group, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_");
     case 's':
       // TODO: add Unicode spaces.
-      return MakeCharacterClassNFA("\f\n\r\t\v");
+      return MakeCharacterClassNFA(capture_group, "\f\n\r\t\v");
     case 'S':
       // TODO: add Unicode spaces.
-      return MakeNegatedCharacterClassNFA("\f\n\r\t\v");
+      return MakeNegatedCharacterClassNFA(capture_group, "\f\n\r\t\v");
     case 't':
-      return MakeSingleCharacterNFA('\t');
+      return MakeSingleCharacterNFA(capture_group, '\t');
     case 'r':
-      return MakeSingleCharacterNFA('\r');
+      return MakeSingleCharacterNFA(capture_group, '\r');
     case 'n':
-      return MakeSingleCharacterNFA('\n');
+      return MakeSingleCharacterNFA(capture_group, '\n');
     case 'v':
-      return MakeSingleCharacterNFA('\v');
+      return MakeSingleCharacterNFA(capture_group, '\v');
     case 'f':
-      return MakeSingleCharacterNFA('\f');
+      return MakeSingleCharacterNFA(capture_group, '\f');
       // TODO: handle word boundary (`\b`).
     case 'x': {
       ASSIGN_VAR_OR_RETURN(uint8_t, code, ParseHexCode());
-      return MakeSingleCharacterNFA(code);
+      return MakeSingleCharacterNFA(capture_group, code);
     }
     // TODO: handle Unicode escape codes.
     case '0':
@@ -379,26 +381,26 @@ absl::StatusOr<TempNFA> Parser::ParseEscape() {
   }
 }
 
-absl::StatusOr<TempNFA> Parser::Parse0() {
+absl::StatusOr<TempNFA> Parser::Parse0(size_t const capture_group) {
   size_t const start = next_state_++;
   if (at_end()) {
-    return TempNFA({{start, State()}}, start, start);
+    return TempNFA({{start, State(capture_group, {})}}, start, start);
   }
   if (ConsumePrefix("(")) {
-    ASSIGN_VAR_OR_RETURN(TempNFA, result, Parse3());
+    ASSIGN_VAR_OR_RETURN(TempNFA, result, Parse3(next_capture_group_++));
     RETURN_IF_ERROR(ExpectPrefix(")", "unmatched parens"));
     return result;
   }
   size_t const stop = next_state_++;
   if (ConsumePrefix(".")) {
-    State edges;
+    State state{capture_group, {}};
     for (int ch = 1; ch < 256; ++ch) {
-      edges.try_emplace(ch, Transitions{stop});
+      state.edges.try_emplace(ch, Transitions{stop});
     }
     return TempNFA(
         {
-            {start, State(std::move(edges))},
-            {stop, State()},
+            {start, State(std::move(state))},
+            {stop, State(capture_group, {})},
         },
         start, stop);
   }
@@ -406,16 +408,16 @@ absl::StatusOr<TempNFA> Parser::Parse0() {
   switch (ch) {
     case ')':
     case '|':
-      return TempNFA({{start, State()}}, start, start);
+      return TempNFA({{start, State(capture_group, {})}}, start, start);
     case '[':
-      return ParseCharacterClass();
+      return ParseCharacterClass(capture_group);
     case ']':
       return SyntaxError("unmatched square bracket");
     case '{':
     case '}':
       return SyntaxError("curly brackets in invalid position");
     case '\\':
-      return ParseEscape();
+      return ParseEscape(capture_group);
     case '*':
     case '+':
       return SyntaxError("Kleene operator in invalid position");
@@ -428,8 +430,8 @@ absl::StatusOr<TempNFA> Parser::Parse0() {
       Advance();
       return TempNFA(
           {
-              {start, State({{ch, {stop}}})},
-              {stop, State()},
+              {start, State(capture_group, {{ch, {stop}}})},
+              {stop, State(capture_group, {})},
           },
           start, stop);
   }
@@ -479,17 +481,17 @@ absl::StatusOr<std::pair<int, int>> Parser::ParseQuantifier() {
   }
 }
 
-absl::StatusOr<TempNFA> Parser::Parse1() {
-  ASSIGN_VAR_OR_RETURN(TempNFA, nfa, Parse0());
+absl::StatusOr<TempNFA> Parser::Parse1(size_t const capture_group) {
+  ASSIGN_VAR_OR_RETURN(TempNFA, nfa, Parse0(capture_group));
   if (at_end()) {
     return nfa;
   }
   if (ConsumePrefix("*")) {
     nfa.RenameState(nfa.initial_state(), nfa.final_state());
   } else if (ConsumePrefix("+")) {
-    nfa.AddEdge(0, nfa.final_state(), nfa.initial_state());
+    nfa.AddEpsilonEdge(nfa.final_state(), nfa.initial_state());
   } else if (ConsumePrefix("?")) {
-    nfa.AddEdge(0, nfa.initial_state(), nfa.final_state());
+    nfa.AddEpsilonEdge(nfa.initial_state(), nfa.final_state());
   } else if (ConsumePrefix("{")) {
     auto const status_or_quantifier = ParseQuantifier();
     if (!status_or_quantifier.ok()) {
@@ -504,7 +506,7 @@ absl::StatusOr<TempNFA> Parser::Parse1() {
     } else {
       auto piece = std::move(nfa);
       size_t const start = next_state_++;
-      nfa = TempNFA({{start, State()}}, start, start);
+      nfa = TempNFA({{start, State(capture_group, {})}}, start, start);
       for (int i = 0; i < min; ++i) {
         piece.RenameAllStates(&next_state_);
         nfa.Chain(piece);
@@ -517,7 +519,7 @@ absl::StatusOr<TempNFA> Parser::Parse1() {
         if (max < min) {
           return SyntaxError("invalid quantifier");
         }
-        piece.AddEdge(0, piece.initial_state(), piece.final_state());
+        piece.AddEpsilonEdge(piece.initial_state(), piece.final_state());
         for (int i = min; i < max; ++i) {
           piece.RenameAllStates(&next_state_);
           nfa.Chain(piece);
@@ -528,23 +530,23 @@ absl::StatusOr<TempNFA> Parser::Parse1() {
   return nfa;
 }
 
-absl::StatusOr<TempNFA> Parser::Parse2() {
-  ASSIGN_VAR_OR_RETURN(TempNFA, nfa, Parse1());
+absl::StatusOr<TempNFA> Parser::Parse2(size_t const capture_group) {
+  ASSIGN_VAR_OR_RETURN(TempNFA, nfa, Parse1(capture_group));
   while (!at_end() && front() != '|' && front() != ')') {
-    ASSIGN_VAR_OR_RETURN(TempNFA, next, Parse1());
+    ASSIGN_VAR_OR_RETURN(TempNFA, next, Parse1(capture_group));
     nfa.Chain(std::move(next));
   }
   return nfa;
 }
 
-absl::StatusOr<TempNFA> Parser::Parse3() {
-  ASSIGN_VAR_OR_RETURN(TempNFA, nfa, Parse2());
+absl::StatusOr<TempNFA> Parser::Parse3(size_t const capture_group) {
+  ASSIGN_VAR_OR_RETURN(TempNFA, nfa, Parse2(capture_group));
   while (!at_end() && front() != ')') {
     RETURN_IF_ERROR(ExpectPrefix("|", "expected pipe operator"));
-    ASSIGN_VAR_OR_RETURN(TempNFA, next, Parse2());
+    ASSIGN_VAR_OR_RETURN(TempNFA, next, Parse2(capture_group));
     size_t const initial_state = next_state_++;
     size_t const final_state = next_state_++;
-    nfa.Merge(std::move(next), initial_state, final_state);
+    nfa.Merge(std::move(next), capture_group, initial_state, final_state);
   }
   return nfa;
 }
