@@ -54,7 +54,7 @@ std::unique_ptr<AutomatonInterface::RunnerInterface> DFA::CreateRunner() const {
   return std::make_unique<Runner>(this);
 }
 
-bool DFA::Run(std::string_view input) const {
+bool DFA::Test(std::string_view input) const {
   size_t state = initial_state_;
   while (!input.empty()) {
     auto const& edges = states_[state].edges;

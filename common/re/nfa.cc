@@ -55,7 +55,7 @@ std::unique_ptr<AutomatonInterface::RunnerInterface> NFA::CreateRunner() const {
   return std::make_unique<Runner>(this);
 }
 
-bool NFA::Run(std::string_view input) const {
+bool NFA::Test(std::string_view input) const {
   absl::flat_hash_set<size_t> states{initial_state_};
   states.reserve(states_.size());
   EpsilonClosure(&states);

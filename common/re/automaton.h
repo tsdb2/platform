@@ -40,7 +40,7 @@ class AutomatonInterface : public SimpleRefCounted {
   // The above is equivalent to:
   //
   //   bool TestString(NFA const& nfa, std::string_view const input) {
-  //     return nfa.Run(input);
+  //     return nfa.Test(input);
   //   }
   //
   // NFAs and DFAs have different runner implementations, both implementing this interface.
@@ -94,8 +94,9 @@ class AutomatonInterface : public SimpleRefCounted {
   // Creates a runner for the automaton.
   virtual std::unique_ptr<RunnerInterface> CreateRunner() const = 0;
 
-  // Runs the automaton on the given `input` string and returns true iff the string matches.
-  virtual bool Run(std::string_view input) const = 0;
+  // Tests the provided `input` string against the regular expression language decided by this
+  // automaton.
+  virtual bool Test(std::string_view input) const = 0;
 
  private:
   // Copies are not needed: automata are immutable and reference-counted, so we can share them

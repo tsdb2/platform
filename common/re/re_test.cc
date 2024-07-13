@@ -50,7 +50,7 @@ bool RegexpTest::Run(reffed_ptr<AutomatonInterface> const& automaton,
     auto const runner = automaton->CreateRunner();
     return runner->Step(input) && runner->Finish();
   } else {
-    return automaton->Run(input);
+    return automaton->Test(input);
   }
 }
 

@@ -82,7 +82,7 @@ class NFA final : public AutomatonInterface {
 
   std::unique_ptr<RunnerInterface> CreateRunner() const override;
 
-  bool Run(std::string_view input) const override;
+  bool Test(std::string_view input) const override;
 
  private:
   void EpsilonClosure(absl::flat_hash_set<size_t> *states) const;

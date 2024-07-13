@@ -75,7 +75,7 @@ class RE {
   bool IsDeterministic() const { return automaton_->IsDeterministic(); }
 
   // Checks if the provided `input` string matches this compiled regular expression.
-  bool Test(std::string_view const input) const { return automaton_->Run(input); }
+  bool Test(std::string_view const input) const { return automaton_->Test(input); }
 
   // Checks if `input` matches this compiled regular expression and returns an array of the strings
   // captured by the capture groups. An error status is returned if the `pattern` fails to compile.

@@ -70,7 +70,7 @@ class DFA final : public AutomatonInterface {
 
   std::unique_ptr<RunnerInterface> CreateRunner() const override;
 
-  bool Run(std::string_view input) const override;
+  bool Test(std::string_view input) const override;
 
  private:
   States const states_;
