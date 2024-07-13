@@ -187,7 +187,7 @@ reffed_ptr<DFA> TempNFA::ToDFA() && {
     state_map.try_emplace(state_num, next_state++);
     DFA::State dfa_state{state.capture_group, {}};
     for (auto const& [ch, transitions] : state.edges) {
-      dfa_state.edges[ch] = *transitions.begin();
+      dfa_state.edges.try_emplace(ch, *transitions.begin());
     }
     dfa_states.emplace_back(std::move(dfa_state));
   }
