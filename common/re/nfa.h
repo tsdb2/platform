@@ -4,6 +4,8 @@
 #include <cstddef>
 #include <functional>
 #include <memory>
+#include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -84,8 +86,13 @@ class NFA final : public AutomatonInterface {
 
   bool Test(std::string_view input) const override;
 
+  std::optional<std::vector<std::string>> Match(std::string_view input) const override;
+
  private:
   void EpsilonClosure(absl::flat_hash_set<size_t> *states) const;
+
+  std::optional<flat_map<size_t, std::string>> MatchInternal(size_t current_state_num,
+                                                             std::string_view input) const;
 
   States const states_;
   size_t const initial_state_ = 0;

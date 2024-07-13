@@ -2,7 +2,10 @@
 #define __TSDB2_COMMON_RE_AUTOMATON_H__
 
 #include <memory>
+#include <optional>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "common/ref_count.h"
 
@@ -97,6 +100,11 @@ class AutomatonInterface : public SimpleRefCounted {
   // Tests the provided `input` string against the regular expression language decided by this
   // automaton.
   virtual bool Test(std::string_view input) const = 0;
+
+  // Runs the automaton on the provided input string and, if it matches, returns the array of
+  // strings captured by the capture groups (if any). If the string doesn't match an empty optional
+  // is returned.
+  virtual std::optional<std::vector<std::string>> Match(std::string_view input) const = 0;
 
  private:
   // Copies are not needed: automata are immutable and reference-counted, so we can share them

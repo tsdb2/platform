@@ -3,6 +3,8 @@
 
 #include <cstddef>
 #include <memory>
+#include <optional>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -71,6 +73,8 @@ class DFA final : public AutomatonInterface {
   std::unique_ptr<RunnerInterface> CreateRunner() const override;
 
   bool Test(std::string_view input) const override;
+
+  std::optional<std::vector<std::string>> Match(std::string_view input) const override;
 
  private:
   States const states_;

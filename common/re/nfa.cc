@@ -1,11 +1,16 @@
 #include "common/re/nfa.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <memory>
+#include <optional>
+#include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "absl/container/flat_hash_set.h"
+#include "common/flat_map.h"
 #include "common/re/automaton.h"
 
 namespace tsdb2 {
@@ -83,6 +88,20 @@ bool NFA::Test(std::string_view input) const {
   return states.contains(final_state_);
 }
 
+std::optional<std::vector<std::string>> NFA::Match(std::string_view const input) const {
+  auto maybe_results = MatchInternal(initial_state_, input);
+  if (!maybe_results) {
+    return std::nullopt;
+  }
+  auto& results = maybe_results.value();
+  std::vector<std::string> captures(results.rend()->first + 1);
+  for (auto& [capture_group, string] : results) {
+    std::reverse(string.begin(), string.end());
+    captures[capture_group] = std::move(string);
+  }
+  return captures;
+}
+
 void NFA::EpsilonClosure(absl::flat_hash_set<size_t>* const states) const {
   bool new_state_found;
   do {
@@ -101,6 +120,36 @@ void NFA::EpsilonClosure(absl::flat_hash_set<size_t>* const states) const {
       }
     }
   } while (new_state_found);
+}
+
+std::optional<flat_map<size_t, std::string>> NFA::MatchInternal(
+    size_t const current_state_num, std::string_view const input) const {
+  if (input.empty() && current_state_num == final_state_) {
+    return std::make_optional<flat_map<size_t, std::string>>();
+  }
+  auto const& current_state = states_[current_state_num];
+  if (auto const it = current_state.edges.find(0); it != current_state.edges.end()) {
+    for (auto const transition : it->second) {
+      auto results = MatchInternal(transition, input);
+      if (results) {
+        return results;
+      }
+    }
+  }
+  if (input.empty()) {
+    return std::nullopt;
+  }
+  auto const ch = input.front();
+  if (auto const it = current_state.edges.find(ch); it != current_state.edges.end()) {
+    for (auto const transition : it->second) {
+      auto results = MatchInternal(transition, input.substr(1));
+      if (results) {
+        (*results)[current_state.capture_group] += ch;
+        return results;
+      }
+    }
+  }
+  return std::nullopt;
 }
 
 }  // namespace regexp_internal

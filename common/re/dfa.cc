@@ -2,7 +2,10 @@
 
 #include <cstddef>
 #include <memory>
+#include <optional>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "common/re/automaton.h"
 
@@ -78,6 +81,10 @@ bool DFA::Test(std::string_view input) const {
     state = it->second;
   }
   return true;
+}
+
+std::optional<std::vector<std::string>> DFA::Match(std::string_view const input) const {
+  // TODO
 }
 
 }  // namespace regexp_internal
