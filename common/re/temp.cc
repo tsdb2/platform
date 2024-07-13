@@ -185,16 +185,16 @@ reffed_ptr<DFA> TempNFA::ToDFA() && {
   size_t next_state = 0;
   for (auto const& [state_num, state] : states_) {
     state_map.try_emplace(state_num, next_state++);
-    DFA::State dfa_state;
+    DFA::State dfa_state{state.capture_group, {}};
     for (auto const& [ch, transitions] : state.edges) {
-      dfa_state[ch] = *transitions.begin();
+      dfa_state.edges[ch] = *transitions.begin();
     }
     dfa_states.emplace_back(std::move(dfa_state));
   }
   state_map.try_emplace(initial_state_, next_state++);
   state_map.try_emplace(final_state_, next_state++);
   for (auto& state : dfa_states) {
-    for (auto& [ch, transition] : state) {
+    for (auto& [ch, transition] : state.edges) {
       transition = state_map[transition];
     }
   }

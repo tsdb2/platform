@@ -47,6 +47,9 @@ class TempNFA final {
 
   // Renames state `old_name` to `new_name`, updating the whole graph and doing the necessary
   // merges.
+  //
+  // REQUIRES: if both states `old_name` and `new_name` exist in the automaton they must belong to
+  // the same capture group.
   void RenameState(size_t old_name, size_t new_name);
 
   // Renames all states of this NFA so that they are greater than or equal to `next_state`. The
@@ -83,7 +86,9 @@ class TempNFA final {
 
  private:
   // Adds a state and its edges to the NFA, or merges it with an existing one.
-  void MergeState(size_t state, State &&edges);
+  //
+  // REQUIRES: if state `state_num` exists it must belong to the same capture group as `state`.
+  void MergeState(size_t state_num, State &&new_state);
 
   // Auxiliary method for the implementation of `CollapseEpsilonMoves`.
   bool CollapseNextEpsilonMove();

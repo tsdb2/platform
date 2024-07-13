@@ -21,7 +21,28 @@ namespace regexp_internal {
 // non-deterministic one).
 class DFA final : public AutomatonInterface {
  public:
-  using State = flat_map<char, size_t>;
+  // Represents a state of the automaton.
+  struct State {
+    using Edges = flat_map<char, size_t>;
+
+    explicit State(size_t const capture_group, Edges edges)
+        : capture_group(capture_group), edges(std::move(edges)) {}
+
+    State(State const &) = default;
+    State &operator=(State const &) = default;
+    State(State &&) noexcept = default;
+    State &operator=(State &&) noexcept = default;
+
+    // What capture group this state belongs to. Every time this state processes a character (that
+    // is, every time a character is looked up in the `edges`) that character is added to the string
+    // captured by the group.
+    size_t capture_group;
+
+    // The edges are represented by a map of input characters to transitions. Each character is
+    // associated to a destination state. Character 0 is used to label epsilon-moves.
+    Edges edges;
+  };
+
   using States = std::vector<State>;
 
   // Runner implementation for DFAs.
