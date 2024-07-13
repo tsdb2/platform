@@ -21,7 +21,6 @@
 #include "common/utilities.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "io/buffer.h"
 
 namespace {
 

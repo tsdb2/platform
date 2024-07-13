@@ -19,7 +19,6 @@
 #include "common/reffed_ptr.h"
 #include "common/utilities.h"
 #include "http/http.h"
-#include "io/buffer.h"
 #include "net/sockets.h"
 
 ABSL_FLAG(std::string, local_address, "", "The local network address this server will bind to.");

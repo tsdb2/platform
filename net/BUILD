@@ -34,7 +34,6 @@ cc_test(
         "//common:simple_condition",
         "//common:testing",
         "//common:utilities",
-        "//io:buffer",
         "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/functional:bind_front",
         "@com_google_absl//absl/status",

@@ -30,7 +30,6 @@
 #include "absl/time/time.h"
 #include "common/reffed_ptr.h"
 #include "common/utilities.h"
-#include "io/buffer.h"
 #include "io/fd.h"
 
 ABSL_FLAG(uint16_t, num_io_workers, 10, "Number of I/O worker threads.");
