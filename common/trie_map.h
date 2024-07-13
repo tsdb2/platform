@@ -33,6 +33,8 @@ namespace common {
 //  * An `emplace` method is not provided because in order to be inserted in the trie a string must
 //    be split, so it cannot be emplaced. Note that a `try_emplace` method is still provided because
 //    in that case we can perform in-place construction of the value.
+//  * trie_map provides an additional `filter` method returning a view of the trie filtered by a
+//    given regular expression.
 //
 template <typename Value, typename Allocator = std::allocator<std::pair<std::string const, Value>>>
 class trie_map {
@@ -367,11 +369,11 @@ class trie_map {
   // The above example will print "dolor" and "color".
   //
   // Under the hood `filtered_view` uses efficient algorithms that can entirely skip mismatching
-  // subtrees, so it's much more efficient than just iterating over all elements and checking each
-  // one against the regular expression.
+  // subtrees, so it's much more efficient than iterating over all elements and checking each one
+  // against the regular expression.
   //
   // NOTE: the `filtered_view` refers to the parent trie internally, so the trie must not be moved
-  // or destroyed while one or more `filtered_view` instances exist. It is okay to move and copy the
+  // or destroyed while one or more `filtered_view`s exist. It is okay to move and copy the
   // `filtered_view` itself.
   filtered_view filter(RE re) const { return filtered_view(Node::Filter(roots_, std::move(re))); }
 
