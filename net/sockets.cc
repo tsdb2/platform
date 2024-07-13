@@ -28,9 +28,9 @@
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
-#include "common/buffer.h"
 #include "common/reffed_ptr.h"
 #include "common/utilities.h"
+#include "io/buffer.h"
 #include "io/fd.h"
 
 ABSL_FLAG(uint16_t, num_io_workers, 10, "Number of I/O worker threads.");

@@ -39,15 +39,15 @@
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
-#include "common/buffer.h"
 #include "common/ref_count.h"
 #include "common/reffed_ptr.h"
+#include "io/buffer.h"
 #include "io/fd.h"
 
 namespace tsdb2 {
 namespace net {
 
-using ::tsdb2::common::Buffer;
+using ::tsdb2::io::Buffer;
 using ::tsdb2::io::FD;
 
 inline constexpr char kLocalHost[] = "::1";

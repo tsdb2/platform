@@ -1,4 +1,4 @@
-#include "common/buffer.h"
+#include "io/buffer.h"
 
 #include <arpa/inet.h>
 
@@ -7,13 +7,19 @@
 #include <cstring>
 #include <string_view>
 
+#include "absl/types/span.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace {
 
 using ::testing::_;
-using ::tsdb2::common::Buffer;
+using ::testing::AllOf;
+using ::testing::ElementsAreArray;
+using ::testing::Property;
+using ::tsdb2::io::Buffer;
+
+using Span = absl::Span<uint8_t const>;
 
 TEST(BufferTest, Empty) {
   Buffer buffer;
@@ -38,17 +44,19 @@ TEST(BufferTest, Preallocated) {
 }
 
 TEST(BufferTest, TakeOwnership) {
-  size_t constexpr size = 10;
-  auto const data = new uint8_t[size];
+  size_t constexpr capacity = 10;
+  size_t constexpr size = 2;
+  auto const data = new uint8_t[capacity];
   data[0] = 12;
   data[1] = 34;
-  Buffer buffer{data, size, 2};
-  EXPECT_EQ(buffer.capacity(), size);
+  Buffer buffer{data, capacity, size};
+  EXPECT_EQ(buffer.capacity(), capacity);
   EXPECT_EQ(buffer.size(), 2);
   EXPECT_FALSE(buffer.empty());
   EXPECT_EQ(buffer.get(), data);
   EXPECT_EQ(buffer.get(), buffer.as_byte_array());
   EXPECT_EQ(buffer.get(), buffer.as_char_array());
+  EXPECT_THAT(buffer.span(), AllOf(Property(&Span::data, data), Property(&Span::size, size)));
   EXPECT_FALSE(buffer.is_full());
 }
 
@@ -61,6 +69,7 @@ TEST(BufferTest, CopyFromCaller) {
   EXPECT_NE(buffer.get(), kData.data());
   EXPECT_EQ(buffer.get(), buffer.as_byte_array());
   EXPECT_EQ(buffer.get(), buffer.as_char_array());
+  EXPECT_THAT(buffer.span(), ElementsAreArray(kData));
   EXPECT_TRUE(buffer.is_full());
   EXPECT_TRUE(kData == std::string_view(buffer.as_char_array(), kData.size()));
 }

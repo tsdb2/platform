@@ -16,10 +16,10 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
-#include "common/buffer.h"
 #include "common/reffed_ptr.h"
 #include "common/utilities.h"
 #include "http/http.h"
+#include "io/buffer.h"
 #include "net/sockets.h"
 
 ABSL_FLAG(std::string, local_address, "", "The local network address this server will bind to.");
@@ -40,8 +40,8 @@ namespace http {
 
 namespace {
 
-using ::tsdb2::common::Buffer;
 using ::tsdb2::common::reffed_ptr;
+using ::tsdb2::net::Buffer;
 using ::tsdb2::net::kInetSocketTag;
 using ::tsdb2::net::ListenerSocket;
 using ::tsdb2::net::SelectServer;

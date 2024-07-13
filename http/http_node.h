@@ -17,7 +17,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/synchronization/notification.h"
-#include "common/buffer.h"
 #include "common/reffed_ptr.h"
 #include "common/utilities.h"
 #include "http/http.h"

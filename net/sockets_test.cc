@@ -15,13 +15,13 @@
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/synchronization/notification.h"
-#include "common/buffer.h"
 #include "common/reffed_ptr.h"
 #include "common/simple_condition.h"
 #include "common/testing.h"
 #include "common/utilities.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "io/buffer.h"
 
 namespace {
 
@@ -32,9 +32,9 @@ using ::testing::Property;
 using ::testing::status::IsOk;
 using ::testing::status::IsOkAndHolds;
 using ::testing::status::StatusIs;
-using ::tsdb2::common::Buffer;
 using ::tsdb2::common::reffed_ptr;
 using ::tsdb2::common::SimpleCondition;
+using ::tsdb2::net::Buffer;
 using ::tsdb2::net::KeepAliveParams;
 using ::tsdb2::net::kInetSocketTag;
 using ::tsdb2::net::kLocalHost;

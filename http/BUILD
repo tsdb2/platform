@@ -1,6 +1,16 @@
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
+    name = "hpack",
+    srcs = ["hpack.cc"],
+    hdrs = ["hpack.h"],
+    deps = [
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
     name = "http_node",
     srcs = ["http_node.cc"],
     hdrs = [
@@ -8,7 +18,6 @@ cc_library(
         "http_node.h",
     ],
     deps = [
-        "//common:buffer",
         "//common:reffed_ptr",
         "//common:utilities",
         "//net:sockets",

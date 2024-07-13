@@ -1,5 +1,5 @@
-#ifndef __TSDB2_COMMON_BUFFER_H__
-#define __TSDB2_COMMON_BUFFER_H__
+#ifndef __TSDB2_IO_BUFFER_H__
+#define __TSDB2_IO_BUFFER_H__
 
 #include <cstddef>
 #include <cstdint>
@@ -7,9 +7,10 @@
 #include <type_traits>
 
 #include "absl/log/check.h"
+#include "absl/types/span.h"
 
 namespace tsdb2 {
-namespace common {
+namespace io {
 
 // Manages an owned, preallocated memory buffer.
 class Buffer {
@@ -65,13 +66,23 @@ class Buffer {
   void* get() { return data_; }
   void const* get() const { return data_; }
 
+  // Returns an absl::Span` referring to this buffer's data.
+  //
+  // REQUIRES: the buffer must not be empty.
+  absl::Span<uint8_t const> span() const { return absl::Span<uint8_t const>(data_, length_); }
+
+  // Alias for `span()`.
+  //
+  // REQUIRES: the buffer must not be empty.
+  explicit operator absl::Span<uint8_t const>() const { return span(); }
+
   // Returns a pointer to the buffer as a byte array. This is the same as
   // `static_cast<uint8_t*>(get())`.
   uint8_t* as_byte_array() { return data_; }
   uint8_t const* as_byte_array() const { return data_; }
 
   // Returns a pointer to the buffer as a byte array. This is the same as
-  // `static_cast<uint8_t*>(get())`.
+  // `reinterpret_cast<uint8_t*>(get())`.
   char* as_char_array() { return reinterpret_cast<char*>(data_); }
   char const* as_char_array() const { return reinterpret_cast<char const*>(data_); }
 
@@ -199,7 +210,7 @@ class Buffer {
   uint8_t* data_ = nullptr;
 };
 
-}  // namespace common
+}  // namespace io
 }  // namespace tsdb2
 
-#endif  // __TSDB2_COMMON_BUFFER_H__
+#endif  // __TSDB2_IO_BUFFER_H__
