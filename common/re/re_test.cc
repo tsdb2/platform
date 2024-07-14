@@ -561,163 +561,163 @@ TEST_P(RegexpTest, CharacterClassWithCircumflex) {
   auto const status_or_pattern = Parse("[ab^cd]");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_FALSE(Run(pattern, ""));
-  EXPECT_TRUE(Run(pattern, "a"));
-  EXPECT_TRUE(Run(pattern, "b"));
-  EXPECT_TRUE(Run(pattern, "^"));
-  EXPECT_TRUE(Run(pattern, "c"));
-  EXPECT_TRUE(Run(pattern, "d"));
-  EXPECT_FALSE(Run(pattern, "ab^cd"));
-  EXPECT_FALSE(Run(pattern, "[ab^cd]"));
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(Optional(ElementsAre("a"))));
+  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(Optional(ElementsAre("b"))));
+  EXPECT_THAT(Match(pattern, "^"), IsOkAndHolds(Optional(ElementsAre("^"))));
+  EXPECT_THAT(Match(pattern, "c"), IsOkAndHolds(Optional(ElementsAre("c"))));
+  EXPECT_THAT(Match(pattern, "d"), IsOkAndHolds(Optional(ElementsAre("d"))));
+  EXPECT_THAT(Match(pattern, "ab^cd"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "[ab^cd]"), IsOkAndHolds(std::nullopt));
 }
 
 TEST_P(RegexpTest, NegatedCharacterClassWithCircumflex) {
   auto const status_or_pattern = Parse("[^ab^cd]");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_FALSE(Run(pattern, ""));
-  EXPECT_FALSE(Run(pattern, "a"));
-  EXPECT_FALSE(Run(pattern, "b"));
-  EXPECT_FALSE(Run(pattern, "^"));
-  EXPECT_FALSE(Run(pattern, "c"));
-  EXPECT_FALSE(Run(pattern, "d"));
-  EXPECT_TRUE(Run(pattern, "x"));
-  EXPECT_TRUE(Run(pattern, "y"));
-  EXPECT_FALSE(Run(pattern, "ab^cd"));
-  EXPECT_FALSE(Run(pattern, "^ab^cd"));
-  EXPECT_FALSE(Run(pattern, "[^ab^cd]"));
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "^"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "c"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "d"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "x"), IsOkAndHolds(Optional(ElementsAre("x"))));
+  EXPECT_THAT(Match(pattern, "y"), IsOkAndHolds(Optional(ElementsAre("y"))));
+  EXPECT_THAT(Match(pattern, "ab^cd"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "^ab^cd"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "[^ab^cd]"), IsOkAndHolds(std::nullopt));
 }
 
 TEST_P(RegexpTest, CharacterClassWithSpecialCharacters) {
   auto const status_or_pattern = Parse("[a^$.(){}|?*+b]");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_FALSE(Run(pattern, ""));
-  EXPECT_TRUE(Run(pattern, "a"));
-  EXPECT_TRUE(Run(pattern, "b"));
-  EXPECT_TRUE(Run(pattern, "^"));
-  EXPECT_TRUE(Run(pattern, "$"));
-  EXPECT_TRUE(Run(pattern, "."));
-  EXPECT_TRUE(Run(pattern, "("));
-  EXPECT_TRUE(Run(pattern, ")"));
-  EXPECT_TRUE(Run(pattern, "{"));
-  EXPECT_TRUE(Run(pattern, "}"));
-  EXPECT_TRUE(Run(pattern, "|"));
-  EXPECT_TRUE(Run(pattern, "?"));
-  EXPECT_TRUE(Run(pattern, "*"));
-  EXPECT_TRUE(Run(pattern, "+"));
-  EXPECT_FALSE(Run(pattern, "x"));
-  EXPECT_FALSE(Run(pattern, "y"));
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(Optional(ElementsAre("a"))));
+  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(Optional(ElementsAre("b"))));
+  EXPECT_THAT(Match(pattern, "^"), IsOkAndHolds(Optional(ElementsAre("^"))));
+  EXPECT_THAT(Match(pattern, "$"), IsOkAndHolds(Optional(ElementsAre("$"))));
+  EXPECT_THAT(Match(pattern, "."), IsOkAndHolds(Optional(ElementsAre("."))));
+  EXPECT_THAT(Match(pattern, "("), IsOkAndHolds(Optional(ElementsAre("("))));
+  EXPECT_THAT(Match(pattern, ")"), IsOkAndHolds(Optional(ElementsAre(")"))));
+  EXPECT_THAT(Match(pattern, "{"), IsOkAndHolds(Optional(ElementsAre("{"))));
+  EXPECT_THAT(Match(pattern, "}"), IsOkAndHolds(Optional(ElementsAre("}"))));
+  EXPECT_THAT(Match(pattern, "|"), IsOkAndHolds(Optional(ElementsAre("|"))));
+  EXPECT_THAT(Match(pattern, "?"), IsOkAndHolds(Optional(ElementsAre("?"))));
+  EXPECT_THAT(Match(pattern, "*"), IsOkAndHolds(Optional(ElementsAre("*"))));
+  EXPECT_THAT(Match(pattern, "+"), IsOkAndHolds(Optional(ElementsAre("+"))));
+  EXPECT_THAT(Match(pattern, "x"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "y"), IsOkAndHolds(std::nullopt));
 }
 
 TEST_P(RegexpTest, NegatedCharacterClassWithSpecialCharacters) {
   auto const status_or_pattern = Parse("[^a^$.(){}|?*+b]");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_FALSE(Run(pattern, ""));
-  EXPECT_FALSE(Run(pattern, "a"));
-  EXPECT_FALSE(Run(pattern, "b"));
-  EXPECT_FALSE(Run(pattern, "^"));
-  EXPECT_FALSE(Run(pattern, "$"));
-  EXPECT_FALSE(Run(pattern, "."));
-  EXPECT_FALSE(Run(pattern, "("));
-  EXPECT_FALSE(Run(pattern, ")"));
-  EXPECT_FALSE(Run(pattern, "{"));
-  EXPECT_FALSE(Run(pattern, "}"));
-  EXPECT_FALSE(Run(pattern, "|"));
-  EXPECT_FALSE(Run(pattern, "?"));
-  EXPECT_FALSE(Run(pattern, "*"));
-  EXPECT_FALSE(Run(pattern, "+"));
-  EXPECT_TRUE(Run(pattern, "x"));
-  EXPECT_TRUE(Run(pattern, "y"));
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "^"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "$"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "."), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "("), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, ")"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "{"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "}"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "|"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "?"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "*"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "+"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "x"), IsOkAndHolds(Optional(ElementsAre("x"))));
+  EXPECT_THAT(Match(pattern, "y"), IsOkAndHolds(Optional(ElementsAre("y"))));
 }
 
 TEST_P(RegexpTest, CharacterClassWithEscapes) {
   auto const status_or_pattern = Parse("[a\\\\\\^\\$\\.\\(\\)\\[\\]\\{\\}\\|\\?\\*\\+b]");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_FALSE(Run(pattern, ""));
-  EXPECT_TRUE(Run(pattern, "a"));
-  EXPECT_TRUE(Run(pattern, "b"));
-  EXPECT_TRUE(Run(pattern, "\\"));
-  EXPECT_TRUE(Run(pattern, "^"));
-  EXPECT_TRUE(Run(pattern, "$"));
-  EXPECT_TRUE(Run(pattern, "."));
-  EXPECT_TRUE(Run(pattern, "("));
-  EXPECT_TRUE(Run(pattern, ")"));
-  EXPECT_TRUE(Run(pattern, "["));
-  EXPECT_TRUE(Run(pattern, "]"));
-  EXPECT_TRUE(Run(pattern, "{"));
-  EXPECT_TRUE(Run(pattern, "}"));
-  EXPECT_TRUE(Run(pattern, "|"));
-  EXPECT_TRUE(Run(pattern, "?"));
-  EXPECT_TRUE(Run(pattern, "*"));
-  EXPECT_TRUE(Run(pattern, "+"));
-  EXPECT_FALSE(Run(pattern, "x"));
-  EXPECT_FALSE(Run(pattern, "y"));
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(Optional(ElementsAre("a"))));
+  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(Optional(ElementsAre("b"))));
+  EXPECT_THAT(Match(pattern, "\\"), IsOkAndHolds(Optional(ElementsAre("\\"))));
+  EXPECT_THAT(Match(pattern, "^"), IsOkAndHolds(Optional(ElementsAre("^"))));
+  EXPECT_THAT(Match(pattern, "$"), IsOkAndHolds(Optional(ElementsAre("$"))));
+  EXPECT_THAT(Match(pattern, "."), IsOkAndHolds(Optional(ElementsAre("."))));
+  EXPECT_THAT(Match(pattern, "("), IsOkAndHolds(Optional(ElementsAre("("))));
+  EXPECT_THAT(Match(pattern, ")"), IsOkAndHolds(Optional(ElementsAre(")"))));
+  EXPECT_THAT(Match(pattern, "["), IsOkAndHolds(Optional(ElementsAre("["))));
+  EXPECT_THAT(Match(pattern, "]"), IsOkAndHolds(Optional(ElementsAre("]"))));
+  EXPECT_THAT(Match(pattern, "{"), IsOkAndHolds(Optional(ElementsAre("{"))));
+  EXPECT_THAT(Match(pattern, "}"), IsOkAndHolds(Optional(ElementsAre("}"))));
+  EXPECT_THAT(Match(pattern, "|"), IsOkAndHolds(Optional(ElementsAre("|"))));
+  EXPECT_THAT(Match(pattern, "?"), IsOkAndHolds(Optional(ElementsAre("?"))));
+  EXPECT_THAT(Match(pattern, "*"), IsOkAndHolds(Optional(ElementsAre("*"))));
+  EXPECT_THAT(Match(pattern, "+"), IsOkAndHolds(Optional(ElementsAre("+"))));
+  EXPECT_THAT(Match(pattern, "x"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "y"), IsOkAndHolds(std::nullopt));
 }
 
 TEST_P(RegexpTest, NegatedCharacterClassWithEscapes) {
   auto const status_or_pattern = Parse("[^a\\\\\\^\\$\\.\\(\\)\\[\\]\\{\\}\\|\\?\\*\\+b]");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_FALSE(Run(pattern, ""));
-  EXPECT_FALSE(Run(pattern, "a"));
-  EXPECT_FALSE(Run(pattern, "b"));
-  EXPECT_FALSE(Run(pattern, "\\"));
-  EXPECT_FALSE(Run(pattern, "^"));
-  EXPECT_FALSE(Run(pattern, "$"));
-  EXPECT_FALSE(Run(pattern, "."));
-  EXPECT_FALSE(Run(pattern, "("));
-  EXPECT_FALSE(Run(pattern, ")"));
-  EXPECT_FALSE(Run(pattern, "["));
-  EXPECT_FALSE(Run(pattern, "]"));
-  EXPECT_FALSE(Run(pattern, "{"));
-  EXPECT_FALSE(Run(pattern, "}"));
-  EXPECT_FALSE(Run(pattern, "|"));
-  EXPECT_FALSE(Run(pattern, "?"));
-  EXPECT_FALSE(Run(pattern, "*"));
-  EXPECT_FALSE(Run(pattern, "+"));
-  EXPECT_TRUE(Run(pattern, "x"));
-  EXPECT_TRUE(Run(pattern, "y"));
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "\\"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "^"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "$"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "."), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "("), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, ")"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "["), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "]"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "{"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "}"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "|"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "?"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "*"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "+"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "x"), IsOkAndHolds(Optional(ElementsAre("x"))));
+  EXPECT_THAT(Match(pattern, "y"), IsOkAndHolds(Optional(ElementsAre("y"))));
 }
 
 TEST_P(RegexpTest, CharacterClassWithMoreEscapes) {
   auto const status_or_pattern = Parse("[\\t\\r\\n\\v\\f\\b\\x12\\xAF]");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_FALSE(Run(pattern, ""));
-  EXPECT_FALSE(Run(pattern, "a"));
-  EXPECT_FALSE(Run(pattern, "b"));
-  EXPECT_TRUE(Run(pattern, "\t"));
-  EXPECT_TRUE(Run(pattern, "\r"));
-  EXPECT_TRUE(Run(pattern, "\n"));
-  EXPECT_TRUE(Run(pattern, "\v"));
-  EXPECT_TRUE(Run(pattern, "\f"));
-  EXPECT_TRUE(Run(pattern, "\b"));
-  EXPECT_TRUE(Run(pattern, "\x12"));
-  EXPECT_TRUE(Run(pattern, "\xAF"));
-  EXPECT_FALSE(Run(pattern, "x"));
-  EXPECT_FALSE(Run(pattern, "y"));
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "\t"), IsOkAndHolds(Optional(ElementsAre("\t"))));
+  EXPECT_THAT(Match(pattern, "\r"), IsOkAndHolds(Optional(ElementsAre("\r"))));
+  EXPECT_THAT(Match(pattern, "\n"), IsOkAndHolds(Optional(ElementsAre("\n"))));
+  EXPECT_THAT(Match(pattern, "\v"), IsOkAndHolds(Optional(ElementsAre("\v"))));
+  EXPECT_THAT(Match(pattern, "\f"), IsOkAndHolds(Optional(ElementsAre("\f"))));
+  EXPECT_THAT(Match(pattern, "\b"), IsOkAndHolds(Optional(ElementsAre("\b"))));
+  EXPECT_THAT(Match(pattern, "\x12"), IsOkAndHolds(Optional(ElementsAre("\x12"))));
+  EXPECT_THAT(Match(pattern, "\xAF"), IsOkAndHolds(Optional(ElementsAre("\xAF"))));
+  EXPECT_THAT(Match(pattern, "x"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "y"), IsOkAndHolds(std::nullopt));
 }
 
 TEST_P(RegexpTest, NegatedCharacterClassWithMoreEscapes) {
   auto const status_or_pattern = Parse("[^\\t\\r\\n\\v\\f\\b\\x12\\xAF]");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_FALSE(Run(pattern, ""));
-  EXPECT_TRUE(Run(pattern, "a"));
-  EXPECT_TRUE(Run(pattern, "b"));
-  EXPECT_FALSE(Run(pattern, "\t"));
-  EXPECT_FALSE(Run(pattern, "\r"));
-  EXPECT_FALSE(Run(pattern, "\n"));
-  EXPECT_FALSE(Run(pattern, "\v"));
-  EXPECT_FALSE(Run(pattern, "\f"));
-  EXPECT_FALSE(Run(pattern, "\b"));
-  EXPECT_FALSE(Run(pattern, "\x12"));
-  EXPECT_FALSE(Run(pattern, "\xAF"));
-  EXPECT_TRUE(Run(pattern, "x"));
-  EXPECT_TRUE(Run(pattern, "y"));
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(Optional(ElementsAre("a"))));
+  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(Optional(ElementsAre("b"))));
+  EXPECT_THAT(Match(pattern, "\t"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "\r"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "\n"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "\v"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "\f"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "\b"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "\x12"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "\xAF"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "x"), IsOkAndHolds(Optional(ElementsAre("x"))));
+  EXPECT_THAT(Match(pattern, "y"), IsOkAndHolds(Optional(ElementsAre("y"))));
 }
 
 TEST_P(RegexpTest, InvalidEscapeCodesInCharacterClass) {
@@ -755,211 +755,211 @@ TEST_P(RegexpTest, CharacterSequence) {
   auto const status_or_pattern = Parse("lorem");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_FALSE(Run(pattern, ""));
-  EXPECT_FALSE(Run(pattern, "l"));
-  EXPECT_TRUE(Run(pattern, "lorem"));
-  EXPECT_FALSE(Run(pattern, "loremipsum"));
-  EXPECT_FALSE(Run(pattern, "dolorloremipsum"));
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "l"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "lorem"), IsOkAndHolds(Optional(ElementsAre("lorem"))));
+  EXPECT_THAT(Match(pattern, "loremipsum"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "dolorloremipsum"), IsOkAndHolds(std::nullopt));
 }
 
 TEST_P(RegexpTest, CharacterSequenceWithDot) {
   auto const status_or_pattern = Parse("lo.em");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_FALSE(Run(pattern, ""));
-  EXPECT_FALSE(Run(pattern, "l"));
-  EXPECT_TRUE(Run(pattern, "lorem"));
-  EXPECT_TRUE(Run(pattern, "lo-em"));
-  EXPECT_TRUE(Run(pattern, "lovem"));
-  EXPECT_FALSE(Run(pattern, "lodolorem"));
-  EXPECT_FALSE(Run(pattern, "loremipsum"));
-  EXPECT_FALSE(Run(pattern, "dolorloremipsum"));
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "l"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "lorem"), IsOkAndHolds(Optional(ElementsAre("lorem"))));
+  EXPECT_THAT(Match(pattern, "lo-em"), IsOkAndHolds(Optional(ElementsAre("lo-em"))));
+  EXPECT_THAT(Match(pattern, "lovem"), IsOkAndHolds(Optional(ElementsAre("lovem"))));
+  EXPECT_THAT(Match(pattern, "lodolorem"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsum"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "dolorloremipsum"), IsOkAndHolds(std::nullopt));
 }
 
 TEST_P(RegexpTest, KleeneStar) {
   auto const status_or_pattern = Parse("a*");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_TRUE(Run(pattern, ""));
-  EXPECT_TRUE(Run(pattern, "a"));
-  EXPECT_TRUE(Run(pattern, "aa"));
-  EXPECT_TRUE(Run(pattern, "aaa"));
-  EXPECT_FALSE(Run(pattern, "b"));
-  EXPECT_FALSE(Run(pattern, "ab"));
-  EXPECT_FALSE(Run(pattern, "aba"));
-  EXPECT_FALSE(Run(pattern, "aabaa"));
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(ElementsAre(""))));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(Optional(ElementsAre("a"))));
+  EXPECT_THAT(Match(pattern, "aa"), IsOkAndHolds(Optional(ElementsAre("aa"))));
+  EXPECT_THAT(Match(pattern, "aaa"), IsOkAndHolds(Optional(ElementsAre("aaa"))));
+  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ab"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aba"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aabaa"), IsOkAndHolds(std::nullopt));
 }
 
 TEST_P(RegexpTest, CharacterSequenceWithStar) {
   auto const status_or_pattern = Parse("lo*rem");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_FALSE(Run(pattern, ""));
-  EXPECT_FALSE(Run(pattern, "l"));
-  EXPECT_TRUE(Run(pattern, "lrem"));
-  EXPECT_TRUE(Run(pattern, "lorem"));
-  EXPECT_TRUE(Run(pattern, "loorem"));
-  EXPECT_TRUE(Run(pattern, "looorem"));
-  EXPECT_FALSE(Run(pattern, "larem"));
-  EXPECT_FALSE(Run(pattern, "loremlorem"));
-  EXPECT_FALSE(Run(pattern, "loremipsum"));
-  EXPECT_FALSE(Run(pattern, "dolorloremipsum"));
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "l"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "lrem"), IsOkAndHolds(Optional(ElementsAre("lrem"))));
+  EXPECT_THAT(Match(pattern, "lorem"), IsOkAndHolds(Optional(ElementsAre("lorem"))));
+  EXPECT_THAT(Match(pattern, "loorem"), IsOkAndHolds(Optional(ElementsAre("loorem"))));
+  EXPECT_THAT(Match(pattern, "looorem"), IsOkAndHolds(Optional(ElementsAre("looorem"))));
+  EXPECT_THAT(Match(pattern, "larem"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremlorem"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsum"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "dolorloremipsum"), IsOkAndHolds(std::nullopt));
 }
 
 TEST_P(RegexpTest, KleenePlus) {
   auto const status_or_pattern = Parse("a+");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_FALSE(Run(pattern, ""));
-  EXPECT_TRUE(Run(pattern, "a"));
-  EXPECT_TRUE(Run(pattern, "aa"));
-  EXPECT_TRUE(Run(pattern, "aaa"));
-  EXPECT_FALSE(Run(pattern, "b"));
-  EXPECT_FALSE(Run(pattern, "ab"));
-  EXPECT_FALSE(Run(pattern, "aba"));
-  EXPECT_FALSE(Run(pattern, "aabaa"));
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(Optional(ElementsAre("a"))));
+  EXPECT_THAT(Match(pattern, "aa"), IsOkAndHolds(Optional(ElementsAre("aa"))));
+  EXPECT_THAT(Match(pattern, "aaa"), IsOkAndHolds(Optional(ElementsAre("aaa"))));
+  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ab"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aba"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aabaa"), IsOkAndHolds(std::nullopt));
 }
 
 TEST_P(RegexpTest, CharacterSequenceWithPlus) {
   auto const status_or_pattern = Parse("lo+rem");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_FALSE(Run(pattern, ""));
-  EXPECT_FALSE(Run(pattern, "l"));
-  EXPECT_FALSE(Run(pattern, "lrem"));
-  EXPECT_TRUE(Run(pattern, "lorem"));
-  EXPECT_TRUE(Run(pattern, "loorem"));
-  EXPECT_TRUE(Run(pattern, "looorem"));
-  EXPECT_FALSE(Run(pattern, "larem"));
-  EXPECT_FALSE(Run(pattern, "loremlorem"));
-  EXPECT_FALSE(Run(pattern, "loremipsum"));
-  EXPECT_FALSE(Run(pattern, "dolorloremipsum"));
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "l"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "lrem"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "lorem"), IsOkAndHolds(Optional(ElementsAre("lorem"))));
+  EXPECT_THAT(Match(pattern, "loorem"), IsOkAndHolds(Optional(ElementsAre("loorem"))));
+  EXPECT_THAT(Match(pattern, "looorem"), IsOkAndHolds(Optional(ElementsAre("looorem"))));
+  EXPECT_THAT(Match(pattern, "larem"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremlorem"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsum"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "dolorloremipsum"), IsOkAndHolds(std::nullopt));
 }
 
 TEST_P(RegexpTest, Maybe) {
   auto const status_or_pattern = Parse("a?");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_TRUE(Run(pattern, ""));
-  EXPECT_TRUE(Run(pattern, "a"));
-  EXPECT_FALSE(Run(pattern, "aa"));
-  EXPECT_FALSE(Run(pattern, "b"));
-  EXPECT_FALSE(Run(pattern, "ab"));
-  EXPECT_FALSE(Run(pattern, "ba"));
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(ElementsAre(""))));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(Optional(ElementsAre("a"))));
+  EXPECT_THAT(Match(pattern, "aa"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ab"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ba"), IsOkAndHolds(std::nullopt));
 }
 
 TEST_P(RegexpTest, Many) {
   auto const status_or_pattern = Parse("a{}");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_TRUE(Run(pattern, ""));
-  EXPECT_TRUE(Run(pattern, "a"));
-  EXPECT_TRUE(Run(pattern, "aa"));
-  EXPECT_TRUE(Run(pattern, "aaa"));
-  EXPECT_TRUE(Run(pattern, "aaaa"));
-  EXPECT_TRUE(Run(pattern, "aaaaa"));
-  EXPECT_FALSE(Run(pattern, "b"));
-  EXPECT_FALSE(Run(pattern, "ab"));
-  EXPECT_FALSE(Run(pattern, "ba"));
-  EXPECT_FALSE(Run(pattern, "aba"));
-  EXPECT_FALSE(Run(pattern, "aabaa"));
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(ElementsAre(""))));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(Optional(ElementsAre("a"))));
+  EXPECT_THAT(Match(pattern, "aa"), IsOkAndHolds(Optional(ElementsAre("aa"))));
+  EXPECT_THAT(Match(pattern, "aaa"), IsOkAndHolds(Optional(ElementsAre("aaa"))));
+  EXPECT_THAT(Match(pattern, "aaaa"), IsOkAndHolds(Optional(ElementsAre("aaaa"))));
+  EXPECT_THAT(Match(pattern, "aaaaa"), IsOkAndHolds(Optional(ElementsAre("aaaaa"))));
+  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ab"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ba"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aba"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aabaa"), IsOkAndHolds(std::nullopt));
 }
 
 TEST_P(RegexpTest, ExactlyZero) {
   auto const status_or_pattern = Parse("a{0}");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_TRUE(Run(pattern, ""));
-  EXPECT_FALSE(Run(pattern, "a"));
-  EXPECT_FALSE(Run(pattern, "aa"));
-  EXPECT_FALSE(Run(pattern, "aaa"));
-  EXPECT_FALSE(Run(pattern, "b"));
-  EXPECT_FALSE(Run(pattern, "ab"));
-  EXPECT_FALSE(Run(pattern, "ba"));
-  EXPECT_FALSE(Run(pattern, "aba"));
-  EXPECT_FALSE(Run(pattern, "aabaa"));
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(ElementsAre(""))));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aa"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aaa"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ab"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ba"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aba"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aabaa"), IsOkAndHolds(std::nullopt));
 }
 
 TEST_P(RegexpTest, ExactlyOne) {
   auto const status_or_pattern = Parse("a{1}");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_FALSE(Run(pattern, ""));
-  EXPECT_TRUE(Run(pattern, "a"));
-  EXPECT_FALSE(Run(pattern, "aa"));
-  EXPECT_FALSE(Run(pattern, "aaa"));
-  EXPECT_FALSE(Run(pattern, "b"));
-  EXPECT_FALSE(Run(pattern, "ab"));
-  EXPECT_FALSE(Run(pattern, "ba"));
-  EXPECT_FALSE(Run(pattern, "aba"));
-  EXPECT_FALSE(Run(pattern, "aabaa"));
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(Optional(ElementsAre("a"))));
+  EXPECT_THAT(Match(pattern, "aa"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aaa"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ab"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ba"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aba"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aabaa"), IsOkAndHolds(std::nullopt));
 }
 
 TEST_P(RegexpTest, ExactlyTwo) {
   auto const status_or_pattern = Parse("a{2}");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_FALSE(Run(pattern, ""));
-  EXPECT_FALSE(Run(pattern, "a"));
-  EXPECT_TRUE(Run(pattern, "aa"));
-  EXPECT_FALSE(Run(pattern, "aaa"));
-  EXPECT_FALSE(Run(pattern, "b"));
-  EXPECT_FALSE(Run(pattern, "ab"));
-  EXPECT_FALSE(Run(pattern, "ba"));
-  EXPECT_FALSE(Run(pattern, "aba"));
-  EXPECT_FALSE(Run(pattern, "aabaa"));
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aa"), IsOkAndHolds(Optional(ElementsAre("aa"))));
+  EXPECT_THAT(Match(pattern, "aaa"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ab"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ba"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aba"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aabaa"), IsOkAndHolds(std::nullopt));
 }
 
 TEST_P(RegexpTest, ExactlyFourtyTwo) {
   auto const status_or_pattern = Parse("a{42}");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_FALSE(Run(pattern, ""));
-  EXPECT_FALSE(Run(pattern, "a"));
-  EXPECT_FALSE(Run(pattern, "aa"));
-  EXPECT_FALSE(Run(pattern, "aaa"));
-  EXPECT_FALSE(Run(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
-  EXPECT_TRUE(Run(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
-  EXPECT_FALSE(Run(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
-  EXPECT_FALSE(Run(pattern, "b"));
-  EXPECT_FALSE(Run(pattern, "ab"));
-  EXPECT_FALSE(Run(pattern, "ba"));
-  EXPECT_FALSE(Run(pattern, "aba"));
-  EXPECT_FALSE(Run(pattern, "aabaa"));
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aa"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aaa"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), IsOkAndHolds(Optional(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
+  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ab"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ba"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aba"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aabaa"), IsOkAndHolds(std::nullopt));
 }
 
 TEST_P(RegexpTest, AtLeastZero) {
   auto const status_or_pattern = Parse("a{0,}");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_TRUE(Run(pattern, ""));
-  EXPECT_TRUE(Run(pattern, "a"));
-  EXPECT_TRUE(Run(pattern, "aa"));
-  EXPECT_TRUE(Run(pattern, "aaa"));
-  EXPECT_TRUE(Run(pattern, "aaaa"));
-  EXPECT_TRUE(Run(pattern, "aaaaa"));
-  EXPECT_FALSE(Run(pattern, "b"));
-  EXPECT_FALSE(Run(pattern, "ab"));
-  EXPECT_FALSE(Run(pattern, "ba"));
-  EXPECT_FALSE(Run(pattern, "aba"));
-  EXPECT_FALSE(Run(pattern, "aabaa"));
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(ElementsAre(""))));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(Optional(ElementsAre("a"))));
+  EXPECT_THAT(Match(pattern, "aa"), IsOkAndHolds(Optional(ElementsAre("aa"))));
+  EXPECT_THAT(Match(pattern, "aaa"), IsOkAndHolds(Optional(ElementsAre("aaa"))));
+  EXPECT_THAT(Match(pattern, "aaaa"), IsOkAndHolds(Optional(ElementsAre("aaaa"))));
+  EXPECT_THAT(Match(pattern, "aaaaa"), IsOkAndHolds(Optional(ElementsAre("aaaaa"))));
+  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ab"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ba"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aba"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aabaa"), IsOkAndHolds(std::nullopt));
 }
 
 TEST_P(RegexpTest, AtLeastOne) {
   auto const status_or_pattern = Parse("a{1,}");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_FALSE(Run(pattern, ""));
-  EXPECT_TRUE(Run(pattern, "a"));
-  EXPECT_TRUE(Run(pattern, "aa"));
-  EXPECT_TRUE(Run(pattern, "aaa"));
-  EXPECT_TRUE(Run(pattern, "aaaa"));
-  EXPECT_TRUE(Run(pattern, "aaaaa"));
-  EXPECT_FALSE(Run(pattern, "b"));
-  EXPECT_FALSE(Run(pattern, "ab"));
-  EXPECT_FALSE(Run(pattern, "ba"));
-  EXPECT_FALSE(Run(pattern, "aba"));
-  EXPECT_FALSE(Run(pattern, "aabaa"));
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(Optional(ElementsAre("a"))));
+  EXPECT_THAT(Match(pattern, "aa"), IsOkAndHolds(Optional(ElementsAre("aa"))));
+  EXPECT_THAT(Match(pattern, "aaa"), IsOkAndHolds(Optional(ElementsAre("aaa"))));
+  EXPECT_THAT(Match(pattern, "aaaa"), IsOkAndHolds(Optional(ElementsAre("aaaa"))));
+  EXPECT_THAT(Match(pattern, "aaaaa"), IsOkAndHolds(Optional(ElementsAre("aaaaa"))));
+  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ab"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ba"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aba"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aabaa"), IsOkAndHolds(std::nullopt));
 }
 
 TEST_P(RegexpTest, AtLeastTwo) {
