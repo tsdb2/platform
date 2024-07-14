@@ -73,6 +73,7 @@ cc_test(
         "//common:reffed_ptr",
         "//common:testing",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest_main",
     ],
 )
