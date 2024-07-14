@@ -89,10 +89,47 @@ class NFA final : public AutomatonInterface {
   std::optional<std::vector<std::string>> Match(std::string_view input) const override;
 
  private:
-  void EpsilonClosure(absl::flat_hash_set<size_t> *states) const;
+  // Runs the full matching algorithm, which matches the string and also returns all captured
+  // substrings (as opposed to `NFA::Test` which only matches the string).
+  //
+  // `Matcher` uses a backtracking algorithm, but thanks to the use of dynamic programming its
+  // worst-case complexity is reduced to O(N*M) with N = number of states and M = length of the
+  // input string.
+  class Matcher {
+   public:
+    explicit Matcher(NFA const &nfa, std::string_view const input) : nfa_(nfa), input_(input) {}
 
-  std::optional<flat_map<size_t, std::string>> MatchInternal(size_t current_state_num,
-                                                             std::string_view input) const;
+    // Matches the input string against the NFA (both are provided in the `Matcher` constructor).
+    // Returns the array of captured substrings, or an empty optional if the string doesn't match.
+    std::optional<std::vector<std::string>> Match();
+
+   private:
+    using MatchResults = std::optional<flat_map<size_t, std::string>>;
+    using Cache = flat_map<std::pair<size_t, size_t>, MatchResults>;
+
+    MatchResults Cached(size_t current_state_num, size_t offset, MatchResults value);
+
+    // Internal matching algorithm implementation. In order to avoid the exponential complexity of
+    // the backtracking algorithm, this function checks the `cache_` before doing any work.
+    //
+    // When the string matches, a map of capture groups to captured strings is returned; otherwise
+    // we return an empty optional.
+    //
+    // NOTE: due to the way `MatchInternal`'s algorithm works, the returned captured strings are
+    // reversed; the public `Match` method takes of care of reversing them.
+    MatchResults MatchInternal(size_t current_state_num, size_t offset);
+
+    NFA const &nfa_;
+    std::string_view const input_;
+
+    // Caches the results of the `MatchInternal` algorithm. The keys of this map are pairs of
+    // integers, corresponding to the two arguments of `MatchInternal`: the first integer is the
+    // current state number and the second is the offset in the input string. The values of the map
+    // have the same meaning as the return values of `MatchInternal`.
+    Cache cache_;
+  };
+
+  void EpsilonClosure(absl::flat_hash_set<size_t> *states) const;
 
   States const states_;
   size_t const initial_state_ = 0;

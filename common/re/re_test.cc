@@ -1,3 +1,4 @@
+#include <optional>
 #include <string_view>
 
 #include "absl/status/status.h"
@@ -13,6 +14,8 @@
 
 namespace {
 
+using ::testing::ElementsAre;
+using ::testing::Optional;
 using ::testing::Values;
 using ::testing::status::StatusIs;
 using ::tsdb2::common::reffed_ptr;
@@ -83,6 +86,10 @@ TEST_P(RegexpTest, Empty) {
   EXPECT_FALSE(Run(pattern, "b"));
   EXPECT_FALSE(Run(pattern, "hello"));
   EXPECT_TRUE(Run(pattern, ""));
+  EXPECT_EQ(pattern->Match("a"), std::nullopt);
+  EXPECT_EQ(pattern->Match("b"), std::nullopt);
+  EXPECT_EQ(pattern->Match("hello"), std::nullopt);
+  EXPECT_THAT(pattern->Match(""), Optional(ElementsAre()));
 }
 
 TEST_P(RegexpTest, SimpleCharacter) {
@@ -94,6 +101,11 @@ TEST_P(RegexpTest, SimpleCharacter) {
   EXPECT_FALSE(Run(pattern, "anchor"));
   EXPECT_FALSE(Run(pattern, "banana"));
   EXPECT_FALSE(Run(pattern, ""));
+  EXPECT_THAT(pattern->Match("a"), Optional(ElementsAre("a")));
+  EXPECT_EQ(pattern->Match("b"), std::nullopt);
+  EXPECT_EQ(pattern->Match("anchor"), std::nullopt);
+  EXPECT_EQ(pattern->Match("banana"), std::nullopt);
+  EXPECT_EQ(pattern->Match(""), std::nullopt);
 }
 
 TEST_P(RegexpTest, AnotherSimpleCharacter) {
@@ -105,6 +117,11 @@ TEST_P(RegexpTest, AnotherSimpleCharacter) {
   EXPECT_FALSE(Run(pattern, "anchor"));
   EXPECT_FALSE(Run(pattern, "banana"));
   EXPECT_FALSE(Run(pattern, ""));
+  EXPECT_EQ(pattern->Match("a"), std::nullopt);
+  EXPECT_THAT(pattern->Match("b"), Optional(ElementsAre("a")));
+  EXPECT_EQ(pattern->Match("anchor"), std::nullopt);
+  EXPECT_EQ(pattern->Match("banana"), std::nullopt);
+  EXPECT_EQ(pattern->Match(""), std::nullopt);
 }
 
 TEST_P(RegexpTest, InvalidEscapeCode) {

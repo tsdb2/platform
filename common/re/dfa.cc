@@ -1,12 +1,15 @@
 #include "common/re/dfa.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
+#include "common/flat_map.h"
 #include "common/re/automaton.h"
 
 namespace tsdb2 {
@@ -84,7 +87,60 @@ bool DFA::Test(std::string_view input) const {
 }
 
 std::optional<std::vector<std::string>> DFA::Match(std::string_view const input) const {
-  // TODO
+  return Matcher(*this, input).Match();
+}
+
+std::optional<std::vector<std::string>> DFA::Matcher::Match() {
+  auto maybe_results = MatchInternal(dfa_.initial_state_, 0);
+  if (!maybe_results) {
+    return std::nullopt;
+  }
+  auto& results = maybe_results.value();
+  if (results.empty()) {
+    return std::vector<std::string>();
+  }
+  std::vector<std::string> captures(results.rend()->first + 1, std::string());
+  for (auto& [capture_group, string] : results) {
+    std::reverse(string.begin(), string.end());
+    captures[capture_group] = std::move(string);
+  }
+  return captures;
+}
+
+DFA::Matcher::MatchResults DFA::Matcher::Cached(size_t const current_state_num, size_t const offset,
+                                                MatchResults value) {
+  auto const [it, unused_inserted] =
+      cache_.try_emplace(std::make_pair(current_state_num, offset), std::move(value));
+  return it->second;
+}
+
+DFA::Matcher::MatchResults DFA::Matcher::MatchInternal(size_t const current_state_num,
+                                                       size_t const offset) {
+  if (auto const it = cache_.find(std::make_pair(current_state_num, offset)); it != cache_.end()) {
+    return it->second;
+  }
+  if (offset >= input_.size() && current_state_num == dfa_.final_state_) {
+    return Cached(current_state_num, offset, flat_map<size_t, std::string>());
+  }
+  auto const& current_state = dfa_.states_[current_state_num];
+  if (auto const it = current_state.edges.find(0); it != current_state.edges.end()) {
+    auto results = MatchInternal(it->second, offset);
+    if (results) {
+      return Cached(current_state_num, offset, std::move(results));
+    }
+  }
+  if (offset >= input_.size()) {
+    return Cached(current_state_num, offset, std::nullopt);
+  }
+  auto const ch = input_[offset];
+  if (auto const it = current_state.edges.find(ch); it != current_state.edges.end()) {
+    auto results = MatchInternal(it->second, offset + 1);
+    if (results) {
+      (*results)[current_state.capture_group] += ch;
+      return Cached(current_state_num, offset, std::move(results));
+    }
+  }
+  return Cached(current_state_num, offset, std::nullopt);
 }
 
 }  // namespace regexp_internal

@@ -12,6 +12,8 @@ namespace {
 using ::testing::status::StatusIs;
 using ::tsdb2::common::RE;
 
+// TODO: test `Match` methods.
+
 TEST(RegexpTest, StaticTest) {
   EXPECT_TRUE(RE::Test("lore", "lo+rem?"));
   EXPECT_TRUE(RE::Test("looorem", "lo+rem?"));

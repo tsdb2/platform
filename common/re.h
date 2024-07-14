@@ -1,6 +1,7 @@
 #ifndef __TSDB2_COMMON_RE_H__
 #define __TSDB2_COMMON_RE_H__
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -52,7 +53,7 @@ class RE {
   static bool Test(std::string_view input, std::string_view pattern);
 
   // Checks if `input` matches `pattern` and returns an array of the strings captured by the capture
-  // groups. An error status is returned if the `pattern` fails to compile.
+  // groups. An error status is returned if `pattern` fails to compile or `input` doesn't match.
   static absl::StatusOr<std::vector<std::string>> Match(std::string_view input,
                                                         std::string_view pattern);
 
@@ -77,9 +78,11 @@ class RE {
   // Checks if the provided `input` string matches this compiled regular expression.
   bool Test(std::string_view const input) const { return automaton_->Test(input); }
 
-  // Checks if `input` matches this compiled regular expression and returns an array of the strings
-  // captured by the capture groups. An error status is returned if the `pattern` fails to compile.
-  absl::StatusOr<std::vector<std::string>> Match(std::string_view input) const;
+  // Checks if `input` matches this regular expression and returns an array of the strings captured
+  // by the capture groups. An error status is returned if `input` doesn't match.
+  std::optional<std::vector<std::string>> Match(std::string_view const input) const {
+    return automaton_->Match(input);
+  }
 
  private:
   template <typename Label, typename Allocator>
