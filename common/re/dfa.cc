@@ -99,7 +99,7 @@ std::optional<std::vector<std::string>> DFA::Matcher::Match() {
   if (results.empty()) {
     return std::vector<std::string>();
   }
-  std::vector<std::string> captures(results.rend()->first + 1, std::string());
+  std::vector<std::string> captures(results.rbegin()->first + 1, std::string());
   for (auto& [capture_group, string] : results) {
     std::reverse(string.begin(), string.end());
     captures[capture_group] = std::move(string);

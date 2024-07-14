@@ -118,7 +118,7 @@ TEST_P(RegexpTest, AnotherSimpleCharacter) {
   EXPECT_FALSE(Run(pattern, "banana"));
   EXPECT_FALSE(Run(pattern, ""));
   EXPECT_EQ(pattern->Match("a"), std::nullopt);
-  EXPECT_THAT(pattern->Match("b"), Optional(ElementsAre("a")));
+  EXPECT_THAT(pattern->Match("b"), Optional(ElementsAre("b")));
   EXPECT_EQ(pattern->Match("anchor"), std::nullopt);
   EXPECT_EQ(pattern->Match("banana"), std::nullopt);
   EXPECT_EQ(pattern->Match(""), std::nullopt);
