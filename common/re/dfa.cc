@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_set.h"
 #include "common/flat_map.h"
 #include "common/re/automaton.h"
 
@@ -91,7 +92,8 @@ std::optional<std::vector<std::string>> DFA::Match(std::string_view const input)
 }
 
 std::optional<std::vector<std::string>> DFA::Matcher::Match() {
-  auto maybe_results = MatchInternal(dfa_.initial_state_, 0);
+  absl::flat_hash_set<size_t> epsilon_path;
+  auto maybe_results = MatchInternal(&epsilon_path, dfa_.initial_state_, 0);
   if (!maybe_results) {
     return std::nullopt;
   }
@@ -114,8 +116,9 @@ DFA::Matcher::MatchResults DFA::Matcher::Cached(size_t const current_state_num, 
   return it->second;
 }
 
-DFA::Matcher::MatchResults DFA::Matcher::MatchInternal(size_t const current_state_num,
-                                                       size_t const offset) {
+DFA::Matcher::MatchResults DFA::Matcher::MatchInternal(
+    absl::flat_hash_set<size_t>* const epsilon_path, size_t const current_state_num,
+    size_t const offset) {
   if (auto const it = cache_.find(std::make_pair(current_state_num, offset)); it != cache_.end()) {
     return it->second;
   }
@@ -124,9 +127,14 @@ DFA::Matcher::MatchResults DFA::Matcher::MatchInternal(size_t const current_stat
   }
   auto const& current_state = dfa_.states_[current_state_num];
   if (auto const it = current_state.edges.find(0); it != current_state.edges.end()) {
-    auto results = MatchInternal(it->second, offset);
-    if (results) {
-      return Cached(current_state_num, offset, std::move(results));
+    auto const transition = it->second;
+    auto const [unused_it, inserted] = epsilon_path->emplace(transition);
+    if (inserted) {
+      auto results = MatchInternal(epsilon_path, transition, offset);
+      epsilon_path->erase(transition);
+      if (results) {
+        return Cached(current_state_num, offset, std::move(results));
+      }
     }
   }
   if (offset >= input_.size()) {
@@ -134,7 +142,8 @@ DFA::Matcher::MatchResults DFA::Matcher::MatchInternal(size_t const current_stat
   }
   auto const ch = input_[offset];
   if (auto const it = current_state.edges.find(ch); it != current_state.edges.end()) {
-    auto results = MatchInternal(it->second, offset + 1);
+    absl::flat_hash_set<size_t> new_epsilon_path;
+    auto results = MatchInternal(&new_epsilon_path, it->second, offset + 1);
     if (results) {
       (*results)[current_state.capture_group] += ch;
       return Cached(current_state_num, offset, std::move(results));

@@ -117,7 +117,13 @@ class NFA final : public AutomatonInterface {
     //
     // NOTE: due to the way `MatchInternal`'s algorithm works, the returned captured strings are
     // reversed; the public `Match` method takes of care of reversing them.
-    MatchResults MatchInternal(size_t current_state_num, size_t offset);
+    //
+    // The `epsilon_path` argument points to a caller-provided set of state numbers containing the
+    // states visited by following the last contiguous sequence of epsilon edges. If an epsilon-edge
+    // points to a state we've already visited we don't follow it, so we avoid getting stuck in an
+    // epsilon-loop. The initial call from `Match` provides an empty set.
+    MatchResults MatchInternal(absl::flat_hash_set<size_t> *epsilon_path, size_t current_state_num,
+                               size_t offset);
 
     NFA const &nfa_;
     std::string_view const input_;

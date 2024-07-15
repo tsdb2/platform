@@ -15,6 +15,7 @@ cc_library(
     deps = [
         ":automaton",
         "//common:flat_map",
+        "@com_google_absl//absl/container:flat_hash_set",
     ],
 )
 
