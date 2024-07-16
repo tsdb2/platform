@@ -390,10 +390,19 @@ absl::StatusOr<TempNFA> Parser::Parse0(int const capture_group) {
     return TempNFA({{start, State(capture_group, {})}}, start, start);
   }
   if (ConsumePrefix("(")) {
-    capture_groups_.Add(next_capture_group_, capture_group);
-    ASSIGN_VAR_OR_RETURN(TempNFA, result, Parse3(next_capture_group_++));
-    RETURN_IF_ERROR(ExpectPrefix(")", "unmatched parens"));
-    return result;
+    if (ConsumePrefix("?")) {
+      if (!ConsumePrefix(":")) {
+        return SyntaxError("invalid non-capturing brackets");
+      }
+      ASSIGN_VAR_OR_RETURN(TempNFA, result, Parse3(capture_group));
+      RETURN_IF_ERROR(ExpectPrefix(")", "unmatched parens"));
+      return result;
+    } else {
+      capture_groups_.Add(next_capture_group_, capture_group);
+      ASSIGN_VAR_OR_RETURN(TempNFA, result, Parse3(next_capture_group_++));
+      RETURN_IF_ERROR(ExpectPrefix(")", "unmatched parens"));
+      return result;
+    }
   }
   size_t const stop = next_state_++;
   if (ConsumePrefix(".")) {

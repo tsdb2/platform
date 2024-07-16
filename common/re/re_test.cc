@@ -1205,6 +1205,21 @@ TEST_P(RegexpTest, MultipleQuantifiersWithBrackets) {
   EXPECT_THAT(Match(pattern, "aaaaa"), IsOkAndHolds(Optional(ElementsAre("aaaaa"))));
 }
 
+TEST_P(RegexpTest, MultipleQuantifiersWithNonCapturingBrackets) {
+  auto const status_or_pattern = Parse("(?:a+)*");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aa"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "ab"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ba"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aaa"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "aaaa"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "aaaaa"), IsOkAndHolds(Optional(IsEmpty())));
+}
+
 TEST_P(RegexpTest, EmptyOrEmpty) {
   auto const status_or_pattern = Parse("|");
   EXPECT_OK(status_or_pattern);
@@ -1283,6 +1298,17 @@ TEST_P(RegexpTest, EmptyBrackets) {
   EXPECT_THAT(Match(pattern, "ab"), IsOkAndHolds(std::nullopt));
 }
 
+TEST_P(RegexpTest, EmptyNonCapturingBrackets) {
+  auto const status_or_pattern = Parse("(?:)");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "aa"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ab"), IsOkAndHolds(std::nullopt));
+}
+
 TEST_P(RegexpTest, UnmatchedBrackets) {
   EXPECT_THAT(Parse("("), StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(Parse(")"), StatusIs(absl::StatusCode::kInvalidArgument));
@@ -1302,6 +1328,17 @@ TEST_P(RegexpTest, Brackets) {
   EXPECT_THAT(Match(pattern, "banana"), IsOkAndHolds(std::nullopt));
 }
 
+TEST_P(RegexpTest, NonCapturingBrackets) {
+  auto const status_or_pattern = Parse("(?:a)");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "anchor"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "banana"), IsOkAndHolds(std::nullopt));
+}
+
 TEST_P(RegexpTest, IpsumInBrackets) {
   auto const status_or_pattern = Parse("lorem(ipsum)dolor");
   EXPECT_OK(status_or_pattern);
@@ -1315,7 +1352,170 @@ TEST_P(RegexpTest, IpsumInBrackets) {
   EXPECT_THAT(Match(pattern, "loremipsumdolor"), IsOkAndHolds(Optional(ElementsAre("ipsum"))));
 }
 
-TEST_P(RegexpTest, EpsilonLoop) {
+TEST_P(RegexpTest, IpsumInNonCapturingBrackets) {
+  auto const status_or_pattern = Parse("lorem(?:ipsum)dolor");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "lorem"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ipsum"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "dolor"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremdolor"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremidolor"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsumdolor"), IsOkAndHolds(Optional(IsEmpty())));
+}
+
+TEST_P(RegexpTest, NestedBrackets) {
+  auto const status_or_pattern = Parse("lorem(ipsum(dolor)amet)adipisci");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "lorem"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsum"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsumdolor"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsumdoloramet"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ipsum"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "dolor"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "amet"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "adipisci"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ipsumdoloramet"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsumdolorametadipisci"),
+              IsOkAndHolds(Optional(ElementsAre("ipsumdoloramet", "dolor"))));
+}
+
+TEST_P(RegexpTest, CapturingBracketsNestedInNonCapturingBrackets) {
+  auto const status_or_pattern = Parse("lorem(?:ipsum(dolor)amet)adipisci");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "lorem"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsum"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsumdolor"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsumdoloramet"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ipsum"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "dolor"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "amet"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "adipisci"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ipsumdoloramet"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsumdolorametadipisci"),
+              IsOkAndHolds(Optional(ElementsAre("dolor"))));
+}
+
+TEST_P(RegexpTest, NonCapturingBracketsNestedInCapturingBrackets) {
+  auto const status_or_pattern = Parse("lorem(ipsum(?:dolor)amet)adipisci");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "lorem"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsum"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsumdolor"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsumdoloramet"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ipsum"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "dolor"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "amet"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "adipisci"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ipsumdoloramet"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsumdolorametadipisci"),
+              IsOkAndHolds(Optional(ElementsAre("ipsumdoloramet"))));
+}
+
+TEST_P(RegexpTest, NestedNonCapturingBrackets) {
+  auto const status_or_pattern = Parse("lorem(?:ipsum(?:dolor)amet)adipisci");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "lorem"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsum"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsumdolor"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsumdoloramet"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ipsum"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "dolor"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "amet"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "adipisci"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ipsumdoloramet"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsumdolorametadipisci"), IsOkAndHolds(Optional(IsEmpty())));
+}
+
+TEST_P(RegexpTest, PeeringBrackets) {
+  auto const status_or_pattern = Parse("lorem(ipsum)dolor(amet)adipisci");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "lorem"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsum"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsumdolor"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsumdoloramet"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ipsum"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "dolor"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "amet"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "adipisci"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsumdolorametadipisci"),
+              IsOkAndHolds(Optional(ElementsAre("ipsum", "amet"))));
+}
+
+TEST_P(RegexpTest, CapturingBracketsPeeringWithNonCapturingBrackets) {
+  auto const status_or_pattern = Parse("lorem(ipsum)dolor(?:amet)adipisci");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "lorem"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsum"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsumdolor"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsumdoloramet"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ipsum"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "dolor"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "amet"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "adipisci"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsumdolorametadipisci"),
+              IsOkAndHolds(Optional(ElementsAre("ipsum"))));
+}
+
+TEST_P(RegexpTest, NonCapturingBracketsPeeringWithCapturingBrackets) {
+  auto const status_or_pattern = Parse("lorem(?:ipsum)dolor(amet)adipisci");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "lorem"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsum"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsumdolor"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsumdoloramet"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ipsum"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "dolor"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "amet"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "adipisci"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsumdolorametadipisci"),
+              IsOkAndHolds(Optional(ElementsAre("amet"))));
+}
+
+TEST_P(RegexpTest, PeeringNonCapturingBrackets) {
+  auto const status_or_pattern = Parse("lorem(?:ipsum)dolor(?:amet)adipisci");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "lorem"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsum"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsumdolor"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsumdoloramet"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ipsum"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "dolor"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "amet"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "adipisci"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremipsumdolorametadipisci"), IsOkAndHolds(Optional(IsEmpty())));
+}
+
+TEST_P(RegexpTest, InvalidNonCapturingBrackets) {
+  EXPECT_THAT(Parse("lorem(?ipsum)dolor"), StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST_P(RegexpTest, EpsilonLoop1) {
   auto const status_or_pattern = Parse("(|a)+");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
@@ -1323,6 +1523,48 @@ TEST_P(RegexpTest, EpsilonLoop) {
   EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(Optional(ElementsAre("a"))));
   EXPECT_THAT(Match(pattern, "aa"), IsOkAndHolds(Optional(ElementsAre("aa"))));
   EXPECT_THAT(Match(pattern, "aaa"), IsOkAndHolds(Optional(ElementsAre("aaa"))));
+  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "bb"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ab"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ba"), IsOkAndHolds(std::nullopt));
+}
+
+TEST_P(RegexpTest, EpsilonLoop2) {
+  auto const status_or_pattern = Parse("(a|)+");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(Optional(ElementsAre("a"))));
+  EXPECT_THAT(Match(pattern, "aa"), IsOkAndHolds(Optional(ElementsAre("aa"))));
+  EXPECT_THAT(Match(pattern, "aaa"), IsOkAndHolds(Optional(ElementsAre("aaa"))));
+  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "bb"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ab"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ba"), IsOkAndHolds(std::nullopt));
+}
+
+TEST_P(RegexpTest, NonCapturingEpsilonLoop1) {
+  auto const status_or_pattern = Parse("(?:|a)+");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "aa"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "aaa"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "bb"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ab"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ba"), IsOkAndHolds(std::nullopt));
+}
+
+TEST_P(RegexpTest, NonCapturingEpsilonLoop2) {
+  auto const status_or_pattern = Parse("(?:a|)+");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "aa"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "aaa"), IsOkAndHolds(Optional(IsEmpty())));
   EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(std::nullopt));
   EXPECT_THAT(Match(pattern, "bb"), IsOkAndHolds(std::nullopt));
   EXPECT_THAT(Match(pattern, "ab"), IsOkAndHolds(std::nullopt));
