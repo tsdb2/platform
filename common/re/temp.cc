@@ -172,11 +172,11 @@ bool TempNFA::CollapseNextEpsilonMove() {
       auto const it = state.edges.find(0);
       size_t const destination = *(it->second.begin());
       if (state_num == destination || state_num != final_state_) {
-        auto const& destination_state = states_.find(destination)->second;
-        if (state.innermost_capture_group == destination_state.innermost_capture_group) {
-          state.edges.erase(it);
-          RenameState(destination, state_num);
+        auto node = state.edges.extract(it);
+        if (RenameState(destination, state_num)) {
           return true;
+        } else {
+          state.edges.insert(std::move(node));
         }
       }
     }
