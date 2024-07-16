@@ -23,6 +23,7 @@ cc_library(
     hdrs = ["dfa.h"],
     deps = [
         ":automaton",
+        ":capture_groups",
         "//common:flat_map",
         "@com_google_absl//absl/container:flat_hash_set",
     ],
@@ -34,6 +35,7 @@ cc_library(
     hdrs = ["nfa.h"],
     deps = [
         ":automaton",
+        ":capture_groups",
         "//common:flat_map",
         "//common:flat_set",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -61,6 +63,7 @@ cc_library(
     hdrs = ["parser.h"],
     deps = [
         ":automaton",
+        ":capture_groups",
         ":temp",
         "//common:reffed_ptr",
         "//common:utilities",

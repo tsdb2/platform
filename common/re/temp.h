@@ -82,7 +82,7 @@ class TempNFA final {
 
   // Finalizes this automaton by converting it into a `DFA` object if it's deterministic or an `NFA`
   // if it's not.
-  reffed_ptr<AutomatonInterface> Finalize() &&;
+  reffed_ptr<AutomatonInterface> Finalize(CaptureGroups capture_groups) &&;
 
  private:
   // Adds a state and its edges to the NFA, or merges it with an existing one.
@@ -102,10 +102,10 @@ class TempNFA final {
   // Finalizes this NFA by converting it to an `DFA` object, assuming the automaton is deterministic
   // (`IsDeterministic()` must return true) and has no epsilon-moves (`CollapseEpsilonMoves()` must
   // have been called).
-  reffed_ptr<DFA> ToDFA() &&;
+  reffed_ptr<DFA> ToDFA(CaptureGroups capture_groups) &&;
 
   // Finalizes this NFA by converting it to an `NFA` object.
-  reffed_ptr<NFA> ToNFA() &&;
+  reffed_ptr<NFA> ToNFA(CaptureGroups capture_groups) &&;
 
   States states_;
   size_t initial_state_ = 0;

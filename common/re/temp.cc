@@ -117,12 +117,12 @@ void TempNFA::Merge(TempNFA&& other, int const capture_group, size_t const initi
   final_state_ = final_state;
 }
 
-reffed_ptr<AutomatonInterface> TempNFA::Finalize() && {
+reffed_ptr<AutomatonInterface> TempNFA::Finalize(CaptureGroups capture_groups) && {
   CollapseEpsilonMoves();
   if (IsDeterministic()) {
-    return std::move(*this).ToDFA();
+    return std::move(*this).ToDFA(std::move(capture_groups));
   } else {
-    return std::move(*this).ToNFA();
+    return std::move(*this).ToNFA(std::move(capture_groups));
   }
 }
 
@@ -178,7 +178,7 @@ void TempNFA::CollapseEpsilonMoves() {
   }
 }
 
-reffed_ptr<DFA> TempNFA::ToDFA() && {
+reffed_ptr<DFA> TempNFA::ToDFA(CaptureGroups capture_groups) && {
   absl::flat_hash_map<size_t, size_t> state_map;
   DFA::States dfa_states;
   dfa_states.reserve(states_.size());
@@ -198,10 +198,11 @@ reffed_ptr<DFA> TempNFA::ToDFA() && {
       transition = state_map[transition];
     }
   }
-  return MakeReffed<DFA>(std::move(dfa_states), state_map[initial_state_], state_map[final_state_]);
+  return MakeReffed<DFA>(std::move(dfa_states), state_map[initial_state_], state_map[final_state_],
+                         std::move(capture_groups));
 }
 
-reffed_ptr<NFA> TempNFA::ToNFA() && {
+reffed_ptr<NFA> TempNFA::ToNFA(CaptureGroups capture_groups) && {
   absl::flat_hash_map<size_t, size_t> state_map;
   NFA::States nfa_states;
   nfa_states.reserve(states_.size());
@@ -217,7 +218,8 @@ reffed_ptr<NFA> TempNFA::ToNFA() && {
       transitions = RemapTransitions(transitions, state_map);
     }
   }
-  return MakeReffed<NFA>(std::move(nfa_states), state_map[initial_state_], state_map[final_state_]);
+  return MakeReffed<NFA>(std::move(nfa_states), state_map[initial_state_], state_map[final_state_],
+                         std::move(capture_groups));
 }
 
 }  // namespace regexp_internal

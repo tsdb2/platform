@@ -14,6 +14,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/strip.h"
 #include "common/re/automaton.h"
+#include "common/re/capture_groups.h"
 #include "common/re/temp.h"
 #include "common/reffed_ptr.h"
 #include "common/utilities.h"
@@ -40,7 +41,7 @@ class Parser final {
   // Parses the pattern provided at construction and returns a runnable automaton. The automaton is
   // initially an `NFA` but it's automatically converted to a `DFA` if it's found to be
   // deterministic. We do that because DFAs run faster.
-  absl::StatusOr<reffed_ptr<AutomatonInterface>> Parse();
+  absl::StatusOr<reffed_ptr<AutomatonInterface>> Parse() &&;
 
  private:
   // Returns the number of pattern characters not yet consumed by `Advance` or `ConsumePrefix`.
@@ -138,15 +139,17 @@ class Parser final {
   std::string_view const pattern_;
   size_t offset_ = 0;
   size_t next_state_ = 0;
+
+  CaptureGroups capture_groups_;
   int next_capture_group_ = 0;
 };
 
-absl::StatusOr<reffed_ptr<AutomatonInterface>> Parser::Parse() {
-  ASSIGN_VAR_OR_RETURN(TempNFA, nfa, Parse3(next_capture_group_++));
+absl::StatusOr<reffed_ptr<AutomatonInterface>> Parser::Parse() && {
+  ASSIGN_VAR_OR_RETURN(TempNFA, nfa, Parse3(-1));
   if (!at_end()) {
     return SyntaxError("expected end of string");
   }
-  return std::move(nfa).Finalize();
+  return std::move(nfa).Finalize(std::move(capture_groups_));
 }
 
 absl::StatusOr<uint8_t> Parser::ParseHexDigit(char const ch) {
@@ -387,6 +390,7 @@ absl::StatusOr<TempNFA> Parser::Parse0(int const capture_group) {
     return TempNFA({{start, State(capture_group, {})}}, start, start);
   }
   if (ConsumePrefix("(")) {
+    capture_groups_.Add(next_capture_group_, capture_group);
     ASSIGN_VAR_OR_RETURN(TempNFA, result, Parse3(next_capture_group_++));
     RETURN_IF_ERROR(ExpectPrefix(")", "unmatched parens"));
     return result;

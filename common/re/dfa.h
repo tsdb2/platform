@@ -12,6 +12,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "common/flat_map.h"
 #include "common/re/automaton.h"
+#include "common/re/capture_groups.h"
 
 namespace tsdb2 {
 namespace common {
@@ -72,8 +73,12 @@ class DFA final : public AutomatonInterface {
     size_t current_state_;
   };
 
-  explicit DFA(States states, size_t const initial_state, size_t const final_state)
-      : states_(std::move(states)), initial_state_(initial_state), final_state_(final_state) {}
+  explicit DFA(States states, size_t const initial_state, size_t const final_state,
+               CaptureGroups capture_groups)
+      : states_(std::move(states)),
+        initial_state_(initial_state),
+        final_state_(final_state),
+        capture_groups_(std::move(capture_groups)) {}
 
   bool IsDeterministic() const override;
 
@@ -131,8 +136,9 @@ class DFA final : public AutomatonInterface {
   };
 
   States const states_;
-  size_t const initial_state_ = 0;
-  size_t const final_state_ = 0;
+  size_t const initial_state_;
+  size_t const final_state_;
+  CaptureGroups const capture_groups_;
 };
 
 }  // namespace regexp_internal

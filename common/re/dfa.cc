@@ -145,8 +145,9 @@ DFA::Matcher::MatchResults DFA::Matcher::MatchInternal(
     absl::flat_hash_set<size_t> new_epsilon_path;
     auto results = MatchInternal(&new_epsilon_path, it->second, offset + 1);
     if (results) {
-      if (current_state.innermost_capture_group >= 0) {
-        (*results)[current_state.innermost_capture_group] += ch;
+      for (auto it = dfa_.capture_groups_.LookUp(current_state.innermost_capture_group);
+           it != dfa_.capture_groups_.root(); ++it) {
+        (*results)[*it] += ch;
       }
       return Cached(current_state_num, offset, std::move(results));
     }

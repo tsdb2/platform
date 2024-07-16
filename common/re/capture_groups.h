@@ -70,7 +70,7 @@ class CaptureGroups {
       return *this;
     }
 
-    Iterator &operator++(int) {
+    Iterator operator++(int) {
       Iterator result = *this;
       node_ = node_->parent;
       return result;

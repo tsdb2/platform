@@ -14,6 +14,7 @@
 #include "common/flat_map.h"
 #include "common/flat_set.h"
 #include "common/re/automaton.h"
+#include "common/re/capture_groups.h"
 
 namespace tsdb2 {
 namespace common {
@@ -83,8 +84,12 @@ class NFA final : public AutomatonInterface {
     absl::flat_hash_set<size_t> states_;
   };
 
-  explicit NFA(States states, size_t const initial_state, size_t const final_state)
-      : states_(std::move(states)), initial_state_(initial_state), final_state_(final_state) {}
+  explicit NFA(States states, size_t const initial_state, size_t const final_state,
+               CaptureGroups capture_groups)
+      : states_(std::move(states)),
+        initial_state_(initial_state),
+        final_state_(final_state),
+        capture_groups_(std::move(capture_groups)) {}
 
   bool IsDeterministic() const override;
 
@@ -144,8 +149,9 @@ class NFA final : public AutomatonInterface {
   void EpsilonClosure(absl::flat_hash_set<size_t> *states) const;
 
   States const states_;
-  size_t const initial_state_ = 0;
-  size_t const final_state_ = 0;
+  size_t const initial_state_;
+  size_t const final_state_;
+  CaptureGroups const capture_groups_;
 };
 
 }  // namespace regexp_internal
