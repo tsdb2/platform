@@ -491,7 +491,9 @@ absl::StatusOr<TempNFA> Parser::Parse1(int const capture_group) {
     return nfa;
   }
   if (ConsumePrefix("*")) {
-    nfa.RenameState(nfa.initial_state(), nfa.final_state());
+    if (!nfa.RenameState(nfa.initial_state(), nfa.final_state())) {
+      nfa.AddEpsilonEdge(nfa.final_state(), nfa.initial_state());
+    }
   } else if (ConsumePrefix("+")) {
     nfa.AddEpsilonEdge(nfa.final_state(), nfa.initial_state());
   } else if (ConsumePrefix("?")) {
@@ -506,7 +508,9 @@ absl::StatusOr<TempNFA> Parser::Parse1(int const capture_group) {
       if (max >= 0) {
         return SyntaxError("invalid quantifier");
       }
-      nfa.RenameState(nfa.initial_state(), nfa.final_state());
+      if (!nfa.RenameState(nfa.initial_state(), nfa.final_state())) {
+        nfa.AddEpsilonEdge(nfa.final_state(), nfa.initial_state());
+      }
     } else {
       auto piece = std::move(nfa);
       size_t const start = next_state_++;
@@ -516,7 +520,9 @@ absl::StatusOr<TempNFA> Parser::Parse1(int const capture_group) {
         nfa.Chain(piece);
       }
       if (max < 0) {
-        piece.RenameState(piece.initial_state(), piece.final_state());
+        if (!piece.RenameState(piece.initial_state(), piece.final_state())) {
+          piece.AddEpsilonEdge(piece.final_state(), piece.initial_state());
+        }
         piece.RenameAllStates(&next_state_);
         nfa.Chain(std::move(piece));
       } else {

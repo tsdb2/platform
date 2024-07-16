@@ -48,9 +48,9 @@ class TempNFA final {
   // Renames state `old_name` to `new_name`, updating the whole graph and doing the necessary
   // merges.
   //
-  // REQUIRES: if both states `old_name` and `new_name` exist in the automaton they must belong to
-  // the same capture group.
-  void RenameState(size_t old_name, size_t new_name);
+  // The operation is not possible if the two states exist and belong to different capture groups,
+  // so in that case `RenameState` doesn't change anything and returns false.
+  bool RenameState(size_t old_name, size_t new_name);
 
   // Renames all states of this NFA so that they are greater than or equal to `next_state`. The
   // `next_state` variable is incremented accordingly.

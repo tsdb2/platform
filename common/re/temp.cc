@@ -51,10 +51,18 @@ bool TempNFA::IsDeterministic() const {
   return true;
 }
 
-void TempNFA::RenameState(size_t const old_name, size_t const new_name) {
-  auto const it = states_.find(old_name);
-  if (it != states_.end()) {
-    auto node = states_.extract(it);
+bool TempNFA::RenameState(size_t const old_name, size_t const new_name) {
+  auto const old_it = states_.find(old_name);
+  if (old_it != states_.end()) {
+    auto const new_it = states_.find(new_name);
+    if (new_it != states_.end()) {
+      auto const& old_state = old_it->second;
+      auto const& new_state = new_it->second;
+      if (old_state.innermost_capture_group != new_state.innermost_capture_group) {
+        return false;
+      }
+    }
+    auto node = states_.extract(old_it);
     MergeState(new_name, std::move(node.mapped()));
   }
   for (auto& [state_num, state] : states_) {
@@ -70,6 +78,7 @@ void TempNFA::RenameState(size_t const old_name, size_t const new_name) {
   if (final_state_ == old_name) {
     final_state_ = new_name;
   }
+  return true;
 }
 
 void TempNFA::RenameAllStates(size_t* const next_state) {
@@ -96,8 +105,8 @@ void TempNFA::AddEdge(char const label, size_t const from, size_t const to) {
 }
 
 void TempNFA::Chain(TempNFA other) {
-  for (auto& [state_num, edges] : other.states_) {
-    MergeState(state_num, std::move(edges));
+  for (auto& [state_num, state] : other.states_) {
+    MergeState(state_num, std::move(state));
   }
   AddEpsilonEdge(final_state_, other.initial_state_);
   final_state_ = other.final_state_;
@@ -105,8 +114,8 @@ void TempNFA::Chain(TempNFA other) {
 
 void TempNFA::Merge(TempNFA&& other, int const capture_group, size_t const initial_state,
                     size_t const final_state) {
-  for (auto& [state_num, edges] : other.states_) {
-    MergeState(state_num, std::move(edges));
+  for (auto& [state_num, state] : other.states_) {
+    MergeState(state_num, std::move(state));
   }
   states_.try_emplace(initial_state, capture_group,
                       State::Edges{{0, {initial_state_, other.initial_state_}}});
@@ -163,9 +172,12 @@ bool TempNFA::CollapseNextEpsilonMove() {
       auto const it = state.edges.find(0);
       size_t const destination = *(it->second.begin());
       if (state_num == destination || state_num != final_state_) {
-        state.edges.erase(it);
-        RenameState(destination, state_num);
-        return true;
+        auto const& destination_state = states_.find(destination)->second;
+        if (state.innermost_capture_group == destination_state.innermost_capture_group) {
+          state.edges.erase(it);
+          RenameState(destination, state_num);
+          return true;
+        }
       }
     }
   }
