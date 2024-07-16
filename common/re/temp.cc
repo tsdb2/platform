@@ -103,7 +103,7 @@ void TempNFA::Chain(TempNFA other) {
   final_state_ = other.final_state_;
 }
 
-void TempNFA::Merge(TempNFA&& other, size_t const capture_group, size_t const initial_state,
+void TempNFA::Merge(TempNFA&& other, int const capture_group, size_t const initial_state,
                     size_t const final_state) {
   for (auto& [state_num, edges] : other.states_) {
     MergeState(state_num, std::move(edges));
@@ -185,7 +185,7 @@ reffed_ptr<DFA> TempNFA::ToDFA() && {
   size_t next_state = 0;
   for (auto const& [state_num, state] : states_) {
     state_map.try_emplace(state_num, next_state++);
-    DFA::State dfa_state{state.capture_group, {}};
+    DFA::State dfa_state{state.innermost_capture_group, {}};
     for (auto const& [ch, transitions] : state.edges) {
       dfa_state.edges.try_emplace(ch, *transitions.begin());
     }

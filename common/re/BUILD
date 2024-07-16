@@ -1,6 +1,15 @@
 package(default_visibility = ["//common:__subpackages__"])
 
 cc_library(
+    name = "capture_groups",
+    hdrs = ["capture_groups.h"],
+    deps = [
+        "@com_google_absl//absl/container:node_hash_set",
+        "@com_google_absl//absl/hash",
+    ],
+)
+
+cc_library(
     name = "automaton",
     hdrs = ["automaton.h"],
     deps = [

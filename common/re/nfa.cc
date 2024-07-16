@@ -148,7 +148,9 @@ NFA::Matcher::MatchResults NFA::Matcher::MatchInternal(
       absl::flat_hash_set<size_t> new_epsilon_path;
       auto results = MatchInternal(&new_epsilon_path, transition, offset + 1);
       if (results) {
-        (*results)[current_state.capture_group] += ch;
+        if (current_state.innermost_capture_group >= 0) {
+          (*results)[current_state.innermost_capture_group] += ch;
+        }
         return Cached(current_state_num, offset, std::move(results));
       }
     }
