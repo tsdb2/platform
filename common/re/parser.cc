@@ -115,6 +115,8 @@ class Parser final {
   absl::Status ParseCharacterClassEscapeCode(bool negated, State* start_state,
                                              size_t stop_state_num);
 
+  absl::Status ParseCharacterOrRange(bool negated, State* start_state, size_t stop_state_num);
+
   // Called by `Parse0` to parse character classes (i.e. square brackets).
   absl::StatusOr<TempNFA> ParseCharacterClass(int capture_group);
 
@@ -282,6 +284,48 @@ absl::Status Parser::ParseCharacterClassEscapeCode(bool const negated, State* co
   }
 }
 
+absl::Status Parser::ParseCharacterOrRange(bool const negated, State* const start_state,
+                                           size_t const stop_state_num) {
+  char const ch1 = Advance();
+  if (ConsumePrefix("-")) {
+    if (at_end()) {
+      return SyntaxError("unmatched square bracket");
+    }
+    if (front() != ']') {
+      if (ConsumePrefix("\\")) {
+        return SyntaxError("invalid character range");
+      }
+      char const ch2 = Advance();
+      if (ch2 <= ch1) {
+        return SyntaxError(
+            "the right-hand side of a character range must be greater than the left-hand side");
+      }
+      for (char ch = ch1; ch <= ch2; ++ch) {
+        if (negated) {
+          start_state->edges.erase(ch);
+        } else {
+          start_state->edges[ch].emplace(stop_state_num);
+        }
+      }
+    } else {
+      if (negated) {
+        start_state->edges.erase(ch1);
+        start_state->edges.erase('-');
+      } else {
+        start_state->edges[ch1].emplace(stop_state_num);
+        start_state->edges['-'].emplace(stop_state_num);
+      }
+    }
+  } else {
+    if (negated) {
+      start_state->edges.erase(ch1);
+    } else {
+      start_state->edges[ch1].emplace(stop_state_num);
+    }
+  }
+  return absl::OkStatus();
+}
+
 absl::StatusOr<TempNFA> Parser::ParseCharacterClass(int const capture_group) {
   RETURN_IF_ERROR(ExpectPrefix("[", "expected ["));
   size_t const start = next_state_++;
@@ -300,13 +344,7 @@ absl::StatusOr<TempNFA> Parser::ParseCharacterClass(int const capture_group) {
     if (ConsumePrefix("\\")) {
       RETURN_IF_ERROR(ParseCharacterClassEscapeCode(negated, &state, stop));
     } else {
-      char const ch = Advance();
-      // TODO: ranges.
-      if (negated) {
-        state.edges.erase(ch);
-      } else {
-        state.edges[ch].emplace(stop);
-      }
+      RETURN_IF_ERROR(ParseCharacterOrRange(negated, &state, stop));
     }
   }
   return TempNFA(

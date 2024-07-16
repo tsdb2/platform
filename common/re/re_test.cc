@@ -593,6 +593,112 @@ TEST_P(RegexpTest, NegatedCharacterClassWithCircumflex) {
   EXPECT_THAT(Match(pattern, "[^ab^cd]"), IsOkAndHolds(std::nullopt));
 }
 
+TEST_P(RegexpTest, CharacterRange) {
+  auto const status_or_pattern = Parse("[2-4]");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "0"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "1"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "2"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "3"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "4"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "5"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "6"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "-"), IsOkAndHolds(std::nullopt));
+}
+
+TEST_P(RegexpTest, NegatedCharacterRange) {
+  auto const status_or_pattern = Parse("[^2-4]");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "0"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "1"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "2"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "3"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "4"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "5"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "6"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "-"), IsOkAndHolds(Optional(IsEmpty())));
+}
+
+TEST_P(RegexpTest, CharacterRangeWithDash) {
+  auto const status_or_pattern = Parse("[2-4-]");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "0"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "1"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "2"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "3"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "4"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "5"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "6"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "-"), IsOkAndHolds(Optional(IsEmpty())));
+}
+
+TEST_P(RegexpTest, NegatedCharacterRangeWithDash) {
+  auto const status_or_pattern = Parse("[^2-4-]");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "0"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "1"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "2"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "3"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "4"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "5"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "6"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "-"), IsOkAndHolds(std::nullopt));
+}
+
+TEST_P(RegexpTest, CharacterClassWithCharactersAndRange) {
+  auto const status_or_pattern = Parse("[ac2-4eg-]");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "c"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "d"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "0"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "1"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "2"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "3"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "4"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "5"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "6"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "e"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "f"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "g"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "h"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "-"), IsOkAndHolds(Optional(IsEmpty())));
+}
+
+TEST_P(RegexpTest, NegatedCharacterClassWithCharactersAndRange) {
+  auto const status_or_pattern = Parse("[^ac2-4eg-]");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "c"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "d"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "0"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "1"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "2"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "3"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "4"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "5"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "6"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "e"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "f"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "g"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "h"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "-"), IsOkAndHolds(std::nullopt));
+}
+
 TEST_P(RegexpTest, CharacterClassWithSpecialCharacters) {
   auto const status_or_pattern = Parse("[a^$.(){}|?*+b]");
   EXPECT_OK(status_or_pattern);
