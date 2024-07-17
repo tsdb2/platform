@@ -85,6 +85,7 @@
   "C_Cpp.default.includePath": [
     "${workspaceFolder}",
     "${workspaceFolder}/bazel-platform/external/com_google_absl",
-    "${workspaceFolder}/bazel-platform/external/com_google_test"
+    "${workspaceFolder}/bazel-platform/external/com_google_googletest/googlemock/include",
+    "${workspaceFolder}/bazel-platform/external/com_google_googletest/googletest/include"
   ]
 }
