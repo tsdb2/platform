@@ -258,6 +258,26 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "re_testing",
+    testonly = True,
+    hdrs = ["re_testing.h"],
+    deps = [
+        ":re",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "re_testing_test",
+    srcs = ["re_testing_test.cc"],
+    deps = [
+        ":re_testing",
+        ":testing",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
 cc_test(
     name = "re_test",
     srcs = ["re_test.cc"],
