@@ -52,6 +52,9 @@ bool TempNFA::IsDeterministic() const {
 }
 
 bool TempNFA::RenameState(size_t const old_name, size_t const new_name) {
+  if (old_name == new_name) {
+    return true;
+  }
   auto const old_it = states_.find(old_name);
   if (old_it != states_.end()) {
     auto const new_it = states_.find(new_name);
