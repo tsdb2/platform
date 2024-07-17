@@ -6,7 +6,7 @@
 namespace {
 
 using ::testing::Not;
-using ::testing::regexp::Matches;
+using ::tsdb2::testing::regexp::Matches;
 
 TEST(RegexpMatcher, Matches) {
   EXPECT_THAT("looorem", Matches("lo+rem"));
