@@ -1,5 +1,6 @@
 #include "common/re.h"
 
+#include <optional>
 #include <utility>
 
 #include "absl/status/status.h"
@@ -15,8 +16,6 @@ using ::testing::Optional;
 using ::testing::status::IsOkAndHolds;
 using ::testing::status::StatusIs;
 using ::tsdb2::common::RE;
-
-// TODO: test `Match` methods.
 
 TEST(RegexpTest, StaticTest) {
   EXPECT_TRUE(RE::Test("lore", "lo+rem?"));
@@ -112,7 +111,20 @@ TEST(RegexpTest, Move) {
   EXPECT_TRUE(re1.Test("ipsuuum"));
 }
 
-// TODO: test `Match` functions when they're available.
+TEST(RegexpTest, StaticMatch) {
+  EXPECT_THAT(RE::Match("lore", "l(o+r)em?"), IsOkAndHolds(ElementsAre("or")));
+  EXPECT_THAT(RE::Match("looorem", "l((o+r)em?)"), IsOkAndHolds(ElementsAre("ooorem", "ooor")));
+  EXPECT_THAT(RE::Match("lrem", "lo+rem?"), StatusIs(absl::StatusCode::kNotFound));
+}
+
+TEST(RegexpTest, Match) {
+  auto const status_or_re = RE::Create("l((o+r)em?)");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.Match("lore"), Optional(ElementsAre("ore", "or")));
+  EXPECT_THAT(re.Match("looorem"), Optional(ElementsAre("ooorem", "ooor")));
+  EXPECT_EQ(re.Match("lrem"), std::nullopt);
+}
 
 TEST(RegexpTest, InvalidPrefixPattern) {
   std::string_view input = "";
