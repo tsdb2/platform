@@ -4,8 +4,7 @@
 #include <cstddef>
 #include <utility>
 
-#include "absl/container/node_hash_set.h"
-#include "absl/hash/hash.h"
+#include "common/flat_map.h"
 
 namespace tsdb2 {
 namespace common {
@@ -17,62 +16,40 @@ namespace regexp_internal {
 // example, given the expression `()((())(()()))` and the capture group #5 (assuming capture group
 // numbers are zero-based), this class allows enumerating the path 5, 4, 1.
 class CaptureGroups {
- private:
-  struct Node {
-    static int ToCaptureGroup(Node const &node) { return node.capture_group; }
-    static int ToCaptureGroup(int const capture_group) { return capture_group; }
-
-    struct Hash {
-      using is_transparent = void;
-      template <typename Arg>
-      size_t operator()(Arg &&arg) const {
-        return absl::HashOf(ToCaptureGroup(std::forward<Arg>(arg)));
-      }
-    };
-
-    struct Equal {
-      using is_transparent = void;
-      template <typename LHS, typename RHS>
-      bool operator()(LHS &&lhs, RHS &&rhs) const {
-        return ToCaptureGroup(std::forward<LHS>(lhs)) == ToCaptureGroup(std::forward<RHS>(rhs));
-      }
-    };
-
-    explicit Node(int const capture_group, Node const *const parent)
-        : capture_group(capture_group), parent(parent) {}
-
-    int const capture_group;
-    Node const *const parent;
-  };
-
  public:
   // Allows iterating over the path to the root of a given capture group.
   class Iterator {
+   private:
+    auto Tie() const { return std::tie(parent_, capture_group_); }
+
    public:
+    // Constructs an empty iterator.
+    explicit Iterator() : parent_(nullptr), capture_group_(-1) {}
+
     Iterator(Iterator const &) = default;
     Iterator &operator=(Iterator const &) = default;
     Iterator(Iterator &&) noexcept = default;
     Iterator &operator=(Iterator &&) noexcept = default;
 
-    int operator*() const { return node_->capture_group; }
-    int const *operator->() const { return &(node_->capture_group); }
+    int operator*() const { return capture_group_; }
+    int const *operator->() const { return &capture_group_; }
 
     friend bool operator==(Iterator const &lhs, Iterator const &rhs) {
-      return lhs.node_ == rhs.node_;
+      return lhs.Tie() == rhs.Tie();
     }
 
     friend bool operator!=(Iterator const &lhs, Iterator const &rhs) {
-      return lhs.node_ != rhs.node_;
+      return lhs.Tie() != rhs.Tie();
     }
 
     Iterator &operator++() {
-      node_ = node_->parent;
+      capture_group_ = parent_->map_.at(capture_group_);
       return *this;
     }
 
     Iterator operator++(int) {
       Iterator result = *this;
-      node_ = node_->parent;
+      capture_group_ = parent_->map_.at(capture_group_);
       return result;
     }
 
@@ -80,12 +57,14 @@ class CaptureGroups {
     friend class CaptureGroups;
 
     // Constructs an iterator referring to the specified node.
-    explicit Iterator(Node const &node) : node_(&node) {}
+    explicit Iterator(CaptureGroups const &parent, int const capture_group)
+        : parent_(&parent), capture_group_(capture_group) {}
 
-    // Constructs the end iterator;
-    explicit Iterator() : node_(nullptr) {}
+    // Constructs the end iterator.
+    explicit Iterator(CaptureGroups const &parent) : Iterator(parent, -1) {}
 
-    Node const *node_;
+    CaptureGroups const *parent_;
+    int capture_group_;
   };
 
   explicit CaptureGroups() = default;
@@ -95,7 +74,7 @@ class CaptureGroups {
   CaptureGroups(CaptureGroups &&) noexcept = default;
   CaptureGroups &operator=(CaptureGroups &&) noexcept = default;
 
-  size_t size() const { return nodes_.size(); }
+  size_t size() const { return map_.size(); }
 
   // Adds a `capture_group` to the hierarchy as a child of `parent_capture_group`.
   //
@@ -104,12 +83,7 @@ class CaptureGroups {
   // REQUIRES: if positive, `parent_capture_group` must already be in the hierarchy.
   // REQUIRES: `capture_group` must be positive.
   void Add(int const capture_group, int const parent_capture_group) {
-    if (parent_capture_group < 0) {
-      nodes_.emplace(capture_group, nullptr);
-    } else {
-      auto const &parent = *(nodes_.find(parent_capture_group));
-      nodes_.emplace(capture_group, &parent);
-    }
+    map_.try_emplace(capture_group, parent_capture_group);
   }
 
   // Returns the end iterator, which can be used to test any other iterator. Example iteration:
@@ -118,7 +92,7 @@ class CaptureGroups {
   //     // ...
   //   }
   //
-  Iterator root() const { return Iterator(); }
+  Iterator root() const { return Iterator(*this); }
 
   // Looks up the specified capture group and returns an iterator that allows the caller to iterate
   // over the path to the root.
@@ -127,18 +101,19 @@ class CaptureGroups {
   // returned.
   Iterator LookUp(int const capture_group) const {
     if (capture_group < 0) {
-      return Iterator();
+      return Iterator(*this);
     }
-    auto const it = nodes_.find(capture_group);
-    if (it != nodes_.end()) {
-      return Iterator(*it);
+    auto const it = map_.find(capture_group);
+    if (it != map_.end()) {
+      return Iterator(*this, it->first);
     } else {
-      return Iterator();
+      return Iterator(*this);
     }
   }
 
  private:
-  absl::node_hash_set<Node, Node::Hash, Node::Equal> nodes_;
+  // Keys are capture group numbers, values are their respective parent capture group numbers.
+  tsdb2::common::flat_map<int, int> map_;
 };
 
 }  // namespace regexp_internal
