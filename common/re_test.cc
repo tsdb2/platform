@@ -9,6 +9,10 @@
 
 namespace {
 
+using ::testing::ElementsAre;
+using ::testing::IsEmpty;
+using ::testing::Optional;
+using ::testing::status::IsOkAndHolds;
 using ::testing::status::StatusIs;
 using ::tsdb2::common::RE;
 
@@ -109,5 +113,54 @@ TEST(RegexpTest, Move) {
 }
 
 // TODO: test `Match` functions when they're available.
+
+TEST(RegexpTest, InvalidPrefixPattern) {
+  std::string_view input = "";
+  EXPECT_THAT(RE::ConsumePrefix(&input, "foo("), StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(RegexpTest, EmptyPrefixOfEmptyString) {
+  std::string_view input = "";
+  EXPECT_THAT(RE::ConsumePrefix(&input, ""), IsOkAndHolds(IsEmpty()));
+  EXPECT_EQ(input, "");
+}
+
+TEST(RegexpTest, NonEmptyPrefixOfEmptyString) {
+  std::string_view input = "";
+  EXPECT_THAT(RE::ConsumePrefix(&input, "lorem"), StatusIs(absl::StatusCode::kNotFound));
+  EXPECT_EQ(input, "");
+}
+
+TEST(RegexpTest, ProperPrefix) {
+  std::string_view input = "loremipsum";
+  EXPECT_THAT(RE::ConsumePrefix(&input, "lorem"), IsOkAndHolds(IsEmpty()));
+  EXPECT_EQ(input, "ipsum");
+}
+
+TEST(RegexpTest, ImproperPrefix) {
+  std::string_view input = "lorem";
+  EXPECT_THAT(RE::ConsumePrefix(&input, "lorem"), IsOkAndHolds(IsEmpty()));
+  EXPECT_EQ(input, "");
+}
+
+// TODO: this doesn't work at the moment.
+//
+// TEST(RegexpTest, LongestPrefix) {
+//   std::string_view input = "loremipsum";
+//   EXPECT_THAT(RE::ConsumePrefix(&input, "lorem.*"), IsOkAndHolds(IsEmpty()));
+//   EXPECT_EQ(input, "");
+// }
+
+TEST(RegexpTest, DeadPrefixBranch) {
+  std::string_view input = "loremips";
+  EXPECT_THAT(RE::ConsumePrefix(&input, "lorem(ipsum)?"), IsOkAndHolds(ElementsAre("")));
+  EXPECT_EQ(input, "ips");
+}
+
+TEST(RegexpTest, PrefixPatternWithCapture) {
+  std::string_view input = "lorem ipsum dolor";
+  EXPECT_THAT(RE::ConsumePrefix(&input, "lorem (.*) "), IsOkAndHolds(ElementsAre("ipsum")));
+  EXPECT_EQ(input, "dolor");
+}
 
 }  // namespace

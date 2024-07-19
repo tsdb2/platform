@@ -1300,7 +1300,7 @@ TEST_P(RegexpTest, MultipleQuantifiersWithBrackets) {
   auto const status_or_pattern = Parse("(a+)*");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(ElementsAre(""))));
   EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(Optional(ElementsAre("a"))));
   EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(std::nullopt));
   EXPECT_THAT(Match(pattern, "aa"), IsOkAndHolds(Optional(ElementsAre("aa"))));
@@ -1397,7 +1397,7 @@ TEST_P(RegexpTest, EmptyBrackets) {
   auto const status_or_pattern = Parse("()");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(ElementsAre(""))));
   EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(std::nullopt));
   EXPECT_THAT(Match(pattern, "aa"), IsOkAndHolds(std::nullopt));
   EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(std::nullopt));
@@ -1625,7 +1625,7 @@ TEST_P(RegexpTest, EpsilonLoop1) {
   auto const status_or_pattern = Parse("(|a)+");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(ElementsAre(""))));
   EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(Optional(ElementsAre("a"))));
   EXPECT_THAT(Match(pattern, "aa"), IsOkAndHolds(Optional(ElementsAre("aa"))));
   EXPECT_THAT(Match(pattern, "aaa"), IsOkAndHolds(Optional(ElementsAre("aaa"))));
@@ -1639,7 +1639,7 @@ TEST_P(RegexpTest, EpsilonLoop2) {
   auto const status_or_pattern = Parse("(a|)+");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(ElementsAre(""))));
   EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(Optional(ElementsAre("a"))));
   EXPECT_THAT(Match(pattern, "aa"), IsOkAndHolds(Optional(ElementsAre("aa"))));
   EXPECT_THAT(Match(pattern, "aaa"), IsOkAndHolds(Optional(ElementsAre("aaa"))));

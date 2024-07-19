@@ -254,6 +254,7 @@ cc_library(
         "//common/re:parser",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
     ],
 )
 

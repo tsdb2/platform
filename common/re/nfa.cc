@@ -123,10 +123,15 @@ NFA::Matcher::MatchResults NFA::Matcher::MatchInternal(
   if (auto const it = cache_.find(std::make_pair(current_state_num, offset)); it != cache_.end()) {
     return it->second;
   }
-  if (offset >= input_.size() && current_state_num == nfa_.final_state_) {
-    return Cached(current_state_num, offset, std::make_optional<flat_map<size_t, std::string>>());
-  }
   auto const& current_state = nfa_.states_[current_state_num];
+  if (offset >= input_.size() && current_state_num == nfa_.final_state_) {
+    flat_map<size_t, std::string> results;
+    for (auto it = nfa_.capture_groups_.LookUp(current_state.innermost_capture_group);
+         it != nfa_.capture_groups_.root(); ++it) {
+      results.try_emplace(*it);
+    }
+    return Cached(current_state_num, offset, std::move(results));
+  }
   if (auto const it = current_state.edges.find(0); it != current_state.edges.end()) {
     for (auto const transition : it->second) {
       auto const [unused_it, inserted] = epsilon_path->emplace(transition);
@@ -134,6 +139,10 @@ NFA::Matcher::MatchResults NFA::Matcher::MatchInternal(
         auto results = MatchInternal(epsilon_path, transition, offset);
         epsilon_path->erase(transition);
         if (results) {
+          for (auto it = nfa_.capture_groups_.LookUp(current_state.innermost_capture_group);
+               it != nfa_.capture_groups_.root(); ++it) {
+            results->try_emplace(*it);
+          }
           return Cached(current_state_num, offset, std::move(results));
         }
       }
