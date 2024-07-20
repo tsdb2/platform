@@ -93,6 +93,8 @@ class NFA final : public AutomatonInterface {
 
   bool IsDeterministic() const override;
 
+  size_t GetNumCaptureGroups() const override;
+
   std::unique_ptr<RunnerInterface> CreateRunner() const override;
 
   bool Test(std::string_view input) const override;

@@ -41,6 +41,13 @@ TEST(RegexpTest, IsNotDeterministic) {
   EXPECT_FALSE(re.IsDeterministic());
 }
 
+TEST(RegexpTest, GetNumCaptureGroups) {
+  auto const status_or_re = RE::Create("lorem(ip(s)um)do(l)or");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_EQ(re.GetNumCaptureGroups(), 3);
+}
+
 TEST(RegexpTest, Test) {
   auto const status_or_re = RE::Create("lo+rem?");
   ASSERT_OK(status_or_re);

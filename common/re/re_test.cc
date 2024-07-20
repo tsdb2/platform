@@ -102,6 +102,41 @@ TEST_P(RegexpTest, PipeIsNotDeterministic) {
   EXPECT_TRUE(CheckNotDeterministic(pattern));
 }
 
+TEST_P(RegexpTest, NoCaptureGroups) {
+  auto const status_or_pattern = Parse("lorem");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_EQ(pattern->GetNumCaptureGroups(), 0);
+}
+
+TEST_P(RegexpTest, OneCaptureGroup) {
+  auto const status_or_pattern = Parse("lo(r)em");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_EQ(pattern->GetNumCaptureGroups(), 1);
+}
+
+TEST_P(RegexpTest, TwoPeeringCaptureGroups) {
+  auto const status_or_pattern = Parse("l(o)r(e)m");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_EQ(pattern->GetNumCaptureGroups(), 2);
+}
+
+TEST_P(RegexpTest, TwoNestedCaptureGroups) {
+  auto const status_or_pattern = Parse("l(o(r)e)m");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_EQ(pattern->GetNumCaptureGroups(), 2);
+}
+
+TEST_P(RegexpTest, ManyCaptureGroups) {
+  auto const status_or_pattern = Parse("()((()())())");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_EQ(pattern->GetNumCaptureGroups(), 6);
+}
+
 TEST_P(RegexpTest, Empty) {
   auto const status_or_pattern = Parse("");
   EXPECT_OK(status_or_pattern);
@@ -2416,6 +2451,16 @@ TEST_P(RegexpTest, Search) {
   EXPECT_THAT(Match(pattern, "lorem ipsum dooolor sic amat"), IsOkAndHolds(Optional(IsEmpty())));
   EXPECT_THAT(Match(pattern, "lorem ipsum color sic amat"), IsOkAndHolds(std::nullopt));
   EXPECT_THAT(Match(pattern, "lorem ipsum dolet et amat"), IsOkAndHolds(std::nullopt));
+}
+
+TEST_P(RegexpTest, NotAllCaptured) {
+  auto const status_or_pattern = Parse("sator(arepo(tenet)|(opera)(rotas))");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, "satorarepotenet"),
+              IsOkAndHolds(Optional(ElementsAre("arepotenet", "tenet", "", ""))));
+  EXPECT_THAT(Match(pattern, "satoroperarotas"),
+              IsOkAndHolds(Optional(ElementsAre("operarotas", "", "opera", "rotas"))));
 }
 
 TEST_P(RegexpTest, HeavyBacktracker) {

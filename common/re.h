@@ -84,7 +84,12 @@ class RE {
   RE(RE &&) noexcept = default;
   RE &operator=(RE &&) noexcept = default;
 
+  // Indicates whether the underlying automaton is deterministic.
   bool IsDeterministic() const { return automaton_->IsDeterministic(); }
+
+  // Returns the number of capture groups in the regular expression. That is also the size of the
+  // vector returned by `Match` for a matching input string.
+  size_t GetNumCaptureGroups() const { return automaton_->GetNumCaptureGroups(); }
 
   // Checks if the provided `input` string matches this compiled regular expression.
   bool Test(std::string_view const input) const { return automaton_->Test(input); }

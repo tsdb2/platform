@@ -56,6 +56,8 @@ void NFA::Runner::EpsilonClosure() { nfa_->EpsilonClosure(&states_); }
 
 bool NFA::IsDeterministic() const { return false; }
 
+size_t NFA::GetNumCaptureGroups() const { return capture_groups_.size(); }
+
 std::unique_ptr<AutomatonInterface::RunnerInterface> NFA::CreateRunner() const {
   return std::make_unique<Runner>(this);
 }
@@ -102,7 +104,7 @@ std::optional<std::vector<std::string>> NFA::Matcher::Match() {
   if (results.empty()) {
     return std::vector<std::string>();
   }
-  std::vector<std::string> captures(results.rbegin()->first + 1, std::string());
+  std::vector<std::string> captures(nfa_.capture_groups_.size(), std::string());
   for (auto& [capture_group, string] : results) {
     std::reverse(string.begin(), string.end());
     captures[capture_group] = std::move(string);

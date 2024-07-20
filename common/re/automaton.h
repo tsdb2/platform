@@ -1,6 +1,7 @@
 #ifndef __TSDB2_COMMON_RE_AUTOMATON_H__
 #define __TSDB2_COMMON_RE_AUTOMATON_H__
 
+#include <cstddef>
 #include <memory>
 #include <optional>
 #include <string>
@@ -93,6 +94,10 @@ class AutomatonInterface : public SimpleRefCounted {
 
   // Returns true if this automaton is a DFA, false if it's an NFA.
   virtual bool IsDeterministic() const = 0;
+
+  // Returns the number of capture groups in the regular expression. That is also the size of the
+  // vector returned by `Match` for a matching input string.
+  virtual size_t GetNumCaptureGroups() const = 0;
 
   // Creates a runner for the automaton.
   virtual std::unique_ptr<RunnerInterface> CreateRunner() const = 0;

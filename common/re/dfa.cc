@@ -57,6 +57,8 @@ bool DFA::Runner::Finish() {
 
 bool DFA::IsDeterministic() const { return true; }
 
+size_t DFA::GetNumCaptureGroups() const { return capture_groups_.size(); }
+
 std::unique_ptr<AutomatonInterface::RunnerInterface> DFA::CreateRunner() const {
   return std::make_unique<Runner>(this);
 }
@@ -101,7 +103,7 @@ std::optional<std::vector<std::string>> DFA::Matcher::Match() {
   if (results.empty()) {
     return std::vector<std::string>();
   }
-  std::vector<std::string> captures(results.rbegin()->first + 1, std::string());
+  std::vector<std::string> captures(dfa_.capture_groups_.size(), std::string());
   for (auto& [capture_group, string] : results) {
     std::reverse(string.begin(), string.end());
     captures[capture_group] = std::move(string);
