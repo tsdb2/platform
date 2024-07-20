@@ -24,7 +24,6 @@ cc_library(
         ":automaton",
         ":capture_groups",
         "//common:flat_map",
-        "@com_google_absl//absl/container:flat_hash_set",
     ],
 )
 

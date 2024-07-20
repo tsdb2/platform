@@ -9,7 +9,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/container/flat_hash_set.h"
 #include "common/flat_map.h"
 #include "common/re/automaton.h"
 #include "common/re/capture_groups.h"
@@ -91,52 +90,6 @@ class DFA final : public AutomatonInterface {
   std::optional<std::vector<std::string>> Match(std::string_view input) const override;
 
  private:
-  // Runs the full matching algorithm, which matches the string and also returns all captured
-  // substrings (as opposed to `DFA::Test` which only matches the string).
-  //
-  // `Matcher` uses a backtracking algorithm, but thanks to the use of dynamic programming its
-  // worst-case complexity is reduced to O(N*M) with N = number of states and M = length of the
-  // input string.
-  class Matcher {
-   public:
-    explicit Matcher(DFA const &dfa, std::string_view const input) : dfa_(dfa), input_(input) {}
-
-    // Matches the input string against the DFA (both are provided in the `Matcher` constructor).
-    // Returns the array of captured substrings, or an empty optional if the string doesn't match.
-    std::optional<std::vector<std::string>> Match();
-
-   private:
-    using MatchResults = std::optional<flat_map<size_t, std::string>>;
-    using Cache = flat_map<std::pair<size_t, size_t>, MatchResults>;
-
-    MatchResults Cached(size_t current_state_num, size_t offset, MatchResults value);
-
-    // Internal matching algorithm implementation. In order to avoid the exponential complexity of
-    // the backtracking algorithm, this function checks the `cache_` before doing any work.
-    //
-    // When the string matches, a map of capture groups to captured strings is returned; otherwise
-    // we return an empty optional.
-    //
-    // NOTE: due to the way `MatchInternal`'s algorithm works, the returned captured strings are
-    // reversed; the public `Match` method takes of care of reversing them.
-    //
-    // The `epsilon_path` argument points to a caller-provided set of state numbers containing the
-    // states visited by following the last contiguous sequence of epsilon edges. If an epsilon-edge
-    // points to a state we've already visited we don't follow it, so we avoid getting stuck in an
-    // epsilon-loop. The initial call from `Match` provides an empty set.
-    MatchResults MatchInternal(absl::flat_hash_set<size_t> *epsilon_path, size_t current_state_num,
-                               size_t offset);
-
-    DFA const &dfa_;
-    std::string_view const input_;
-
-    // Caches the results of the `MatchInternal` algorithm. The keys of this map are pairs of
-    // integers, corresponding to the two arguments of `MatchInternal`: the first integer is the
-    // current state number and the second is the offset in the input string. The values of the map
-    // have the same meaning as the return values of `MatchInternal`.
-    Cache cache_;
-  };
-
   States const states_;
   size_t const initial_state_;
   size_t const final_state_;
