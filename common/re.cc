@@ -63,11 +63,11 @@ absl::StatusOr<RE> RE::Create(std::string_view const pattern) {
 }
 
 absl::StatusOr<RE> RE::CreatePrefix(std::string_view const pattern) {
-  return Create(absl::StrCat("(", pattern, ").*"));
+  return Create(absl::StrCat("(", pattern, ")"));
 }
 
 std::optional<std::vector<std::string>> RE::ConsumePrefix(std::string_view *const input) const {
-  auto maybe_matches = Match(*input);
+  auto maybe_matches = automaton_->MatchPrefix(*input);
   if (!maybe_matches) {
     return std::nullopt;
   }

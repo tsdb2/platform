@@ -91,12 +91,17 @@ bool NFA::Test(std::string_view input) const {
 }
 
 std::optional<std::vector<std::string>> NFA::Match(std::string_view const input) const {
-  return Matcher(*this, input).Match();
+  return Matcher(*this, input).Match(/*=prefix*/ false);
 }
 
-std::optional<std::vector<std::string>> NFA::Matcher::Match() {
+std::optional<std::vector<std::string>> NFA::MatchPrefix(std::string_view const input) const {
+  return Matcher(*this, input).Match(/*=prefix*/ true);
+}
+
+std::optional<std::vector<std::string>> NFA::Matcher::Match(bool const prefix) && {
   absl::flat_hash_set<size_t> epsilon_path;
-  auto maybe_results = MatchInternal(&epsilon_path, nfa_.initial_state_, 0);
+  auto maybe_results = prefix ? MatchPrefixInternal(&epsilon_path, nfa_.initial_state_, 0)
+                              : MatchInternal(&epsilon_path, nfa_.initial_state_, 0);
   if (!maybe_results) {
     return std::nullopt;
   }
@@ -164,6 +169,56 @@ NFA::Matcher::MatchResults NFA::Matcher::MatchInternal(
           (*results)[*it] += ch;
         }
         return Cached(current_state_num, offset, std::move(results));
+      }
+    }
+  }
+  return Cached(current_state_num, offset, std::nullopt);
+}
+
+NFA::Matcher::MatchResults NFA::Matcher::MatchPrefixInternal(
+    absl::flat_hash_set<size_t>* const epsilon_path, size_t const current_state_num,
+    size_t const offset) {
+  if (auto const it = cache_.find(std::make_pair(current_state_num, offset)); it != cache_.end()) {
+    return it->second;
+  }
+  auto const& current_state = nfa_.states_[current_state_num];
+  if (current_state_num == nfa_.final_state_) {
+    flat_map<size_t, std::string> results;
+    for (auto it = nfa_.capture_groups_.LookUp(current_state.innermost_capture_group);
+         it != nfa_.capture_groups_.root(); ++it) {
+      results.try_emplace(*it);
+    }
+    return Cached(current_state_num, offset, std::move(results));
+  }
+  if (offset < input_.size()) {
+    auto const ch = input_[offset];
+    if (auto const it = current_state.edges.find(ch); it != current_state.edges.end()) {
+      for (auto const transition : it->second) {
+        absl::flat_hash_set<size_t> new_epsilon_path;
+        auto results = MatchPrefixInternal(&new_epsilon_path, transition, offset + 1);
+        if (results) {
+          for (auto it = nfa_.capture_groups_.LookUp(current_state.innermost_capture_group);
+               it != nfa_.capture_groups_.root(); ++it) {
+            (*results)[*it] += ch;
+          }
+          return Cached(current_state_num, offset, std::move(results));
+        }
+      }
+    }
+  }
+  if (auto const it = current_state.edges.find(0); it != current_state.edges.end()) {
+    for (auto const transition : it->second) {
+      auto const [unused_it, inserted] = epsilon_path->emplace(transition);
+      if (inserted) {
+        auto results = MatchPrefixInternal(epsilon_path, transition, offset);
+        epsilon_path->erase(transition);
+        if (results) {
+          for (auto it = nfa_.capture_groups_.LookUp(current_state.innermost_capture_group);
+               it != nfa_.capture_groups_.root(); ++it) {
+            results->try_emplace(*it);
+          }
+          return Cached(current_state_num, offset, std::move(results));
+        }
       }
     }
   }

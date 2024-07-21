@@ -111,6 +111,10 @@ class AutomatonInterface : public SimpleRefCounted {
   // is returned.
   virtual std::optional<std::vector<std::string>> Match(std::string_view input) const = 0;
 
+  // Runs the automaton on the provided input string trying to matches its longest possible prefix.
+  // Returns the array of captured substrings if a match is found, or an empty optional otherwise.
+  virtual std::optional<std::vector<std::string>> MatchPrefix(std::string_view input) const = 0;
+
  private:
   // Copies are not needed: automata are immutable and reference-counted, so we can share them
   // rather than copying them.

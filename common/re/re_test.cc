@@ -2542,6 +2542,60 @@ TEST_P(RegexpTest, HeavyBacktracker) {
               IsOkAndHolds(std::nullopt));
 }
 
+TEST_P(RegexpTest, InvalidPrefixPattern) {
+  EXPECT_THAT(Parse("foo("), StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST_P(RegexpTest, EmptyPrefixOfEmptyString) {
+  auto const status_or_pattern = Parse("");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern->MatchPrefix(""), Optional(IsEmpty()));
+}
+
+TEST_P(RegexpTest, NonEmptyPrefixOfEmptyString) {
+  auto const status_or_pattern = Parse("lorem");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_EQ(pattern->MatchPrefix(""), std::nullopt);
+}
+
+TEST_P(RegexpTest, ProperPrefix) {
+  auto const status_or_pattern = Parse("(lorem)");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern->MatchPrefix("loremipsum"), Optional(ElementsAre("lorem")));
+}
+
+TEST_P(RegexpTest, ImproperPrefix) {
+  auto const status_or_pattern = Parse("(lorem)");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern->MatchPrefix("lorem"), Optional(ElementsAre("lorem")));
+}
+
+TEST_P(RegexpTest, LongestPrefix) {
+  auto const status_or_pattern = Parse("(lorem.*)");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern->MatchPrefix("loremipsum"), Optional(ElementsAre("loremipsum")));
+}
+
+TEST_P(RegexpTest, DeadPrefixBranch) {
+  auto const status_or_pattern = Parse("(lorem(ipsum)?)");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern->MatchPrefix("loremips"), Optional(ElementsAre("lorem", "")));
+}
+
+TEST_P(RegexpTest, PrefixPatternWithCapture) {
+  auto const status_or_pattern = Parse("(lorem (.*) )");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern->MatchPrefix("lorem ipsum dolor"),
+              Optional(ElementsAre("lorem ipsum ", "ipsum")));
+}
+
 INSTANTIATE_TEST_SUITE_P(RegexpTest, RegexpTest,
                          Values(RegexpTestParams{.force_nfa = false, .use_runner = false},
                                 RegexpTestParams{.force_nfa = false, .use_runner = true},

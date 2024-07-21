@@ -162,13 +162,11 @@ TEST(RegexpTest, ImproperPrefix) {
   EXPECT_EQ(input, "");
 }
 
-// TODO: this doesn't work at the moment.
-//
-// TEST(RegexpTest, LongestPrefix) {
-//   std::string_view input = "loremipsum";
-//   EXPECT_THAT(RE::ConsumePrefix(&input, "lorem.*"), IsOkAndHolds(IsEmpty()));
-//   EXPECT_EQ(input, "");
-// }
+TEST(RegexpTest, LongestPrefix) {
+  std::string_view input = "loremipsum";
+  EXPECT_THAT(RE::ConsumePrefix(&input, "lorem.*"), IsOkAndHolds(IsEmpty()));
+  EXPECT_EQ(input, "");
+}
 
 TEST(RegexpTest, DeadPrefixBranch) {
   std::string_view input = "loremips";

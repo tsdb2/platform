@@ -101,6 +101,8 @@ class NFA final : public AutomatonInterface {
 
   std::optional<std::vector<std::string>> Match(std::string_view input) const override;
 
+  std::optional<std::vector<std::string>> MatchPrefix(std::string_view input) const override;
+
  private:
   // Runs the full matching algorithm, which matches the string and also returns all captured
   // substrings (as opposed to `NFA::Test` which only matches the string).
@@ -112,9 +114,11 @@ class NFA final : public AutomatonInterface {
    public:
     explicit Matcher(NFA const &nfa, std::string_view const input) : nfa_(nfa), input_(input) {}
 
-    // Matches the input string against the NFA (both are provided in the `Matcher` constructor).
-    // Returns the array of captured substrings, or an empty optional if the string doesn't match.
-    std::optional<std::vector<std::string>> Match();
+    // Matches the input string against the NFA (both are provided in the `Matcher` constructor). If
+    // the `prefix` flag is true, the longest possible prefix rather than the whole string is
+    // matched. The returned value is the array of captured substrings, or an empty optional if the
+    // string or prefix doesn't match.
+    std::optional<std::vector<std::string>> Match(bool prefix) &&;
 
    private:
     using MatchResults = std::optional<flat_map<size_t, std::string>>;
@@ -137,6 +141,9 @@ class NFA final : public AutomatonInterface {
     // epsilon-loop. The initial call from `Match` provides an empty set.
     MatchResults MatchInternal(absl::flat_hash_set<size_t> *epsilon_path, size_t current_state_num,
                                size_t offset);
+
+    MatchResults MatchPrefixInternal(absl::flat_hash_set<size_t> *epsilon_path,
+                                     size_t current_state_num, size_t offset);
 
     NFA const &nfa_;
     std::string_view const input_;

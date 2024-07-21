@@ -66,7 +66,7 @@ bool DFA::Test(std::string_view input) const {
     auto const& edges = states_[state_num].edges;
     auto it = edges.find(0);
     if (it == edges.end()) {
-      char const ch = input[0];
+      char const ch = input.front();
       it = edges.find(ch);
       if (it == edges.end()) {
         return false;
@@ -93,7 +93,7 @@ std::optional<std::vector<std::string>> DFA::Match(std::string_view input) const
     auto const& state = states_[state_num];
     auto it = state.edges.find(0);
     if (it == state.edges.end()) {
-      char const ch = input[0];
+      char const ch = input.front();
       it = state.edges.find(ch);
       if (it == state.edges.end()) {
         return std::nullopt;
@@ -103,6 +103,38 @@ std::optional<std::vector<std::string>> DFA::Match(std::string_view input) const
         captures[*it] += ch;
       }
       input.remove_prefix(1);
+    }
+    state_num = it->second;
+  }
+  while (state_num != final_state_) {
+    auto const& edges = states_[state_num].edges;
+    auto const it = edges.find(0);
+    if (it == edges.end()) {
+      return std::nullopt;
+    }
+    state_num = it->second;
+  }
+  return captures;
+}
+
+std::optional<std::vector<std::string>> DFA::MatchPrefix(std::string_view input) const {
+  std::vector<std::string> captures{capture_groups_.size(), std::string()};
+  size_t state_num = initial_state_;
+  while (!input.empty() && state_num != final_state_) {
+    char const ch = input.front();
+    auto const& state = states_[state_num];
+    auto it = state.edges.find(ch);
+    if (it != state.edges.end()) {
+      for (auto it = capture_groups_.LookUp(state.innermost_capture_group);
+           it != capture_groups_.root(); ++it) {
+        captures[*it] += ch;
+      }
+      input.remove_prefix(1);
+    } else {
+      auto it = state.edges.find(0);
+      if (it == state.edges.end()) {
+        return std::nullopt;
+      }
     }
     state_num = it->second;
   }

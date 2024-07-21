@@ -67,8 +67,7 @@ class RE {
   static absl::StatusOr<RE> Create(std::string_view pattern);
 
   // Compiles the provided `pattern` into a `RE` object that matches a prefix of an input string.
-  // The compiled expression is equivalent to `(pattern).*`, with `pattern` being the provided
-  // expression. The resulting `RE` object is meant for use with `ConsumePrefix`.
+  // The returned object is meant for use with `ConsumePrefix`.
   static absl::StatusOr<RE> CreatePrefix(std::string_view pattern);
 
   // Moves and copies are efficient because the inner automaton is immutable and is managed by means
@@ -101,7 +100,9 @@ class RE {
   }
 
   // Strips the longest possible prefix matching this regular expression from the provided string.
-  // Returns true iff a prefix was matched and removed.
+  // The first elements of the returned array is the matched prefix, other elements are any
+  // substrings of the prefix captured by capture groups. If not matching prefix is found, an empty
+  // optional is returned.
   //
   // REQUIRES: the regular expression must have been created with `CreatePrefix`, not `Create`.
   std::optional<std::vector<std::string>> ConsumePrefix(std::string_view *input) const;
