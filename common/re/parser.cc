@@ -539,6 +539,7 @@ absl::StatusOr<TempNFA> Parser::Parse1(int const capture_group) {
   }
   if (ConsumePrefix("*")) {
     if (!nfa.RenameState(nfa.initial_state(), nfa.final_state())) {
+      nfa.AddEpsilonEdge(nfa.initial_state(), nfa.final_state());
       nfa.AddEpsilonEdge(nfa.final_state(), nfa.initial_state());
     }
   } else if (ConsumePrefix("+")) {

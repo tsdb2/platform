@@ -2432,6 +2432,21 @@ TEST_P(RegexpTest, QuantifierOrQuantifier) {
   EXPECT_THAT(Match(pattern, "aabb"), IsOkAndHolds(std::nullopt));
 }
 
+TEST_P(RegexpTest, CantMergeLoopEndpoints) {
+  auto const status_or_pattern = Parse("(lore(m))*");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(ElementsAre("", ""))));
+  EXPECT_THAT(Match(pattern, "lorem"), IsOkAndHolds(Optional(ElementsAre("lorem", "m"))));
+  EXPECT_THAT(Match(pattern, "ipsum"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremlorem"),
+              IsOkAndHolds(Optional(ElementsAre("loremlorem", "mm"))));
+  EXPECT_THAT(Match(pattern, "loremipsum"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "ipsumlorem"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "loremloremlorem"),
+              IsOkAndHolds(Optional(ElementsAre("loremloremlorem", "mmm"))));
+}
+
 TEST_P(RegexpTest, Fork) {
   auto const status_or_pattern = Parse("lorem(ipsum|dolor)");
   ASSERT_OK(status_or_pattern);

@@ -91,11 +91,11 @@ bool NFA::Test(std::string_view input) const {
 }
 
 std::optional<std::vector<std::string>> NFA::Match(std::string_view const input) const {
-  return Matcher(*this, input).Match(/*=prefix*/ false);
+  return Matcher(*this, input).Match(/*prefix=*/false);
 }
 
 std::optional<std::vector<std::string>> NFA::MatchPrefix(std::string_view const input) const {
-  return Matcher(*this, input).Match(/*=prefix*/ true);
+  return Matcher(*this, input).Match(/*prefix=*/true);
 }
 
 std::optional<std::vector<std::string>> NFA::Matcher::Match(bool const prefix) && {
