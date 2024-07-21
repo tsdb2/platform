@@ -44,38 +44,26 @@ absl::StatusOr<std::vector<std::string>> RE::Match(std::string_view const input,
 
 absl::StatusOr<std::vector<std::string>> RE::ConsumePrefix(std::string_view *const input,
                                                            std::string_view const pattern) {
-  auto status_or_re = RE::CreatePrefix(pattern);
+  auto status_or_re = RE::Create(absl::StrCat("(", pattern, ")"));
   if (!status_or_re.ok()) {
     return std::move(status_or_re).status();
   }
-  auto maybe_matches = status_or_re->ConsumePrefix(input);
+  auto maybe_matches = status_or_re->MatchPrefix(*input);
   if (!maybe_matches) {
     return absl::NotFoundError(absl::StrCat("no prefix matching \"", absl::CEscape(pattern),
                                             "\" was found in \"", absl::CEscape(*input), "\""));
   }
-  return maybe_matches.value();
+  auto &matches = maybe_matches.value();
+  std::string const prefix = std::move(matches[0]);
+  matches.erase(matches.begin());
+  input->remove_prefix(prefix.size());
+  return std::move(matches);
 }
 
 absl::StatusOr<RE> RE::Create(std::string_view const pattern) {
   ASSIGN_VAR_OR_RETURN(reffed_ptr<regexp_internal::AutomatonInterface>, automaton,
                        regexp_internal::Parse(pattern));
   return RE(std::move(automaton));
-}
-
-absl::StatusOr<RE> RE::CreatePrefix(std::string_view const pattern) {
-  return Create(absl::StrCat("(", pattern, ")"));
-}
-
-std::optional<std::vector<std::string>> RE::ConsumePrefix(std::string_view *const input) const {
-  auto maybe_matches = automaton_->MatchPrefix(*input);
-  if (!maybe_matches) {
-    return std::nullopt;
-  }
-  auto &matches = maybe_matches.value();
-  std::string const prefix = std::move(matches[0]);
-  matches.erase(matches.begin());
-  input->remove_prefix(prefix.size());
-  return matches;
 }
 
 }  // namespace common

@@ -66,10 +66,6 @@ class RE {
   // Compiles the provided `pattern` into a `RE` object that can be run efficiently multiple times.
   static absl::StatusOr<RE> Create(std::string_view pattern);
 
-  // Compiles the provided `pattern` into a `RE` object that matches a prefix of an input string.
-  // The returned object is meant for use with `ConsumePrefix`.
-  static absl::StatusOr<RE> CreatePrefix(std::string_view pattern);
-
   // Moves and copies are efficient because the inner automaton is immutable and is managed by means
   // of reference counting, so we never move or copy the whole automaton, just a pointer to it.
   //
@@ -94,18 +90,17 @@ class RE {
   bool Test(std::string_view const input) const { return automaton_->Test(input); }
 
   // Checks if `input` matches this regular expression and returns an array of the strings captured
-  // by the capture groups. An error status is returned if `input` doesn't match.
+  // by the capture groups. An empty optional is returned if `input` doesn't match.
   std::optional<std::vector<std::string>> Match(std::string_view const input) const {
     return automaton_->Match(input);
   }
 
-  // Strips the longest possible prefix matching this regular expression from the provided string.
-  // The first elements of the returned array is the matched prefix, other elements are any
-  // substrings of the prefix captured by capture groups. If not matching prefix is found, an empty
-  // optional is returned.
-  //
-  // REQUIRES: the regular expression must have been created with `CreatePrefix`, not `Create`.
-  std::optional<std::vector<std::string>> ConsumePrefix(std::string_view *input) const;
+  // Matches the longest possible prefix of the provided string against this regular expression.
+  // Returns the array of strings captured by any capture groups, or an empty optional if no
+  // matching prefix is found.
+  std::optional<std::vector<std::string>> MatchPrefix(std::string_view const input) const {
+    return automaton_->MatchPrefix(input);
+  }
 
  private:
   template <typename Label, typename Allocator>
