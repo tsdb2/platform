@@ -153,10 +153,10 @@ NFA::Matcher::MatchResults NFA::Matcher::MatchInternal(
   if (auto const it = cache_.find(std::make_pair(current_state_num, offset)); it != cache_.end()) {
     return it->second;
   }
-  auto const& current_state = nfa_.states_[current_state_num];
   if (offset >= input_.size() && current_state_num == nfa_.final_state_) {
     return CaptureEpsilon(current_state_num, offset, flat_map<size_t, std::string>());
   }
+  auto const& current_state = nfa_.states_[current_state_num];
   if (auto const it = current_state.edges.find(0); it != current_state.edges.end()) {
     for (auto const transition : it->second) {
       auto const [unused_it, inserted] = epsilon_path->emplace(transition);

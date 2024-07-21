@@ -117,10 +117,14 @@ std::optional<std::vector<std::string>> DFA::Match(std::string_view input) const
   return captures;
 }
 
-std::optional<std::vector<std::string>> DFA::MatchPrefix(std::string_view input) const {
-  std::vector<std::string> captures{capture_groups_.size(), std::string()};
-  size_t state_num = initial_state_;
-  while (!input.empty() && state_num != final_state_) {
+std::optional<std::vector<std::string>> DFA::MatchPrefix(std::string_view const input) const {
+  return MatchPrefixInternal(input, initial_state_,
+                             std::vector<std::string>{capture_groups_.size(), std::string()});
+}
+
+std::optional<std::vector<std::string>> DFA::MatchPrefixInternal(
+    std::string_view input, size_t state_num, std::vector<std::string> captures) const {
+  while (!input.empty()) {
     char const ch = input.front();
     auto const& state = states_[state_num];
     auto it = state.edges.find(ch);
@@ -133,10 +137,16 @@ std::optional<std::vector<std::string>> DFA::MatchPrefix(std::string_view input)
     } else {
       auto it = state.edges.find(0);
       if (it == state.edges.end()) {
-        return std::nullopt;
+        return captures;
       }
     }
     state_num = it->second;
+    if (state_num == final_state_) {
+      auto maybe_results = MatchPrefixInternal(input, state_num, captures);
+      if (maybe_results) {
+        return maybe_results;
+      }
+    }
   }
   while (state_num != final_state_) {
     auto const& edges = states_[state_num].edges;

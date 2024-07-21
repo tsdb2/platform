@@ -92,6 +92,9 @@ class DFA final : public AutomatonInterface {
   std::optional<std::vector<std::string>> MatchPrefix(std::string_view input) const override;
 
  private:
+  std::optional<std::vector<std::string>> MatchPrefixInternal(
+      std::string_view input, size_t state_num, std::vector<std::string> captures) const;
+
   States const states_;
   size_t const initial_state_;
   size_t const final_state_;
