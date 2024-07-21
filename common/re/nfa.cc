@@ -124,6 +124,29 @@ NFA::Matcher::MatchResults NFA::Matcher::Cached(size_t const current_state_num, 
   return it->second;
 }
 
+NFA::Matcher::MatchResults NFA::Matcher::CaptureCharacter(size_t const current_state_num,
+                                                          size_t const offset,
+                                                          flat_map<size_t, std::string> results) {
+  auto const& current_state = nfa_.states_[current_state_num];
+  auto const ch = input_[offset];
+  for (auto it = nfa_.capture_groups_.LookUp(current_state.innermost_capture_group);
+       it != nfa_.capture_groups_.root(); ++it) {
+    results[*it] += ch;
+  }
+  return Cached(current_state_num, offset, std::move(results));
+}
+
+NFA::Matcher::MatchResults NFA::Matcher::CaptureEpsilon(size_t const current_state_num,
+                                                        size_t const offset,
+                                                        flat_map<size_t, std::string> results) {
+  auto const& current_state = nfa_.states_[current_state_num];
+  for (auto it = nfa_.capture_groups_.LookUp(current_state.innermost_capture_group);
+       it != nfa_.capture_groups_.root(); ++it) {
+    results.try_emplace(*it);
+  }
+  return Cached(current_state_num, offset, std::move(results));
+}
+
 NFA::Matcher::MatchResults NFA::Matcher::MatchInternal(
     absl::flat_hash_set<size_t>* const epsilon_path, size_t const current_state_num,
     size_t const offset) {
@@ -132,12 +155,7 @@ NFA::Matcher::MatchResults NFA::Matcher::MatchInternal(
   }
   auto const& current_state = nfa_.states_[current_state_num];
   if (offset >= input_.size() && current_state_num == nfa_.final_state_) {
-    flat_map<size_t, std::string> results;
-    for (auto it = nfa_.capture_groups_.LookUp(current_state.innermost_capture_group);
-         it != nfa_.capture_groups_.root(); ++it) {
-      results.try_emplace(*it);
-    }
-    return Cached(current_state_num, offset, std::move(results));
+    return CaptureEpsilon(current_state_num, offset, flat_map<size_t, std::string>());
   }
   if (auto const it = current_state.edges.find(0); it != current_state.edges.end()) {
     for (auto const transition : it->second) {
@@ -146,11 +164,7 @@ NFA::Matcher::MatchResults NFA::Matcher::MatchInternal(
         auto results = MatchInternal(epsilon_path, transition, offset);
         epsilon_path->erase(transition);
         if (results) {
-          for (auto it = nfa_.capture_groups_.LookUp(current_state.innermost_capture_group);
-               it != nfa_.capture_groups_.root(); ++it) {
-            results->try_emplace(*it);
-          }
-          return Cached(current_state_num, offset, std::move(results));
+          return CaptureEpsilon(current_state_num, offset, std::move(results).value());
         }
       }
     }
@@ -164,11 +178,7 @@ NFA::Matcher::MatchResults NFA::Matcher::MatchInternal(
       absl::flat_hash_set<size_t> new_epsilon_path;
       auto results = MatchInternal(&new_epsilon_path, transition, offset + 1);
       if (results) {
-        for (auto it = nfa_.capture_groups_.LookUp(current_state.innermost_capture_group);
-             it != nfa_.capture_groups_.root(); ++it) {
-          (*results)[*it] += ch;
-        }
-        return Cached(current_state_num, offset, std::move(results));
+        return CaptureCharacter(current_state_num, offset, std::move(results).value());
       }
     }
   }
@@ -182,14 +192,6 @@ NFA::Matcher::MatchResults NFA::Matcher::MatchPrefixInternal(
     return it->second;
   }
   auto const& current_state = nfa_.states_[current_state_num];
-  if (current_state_num == nfa_.final_state_) {
-    flat_map<size_t, std::string> results;
-    for (auto it = nfa_.capture_groups_.LookUp(current_state.innermost_capture_group);
-         it != nfa_.capture_groups_.root(); ++it) {
-      results.try_emplace(*it);
-    }
-    return Cached(current_state_num, offset, std::move(results));
-  }
   if (offset < input_.size()) {
     auto const ch = input_[offset];
     if (auto const it = current_state.edges.find(ch); it != current_state.edges.end()) {
@@ -197,32 +199,28 @@ NFA::Matcher::MatchResults NFA::Matcher::MatchPrefixInternal(
         absl::flat_hash_set<size_t> new_epsilon_path;
         auto results = MatchPrefixInternal(&new_epsilon_path, transition, offset + 1);
         if (results) {
-          for (auto it = nfa_.capture_groups_.LookUp(current_state.innermost_capture_group);
-               it != nfa_.capture_groups_.root(); ++it) {
-            (*results)[*it] += ch;
-          }
-          return Cached(current_state_num, offset, std::move(results));
+          return CaptureCharacter(current_state_num, offset, std::move(results).value());
         }
       }
     }
   }
-  if (auto const it = current_state.edges.find(0); it != current_state.edges.end()) {
-    for (auto const transition : it->second) {
-      auto const [unused_it, inserted] = epsilon_path->emplace(transition);
-      if (inserted) {
-        auto results = MatchPrefixInternal(epsilon_path, transition, offset);
-        epsilon_path->erase(transition);
-        if (results) {
-          for (auto it = nfa_.capture_groups_.LookUp(current_state.innermost_capture_group);
-               it != nfa_.capture_groups_.root(); ++it) {
-            results->try_emplace(*it);
+  if (current_state_num != nfa_.final_state_) {
+    if (auto const it = current_state.edges.find(0); it != current_state.edges.end()) {
+      for (auto const transition : it->second) {
+        auto const [unused_it, inserted] = epsilon_path->emplace(transition);
+        if (inserted) {
+          auto results = MatchPrefixInternal(epsilon_path, transition, offset);
+          epsilon_path->erase(transition);
+          if (results) {
+            return CaptureEpsilon(current_state_num, offset, std::move(results).value());
           }
-          return Cached(current_state_num, offset, std::move(results));
         }
       }
     }
+    return Cached(current_state_num, offset, std::nullopt);
+  } else {
+    return CaptureEpsilon(current_state_num, offset, flat_map<size_t, std::string>());
   }
-  return Cached(current_state_num, offset, std::nullopt);
 }
 
 void NFA::EpsilonClosure(absl::flat_hash_set<size_t>* const states) const {

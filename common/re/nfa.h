@@ -124,7 +124,15 @@ class NFA final : public AutomatonInterface {
     using MatchResults = std::optional<flat_map<size_t, std::string>>;
     using Cache = flat_map<std::pair<size_t, size_t>, MatchResults>;
 
+    // Helper methods.
+
     MatchResults Cached(size_t current_state_num, size_t offset, MatchResults value);
+
+    MatchResults CaptureCharacter(size_t current_state_num, size_t offset,
+                                  flat_map<size_t, std::string> value);
+
+    MatchResults CaptureEpsilon(size_t current_state_num, size_t offset,
+                                flat_map<size_t, std::string> value);
 
     // Internal matching algorithm implementation. In order to avoid the exponential complexity of
     // the backtracking algorithm, this function checks the `cache_` before doing any work.
