@@ -9,6 +9,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/inlined_vector.h"
 #include "common/flat_map.h"
@@ -122,7 +123,7 @@ class NFA final : public AutomatonInterface {
 
    private:
     using MatchResults = std::optional<flat_map<size_t, std::string>>;
-    using Cache = flat_map<std::pair<size_t, size_t>, MatchResults>;
+    using Cache = absl::flat_hash_map<std::pair<size_t, size_t>, MatchResults>;
 
     // Helper methods.
 
