@@ -11,7 +11,6 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/container/inlined_vector.h"
 #include "common/flat_map.h"
 #include "common/flat_set.h"
@@ -64,6 +63,9 @@ class NFA final : public AutomatonInterface {
   // `Transitions` sets.
   using States = std::vector<State>;
 
+  // Used by our NFA algorithms to keep track of the current set of states efficiently.
+  using StateSet = flat_set<size_t, std::less<size_t>, absl::InlinedVector<size_t, 1>>;
+
   // Runner implementation for NFAs.
   class Runner final : public RunnerInterface {
    public:
@@ -83,7 +85,7 @@ class NFA final : public AutomatonInterface {
     void EpsilonClosure();
 
     NFA const *nfa_;
-    absl::flat_hash_set<size_t> states_;
+    StateSet states_;
   };
 
   explicit NFA(States states, size_t const initial_state, size_t const final_state,
@@ -149,7 +151,7 @@ class NFA final : public AutomatonInterface {
     Cache cache_;
   };
 
-  void EpsilonClosure(absl::flat_hash_set<size_t> *states) const;
+  void EpsilonClosure(StateSet *states) const;
 
   States const states_;
   size_t const initial_state_;
@@ -166,7 +168,7 @@ NFA::Matcher::MatchResults NFA::Matcher::MatchInternal(size_t const current_stat
   if (offset >= input_.size() && current_state_num == nfa_.final_state_) {
     return Cached(current_state_num, offset, flat_map<size_t, std::string>());
   }
-  absl::flat_hash_set<size_t> states{current_state_num};
+  StateSet states{current_state_num};
   nfa_.EpsilonClosure(&states);
   if (offset >= input_.size()) {
     if (states.contains(nfa_.final_state_)) {

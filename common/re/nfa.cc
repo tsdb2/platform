@@ -9,7 +9,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/container/flat_hash_set.h"
 #include "common/re/automaton.h"
 
 namespace tsdb2 {
@@ -21,8 +20,7 @@ std::unique_ptr<AutomatonInterface::RunnerInterface> NFA::Runner::Clone() const 
 }
 
 bool NFA::Runner::Step(char const ch) {
-  absl::flat_hash_set<size_t> next_states;
-  next_states.reserve(nfa_->states_.size());
+  StateSet next_states;
   for (auto const state : states_) {
     auto const& edges = nfa_->states_[state].edges;
     auto const it = edges.find(ch);
@@ -62,14 +60,12 @@ std::unique_ptr<AutomatonInterface::RunnerInterface> NFA::CreateRunner() const {
 }
 
 bool NFA::Test(std::string_view input) const {
-  absl::flat_hash_set<size_t> states{initial_state_};
-  states.reserve(states_.size());
+  StateSet states{initial_state_};
   EpsilonClosure(&states);
-  absl::flat_hash_set<size_t> next_states;
+  StateSet next_states;
   while (!input.empty()) {
     char const ch = input.front();
     input.remove_prefix(1);
-    next_states.reserve(states_.size());
     for (auto const state : states) {
       auto const& edges = states_[state].edges;
       auto const it = edges.find(ch);
@@ -84,7 +80,7 @@ bool NFA::Test(std::string_view input) const {
     }
     EpsilonClosure(&next_states);
     states = std::move(next_states);
-    next_states = absl::flat_hash_set<size_t>();
+    next_states = StateSet();
   }
   return states.contains(final_state_);
 }
@@ -119,7 +115,7 @@ NFA::Matcher::MatchResults NFA::Matcher::Cached(size_t const current_state_num, 
   return it->second;
 }
 
-void NFA::EpsilonClosure(absl::flat_hash_set<size_t>* const states) const {
+void NFA::EpsilonClosure(StateSet* const states) const {
   bool new_state_found;
   do {
     new_state_found = false;
