@@ -201,17 +201,16 @@ class TrieNode {
   class FilteredStateFrame : public StateFrame<reverse> {
    public:
     using Base = StateFrame<reverse>;
-    using AutomatonStepper = std::unique_ptr<regexp_internal::AutomatonInterface::StepperInterface>;
+    using Stepper = std::unique_ptr<regexp_internal::AutomatonInterface::StepperInterface>;
 
-    explicit FilteredStateFrame(NodeSet& nodes, AutomatonStepper const& parent_stepper)
+    explicit FilteredStateFrame(NodeSet& nodes, Stepper const& parent_stepper)
         : Base(nodes), parent_stepper_(parent_stepper.get()), stepper_(parent_stepper->Clone()) {}
 
-    explicit FilteredStateFrame(NodeSet const& nodes, AutomatonStepper const& parent_stepper)
+    explicit FilteredStateFrame(NodeSet const& nodes, Stepper const& parent_stepper)
         : Base(nodes), parent_stepper_(parent_stepper.get()), stepper_(parent_stepper->Clone()) {}
 
     explicit FilteredStateFrame(typename NodeSet::iterator pos_it,
-                                typename NodeSet::iterator end_it,
-                                AutomatonStepper const& parent_stepper)
+                                typename NodeSet::iterator end_it, Stepper const& parent_stepper)
         : Base(pos_it, end_it),
           parent_stepper_(parent_stepper.get()),
           stepper_(parent_stepper->Clone()) {}
@@ -221,7 +220,7 @@ class TrieNode {
     FilteredStateFrame(FilteredStateFrame&&) noexcept = default;
     FilteredStateFrame& operator=(FilteredStateFrame&&) noexcept = default;
 
-    AutomatonStepper const& stepper() const { return stepper_; }
+    Stepper const& stepper() const { return stepper_; }
 
     bool Advance() {
       if (Base::Advance()) {
@@ -251,7 +250,7 @@ class TrieNode {
 
    private:
     regexp_internal::AutomatonInterface::StepperInterface const* parent_stepper_;
-    AutomatonStepper stepper_;
+    Stepper stepper_;
   };
 
   template <typename StateFrameType>
