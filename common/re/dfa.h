@@ -54,15 +54,15 @@ class DFA final : public AutomatonInterface {
 
   using States = std::vector<State>;
 
-  // Runner implementation for DFAs.
-  class Runner final : public RunnerInterface {
+  // Stepper implementation for DFAs.
+  class Stepper final : public StepperInterface {
    public:
-    explicit Runner(DFA const *const dfa) : dfa_(dfa), current_state_(dfa_->initial_state_) {}
+    explicit Stepper(DFA const *const dfa) : dfa_(dfa), current_state_(dfa_->initial_state_) {}
 
-    Runner(Runner const &) = default;
-    Runner &operator=(Runner const &) = default;
+    Stepper(Stepper const &) = default;
+    Stepper &operator=(Stepper const &) = default;
 
-    std::unique_ptr<RunnerInterface> Clone() const override;
+    std::unique_ptr<StepperInterface> Clone() const override;
     bool Step(char ch) override;
     bool Step(std::string_view chars) override;
     bool Finish() override;
@@ -83,7 +83,7 @@ class DFA final : public AutomatonInterface {
 
   size_t GetNumCaptureGroups() const override;
 
-  std::unique_ptr<RunnerInterface> CreateRunner() const override;
+  std::unique_ptr<StepperInterface> MakeStepper() const override;
 
   bool Test(std::string_view input) const override;
 

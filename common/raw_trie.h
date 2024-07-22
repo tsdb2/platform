@@ -201,56 +201,57 @@ class TrieNode {
   class FilteredStateFrame : public StateFrame<reverse> {
    public:
     using Base = StateFrame<reverse>;
-    using AutomatonRunner = std::unique_ptr<regexp_internal::AutomatonInterface::RunnerInterface>;
+    using AutomatonStepper = std::unique_ptr<regexp_internal::AutomatonInterface::StepperInterface>;
 
-    explicit FilteredStateFrame(NodeSet& nodes, AutomatonRunner const& parent_runner)
-        : Base(nodes), parent_runner_(parent_runner.get()), runner_(parent_runner->Clone()) {}
+    explicit FilteredStateFrame(NodeSet& nodes, AutomatonStepper const& parent_stepper)
+        : Base(nodes), parent_stepper_(parent_stepper.get()), stepper_(parent_stepper->Clone()) {}
 
-    explicit FilteredStateFrame(NodeSet const& nodes, AutomatonRunner const& parent_runner)
-        : Base(nodes), parent_runner_(parent_runner.get()), runner_(parent_runner->Clone()) {}
+    explicit FilteredStateFrame(NodeSet const& nodes, AutomatonStepper const& parent_stepper)
+        : Base(nodes), parent_stepper_(parent_stepper.get()), stepper_(parent_stepper->Clone()) {}
 
     explicit FilteredStateFrame(typename NodeSet::iterator pos_it,
                                 typename NodeSet::iterator end_it,
-                                AutomatonRunner const& parent_runner)
+                                AutomatonStepper const& parent_stepper)
         : Base(pos_it, end_it),
-          parent_runner_(parent_runner.get()),
-          runner_(parent_runner->Clone()) {}
+          parent_stepper_(parent_stepper.get()),
+          stepper_(parent_stepper->Clone()) {}
 
     FilteredStateFrame(FilteredStateFrame const&) = default;
     FilteredStateFrame& operator=(FilteredStateFrame const&) = default;
     FilteredStateFrame(FilteredStateFrame&&) noexcept = default;
     FilteredStateFrame& operator=(FilteredStateFrame&&) noexcept = default;
 
-    AutomatonRunner const& runner() const { return runner_; }
+    AutomatonStepper const& stepper() const { return stepper_; }
 
     bool Advance() {
       if (Base::Advance()) {
-        runner_ = parent_runner_->Clone();
+        stepper_ = parent_stepper_->Clone();
         return true;
       } else {
-        runner_.reset();
+        stepper_.reset();
         return false;
       }
     }
 
-    // Runs `Step` on the runner.
+    // Runs `Step` on the stepper.
     //
     // NOTE: this MUST be called exactly once every time the `pos_` iterator of the frame changes:
     // once after construction and once after each successful `Advance` call.
-    // `BaseIterator::Advance` achieves that: it calls `StepRunner` every time `NextNode` returns,
-    // which happens either when a new frame is constructed or when its `pos_` iterator is advanced.
-    bool StepRunner() { return runner_->Step(Base::key()); }
+    // `BaseIterator::Advance` achieves that: it calls `AdvanceStepper` every time `NextNode`
+    // returns, which happens either when a new frame is constructed or when its `pos_` iterator is
+    // advanced.
+    bool AdvanceStepper() { return stepper_->Step(Base::key()); }
 
-    // Runs `Finish` on a temporary clone of the runner. The frame and its runner are still usable
-    // after `FinishRunner` even if it returns true, because the original runner is cloned and not
+    // Runs `Finish` on a temporary clone of the stepper. The frame and its stepper are still usable
+    // after `FinishStepper` even if it returns true, because the original stepper is cloned and not
     // affected.
     //
-    // REQUIRES: `StepRunner` must have run successfully.
-    bool FinishRunner() const { return runner_->Clone()->Finish(); }
+    // REQUIRES: `AdvanceStepper` must have run successfully.
+    bool FinishStepper() const { return stepper_->Clone()->Finish(); }
 
    private:
-    regexp_internal::AutomatonInterface::RunnerInterface const* parent_runner_;
-    AutomatonRunner runner_;
+    regexp_internal::AutomatonInterface::StepperInterface const* parent_stepper_;
+    AutomatonStepper stepper_;
   };
 
   template <typename StateFrameType>
@@ -392,9 +393,9 @@ class TrieNode {
     // Constructs the "begin" iterator.
     explicit BaseIterator(NodeSet const& roots,
                           reffed_ptr<regexp_internal::AutomatonInterface> const& automaton)
-        : runner_(roots.empty() ? nullptr : automaton->CreateRunner()) {
+        : stepper_(roots.empty() ? nullptr : automaton->MakeStepper()) {
       if (!roots.empty()) {
-        auto const& frame = frames_.emplace_back(roots, runner_);
+        auto const& frame = frames_.emplace_back(roots, stepper_);
         if (!frame.node().TestLabel()) {
           Advance();
         }
@@ -417,16 +418,16 @@ class TrieNode {
     void Advance() {
       while (NextNode(), !frames_.empty()) {
         auto& frame = frames_.back();
-        if (frame.StepRunner()) {
+        if (frame.AdvanceStepper()) {
           auto const& node = frame.node();
-          if (node.TestLabel() && frame.FinishRunner()) {
+          if (node.TestLabel() && frame.FinishStepper()) {
             return;
           }
         }
       }
     }
 
-    std::unique_ptr<regexp_internal::AutomatonInterface::RunnerInterface> runner_;
+    std::unique_ptr<regexp_internal::AutomatonInterface::StepperInterface> stepper_;
     std::vector<FilteredStateFrame<reverse>> frames_;
 
    private:
@@ -449,7 +450,7 @@ class TrieNode {
       } else {
         auto const& node = frame.node();
         if (!node.children_.empty()) {
-          frames_.emplace_back(node.children_, frame.runner());
+          frames_.emplace_back(node.children_, frame.stepper());
           return;
         }
       }
@@ -716,7 +717,7 @@ class TrieNode {
 
   // Determines whether the trie rooted at this node contains any strings matching the provided
   // regular expression.
-  bool Contains(RE const& re) const { return Contains(re.automaton_->CreateRunner()); }
+  bool Contains(RE const& re) const { return Contains(re.automaton_->MakeStepper()); }
 
   // Finds the first element whose key is greater than or equal to `key`. Returns the end iterator
   // if no such element exists.
@@ -795,7 +796,7 @@ class TrieNode {
   typename NodeSet::iterator LowerBound(std::string_view needle);
 
   bool Contains(
-      std::unique_ptr<regexp_internal::AutomatonInterface::RunnerInterface> const& runner) const;
+      std::unique_ptr<regexp_internal::AutomatonInterface::StepperInterface> const& stepper) const;
 
   template <typename... Args>
   std::pair<Iterator, bool> InsertChild(std::vector<DirectStateFrame> frames, std::string_view key,
@@ -942,14 +943,14 @@ typename TrieNode<Label, Allocator>::Iterator TrieNode<Label, Allocator>::UpperB
 
 template <typename Label, typename Allocator>
 bool TrieNode<Label, Allocator>::Contains(
-    std::unique_ptr<regexp_internal::AutomatonInterface::RunnerInterface> const& runner) const {
+    std::unique_ptr<regexp_internal::AutomatonInterface::StepperInterface> const& stepper) const {
   for (auto const& [key, child] : children_) {
-    auto const child_runner = runner->Clone();
-    if (child_runner->Step(key)) {
-      if (child.TestLabel() && child_runner->Finish()) {
+    auto const child_stepper = stepper->Clone();
+    if (child_stepper->Step(key)) {
+      if (child.TestLabel() && child_stepper->Finish()) {
         return true;
       }
-      if (child.Contains(child_runner)) {
+      if (child.Contains(child_stepper)) {
         return true;
       }
     }

@@ -15,11 +15,11 @@ namespace tsdb2 {
 namespace common {
 namespace regexp_internal {
 
-std::unique_ptr<AutomatonInterface::RunnerInterface> NFA::Runner::Clone() const {
-  return std::make_unique<Runner>(*this);
+std::unique_ptr<AutomatonInterface::StepperInterface> NFA::Stepper::Clone() const {
+  return std::make_unique<Stepper>(*this);
 }
 
-bool NFA::Runner::Step(char const ch) {
+bool NFA::Stepper::Step(char const ch) {
   StateSet next_states;
   for (auto const state : states_) {
     auto const& edges = nfa_->states_[state].edges;
@@ -38,7 +38,7 @@ bool NFA::Runner::Step(char const ch) {
   return true;
 }
 
-bool NFA::Runner::Step(std::string_view const chars) {
+bool NFA::Stepper::Step(std::string_view const chars) {
   for (char const ch : chars) {
     if (!Step(ch)) {
       return false;
@@ -47,16 +47,16 @@ bool NFA::Runner::Step(std::string_view const chars) {
   return true;
 }
 
-bool NFA::Runner::Finish() { return states_.contains(nfa_->final_state_); }
+bool NFA::Stepper::Finish() { return states_.contains(nfa_->final_state_); }
 
-void NFA::Runner::EpsilonClosure() { nfa_->EpsilonClosure(&states_); }
+void NFA::Stepper::EpsilonClosure() { nfa_->EpsilonClosure(&states_); }
 
 bool NFA::IsDeterministic() const { return false; }
 
 size_t NFA::GetNumCaptureGroups() const { return capture_groups_.size(); }
 
-std::unique_ptr<AutomatonInterface::RunnerInterface> NFA::CreateRunner() const {
-  return std::make_unique<Runner>(this);
+std::unique_ptr<AutomatonInterface::StepperInterface> NFA::MakeStepper() const {
+  return std::make_unique<Stepper>(this);
 }
 
 bool NFA::Test(std::string_view input) const {

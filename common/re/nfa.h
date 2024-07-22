@@ -49,7 +49,7 @@ class NFA final : public AutomatonInterface {
     //
     // Every time this state processes a character (that is, every time a character is looked up in
     // the `edges`) that character is added to the strings captured by the innermost group as well
-    // as all of its parents.
+    // as all of its ancestors.
     int innermost_capture_group;
 
     // The edges are represented by a map of input characters to transitions. Each character is
@@ -59,24 +59,24 @@ class NFA final : public AutomatonInterface {
   };
 
   // The array of states. The state numbers are the indices in this array. For example, `states[0]`
-  // is state 0, `states[1]` is state 1, and so on. State numbers are used as values in
+  // is state 0, `states[1]` is state 1, and so on. State numbers are used as values in the
   // `Transitions` sets.
   using States = std::vector<State>;
 
   // Used by our NFA algorithms to keep track of the current set of states efficiently.
   using StateSet = flat_set<size_t, std::less<size_t>, absl::InlinedVector<size_t, 1>>;
 
-  // Runner implementation for NFAs.
-  class Runner final : public RunnerInterface {
+  // Stepper implementation for NFAs.
+  class Stepper final : public StepperInterface {
    public:
-    explicit Runner(NFA const *const nfa) : nfa_(nfa), states_{nfa_->initial_state_} {
+    explicit Stepper(NFA const *const nfa) : nfa_(nfa), states_{nfa_->initial_state_} {
       EpsilonClosure();
     }
 
-    Runner(Runner const &) = default;
-    Runner &operator=(Runner const &) = default;
+    Stepper(Stepper const &) = default;
+    Stepper &operator=(Stepper const &) = default;
 
-    std::unique_ptr<RunnerInterface> Clone() const override;
+    std::unique_ptr<StepperInterface> Clone() const override;
     bool Step(char ch) override;
     bool Step(std::string_view chars) override;
     bool Finish() override;
@@ -99,7 +99,7 @@ class NFA final : public AutomatonInterface {
 
   size_t GetNumCaptureGroups() const override;
 
-  std::unique_ptr<RunnerInterface> CreateRunner() const override;
+  std::unique_ptr<StepperInterface> MakeStepper() const override;
 
   bool Test(std::string_view input) const override;
 

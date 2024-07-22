@@ -21,24 +21,24 @@ namespace regexp_internal {
 // implemented by `SimpleRefCounted` in a thread-safe way.
 class AutomatonInterface : public SimpleRefCounted {
  public:
-  // Abstract interface for an automaton runner.
+  // Abstract interface for an automaton stepper.
   //
-  // A runner allows running the automaton in separate steps, processing the input string character
+  // A stepper allows running the automaton in separate steps, processing the input string character
   // by character.
   //
   // The caller needs to call `Step` repeatedly for every character or for every chunk of the input
-  // string, and then needs to call `Finish`. The runner keeps the running state (i.e. the current
+  // string, and then needs to call `Finish`. The stepper keeps the running state (i.e. the current
   // state or set of the current states) of the automaton internally and updates it as necessary at
   // every call.
   //
   // Example usage:
   //
   //   bool TestString(NFA const& nfa, std::string_view const input) {
-  //     auto const runner = nfa.CreateRunner();
-  //     if (!runner->Step(input)) {
+  //     auto const stepper = nfa.CreateStepper();
+  //     if (!stepper->Step(input)) {
   //       return false; // no match.
   //     }
-  //     return runner->Finish();
+  //     return stepper->Finish();
   //   }
   //
   // The above is equivalent to:
@@ -47,18 +47,18 @@ class AutomatonInterface : public SimpleRefCounted {
   //     return nfa.Test(input);
   //   }
   //
-  // NFAs and DFAs have different runner implementations, both implementing this interface.
+  // NFAs and DFAs have different stepper implementations, both implementing this interface.
   //
-  // WARNING: the automaton must always outlive all of its runners. Runners refer to their parent
+  // WARNING: the automaton must always outlive all of its steppers. Steppers refer to their parent
   // automata by raw pointer, not by `reffed_ptr`. It's the caller's responsibility to maintain the
-  // automaton's reference count alive as long as one or more runners exist.
-  class RunnerInterface {
+  // automaton's reference count alive as long as one or more steppers exist.
+  class StepperInterface {
    public:
-    explicit RunnerInterface() = default;
-    virtual ~RunnerInterface() = default;
+    explicit StepperInterface() = default;
+    virtual ~StepperInterface() = default;
 
-    // Clones the runner, duplicating its internal state.
-    virtual std::unique_ptr<RunnerInterface> Clone() const = 0;
+    // Clones the stepper, duplicating its internal state.
+    virtual std::unique_ptr<StepperInterface> Clone() const = 0;
 
     // Transitions the automaton into the next state, or returns false if `ch` has no transition
     // (i.e. the string doesn't match). When false is returned the automaton is no longer usable and
@@ -72,21 +72,21 @@ class AutomatonInterface : public SimpleRefCounted {
     // Processes the end of the input string and returns a boolean indicating whether the string
     // matched.
     //
-    // If `Finish` returns false the state of the runner will either not change or change in a way
+    // If `Finish` returns false the state of the stepper will either not change or change in a way
     // that makes it possible to perform further `Step` calls on subsequent pieces of input. This
-    // property makes runners easily usable to find strings in tries. If, on the other hand,
+    // property makes steppers easily usable to find strings in tries. If, on the other hand,
     // `Finish` returns true, the automaton is no longer usable and must be discarded.
     virtual bool Finish() = 0;
 
    protected:
     // Copies are performed by `Clone`.
-    RunnerInterface(RunnerInterface const &) = default;
-    RunnerInterface &operator=(RunnerInterface const &) = default;
+    StepperInterface(StepperInterface const &) = default;
+    StepperInterface &operator=(StepperInterface const &) = default;
 
    private:
     // Moves forbidden: the trie search algorithms require pointer stability.
-    RunnerInterface(RunnerInterface &&) = delete;
-    RunnerInterface &operator=(RunnerInterface &&) = delete;
+    StepperInterface(StepperInterface &&) = delete;
+    StepperInterface &operator=(StepperInterface &&) = delete;
   };
 
   explicit AutomatonInterface() = default;
@@ -99,8 +99,8 @@ class AutomatonInterface : public SimpleRefCounted {
   // vector returned by `Match` for a matching input string.
   virtual size_t GetNumCaptureGroups() const = 0;
 
-  // Creates a runner for the automaton.
-  virtual std::unique_ptr<RunnerInterface> CreateRunner() const = 0;
+  // Creates a stepper for the automaton.
+  virtual std::unique_ptr<StepperInterface> MakeStepper() const = 0;
 
   // Tests the provided `input` string against the regular expression language decided by this
   // automaton.
@@ -121,7 +121,7 @@ class AutomatonInterface : public SimpleRefCounted {
   AutomatonInterface(AutomatonInterface const &) = delete;
   AutomatonInterface &operator=(AutomatonInterface const &) = delete;
 
-  // Moves are forbidden: we need pointer stability because runners keep a pointer to the parent
+  // Moves are forbidden: we need pointer stability because steppers keep a pointer to the parent
   // automaton.
   AutomatonInterface(AutomatonInterface &&) = delete;
   AutomatonInterface &operator=(AutomatonInterface &&) = delete;

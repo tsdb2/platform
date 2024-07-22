@@ -14,11 +14,11 @@ namespace tsdb2 {
 namespace common {
 namespace regexp_internal {
 
-std::unique_ptr<AutomatonInterface::RunnerInterface> DFA::Runner::Clone() const {
-  return std::make_unique<Runner>(*this);
+std::unique_ptr<AutomatonInterface::StepperInterface> DFA::Stepper::Clone() const {
+  return std::make_unique<Stepper>(*this);
 }
 
-bool DFA::Runner::Step(char const ch) {
+bool DFA::Stepper::Step(char const ch) {
   auto const& edges = dfa_->states_[current_state_].edges;
   auto it = edges.find(0);
   if (it == edges.end()) {
@@ -31,7 +31,7 @@ bool DFA::Runner::Step(char const ch) {
   return true;
 }
 
-bool DFA::Runner::Step(std::string_view const chars) {
+bool DFA::Stepper::Step(std::string_view const chars) {
   for (char const ch : chars) {
     if (!Step(ch)) {
       return false;
@@ -40,7 +40,7 @@ bool DFA::Runner::Step(std::string_view const chars) {
   return true;
 }
 
-bool DFA::Runner::Finish() {
+bool DFA::Stepper::Finish() {
   while (current_state_ != dfa_->final_state_) {
     auto const& edges = dfa_->states_[current_state_].edges;
     auto const it = edges.find(0);
@@ -56,8 +56,8 @@ bool DFA::IsDeterministic() const { return true; }
 
 size_t DFA::GetNumCaptureGroups() const { return capture_groups_.size(); }
 
-std::unique_ptr<AutomatonInterface::RunnerInterface> DFA::CreateRunner() const {
-  return std::make_unique<Runner>(this);
+std::unique_ptr<AutomatonInterface::StepperInterface> DFA::MakeStepper() const {
+  return std::make_unique<Stepper>(this);
 }
 
 bool DFA::Test(std::string_view input) const {

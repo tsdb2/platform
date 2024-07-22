@@ -35,7 +35,7 @@ using ::tsdb2::common::regexp_internal::TempNFA;
 
 struct RegexpTestParams {
   bool force_nfa;
-  bool use_runner;
+  bool use_stepper;
 };
 
 class RegexpTest : public ::testing::TestWithParam<RegexpTestParams> {
@@ -63,9 +63,9 @@ bool RegexpTest::CheckNotDeterministic(reffed_ptr<AutomatonInterface> const& aut
 
 bool RegexpTest::Run(reffed_ptr<AutomatonInterface> const& automaton,
                      std::string_view const input) {
-  if (GetParam().use_runner) {
-    auto const runner = automaton->CreateRunner();
-    return runner->Step(input) && runner->Finish();
+  if (GetParam().use_stepper) {
+    auto const stepper = automaton->MakeStepper();
+    return stepper->Step(input) && stepper->Finish();
   } else {
     return automaton->Test(input);
   }
@@ -2465,11 +2465,11 @@ TEST_P(RegexpTest, Fork) {
   auto const status_or_pattern = Parse("lorem(ipsum|dolor)");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  auto const runner1 = pattern->CreateRunner();
-  EXPECT_TRUE(runner1->Step("lorem"));
-  auto const runner2 = runner1->Clone();
-  EXPECT_TRUE(runner1->Step("ipsum") && runner1->Finish());
-  EXPECT_TRUE(runner2->Step("dolor") && runner2->Finish());
+  auto const stepper1 = pattern->MakeStepper();
+  EXPECT_TRUE(stepper1->Step("lorem"));
+  auto const stepper2 = stepper1->Clone();
+  EXPECT_TRUE(stepper1->Step("ipsum") && stepper1->Finish());
+  EXPECT_TRUE(stepper2->Step("dolor") && stepper2->Finish());
 }
 
 TEST_P(RegexpTest, Search) {
@@ -2626,9 +2626,9 @@ TEST_P(RegexpTest, PrefixPatternWithCapture) {
 }
 
 INSTANTIATE_TEST_SUITE_P(RegexpTest, RegexpTest,
-                         Values(RegexpTestParams{.force_nfa = false, .use_runner = false},
-                                RegexpTestParams{.force_nfa = false, .use_runner = true},
-                                RegexpTestParams{.force_nfa = true, .use_runner = false},
-                                RegexpTestParams{.force_nfa = true, .use_runner = true}));
+                         Values(RegexpTestParams{.force_nfa = false, .use_stepper = false},
+                                RegexpTestParams{.force_nfa = false, .use_stepper = true},
+                                RegexpTestParams{.force_nfa = true, .use_stepper = false},
+                                RegexpTestParams{.force_nfa = true, .use_stepper = true}));
 
 }  // namespace
