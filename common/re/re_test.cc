@@ -2447,6 +2447,20 @@ TEST_P(RegexpTest, CantMergeLoopEndpoints) {
               IsOkAndHolds(Optional(ElementsAre("loremloremlorem", "mmm"))));
 }
 
+TEST_P(RegexpTest, CantMergeLoopEndpointsOfPrefix) {
+  auto const status_or_pattern = Parse("(lore(m))*");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern->MatchPrefix(""), Optional(ElementsAre("", "")));
+  EXPECT_THAT(pattern->MatchPrefix("lorem"), Optional(ElementsAre("lorem", "m")));
+  EXPECT_THAT(pattern->MatchPrefix("ipsum"), Optional(ElementsAre("", "")));
+  EXPECT_THAT(pattern->MatchPrefix("loremlorem"), Optional(ElementsAre("loremlorem", "mm")));
+  EXPECT_THAT(pattern->MatchPrefix("loremipsum"), Optional(ElementsAre("lorem", "m")));
+  EXPECT_THAT(pattern->MatchPrefix("ipsumlorem"), Optional(ElementsAre("", "")));
+  EXPECT_THAT(pattern->MatchPrefix("loremloremlorem"),
+              Optional(ElementsAre("loremloremlorem", "mmm")));
+}
+
 TEST_P(RegexpTest, Fork) {
   auto const status_or_pattern = Parse("lorem(ipsum|dolor)");
   ASSERT_OK(status_or_pattern);
