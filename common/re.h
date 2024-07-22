@@ -30,9 +30,9 @@ class TrieNode;
 // TSDB2 uses its own implementation rather than the one provided by STL or any other C++ regular
 // expression library for at least two reasons:
 //
-//   1. We need an implementation that is guaranteed to be immune to ReDoS attacks. Our
-//      implementation is immune because it doesn't provide any features that inherently require
-//      backtracking algorithms (specifically we do not support backreferences).
+//   1. We need an implementation that is guaranteed to be immune to ReDoS attacks. Ours is immune
+//      because it doesn't provide any NP-hard features (most notably we do not support
+//      backreferences).
 //   2. We need an implementation that can be integrated with our tries so that we can run finite
 //      state automata algorithms on tries, allowing for efficient retrieval of strings based on
 //      regular expression patterns.
