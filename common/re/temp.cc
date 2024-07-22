@@ -71,8 +71,14 @@ bool TempNFA::RenameState(size_t const old_name, size_t const new_name) {
   for (auto& [state_num, state] : states_) {
     for (auto& [ch, transitions] : state.edges) {
       if (transitions.erase(old_name)) {
-        transitions.emplace(new_name);
+        if (ch != 0 || new_name != state_num) {
+          transitions.emplace(new_name);
+        }
       }
+    }
+    auto const it = state.edges.find(0);
+    if (it != state.edges.end() && it->second.empty()) {
+      state.edges.erase(it);
     }
   }
   if (initial_state_ == old_name) {
