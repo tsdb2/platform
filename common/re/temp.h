@@ -61,12 +61,14 @@ class TempNFA final {
   // REQUIRES: states `from` and `to` must be present in the automaton.
   void AddEdge(char label, size_t from, size_t to);
 
-  // Adds a new epsilon-edge from state `from` to state `to`.
-  //
-  // This is a shorthand for `AddEdge(0, from, to)`.
+  // Adds a new epsilon-edge from state `from` to state `to` only if `from != to`.
   //
   // REQUIRES: states `from` and `to` must be present in the automaton.
-  void AddEpsilonEdge(size_t from, size_t to) { AddEdge(0, from, to); }
+  void MaybeAddEpsilonEdge(size_t const from, size_t const to) {
+    if (from != to) {
+      AddEdge(0, from, to);
+    }
+  }
 
   // Chains this NFA with `other` by merging the final state of the former with the initial state of
   // the latter. The resulting automaton recognizes concatenations of the strings originally

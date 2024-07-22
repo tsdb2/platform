@@ -111,7 +111,7 @@ void TempNFA::Chain(TempNFA other) {
   for (auto& [state_num, state] : other.states_) {
     MergeState(state_num, std::move(state));
   }
-  AddEpsilonEdge(final_state_, other.initial_state_);
+  MaybeAddEpsilonEdge(final_state_, other.initial_state_);
   final_state_ = other.final_state_;
 }
 
@@ -123,8 +123,8 @@ void TempNFA::Merge(TempNFA&& other, int const capture_group, size_t const initi
   states_.try_emplace(initial_state, capture_group,
                       State::Edges{{0, {initial_state_, other.initial_state_}}});
   states_.try_emplace(final_state, capture_group, State::Edges{});
-  AddEpsilonEdge(final_state_, final_state);
-  AddEpsilonEdge(other.final_state_, final_state);
+  MaybeAddEpsilonEdge(final_state_, final_state);
+  MaybeAddEpsilonEdge(other.final_state_, final_state);
   initial_state_ = initial_state;
   final_state_ = final_state;
 }

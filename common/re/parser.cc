@@ -539,13 +539,13 @@ absl::StatusOr<TempNFA> Parser::Parse1(int const capture_group) {
   }
   if (ConsumePrefix("*")) {
     if (!nfa.RenameState(nfa.initial_state(), nfa.final_state())) {
-      nfa.AddEpsilonEdge(nfa.initial_state(), nfa.final_state());
-      nfa.AddEpsilonEdge(nfa.final_state(), nfa.initial_state());
+      nfa.MaybeAddEpsilonEdge(nfa.initial_state(), nfa.final_state());
+      nfa.MaybeAddEpsilonEdge(nfa.final_state(), nfa.initial_state());
     }
   } else if (ConsumePrefix("+")) {
-    nfa.AddEpsilonEdge(nfa.final_state(), nfa.initial_state());
+    nfa.MaybeAddEpsilonEdge(nfa.final_state(), nfa.initial_state());
   } else if (ConsumePrefix("?")) {
-    nfa.AddEpsilonEdge(nfa.initial_state(), nfa.final_state());
+    nfa.MaybeAddEpsilonEdge(nfa.initial_state(), nfa.final_state());
   } else if (ConsumePrefix("{")) {
     auto const status_or_quantifier = ParseQuantifier();
     if (!status_or_quantifier.ok()) {
@@ -557,7 +557,7 @@ absl::StatusOr<TempNFA> Parser::Parse1(int const capture_group) {
         return SyntaxError("invalid quantifier");
       }
       if (!nfa.RenameState(nfa.initial_state(), nfa.final_state())) {
-        nfa.AddEpsilonEdge(nfa.final_state(), nfa.initial_state());
+        nfa.MaybeAddEpsilonEdge(nfa.final_state(), nfa.initial_state());
       }
     } else {
       auto piece = std::move(nfa);
@@ -569,7 +569,7 @@ absl::StatusOr<TempNFA> Parser::Parse1(int const capture_group) {
       }
       if (max < 0) {
         if (!piece.RenameState(piece.initial_state(), piece.final_state())) {
-          piece.AddEpsilonEdge(piece.final_state(), piece.initial_state());
+          piece.MaybeAddEpsilonEdge(piece.final_state(), piece.initial_state());
         }
         piece.RenameAllStates(&next_state_);
         nfa.Chain(std::move(piece));
@@ -577,7 +577,7 @@ absl::StatusOr<TempNFA> Parser::Parse1(int const capture_group) {
         if (max < min) {
           return SyntaxError("invalid quantifier");
         }
-        piece.AddEpsilonEdge(piece.initial_state(), piece.final_state());
+        piece.MaybeAddEpsilonEdge(piece.initial_state(), piece.final_state());
         for (int i = min; i < max; ++i) {
           piece.RenameAllStates(&next_state_);
           nfa.Chain(piece);
