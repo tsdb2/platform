@@ -125,15 +125,7 @@ class NFA final : public AutomatonInterface {
     using MatchResults = std::optional<flat_map<size_t, std::string>>;
     using Cache = absl::flat_hash_map<std::pair<size_t, size_t>, MatchResults>;
 
-    // Helper methods.
-
     MatchResults Cached(size_t current_state_num, size_t offset, MatchResults value);
-
-    MatchResults CaptureCharacter(size_t current_state_num, size_t offset,
-                                  flat_map<size_t, std::string> value);
-
-    MatchResults CaptureEpsilon(size_t current_state_num, size_t offset,
-                                flat_map<size_t, std::string> value);
 
     // Internal matching algorithm implementation. In order to avoid the exponential complexity of
     // the backtracking algorithm, this function checks the `cache_` before doing any work.
@@ -143,15 +135,9 @@ class NFA final : public AutomatonInterface {
     //
     // NOTE: due to the way `MatchInternal`'s algorithm works, the returned captured strings are
     // reversed; the public `Match` method takes of care of reversing them.
-    //
-    // The `epsilon_path` argument points to a caller-provided set of state numbers containing the
-    // states visited by following the last contiguous sequence of epsilon edges. If an epsilon-edge
-    // points to a state we've already visited we don't follow it, so we avoid getting stuck in an
-    // epsilon-loop. The initial call from `Match` provides an empty set.
     MatchResults MatchInternal(size_t current_state_num, size_t offset);
 
-    MatchResults MatchPrefixInternal(absl::flat_hash_set<size_t> *epsilon_path,
-                                     size_t current_state_num, size_t offset);
+    MatchResults MatchPrefixInternal(size_t current_state_num, size_t offset);
 
     NFA const &nfa_;
     std::string_view const input_;
