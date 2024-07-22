@@ -7,6 +7,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -135,9 +136,8 @@ class NFA final : public AutomatonInterface {
     //
     // NOTE: due to the way `MatchInternal`'s algorithm works, the returned captured strings are
     // reversed; the public `Match` method takes of care of reversing them.
+    template <bool prefix>
     MatchResults MatchInternal(size_t current_state_num, size_t offset);
-
-    MatchResults MatchPrefixInternal(size_t current_state_num, size_t offset);
 
     NFA const &nfa_;
     std::string_view const input_;
@@ -156,6 +156,53 @@ class NFA final : public AutomatonInterface {
   size_t const final_state_;
   CaptureGroups const capture_groups_;
 };
+
+template <bool prefix>
+NFA::Matcher::MatchResults NFA::Matcher::MatchInternal(size_t const current_state_num,
+                                                       size_t const offset) {
+  if (auto const it = cache_.find(std::make_pair(current_state_num, offset)); it != cache_.end()) {
+    return it->second;
+  }
+  if (offset >= input_.size() && current_state_num == nfa_.final_state_) {
+    return Cached(current_state_num, offset, flat_map<size_t, std::string>());
+  }
+  absl::flat_hash_set<size_t> states{current_state_num};
+  nfa_.EpsilonClosure(&states);
+  if (offset >= input_.size()) {
+    if (states.contains(nfa_.final_state_)) {
+      return Cached(current_state_num, offset, flat_map<size_t, std::string>());
+    } else {
+      return Cached(current_state_num, offset, std::nullopt);
+    }
+  }
+  auto const ch = input_[offset];
+  for (auto const state_num : states) {
+    auto const &state = nfa_.states_[state_num];
+    auto const it = state.edges.find(ch);
+    if (it != state.edges.end()) {
+      for (auto const transition : it->second) {
+        auto maybe_results = MatchInternal<prefix>(transition, offset + 1);
+        if (maybe_results) {
+          auto &results = maybe_results.value();
+          for (auto it = nfa_.capture_groups_.LookUp(state.innermost_capture_group);
+               it != nfa_.capture_groups_.root(); ++it) {
+            results[*it] += ch;
+          }
+          return Cached(current_state_num, offset, std::move(results));
+        }
+      }
+    }
+  }
+  if constexpr (prefix) {
+    if (states.contains(nfa_.final_state_)) {
+      return Cached(current_state_num, offset, flat_map<size_t, std::string>());
+    } else {
+      return Cached(current_state_num, offset, std::nullopt);
+    }
+  } else {
+    return Cached(current_state_num, offset, std::nullopt);
+  }
+}
 
 }  // namespace regexp_internal
 }  // namespace common
