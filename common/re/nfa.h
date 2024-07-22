@@ -148,8 +148,7 @@ class NFA final : public AutomatonInterface {
     // states visited by following the last contiguous sequence of epsilon edges. If an epsilon-edge
     // points to a state we've already visited we don't follow it, so we avoid getting stuck in an
     // epsilon-loop. The initial call from `Match` provides an empty set.
-    MatchResults MatchInternal(absl::flat_hash_set<size_t> *epsilon_path, size_t current_state_num,
-                               size_t offset);
+    MatchResults MatchInternal(size_t current_state_num, size_t offset);
 
     MatchResults MatchPrefixInternal(absl::flat_hash_set<size_t> *epsilon_path,
                                      size_t current_state_num, size_t offset);
