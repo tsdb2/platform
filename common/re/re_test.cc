@@ -20,6 +20,7 @@
 
 namespace {
 
+using ::testing::AnyOf;
 using ::testing::ElementsAre;
 using ::testing::IsEmpty;
 using ::testing::Optional;
@@ -2480,6 +2481,64 @@ TEST_P(RegexpTest, Search) {
   EXPECT_THAT(Match(pattern, "lorem ipsum dooolor sic amat"), IsOkAndHolds(Optional(IsEmpty())));
   EXPECT_THAT(Match(pattern, "lorem ipsum color sic amat"), IsOkAndHolds(std::nullopt));
   EXPECT_THAT(Match(pattern, "lorem ipsum dolet et amat"), IsOkAndHolds(std::nullopt));
+}
+
+TEST_P(RegexpTest, AmbiguousMatch) {
+  auto const status_or_pattern = Parse("(.*) (.*) (.*)");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, "lorem"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "lorem ipsum"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "lorem ipsum dolor"),
+              IsOkAndHolds(Optional(ElementsAre("lorem", "ipsum", "dolor"))));
+  EXPECT_THAT(Match(pattern, "lorem ipsum dolor amet"),
+              IsOkAndHolds(Optional(AnyOf(ElementsAre("lorem", "ipsum", "dolor amet"),
+                                          ElementsAre("lorem", "ipsum dolor", "amet"),
+                                          ElementsAre("lorem ipsum", "dolor", "amet")))));
+  EXPECT_THAT(
+      Match(pattern, "lorem ipsum dolor amet consectetur"),
+      IsOkAndHolds(Optional(AnyOf(ElementsAre("lorem", "ipsum", "dolor amet consectetur"),
+                                  ElementsAre("lorem", "ipsum dolor", "amet consectetur"),
+                                  ElementsAre("lorem", "ipsum dolor amet", "consectetur"),
+                                  ElementsAre("lorem ipsum", "dolor", "amet consectetur"),
+                                  ElementsAre("lorem ipsum", "dolor amet", "consectetur"),
+                                  ElementsAre("lorem ipsum dolor", "amet", "consectetur")))));
+}
+
+TEST_P(RegexpTest, AmbiguousPrefixMatch) {
+  auto const status_or_pattern = Parse("([^END-]*) ([^END-]*) ([^END-]*)");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_EQ(pattern->MatchPrefix("lorem"), std::nullopt);
+  EXPECT_EQ(pattern->MatchPrefix("lorem-END"), std::nullopt);
+  EXPECT_EQ(pattern->MatchPrefix("lorem ipsum"), std::nullopt);
+  EXPECT_EQ(pattern->MatchPrefix("lorem ipsum-END"), std::nullopt);
+  EXPECT_THAT(pattern->MatchPrefix("lorem ipsum dolor"),
+              Optional(ElementsAre("lorem", "ipsum", "dolor")));
+  EXPECT_THAT(pattern->MatchPrefix("lorem ipsum dolor-END"),
+              Optional(ElementsAre("lorem", "ipsum", "dolor")));
+  EXPECT_THAT(pattern->MatchPrefix("lorem ipsum dolor amet"),
+              Optional(AnyOf(ElementsAre("lorem", "ipsum", "dolor amet"),
+                             ElementsAre("lorem", "ipsum dolor", "amet"),
+                             ElementsAre("lorem ipsum", "dolor", "amet"))));
+  EXPECT_THAT(pattern->MatchPrefix("lorem ipsum dolor amet-END"),
+              Optional(AnyOf(ElementsAre("lorem", "ipsum", "dolor amet"),
+                             ElementsAre("lorem", "ipsum dolor", "amet"),
+                             ElementsAre("lorem ipsum", "dolor", "amet"))));
+  EXPECT_THAT(pattern->MatchPrefix("lorem ipsum dolor amet consectetur"),
+              Optional(AnyOf(ElementsAre("lorem", "ipsum", "dolor amet consectetur"),
+                             ElementsAre("lorem", "ipsum dolor", "amet consectetur"),
+                             ElementsAre("lorem", "ipsum dolor amet", "consectetur"),
+                             ElementsAre("lorem ipsum", "dolor", "amet consectetur"),
+                             ElementsAre("lorem ipsum", "dolor amet", "consectetur"),
+                             ElementsAre("lorem ipsum dolor", "amet", "consectetur"))));
+  EXPECT_THAT(pattern->MatchPrefix("lorem ipsum dolor amet consectetur-END"),
+              Optional(AnyOf(ElementsAre("lorem", "ipsum", "dolor amet consectetur"),
+                             ElementsAre("lorem", "ipsum dolor", "amet consectetur"),
+                             ElementsAre("lorem", "ipsum dolor amet", "consectetur"),
+                             ElementsAre("lorem ipsum", "dolor", "amet consectetur"),
+                             ElementsAre("lorem ipsum", "dolor amet", "consectetur"),
+                             ElementsAre("lorem ipsum dolor", "amet", "consectetur"))));
 }
 
 TEST_P(RegexpTest, NotAllCaptured) {
