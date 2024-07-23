@@ -115,6 +115,15 @@ class AutomatonInterface : public SimpleRefCounted {
   // Returns the array of captured substrings if a match is found, or an empty optional otherwise.
   virtual std::optional<std::vector<std::string>> MatchPrefix(std::string_view input) const = 0;
 
+  // Searches for a substring of the `input` string matching this regular expression. The returned
+  // match is guaranteed to be the earliest and longest in the input string, with earliest matches
+  // taking precedence over longer ones.
+  //
+  // NOTE: unlike other regular expression implementations this function does not return the full
+  // match in the first capture group. If you need that information you need to surround the whole
+  // expression in a capture group before compiling it.
+  std::optional<std::vector<std::string>> PartialMatch(std::string_view input) const;
+
  private:
   // Copies are not needed: automata are immutable and reference-counted, so we can share them
   // rather than copying them.

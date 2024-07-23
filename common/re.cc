@@ -18,6 +18,19 @@
 namespace tsdb2 {
 namespace common {
 
+namespace {
+
+std::string ClipString(std::string_view const text) {
+  static size_t constexpr kMaxLength = 50;
+  if (text.size() > kMaxLength) {
+    return absl::StrCat(text.substr(0, kMaxLength), "...");
+  } else {
+    return std::string(text);
+  }
+}
+
+}  // namespace
+
 bool RE::Test(std::string_view const input, std::string_view const pattern) {
   auto const status_or_re = RE::Create(pattern);
   if (status_or_re.ok()) {
@@ -35,7 +48,24 @@ absl::StatusOr<std::vector<std::string>> RE::Match(std::string_view const input,
     if (maybe_results) {
       return std::move(maybe_results).value();
     } else {
-      return absl::NotFoundError(input);
+      return absl::NotFoundError(absl::StrCat("string \"", absl::CEscape(ClipString(input)),
+                                              "\" doesn't match \"", absl::CEscape(pattern), "\""));
+    }
+  } else {
+    return std::move(status_or_re).status();
+  }
+}
+
+absl::StatusOr<std::vector<std::string>> RE::PartialMatch(std::string_view const input,
+                                                          std::string_view const pattern) {
+  auto status_or_re = RE::Create(pattern);
+  if (status_or_re.ok()) {
+    auto maybe_results = status_or_re->PartialMatch(input);
+    if (maybe_results) {
+      return std::move(maybe_results).value();
+    } else {
+      return absl::NotFoundError(absl::StrCat("no substring matching \"", absl::CEscape(pattern),
+                                              "\" found in \"", absl::CEscape(input), "\""));
     }
   } else {
     return std::move(status_or_re).status();
@@ -48,10 +78,12 @@ absl::StatusOr<std::vector<std::string>> RE::ConsumePrefix(std::string_view *con
   if (!status_or_re.ok()) {
     return std::move(status_or_re).status();
   }
+  std::string_view const original_input = *input;
   auto maybe_matches = status_or_re->MatchPrefix(*input);
   if (!maybe_matches) {
     return absl::NotFoundError(absl::StrCat("no prefix matching \"", absl::CEscape(pattern),
-                                            "\" was found in \"", absl::CEscape(*input), "\""));
+                                            "\" found in \"",
+                                            absl::CEscape(ClipString(original_input)), "\""));
   }
   auto &matches = maybe_matches.value();
   std::string const prefix = std::move(matches[0]);

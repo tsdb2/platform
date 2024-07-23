@@ -180,4 +180,23 @@ TEST(RegexpTest, PrefixPatternWithCapture) {
   EXPECT_EQ(input, "dolor");
 }
 
+TEST(RegexpTest, PartialMatch) {
+  auto const status_or_re = RE::Create("(do+lor)");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.PartialMatch("lorem ipsum dolor sic amat"), Optional(ElementsAre("dolor")));
+  EXPECT_THAT(re.PartialMatch("lorem ipsum dooolor sic amat"), Optional(ElementsAre("dooolor")));
+  EXPECT_EQ(re.PartialMatch("lorem ipsum color sic amat"), std::nullopt);
+  EXPECT_EQ(re.PartialMatch("lorem ipsum dolet et amat"), std::nullopt);
+}
+
+TEST(RegexpTest, StaticPartialMatch) {
+  EXPECT_THAT(RE::PartialMatch("lorem ipsum dooolor sic amat", "(do+lor)"),
+              IsOkAndHolds(ElementsAre("dooolor")));
+  EXPECT_THAT(RE::PartialMatch("lorem ipsum color sic amat", "(do+lor)"),
+              StatusIs(absl::StatusCode::kNotFound));
+  EXPECT_THAT(RE::PartialMatch("lorem ipsum dolor sic amat", "(do+lor"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
 }  // namespace

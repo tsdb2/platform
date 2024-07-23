@@ -37,10 +37,6 @@ class TrieNode;
 //      state automata algorithms on tries, allowing for efficient retrieval of strings based on
 //      regular expression patterns.
 //
-// Our regular expressions are always anchored. If a user needs to do an unanchored match (i.e.
-// search a substring) they need to surround their pattern with ".*". For example, ".*foo.*"
-// searches the substring `foo` inside the provided string.
-//
 // TODO: describe the syntax.
 //
 class RE {
@@ -57,6 +53,9 @@ class RE {
   // groups. An error status is returned if `pattern` fails to compile or `input` doesn't match.
   static absl::StatusOr<std::vector<std::string>> Match(std::string_view input,
                                                         std::string_view pattern);
+
+  static absl::StatusOr<std::vector<std::string>> PartialMatch(std::string_view input,
+                                                               std::string_view pattern);
 
   // Strips the longest possible prefix matching `pattern` from the provided `input` string. Returns
   // true iff a prefix was matched and removed.
@@ -100,6 +99,17 @@ class RE {
   // matching prefix is found.
   std::optional<std::vector<std::string>> MatchPrefix(std::string_view const input) const {
     return automaton_->MatchPrefix(input);
+  }
+
+  // Searches for a substring of the `input` string matching this regular expression. The returned
+  // match is guaranteed to be the earliest and longest in the input string, with earliest matches
+  // taking precedence over longer ones.
+  //
+  // NOTE: unlike other regular expression implementations this function does not return the full
+  // match in the first capture group. If you need that information you need to surround the whole
+  // expression in a capture group before compiling it.
+  std::optional<std::vector<std::string>> PartialMatch(std::string_view const input) const {
+    return automaton_->PartialMatch(input);
   }
 
  private:

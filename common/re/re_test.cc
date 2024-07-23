@@ -2473,7 +2473,7 @@ TEST_P(RegexpTest, Fork) {
   EXPECT_TRUE(stepper2->Step("dolor") && stepper2->Finish());
 }
 
-TEST_P(RegexpTest, Search) {
+TEST_P(RegexpTest, SearchWithKleeneStars) {
   auto const status_or_pattern = Parse(".*do+lor.*");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
@@ -2481,6 +2481,27 @@ TEST_P(RegexpTest, Search) {
   EXPECT_THAT(Match(pattern, "lorem ipsum dooolor sic amat"), IsOkAndHolds(Optional(IsEmpty())));
   EXPECT_THAT(Match(pattern, "lorem ipsum color sic amat"), IsOkAndHolds(std::nullopt));
   EXPECT_THAT(Match(pattern, "lorem ipsum dolet et amat"), IsOkAndHolds(std::nullopt));
+}
+
+TEST_P(RegexpTest, SearchWithPartialMatch) {
+  auto const status_or_pattern = Parse("do+lor");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern->PartialMatch("lorem ipsum dolor sic amat"), Optional(IsEmpty()));
+  EXPECT_THAT(pattern->PartialMatch("lorem ipsum dooolor sic amat"), Optional(IsEmpty()));
+  EXPECT_EQ(pattern->PartialMatch("lorem ipsum color sic amat"), std::nullopt);
+  EXPECT_EQ(pattern->PartialMatch("lorem ipsum dolet et amat"), std::nullopt);
+}
+
+TEST_P(RegexpTest, SearchWithCapturingPartialMatch) {
+  auto const status_or_pattern = Parse("(do+lor)");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern->PartialMatch("lorem ipsum dolor sic amat"), Optional(ElementsAre("dolor")));
+  EXPECT_THAT(pattern->PartialMatch("lorem ipsum dooolor sic amat"),
+              Optional(ElementsAre("dooolor")));
+  EXPECT_EQ(pattern->PartialMatch("lorem ipsum color sic amat"), std::nullopt);
+  EXPECT_EQ(pattern->PartialMatch("lorem ipsum dolet et amat"), std::nullopt);
 }
 
 TEST_P(RegexpTest, AmbiguousMatch) {

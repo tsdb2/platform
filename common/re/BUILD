@@ -10,6 +10,7 @@ cc_library(
 
 cc_library(
     name = "automaton",
+    srcs = ["automaton.cc"],
     hdrs = ["automaton.h"],
     deps = [
         "//common:ref_count",
