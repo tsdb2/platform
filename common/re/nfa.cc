@@ -50,7 +50,7 @@ bool NFA::Stepper::Step(std::string_view const chars) {
 
 bool NFA::Stepper::Finish() { return states_.contains(nfa_->final_state_); }
 
-void NFA::Stepper::EpsilonClosure() { nfa_->EpsilonClosure(&states_); }
+void NFA::Stepper::EpsilonClosure() { states_ = nfa_->EpsilonClosure(std::move(states_)); }
 
 bool NFA::IsDeterministic() const { return false; }
 
@@ -61,8 +61,7 @@ std::unique_ptr<AutomatonInterface::StepperInterface> NFA::MakeStepper() const {
 }
 
 bool NFA::Test(std::string_view input) const {
-  StateSet states{initial_state_};
-  EpsilonClosure(&states);
+  StateSet states = EpsilonClosure({initial_state_});
   while (!input.empty()) {
     StateSet next_states;
     char const ch = input.front();
@@ -79,16 +78,15 @@ bool NFA::Test(std::string_view input) const {
     if (next_states.empty()) {
       return false;
     }
-    states = std::move(next_states);
-    EpsilonClosure(&states);
+    states = EpsilonClosure(std::move(next_states));
   }
   return states.contains(final_state_);
 }
 
 std::optional<std::vector<std::string>> NFA::Match(std::string_view input) const {
-  CaptureMap states{
-      {initial_state_, std::vector<std::string>(capture_groups_.size(), std::string())}};
-  EpsilonClosure(&states);
+  CaptureMap states = EpsilonClosure({
+      {initial_state_, std::vector<std::string>(capture_groups_.size(), std::string())},
+  });
   while (!input.empty()) {
     CaptureMap next_states;
     char const ch = input.front();
@@ -112,8 +110,7 @@ std::optional<std::vector<std::string>> NFA::Match(std::string_view input) const
     if (next_states.empty()) {
       return std::nullopt;
     }
-    states = std::move(next_states);
-    EpsilonClosure(&states);
+    states = EpsilonClosure(std::move(next_states));
   }
   if (states.contains(final_state_)) {
     return std::move(states[final_state_]);
@@ -122,21 +119,55 @@ std::optional<std::vector<std::string>> NFA::Match(std::string_view input) const
   }
 }
 
-std::optional<std::vector<std::string>> NFA::MatchPrefix(std::string_view const input) const {
-  // TODO
-  return std::nullopt;
+std::optional<std::vector<std::string>> NFA::MatchPrefix(std::string_view input) const {
+  std::optional<std::vector<std::string>> result = std::nullopt;
+  CaptureMap states = EpsilonClosure({
+      {initial_state_, std::vector<std::string>(capture_groups_.size(), std::string())},
+  });
+  if (auto const it = states.find(final_state_); it != states.end()) {
+    result = it->second;
+  }
+  while (!input.empty()) {
+    CaptureMap next_states;
+    char const ch = input.front();
+    input.remove_prefix(1);
+    for (auto const& [state_num, captures] : states) {
+      auto const& state = states_[state_num];
+      if (auto const it = state.edges.find(ch); it != state.edges.end()) {
+        for (auto const transition : it->second) {
+          auto const [next_it, inserted] = next_states.try_emplace(transition, captures);
+          if (inserted) {
+            std::vector<std::string> next_captures = captures;
+            for (auto cg_it = capture_groups_.LookUp(state.innermost_capture_group);
+                 cg_it != capture_groups_.root(); ++cg_it) {
+              next_captures[*cg_it] += ch;
+            }
+            next_it->second = std::move(next_captures);
+          }
+        }
+      }
+    }
+    if (next_states.empty()) {
+      return result;
+    }
+    states = EpsilonClosure(std::move(next_states));
+    if (auto const it = states.find(final_state_); it != states.end()) {
+      result = it->second;
+    }
+  }
+  return result;
 }
 
-void NFA::EpsilonClosure(StateSet* const states) const {
+NFA::StateSet NFA::EpsilonClosure(StateSet states) const {
   bool new_state_found;
   do {
     new_state_found = false;
-    for (auto const state : *states) {
+    for (auto const state : states) {
       auto const& edges = states_[state].edges;
       auto const it = edges.find(0);
       if (it != edges.end()) {
         for (auto const transition : it->second) {
-          auto const [it, inserted] = states->emplace(transition);
+          auto const [it, inserted] = states.emplace(transition);
           new_state_found |= inserted;
         }
         if (new_state_found) {
@@ -145,18 +176,19 @@ void NFA::EpsilonClosure(StateSet* const states) const {
       }
     }
   } while (new_state_found);
+  return states;
 }
 
-void NFA::EpsilonClosure(CaptureMap* const capture_map) const {
+NFA::CaptureMap NFA::EpsilonClosure(CaptureMap capture_map) const {
   bool new_state_found;
   do {
     new_state_found = false;
-    for (auto const& [state_num, captures] : *capture_map) {
+    for (auto const& [state_num, captures] : capture_map) {
       auto const& edges = states_[state_num].edges;
       auto const it = edges.find(0);
       if (it != edges.end()) {
         for (auto const transition : it->second) {
-          auto const [it, inserted] = capture_map->try_emplace(transition, captures);
+          auto const [it, inserted] = capture_map.try_emplace(transition, captures);
           if (inserted) {
             new_state_found = true;
             break;
@@ -168,6 +200,7 @@ void NFA::EpsilonClosure(CaptureMap* const capture_map) const {
       }
     }
   } while (new_state_found);
+  return capture_map;
 }
 
 }  // namespace regexp_internal

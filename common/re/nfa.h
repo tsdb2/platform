@@ -115,10 +115,10 @@ class NFA final : public AutomatonInterface {
                               absl::InlinedVector<std::pair<size_t, std::vector<std::string>>, 1>>;
 
   // Calculates the epsilon-closure in `Test` algorithms.
-  void EpsilonClosure(StateSet *states) const;
+  StateSet EpsilonClosure(StateSet states) const;
 
   // Calculates the epsilon-closure in `Match` algorithms.
-  void EpsilonClosure(CaptureMap *captures) const;
+  CaptureMap EpsilonClosure(CaptureMap captures) const;
 
   States const states_;
   size_t const initial_state_;
