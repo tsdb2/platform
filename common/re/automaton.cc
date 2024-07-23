@@ -10,7 +10,7 @@ namespace tsdb2 {
 namespace common {
 namespace regexp_internal {
 
-std::optional<std::vector<std::string>> AutomatonInterface::PartialMatch(
+std::optional<std::vector<std::string>> AbstractAutomaton::PartialMatch(
     std::string_view const input) const {
   for (size_t offset = 0; offset < input.size(); ++offset) {
     auto results = MatchPrefix(input.substr(offset));

@@ -135,7 +135,7 @@ void TempNFA::Merge(TempNFA&& other, int const capture_group, size_t const initi
   final_state_ = final_state;
 }
 
-reffed_ptr<AutomatonInterface> TempNFA::Finalize(CaptureGroups capture_groups) && {
+reffed_ptr<AbstractAutomaton> TempNFA::Finalize(CaptureGroups capture_groups) && {
   CollapseEpsilonMoves();
   if (IsDeterministic()) {
     return std::move(*this).ToDFA(std::move(capture_groups));

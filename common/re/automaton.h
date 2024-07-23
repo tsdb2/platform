@@ -19,7 +19,7 @@ namespace regexp_internal {
 //
 // Automata are thread-safe because they are immutable except for the reference count, which is
 // implemented by `SimpleRefCounted` in a thread-safe way.
-class AutomatonInterface : public SimpleRefCounted {
+class AbstractAutomaton : public SimpleRefCounted {
  public:
   // Abstract interface for an automaton stepper.
   //
@@ -89,8 +89,8 @@ class AutomatonInterface : public SimpleRefCounted {
     StepperInterface &operator=(StepperInterface &&) = delete;
   };
 
-  explicit AutomatonInterface() = default;
-  ~AutomatonInterface() override = default;
+  explicit AbstractAutomaton() = default;
+  ~AbstractAutomaton() override = default;
 
   // Returns true if this automaton is a DFA, false if it's an NFA.
   virtual bool IsDeterministic() const = 0;
@@ -127,13 +127,13 @@ class AutomatonInterface : public SimpleRefCounted {
  private:
   // Copies are not needed: automata are immutable and reference-counted, so we can share them
   // rather than copying them.
-  AutomatonInterface(AutomatonInterface const &) = delete;
-  AutomatonInterface &operator=(AutomatonInterface const &) = delete;
+  AbstractAutomaton(AbstractAutomaton const &) = delete;
+  AbstractAutomaton &operator=(AbstractAutomaton const &) = delete;
 
   // Moves are forbidden: we need pointer stability because steppers keep a pointer to the parent
   // automaton.
-  AutomatonInterface(AutomatonInterface &&) = delete;
-  AutomatonInterface &operator=(AutomatonInterface &&) = delete;
+  AbstractAutomaton(AbstractAutomaton &&) = delete;
+  AbstractAutomaton &operator=(AbstractAutomaton &&) = delete;
 };
 
 }  // namespace regexp_internal

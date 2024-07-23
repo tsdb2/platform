@@ -93,7 +93,7 @@ absl::StatusOr<std::vector<std::string>> RE::ConsumePrefix(std::string_view *con
 }
 
 absl::StatusOr<RE> RE::Create(std::string_view const pattern) {
-  ASSIGN_VAR_OR_RETURN(reffed_ptr<regexp_internal::AutomatonInterface>, automaton,
+  ASSIGN_VAR_OR_RETURN(reffed_ptr<regexp_internal::AbstractAutomaton>, automaton,
                        regexp_internal::Parse(pattern));
   return RE(std::move(automaton));
 }

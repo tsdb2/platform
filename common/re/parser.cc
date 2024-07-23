@@ -41,7 +41,7 @@ class Parser final {
   // Parses the pattern provided at construction and returns a runnable automaton. The automaton is
   // initially an `NFA` but it's automatically converted to a `DFA` if it's found to be
   // deterministic. We do that because DFAs run faster.
-  absl::StatusOr<reffed_ptr<AutomatonInterface>> Parse() &&;
+  absl::StatusOr<reffed_ptr<AbstractAutomaton>> Parse() &&;
 
  private:
   // Returns the number of pattern characters not yet consumed by `Advance` or `ConsumePrefix`.
@@ -146,7 +146,7 @@ class Parser final {
   int next_capture_group_ = 0;
 };
 
-absl::StatusOr<reffed_ptr<AutomatonInterface>> Parser::Parse() && {
+absl::StatusOr<reffed_ptr<AbstractAutomaton>> Parser::Parse() && {
   ASSIGN_VAR_OR_RETURN(TempNFA, nfa, Parse3(-1));
   if (!at_end()) {
     return SyntaxError("expected end of string");
@@ -611,7 +611,7 @@ absl::StatusOr<TempNFA> Parser::Parse3(int const capture_group) {
 
 }  // namespace
 
-absl::StatusOr<reffed_ptr<AutomatonInterface>> Parse(std::string_view const pattern) {
+absl::StatusOr<reffed_ptr<AbstractAutomaton>> Parse(std::string_view const pattern) {
   return Parser(pattern).Parse();
 }
 

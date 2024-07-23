@@ -84,7 +84,7 @@ class TempNFA final {
 
   // Finalizes this automaton by converting it into a `DFA` object if it's deterministic or an `NFA`
   // if it's not.
-  reffed_ptr<AutomatonInterface> Finalize(CaptureGroups capture_groups) &&;
+  reffed_ptr<AbstractAutomaton> Finalize(CaptureGroups capture_groups) &&;
 
  private:
   // Adds a state and its edges to the NFA, or merges it with an existing one.

@@ -16,7 +16,7 @@ namespace tsdb2 {
 namespace common {
 namespace regexp_internal {
 
-std::unique_ptr<AutomatonInterface::StepperInterface> NFA::Stepper::Clone() const {
+std::unique_ptr<AbstractAutomaton::StepperInterface> NFA::Stepper::Clone() const {
   return std::make_unique<Stepper>(*this);
 }
 
@@ -56,7 +56,7 @@ bool NFA::IsDeterministic() const { return false; }
 
 size_t NFA::GetNumCaptureGroups() const { return capture_groups_.size(); }
 
-std::unique_ptr<AutomatonInterface::StepperInterface> NFA::MakeStepper() const {
+std::unique_ptr<AbstractAutomaton::StepperInterface> NFA::MakeStepper() const {
   return std::make_unique<Stepper>(this);
 }
 

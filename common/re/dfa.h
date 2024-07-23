@@ -22,7 +22,7 @@ namespace regexp_internal {
 // This class is faster than `NFA` and is used to run all regular expressions that compile into a
 // deterministic automaton (this is not possible for all expressions, some will necessarily yield a
 // non-deterministic one).
-class DFA final : public AutomatonInterface {
+class DFA final : public AbstractAutomaton {
  public:
   // Represents a state of the automaton.
   struct State {

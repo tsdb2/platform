@@ -201,7 +201,7 @@ class TrieNode {
   class FilteredStateFrame : public StateFrame<reverse> {
    public:
     using Base = StateFrame<reverse>;
-    using Stepper = std::unique_ptr<regexp_internal::AutomatonInterface::StepperInterface>;
+    using Stepper = std::unique_ptr<regexp_internal::AbstractAutomaton::StepperInterface>;
 
     explicit FilteredStateFrame(NodeSet& nodes, Stepper const& parent_stepper)
         : Base(nodes), parent_stepper_(parent_stepper.get()), stepper_(parent_stepper->Clone()) {}
@@ -249,7 +249,7 @@ class TrieNode {
     bool FinishStepper() const { return stepper_->Clone()->Finish(); }
 
    private:
-    regexp_internal::AutomatonInterface::StepperInterface const* parent_stepper_;
+    regexp_internal::AbstractAutomaton::StepperInterface const* parent_stepper_;
     Stepper stepper_;
   };
 
@@ -391,7 +391,7 @@ class TrieNode {
 
     // Constructs the "begin" iterator.
     explicit BaseIterator(NodeSet const& roots,
-                          reffed_ptr<regexp_internal::AutomatonInterface> const& automaton)
+                          reffed_ptr<regexp_internal::AbstractAutomaton> const& automaton)
         : stepper_(roots.empty() ? nullptr : automaton->MakeStepper()) {
       if (!roots.empty()) {
         auto const& frame = frames_.emplace_back(roots, stepper_);
@@ -426,7 +426,7 @@ class TrieNode {
       }
     }
 
-    std::unique_ptr<regexp_internal::AutomatonInterface::StepperInterface> stepper_;
+    std::unique_ptr<regexp_internal::AbstractAutomaton::StepperInterface> stepper_;
     std::vector<FilteredStateFrame<reverse>> frames_;
 
    private:
@@ -634,11 +634,11 @@ class TrieNode {
     friend class TrieNode;
 
     explicit FilteredView(NodeSet const& roots,
-                          reffed_ptr<regexp_internal::AutomatonInterface> automaton)
+                          reffed_ptr<regexp_internal::AbstractAutomaton> automaton)
         : roots_(&roots), automaton_(std::move(automaton)) {}
 
     NodeSet const* roots_;
-    reffed_ptr<regexp_internal::AutomatonInterface> automaton_;
+    reffed_ptr<regexp_internal::AbstractAutomaton> automaton_;
   };
 
   template <typename... Args>
@@ -795,7 +795,7 @@ class TrieNode {
   typename NodeSet::iterator LowerBound(std::string_view needle);
 
   bool Contains(
-      std::unique_ptr<regexp_internal::AutomatonInterface::StepperInterface> const& stepper) const;
+      std::unique_ptr<regexp_internal::AbstractAutomaton::StepperInterface> const& stepper) const;
 
   template <typename... Args>
   std::pair<Iterator, bool> InsertChild(std::vector<DirectStateFrame> frames, std::string_view key,
@@ -942,7 +942,7 @@ typename TrieNode<Label, Allocator>::Iterator TrieNode<Label, Allocator>::UpperB
 
 template <typename Label, typename Allocator>
 bool TrieNode<Label, Allocator>::Contains(
-    std::unique_ptr<regexp_internal::AutomatonInterface::StepperInterface> const& stepper) const {
+    std::unique_ptr<regexp_internal::AbstractAutomaton::StepperInterface> const& stepper) const {
   for (auto const& [key, child] : children_) {
     auto const child_stepper = stepper->Clone();
     if (child_stepper->Step(key)) {

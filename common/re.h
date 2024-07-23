@@ -116,10 +116,10 @@ class RE {
   template <typename Label, typename Allocator>
   friend class internal::TrieNode;
 
-  explicit RE(reffed_ptr<regexp_internal::AutomatonInterface> automaton)
+  explicit RE(reffed_ptr<regexp_internal::AbstractAutomaton> automaton)
       : automaton_(std::move(automaton)) {}
 
-  reffed_ptr<regexp_internal::AutomatonInterface> automaton_;
+  reffed_ptr<regexp_internal::AbstractAutomaton> automaton_;
 };
 
 }  // namespace common

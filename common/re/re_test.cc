@@ -28,7 +28,7 @@ using ::testing::Values;
 using ::testing::status::IsOkAndHolds;
 using ::testing::status::StatusIs;
 using ::tsdb2::common::reffed_ptr;
-using ::tsdb2::common::regexp_internal::AutomatonInterface;
+using ::tsdb2::common::regexp_internal::AbstractAutomaton;
 using ::tsdb2::common::regexp_internal::DFA;
 using ::tsdb2::common::regexp_internal::NFA;
 using ::tsdb2::common::regexp_internal::Parse;
@@ -44,26 +44,25 @@ class RegexpTest : public ::testing::TestWithParam<RegexpTestParams> {
   explicit RegexpTest() { TempNFA::force_nfa_for_testing = GetParam().force_nfa; }
   ~RegexpTest() { TempNFA::force_nfa_for_testing = false; }
 
-  bool CheckDeterministic(reffed_ptr<AutomatonInterface> const& automaton);
-  bool CheckNotDeterministic(reffed_ptr<AutomatonInterface> const& automaton);
+  bool CheckDeterministic(reffed_ptr<AbstractAutomaton> const& automaton);
+  bool CheckNotDeterministic(reffed_ptr<AbstractAutomaton> const& automaton);
 
   absl::StatusOr<std::optional<std::vector<std::string>>> Match(
-      reffed_ptr<AutomatonInterface> const& automaton, std::string_view input);
+      reffed_ptr<AbstractAutomaton> const& automaton, std::string_view input);
 
  private:
-  bool Run(reffed_ptr<AutomatonInterface> const& automaton, std::string_view input);
+  bool Run(reffed_ptr<AbstractAutomaton> const& automaton, std::string_view input);
 };
 
-bool RegexpTest::CheckDeterministic(reffed_ptr<AutomatonInterface> const& automaton) {
+bool RegexpTest::CheckDeterministic(reffed_ptr<AbstractAutomaton> const& automaton) {
   return GetParam().force_nfa || automaton->IsDeterministic();
 }
 
-bool RegexpTest::CheckNotDeterministic(reffed_ptr<AutomatonInterface> const& automaton) {
+bool RegexpTest::CheckNotDeterministic(reffed_ptr<AbstractAutomaton> const& automaton) {
   return GetParam().force_nfa || !automaton->IsDeterministic();
 }
 
-bool RegexpTest::Run(reffed_ptr<AutomatonInterface> const& automaton,
-                     std::string_view const input) {
+bool RegexpTest::Run(reffed_ptr<AbstractAutomaton> const& automaton, std::string_view const input) {
   if (GetParam().use_stepper) {
     auto const stepper = automaton->MakeStepper();
     return stepper->Step(input) && stepper->Finish();
@@ -73,7 +72,7 @@ bool RegexpTest::Run(reffed_ptr<AutomatonInterface> const& automaton,
 }
 
 absl::StatusOr<std::optional<std::vector<std::string>>> RegexpTest::Match(
-    reffed_ptr<AutomatonInterface> const& automaton, std::string_view const input) {
+    reffed_ptr<AbstractAutomaton> const& automaton, std::string_view const input) {
   bool const run_result = Run(automaton, input);
   auto match_results = automaton->Match(input);
   if (run_result != match_results.has_value()) {

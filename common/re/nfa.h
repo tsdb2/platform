@@ -21,7 +21,7 @@ namespace common {
 namespace regexp_internal {
 
 // Represents a non-deterministic finite automaton (NFA), aka a compiled regular expression.
-class NFA final : public AutomatonInterface {
+class NFA final : public AbstractAutomaton {
  public:
   // Represents the set of transitions from a given state with a given label. It's a sorted array of
   // unique destination states. Most commonly there will be only one destination state for that
