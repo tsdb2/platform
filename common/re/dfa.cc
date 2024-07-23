@@ -146,7 +146,7 @@ std::optional<std::vector<std::string>> DFA::MatchPrefix(std::string_view input)
     auto const& edges = states_[state_num].edges;
     auto const it = edges.find(0);
     if (it == edges.end()) {
-      return std::nullopt;
+      return result;
     }
     state_num = it->second;
   }
