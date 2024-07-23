@@ -27,6 +27,15 @@ cc_test(
 )
 
 cc_library(
+    name = "flag_override",
+    testonly = True,
+    hdrs = ["flag_override.h"],
+    deps = [
+        "@com_google_absl//absl/flags:flag",
+    ],
+)
+
+cc_library(
     name = "stats_counter",
     hdrs = ["stats_counter.h"],
 )

@@ -1,8 +1,10 @@
 #ifndef __TSDB2_COMMON_RE_PARSER_H__
 #define __TSDB2_COMMON_RE_PARSER_H__
 
+#include <cstddef>
 #include <string_view>
 
+#include "absl/flags/declare.h"
 #include "absl/status/statusor.h"
 #include "common/re/automaton.h"
 #include "common/reffed_ptr.h"
@@ -19,5 +21,8 @@ absl::StatusOr<reffed_ptr<AbstractAutomaton>> Parse(std::string_view pattern);
 }  // namespace regexp_internal
 }  // namespace common
 }  // namespace tsdb2
+
+// Exposed for testing only.
+ABSL_DECLARE_FLAG(size_t, re_max_recursion_depth);
 
 #endif  // __TSDB2_COMMON_RE_PARSER_H__

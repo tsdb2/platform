@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "absl/container/inlined_vector.h"
+#include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
@@ -18,6 +19,9 @@
 #include "common/re/temp.h"
 #include "common/reffed_ptr.h"
 #include "common/utilities.h"
+
+ABSL_FLAG(size_t, re_max_recursion_depth, 1000,
+          "Maximum recursion depth of the regular expression parser.");
 
 namespace tsdb2 {
 namespace common {
@@ -36,7 +40,11 @@ class Parser final {
   static inline int constexpr kMaxNumericQuantifier = 1000;
 
   // Constructs a parser to parse the provided regular expression `pattern`.
-  explicit Parser(std::string_view const pattern) : pattern_(pattern) {}
+  explicit Parser(std::string_view const pattern)
+      // TODO: when module initializers are available, add one to check if the
+      // --re_max_recursion_depth flag is available (we might be running before command line flags
+      // have been parsed). If not, manually fall back to the default value.
+      : max_recursion_depth_(absl::GetFlag(FLAGS_re_max_recursion_depth)), pattern_(pattern) {}
 
   // Parses the pattern provided at construction and returns a runnable automaton. The automaton is
   // initially an `NFA` but it's automatically converted to a `DFA` if it's found to be
@@ -44,6 +52,10 @@ class Parser final {
   absl::StatusOr<reffed_ptr<AbstractAutomaton>> Parse() &&;
 
  private:
+  static absl::Status MaxRecursionDepthExceededError() {
+    return absl::ResourceExhaustedError("max recursion depth exceeded");
+  }
+
   // Returns the number of pattern characters not yet consumed by `Advance` or `ConsumePrefix`.
   size_t characters_left() const { return pattern_.size() - offset_; }
 
@@ -124,19 +136,21 @@ class Parser final {
   absl::StatusOr<TempNFA> ParseEscape(int capture_group);
 
   // Parses single character, escape code, dot, round brackets, square brackets, or end of input.
-  absl::StatusOr<TempNFA> Parse0(int capture_group);
+  absl::StatusOr<TempNFA> Parse0(size_t recursion_depth, int capture_group);
 
   // Parses the content of the curly braces in quantifiers.
   absl::StatusOr<std::pair<int, int>> ParseQuantifier();
 
   // Parses Kleene star, plus, question mark, or quantifier.
-  absl::StatusOr<TempNFA> Parse1(int capture_group);
+  absl::StatusOr<TempNFA> Parse1(size_t recursion_depth, int capture_group);
 
   // Parses sequences.
-  absl::StatusOr<TempNFA> Parse2(int capture_group);
+  absl::StatusOr<TempNFA> Parse2(size_t recursion_depth, int capture_group);
 
   // Parses the pipe operator.
-  absl::StatusOr<TempNFA> Parse3(int capture_group);
+  absl::StatusOr<TempNFA> Parse3(size_t recursion_depth, int capture_group);
+
+  size_t const max_recursion_depth_;
 
   std::string_view const pattern_;
   size_t offset_ = 0;
@@ -147,7 +161,7 @@ class Parser final {
 };
 
 absl::StatusOr<reffed_ptr<AbstractAutomaton>> Parser::Parse() && {
-  ASSIGN_VAR_OR_RETURN(TempNFA, nfa, Parse3(-1));
+  ASSIGN_VAR_OR_RETURN(TempNFA, nfa, Parse3(1, -1));
   if (!at_end()) {
     return SyntaxError("expected end of string");
   }
@@ -422,7 +436,10 @@ absl::StatusOr<TempNFA> Parser::ParseEscape(int const capture_group) {
   }
 }
 
-absl::StatusOr<TempNFA> Parser::Parse0(int const capture_group) {
+absl::StatusOr<TempNFA> Parser::Parse0(size_t const recursion_depth, int const capture_group) {
+  if (recursion_depth > max_recursion_depth_) {
+    return MaxRecursionDepthExceededError();
+  }
   size_t const start = next_state_++;
   if (at_end()) {
     return TempNFA({{start, State(capture_group, {})}}, start, start);
@@ -432,12 +449,12 @@ absl::StatusOr<TempNFA> Parser::Parse0(int const capture_group) {
       if (!ConsumePrefix(":")) {
         return SyntaxError("invalid non-capturing brackets");
       }
-      ASSIGN_VAR_OR_RETURN(TempNFA, result, Parse3(capture_group));
+      ASSIGN_VAR_OR_RETURN(TempNFA, result, Parse3(recursion_depth + 1, capture_group));
       RETURN_IF_ERROR(ExpectPrefix(")", "unmatched parens"));
       return result;
     } else {
       capture_groups_.Add(next_capture_group_, capture_group);
-      ASSIGN_VAR_OR_RETURN(TempNFA, result, Parse3(next_capture_group_++));
+      ASSIGN_VAR_OR_RETURN(TempNFA, result, Parse3(recursion_depth + 1, next_capture_group_++));
       RETURN_IF_ERROR(ExpectPrefix(")", "unmatched parens"));
       return result;
     }
@@ -532,8 +549,11 @@ absl::StatusOr<std::pair<int, int>> Parser::ParseQuantifier() {
   }
 }
 
-absl::StatusOr<TempNFA> Parser::Parse1(int const capture_group) {
-  ASSIGN_VAR_OR_RETURN(TempNFA, nfa, Parse0(capture_group));
+absl::StatusOr<TempNFA> Parser::Parse1(size_t const recursion_depth, int const capture_group) {
+  if (recursion_depth > max_recursion_depth_) {
+    return MaxRecursionDepthExceededError();
+  }
+  ASSIGN_VAR_OR_RETURN(TempNFA, nfa, Parse0(recursion_depth + 1, capture_group));
   if (at_end()) {
     return nfa;
   }
@@ -588,20 +608,26 @@ absl::StatusOr<TempNFA> Parser::Parse1(int const capture_group) {
   return nfa;
 }
 
-absl::StatusOr<TempNFA> Parser::Parse2(int const capture_group) {
-  ASSIGN_VAR_OR_RETURN(TempNFA, nfa, Parse1(capture_group));
+absl::StatusOr<TempNFA> Parser::Parse2(size_t const recursion_depth, int const capture_group) {
+  if (recursion_depth > max_recursion_depth_) {
+    return MaxRecursionDepthExceededError();
+  }
+  ASSIGN_VAR_OR_RETURN(TempNFA, nfa, Parse1(recursion_depth + 1, capture_group));
   while (!at_end() && front() != '|' && front() != ')') {
-    ASSIGN_VAR_OR_RETURN(TempNFA, next, Parse1(capture_group));
+    ASSIGN_VAR_OR_RETURN(TempNFA, next, Parse1(recursion_depth + 1, capture_group));
     nfa.Chain(std::move(next));
   }
   return nfa;
 }
 
-absl::StatusOr<TempNFA> Parser::Parse3(int const capture_group) {
-  ASSIGN_VAR_OR_RETURN(TempNFA, nfa, Parse2(capture_group));
+absl::StatusOr<TempNFA> Parser::Parse3(size_t const recursion_depth, int const capture_group) {
+  if (recursion_depth > max_recursion_depth_) {
+    return MaxRecursionDepthExceededError();
+  }
+  ASSIGN_VAR_OR_RETURN(TempNFA, nfa, Parse2(recursion_depth + 1, capture_group));
   while (!at_end() && front() != ')') {
     RETURN_IF_ERROR(ExpectPrefix("|", "expected pipe operator"));
-    ASSIGN_VAR_OR_RETURN(TempNFA, next, Parse2(capture_group));
+    ASSIGN_VAR_OR_RETURN(TempNFA, next, Parse2(recursion_depth + 1, capture_group));
     size_t const initial_state = next_state_++;
     size_t const final_state = next_state_++;
     nfa.Merge(std::move(next), capture_group, initial_state, final_state);

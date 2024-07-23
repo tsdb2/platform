@@ -4,10 +4,12 @@
 #include <utility>
 #include <vector>
 
+#include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
+#include "common/flag_override.h"
 #include "common/re/automaton.h"
 #include "common/re/dfa.h"
 #include "common/re/nfa.h"
@@ -34,6 +36,7 @@ using ::tsdb2::common::regexp_internal::DFA;
 using ::tsdb2::common::regexp_internal::NFA;
 using ::tsdb2::common::regexp_internal::Parse;
 using ::tsdb2::common::regexp_internal::TempNFA;
+using ::tsdb2::common::testing::FlagOverride;
 
 struct RegexpTestParams {
   bool force_nfa;
@@ -80,6 +83,13 @@ absl::StatusOr<std::optional<std::vector<std::string>>> RegexpTest::Match(
     return absl::FailedPreconditionError("Test result differs from Match result");
   }
   return match_results;
+}
+
+TEST_P(RegexpTest, MaxRecursionDepth) {
+  FlagOverride fo{&FLAGS_re_max_recursion_depth, 20};
+  EXPECT_OK(Parse("((()))"));
+  EXPECT_THAT(Parse("(((((((((((((((((((()))))))))))))))))))"),
+              StatusIs(absl::StatusCode::kResourceExhausted));
 }
 
 TEST_P(RegexpTest, EmptyIsDeterministic) {
