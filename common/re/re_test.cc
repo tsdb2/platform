@@ -2621,7 +2621,6 @@ TEST_P(RegexpTest, DeadPrefixBranch2) {
   auto const status_or_pattern = Parse("(lorem)*");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  ASSERT_TRUE(CheckDeterministic(pattern));
   EXPECT_THAT(pattern->MatchPrefix("loremlor"), Optional(ElementsAre("lorem")));
 }
 

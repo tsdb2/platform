@@ -10,7 +10,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/container/inlined_vector.h"
 #include "common/flat_map.h"
 #include "common/flat_set.h"
@@ -63,9 +62,11 @@ class NFA final : public AutomatonInterface {
   // `Transitions` sets.
   using States = std::vector<State>;
 
+ private:
   // Used by our NFA algorithms to keep track of the current set of states efficiently.
   using StateSet = flat_set<size_t, std::less<size_t>, absl::InlinedVector<size_t, 1>>;
 
+ public:
   // Stepper implementation for NFAs.
   class Stepper final : public StepperInterface {
    public:
@@ -108,103 +109,22 @@ class NFA final : public AutomatonInterface {
   std::optional<std::vector<std::string>> MatchPrefix(std::string_view input) const override;
 
  private:
-  // Runs the full matching algorithm, which matches the string and also returns all captured
-  // substrings (as opposed to `NFA::Test` which only matches the string).
-  //
-  // `Matcher` uses a backtracking algorithm, but thanks to the use of dynamic programming its
-  // worst-case complexity is reduced to O(N*M) with N = number of states and M = length of the
-  // input string.
-  class Matcher {
-   public:
-    explicit Matcher(NFA const &nfa, std::string_view const input) : nfa_(nfa), input_(input) {}
+  // Like `StateSet`, but it also maps capture sets to their states. This is used by `Match`
+  // algorithms.
+  using CaptureMap = flat_map<size_t, std::vector<std::string>, std::less<size_t>,
+                              absl::InlinedVector<std::pair<size_t, std::vector<std::string>>, 1>>;
 
-    // Matches the input string against the NFA (both are provided in the `Matcher` constructor). If
-    // the `prefix` flag is true, the longest possible prefix rather than the whole string is
-    // matched. The returned value is the array of captured substrings, or an empty optional if the
-    // string or prefix doesn't match.
-    std::optional<std::vector<std::string>> Match(bool prefix) &&;
-
-   private:
-    using MatchResults = std::optional<flat_map<size_t, std::string>>;
-    using Cache = absl::flat_hash_map<std::pair<size_t, size_t>, MatchResults>;
-
-    MatchResults Cached(size_t current_state_num, size_t offset, MatchResults value);
-
-    // Internal matching algorithm implementation. In order to avoid the exponential complexity of
-    // the backtracking algorithm, this function checks the `cache_` before doing any work.
-    //
-    // When the string matches, a map of capture groups to captured strings is returned; otherwise
-    // we return an empty optional.
-    //
-    // NOTE: due to the way `MatchInternal`'s algorithm works, the returned captured strings are
-    // reversed; the public `Match` method takes of care of reversing them.
-    template <bool prefix>
-    MatchResults MatchInternal(size_t current_state_num, size_t offset);
-
-    NFA const &nfa_;
-    std::string_view const input_;
-
-    // Caches the results of the `MatchInternal` algorithm. The keys of this map are pairs of
-    // integers, corresponding to the two arguments of `MatchInternal`: the first integer is the
-    // current state number and the second is the offset in the input string. The values of the map
-    // have the same meaning as the return values of `MatchInternal`.
-    Cache cache_;
-  };
-
+  // Calculates the epsilon-closure in `Test` algorithms.
   void EpsilonClosure(StateSet *states) const;
+
+  // Calculates the epsilon-closure in `Match` algorithms.
+  void EpsilonClosure(CaptureMap *captures) const;
 
   States const states_;
   size_t const initial_state_;
   size_t const final_state_;
   CaptureGroups const capture_groups_;
 };
-
-template <bool prefix>
-NFA::Matcher::MatchResults NFA::Matcher::MatchInternal(size_t const current_state_num,
-                                                       size_t const offset) {
-  if (auto const it = cache_.find(std::make_pair(current_state_num, offset)); it != cache_.end()) {
-    return it->second;
-  }
-  if (offset >= input_.size() && current_state_num == nfa_.final_state_) {
-    return Cached(current_state_num, offset, flat_map<size_t, std::string>());
-  }
-  StateSet states{current_state_num};
-  nfa_.EpsilonClosure(&states);
-  if (offset >= input_.size()) {
-    if (states.contains(nfa_.final_state_)) {
-      return Cached(current_state_num, offset, flat_map<size_t, std::string>());
-    } else {
-      return Cached(current_state_num, offset, std::nullopt);
-    }
-  }
-  auto const ch = input_[offset];
-  for (auto const state_num : states) {
-    auto const &state = nfa_.states_[state_num];
-    auto const it = state.edges.find(ch);
-    if (it != state.edges.end()) {
-      for (auto const transition : it->second) {
-        auto maybe_results = MatchInternal<prefix>(transition, offset + 1);
-        if (maybe_results) {
-          auto &results = maybe_results.value();
-          for (auto it = nfa_.capture_groups_.LookUp(state.innermost_capture_group);
-               it != nfa_.capture_groups_.root(); ++it) {
-            results[*it] += ch;
-          }
-          return Cached(current_state_num, offset, std::move(results));
-        }
-      }
-    }
-  }
-  if constexpr (prefix) {
-    if (states.contains(nfa_.final_state_)) {
-      return Cached(current_state_num, offset, flat_map<size_t, std::string>());
-    } else {
-      return Cached(current_state_num, offset, std::nullopt);
-    }
-  } else {
-    return Cached(current_state_num, offset, std::nullopt);
-  }
-}
 
 }  // namespace regexp_internal
 }  // namespace common

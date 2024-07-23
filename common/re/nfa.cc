@@ -1,7 +1,7 @@
 #include "common/re/nfa.h"
 
-#include <algorithm>
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/inlined_vector.h"
 #include "common/re/automaton.h"
 
 namespace tsdb2 {
@@ -62,8 +63,8 @@ std::unique_ptr<AutomatonInterface::StepperInterface> NFA::MakeStepper() const {
 bool NFA::Test(std::string_view input) const {
   StateSet states{initial_state_};
   EpsilonClosure(&states);
-  StateSet next_states;
   while (!input.empty()) {
+    StateSet next_states;
     char const ch = input.front();
     input.remove_prefix(1);
     for (auto const state : states) {
@@ -78,41 +79,52 @@ bool NFA::Test(std::string_view input) const {
     if (next_states.empty()) {
       return false;
     }
-    EpsilonClosure(&next_states);
     states = std::move(next_states);
-    next_states = StateSet();
+    EpsilonClosure(&states);
   }
   return states.contains(final_state_);
 }
 
-std::optional<std::vector<std::string>> NFA::Match(std::string_view const input) const {
-  return Matcher(*this, input).Match(/*prefix=*/false);
+std::optional<std::vector<std::string>> NFA::Match(std::string_view input) const {
+  CaptureMap states{
+      {initial_state_, std::vector<std::string>(capture_groups_.size(), std::string())}};
+  EpsilonClosure(&states);
+  while (!input.empty()) {
+    CaptureMap next_states;
+    char const ch = input.front();
+    input.remove_prefix(1);
+    for (auto const& [state_num, captures] : states) {
+      auto const& state = states_[state_num];
+      if (auto const it = state.edges.find(ch); it != state.edges.end()) {
+        for (auto const transition : it->second) {
+          auto const [next_it, inserted] = next_states.try_emplace(transition);
+          if (inserted) {
+            std::vector<std::string> next_captures = captures;
+            for (auto cg_it = capture_groups_.LookUp(state.innermost_capture_group);
+                 cg_it != capture_groups_.root(); ++cg_it) {
+              next_captures[*cg_it] += ch;
+            }
+            next_it->second = std::move(next_captures);
+          }
+        }
+      }
+    }
+    if (next_states.empty()) {
+      return std::nullopt;
+    }
+    states = std::move(next_states);
+    EpsilonClosure(&states);
+  }
+  if (states.contains(final_state_)) {
+    return std::move(states[final_state_]);
+  } else {
+    return std::nullopt;
+  }
 }
 
 std::optional<std::vector<std::string>> NFA::MatchPrefix(std::string_view const input) const {
-  return Matcher(*this, input).Match(/*prefix=*/true);
-}
-
-std::optional<std::vector<std::string>> NFA::Matcher::Match(bool const prefix) && {
-  auto maybe_results = prefix ? MatchInternal</*prefix=*/true>(nfa_.initial_state_, 0)
-                              : MatchInternal</*prefix=*/false>(nfa_.initial_state_, 0);
-  if (!maybe_results) {
-    return std::nullopt;
-  }
-  auto& results = maybe_results.value();
-  std::vector<std::string> captures(nfa_.capture_groups_.size(), std::string());
-  for (auto& [capture_group, string] : results) {
-    std::reverse(string.begin(), string.end());
-    captures[capture_group] = std::move(string);
-  }
-  return captures;
-}
-
-NFA::Matcher::MatchResults NFA::Matcher::Cached(size_t const current_state_num, size_t const offset,
-                                                MatchResults value) {
-  auto const [it, unused_inserted] =
-      cache_.try_emplace(std::make_pair(current_state_num, offset), std::move(value));
-  return it->second;
+  // TODO
+  return std::nullopt;
 }
 
 void NFA::EpsilonClosure(StateSet* const states) const {
@@ -126,6 +138,29 @@ void NFA::EpsilonClosure(StateSet* const states) const {
         for (auto const transition : it->second) {
           auto const [it, inserted] = states->emplace(transition);
           new_state_found |= inserted;
+        }
+        if (new_state_found) {
+          break;
+        }
+      }
+    }
+  } while (new_state_found);
+}
+
+void NFA::EpsilonClosure(CaptureMap* const capture_map) const {
+  bool new_state_found;
+  do {
+    new_state_found = false;
+    for (auto const& [state_num, captures] : *capture_map) {
+      auto const& edges = states_[state_num].edges;
+      auto const it = edges.find(0);
+      if (it != edges.end()) {
+        for (auto const transition : it->second) {
+          auto const [it, inserted] = capture_map->try_emplace(transition, captures);
+          if (inserted) {
+            new_state_found = true;
+            break;
+          }
         }
         if (new_state_found) {
           break;
