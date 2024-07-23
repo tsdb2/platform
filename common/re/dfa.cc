@@ -126,7 +126,7 @@ std::optional<std::vector<std::string>> DFA::MatchPrefix(std::string_view input)
       result = captures;
     }
     auto const& state = states_[state_num];
-    auto const ch = input.front();
+    char const ch = input.front();
     auto it = state.edges.find(ch);
     if (it != state.edges.end()) {
       for (auto it = capture_groups_.LookUp(state.innermost_capture_group);

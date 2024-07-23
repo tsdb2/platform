@@ -2610,11 +2610,19 @@ TEST_P(RegexpTest, LongestPrefix) {
   EXPECT_THAT(pattern->MatchPrefix("loremipsum"), Optional(ElementsAre("loremipsum")));
 }
 
-TEST_P(RegexpTest, DeadPrefixBranch) {
+TEST_P(RegexpTest, DeadPrefixBranch1) {
   auto const status_or_pattern = Parse("(lorem(ipsum)?)");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern->MatchPrefix("loremips"), Optional(ElementsAre("lorem", "")));
+}
+
+TEST_P(RegexpTest, DeadPrefixBranch2) {
+  auto const status_or_pattern = Parse("(lorem)*");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  ASSERT_TRUE(CheckDeterministic(pattern));
+  EXPECT_THAT(pattern->MatchPrefix("loremlor"), Optional(ElementsAre("lorem")));
 }
 
 TEST_P(RegexpTest, PrefixPatternWithCapture) {
