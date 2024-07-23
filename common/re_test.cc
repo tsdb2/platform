@@ -13,6 +13,7 @@ namespace {
 using ::testing::ElementsAre;
 using ::testing::IsEmpty;
 using ::testing::Optional;
+using ::testing::Pair;
 using ::testing::status::IsOkAndHolds;
 using ::testing::status::StatusIs;
 using ::tsdb2::common::RE;
@@ -39,6 +40,13 @@ TEST(RegexpTest, IsNotDeterministic) {
   ASSERT_OK(status_or_re);
   auto const& re = status_or_re.value();
   EXPECT_FALSE(re.IsDeterministic());
+}
+
+TEST(RegexpTest, GetSize) {
+  auto const status_or_re = RE::Create("(lorem)*");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.GetSize(), Pair(5, 5));
 }
 
 TEST(RegexpTest, GetNumCaptureGroups) {

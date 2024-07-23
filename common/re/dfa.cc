@@ -5,6 +5,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "common/flat_map.h"
@@ -53,6 +54,14 @@ bool DFA::Stepper::Finish() {
 }
 
 bool DFA::IsDeterministic() const { return true; }
+
+std::pair<size_t, size_t> DFA::GetSize() const {
+  size_t num_edges = 0;
+  for (auto const& state : states_) {
+    num_edges += state.edges.size();
+  }
+  return std::make_pair(states_.size(), num_edges);
+}
 
 size_t DFA::GetNumCaptureGroups() const { return capture_groups_.size(); }
 

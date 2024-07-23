@@ -24,6 +24,7 @@ using ::testing::AnyOf;
 using ::testing::ElementsAre;
 using ::testing::IsEmpty;
 using ::testing::Optional;
+using ::testing::Pair;
 using ::testing::Values;
 using ::testing::status::IsOkAndHolds;
 using ::testing::status::StatusIs;
@@ -100,6 +101,13 @@ TEST_P(RegexpTest, PipeIsNotDeterministic) {
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_TRUE(CheckNotDeterministic(pattern));
+}
+
+TEST_P(RegexpTest, Size) {
+  auto const status_or_pattern = Parse("(lorem)*");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern->GetSize(), Pair(5, 5));
 }
 
 TEST_P(RegexpTest, NoCaptureGroups) {

@@ -6,6 +6,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "common/ref_count.h"
@@ -94,6 +95,10 @@ class AbstractAutomaton : public SimpleRefCounted {
 
   // Returns true if this automaton is a DFA, false if it's an NFA.
   virtual bool IsDeterministic() const = 0;
+
+  // Returns the size of the automaton expressed as the number of states (first component of the
+  // returned pair) and total number of edges (second component).
+  virtual std::pair<size_t, size_t> GetSize() const = 0;
 
   // Returns the number of capture groups in the regular expression. That is also the size of the
   // vector returned by `Match` for a matching input string.

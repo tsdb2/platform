@@ -81,6 +81,8 @@ class DFA final : public AbstractAutomaton {
 
   bool IsDeterministic() const override;
 
+  std::pair<size_t, size_t> GetSize() const override;
+
   size_t GetNumCaptureGroups() const override;
 
   std::unique_ptr<StepperInterface> MakeStepper() const override;

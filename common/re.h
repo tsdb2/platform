@@ -1,6 +1,7 @@
 #ifndef __TSDB2_COMMON_RE_H__
 #define __TSDB2_COMMON_RE_H__
 
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -80,6 +81,10 @@ class RE {
 
   // Indicates whether the underlying automaton is deterministic.
   bool IsDeterministic() const { return automaton_->IsDeterministic(); }
+
+  // Returns the size of the automaton expressed as the number of states (first component of the
+  // returned pair) and total number of edges (second component).
+  std::pair<size_t, size_t> GetSize() const { return automaton_->GetSize(); }
 
   // Returns the number of capture groups in the regular expression. That is also the size of the
   // vector returned by `Match` for a matching input string.

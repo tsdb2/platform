@@ -54,6 +54,16 @@ void NFA::Stepper::EpsilonClosure() { states_ = nfa_->EpsilonClosure(std::move(s
 
 bool NFA::IsDeterministic() const { return false; }
 
+std::pair<size_t, size_t> NFA::GetSize() const {
+  size_t num_edges = 0;
+  for (auto const& state : states_) {
+    for (auto const& [ch, edges] : state.edges) {
+      num_edges += edges.size();
+    }
+  }
+  return std::make_pair(states_.size(), num_edges);
+}
+
 size_t NFA::GetNumCaptureGroups() const { return capture_groups_.size(); }
 
 std::unique_ptr<AbstractAutomaton::StepperInterface> NFA::MakeStepper() const {
