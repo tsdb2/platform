@@ -31,6 +31,16 @@ class AbstractAutomaton : public SimpleRefCounted {
     kNotWordBoundary = 8,  // Assert not word boundary (\B).
   };
 
+  // Bitwise OR operator for assertions flags.
+  friend Assertions operator|(Assertions const lhs, Assertions const rhs) {
+    return static_cast<Assertions>(static_cast<int>(lhs) | static_cast<int>(rhs));
+  }
+
+  // Compound OR operator for assertions flags.
+  friend Assertions &operator|=(Assertions &lhs, Assertions const rhs) {
+    return lhs = operator|(lhs, rhs);
+  }
+
   // Abstract interface for an automaton stepper.
   //
   // A stepper allows running the automaton in separate steps, processing the input string character
