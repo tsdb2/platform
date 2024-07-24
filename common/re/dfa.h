@@ -28,8 +28,10 @@ class DFA final : public AbstractAutomaton {
   struct State {
     using Edges = flat_map<char, size_t>;
 
-    explicit State(int const capture_group, Edges edges)
-        : innermost_capture_group(capture_group), edges(std::move(edges)) {}
+    explicit State(int const capture_group, Assertions const state_assertions, Edges edges)
+        : innermost_capture_group(capture_group),
+          assertions(state_assertions),
+          edges(std::move(edges)) {}
 
     State(State const &) = default;
     State &operator=(State const &) = default;
@@ -46,6 +48,9 @@ class DFA final : public AbstractAutomaton {
     // the `edges`) that character is added to the strings captured by the innermost group as well
     // as all of its parents.
     int innermost_capture_group;
+
+    // Any assertions this state needs to make.
+    Assertions assertions;
 
     // The edges are represented by a map of input characters to transitions. Each character is
     // associated to a destination state. Character 0 is used to label epsilon-moves.

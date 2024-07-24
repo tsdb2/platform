@@ -14,6 +14,7 @@ namespace tsdb2 {
 namespace common {
 namespace regexp_internal {
 
+using Assertions = AbstractAutomaton::Assertions;
 using Transitions = NFA::Transitions;
 using State = NFA::State;
 

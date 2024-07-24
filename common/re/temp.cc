@@ -126,9 +126,9 @@ void TempNFA::Merge(TempNFA&& other, int const capture_group, size_t const initi
   for (auto& [state_num, state] : other.states_) {
     MergeState(state_num, std::move(state));
   }
-  states_.try_emplace(initial_state, capture_group,
+  states_.try_emplace(initial_state, capture_group, Assertions::kNone,
                       State::Edges{{0, {initial_state_, other.initial_state_}}});
-  states_.try_emplace(final_state, capture_group, State::Edges{});
+  states_.try_emplace(final_state, capture_group, Assertions::kNone, State::Edges{});
   MaybeAddEpsilonEdge(final_state_, final_state);
   MaybeAddEpsilonEdge(other.final_state_, final_state);
   initial_state_ = initial_state;
@@ -148,6 +148,7 @@ void TempNFA::MergeState(size_t const state_num, State&& new_state) {
   auto const [it, inserted] = states_.try_emplace(state_num, std::move(new_state));
   if (!inserted) {
     auto& old_state = it->second;
+    old_state.assertions = static_cast<Assertions>(old_state.assertions | new_state.assertions);
     for (auto const& [ch, new_edges] : new_state.edges) {
       auto& old_edges = old_state.edges[ch];
       old_edges.insert(new_edges.begin(), new_edges.end());
@@ -206,7 +207,7 @@ reffed_ptr<DFA> TempNFA::ToDFA(CaptureGroups capture_groups) && {
   size_t next_state = 0;
   for (auto const& [state_num, state] : states_) {
     state_map.try_emplace(state_num, next_state++);
-    DFA::State dfa_state{state.innermost_capture_group, {}};
+    DFA::State dfa_state{state.innermost_capture_group, state.assertions, {}};
     for (auto const& [ch, transitions] : state.edges) {
       dfa_state.edges.try_emplace(ch, *transitions.begin());
     }

@@ -22,6 +22,15 @@ namespace regexp_internal {
 // implemented by `SimpleRefCounted` in a thread-safe way.
 class AbstractAutomaton : public SimpleRefCounted {
  public:
+  // Assertions that a state may need to make. Multiple values may be ORed together.
+  enum Assertions {
+    kNone = 0,             // No assertions.
+    kBegin = 1,            // Assert begin of input (^).
+    kEnd = 2,              // Assert end of input ($).
+    kWordBoundary = 4,     // Assert word boundary (\b).
+    kNotWordBoundary = 8,  // Assert not word boundary (\B).
+  };
+
   // Abstract interface for an automaton stepper.
   //
   // A stepper allows running the automaton in separate steps, processing the input string character
