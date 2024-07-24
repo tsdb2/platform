@@ -23,7 +23,7 @@ namespace regexp_internal {
 class AbstractAutomaton : public SimpleRefCounted {
  public:
   // Assertions that a state may need to make. Multiple values may be ORed together.
-  enum Assertions {
+  enum class Assertions {
     kNone = 0,             // No assertions.
     kBegin = 1,            // Assert begin of input (^).
     kEnd = 2,              // Assert end of input ($).

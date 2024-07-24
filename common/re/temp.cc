@@ -144,11 +144,19 @@ reffed_ptr<AbstractAutomaton> TempNFA::Finalize(CaptureGroups capture_groups) &&
   }
 }
 
+namespace {
+
+inline Assertions operator|(Assertions const lhs, Assertions const rhs) {
+  return static_cast<Assertions>(static_cast<int>(lhs) | static_cast<int>(rhs));
+}
+
+}  // namespace
+
 void TempNFA::MergeState(size_t const state_num, State&& new_state) {
   auto const [it, inserted] = states_.try_emplace(state_num, std::move(new_state));
   if (!inserted) {
     auto& old_state = it->second;
-    old_state.assertions = static_cast<Assertions>(old_state.assertions | new_state.assertions);
+    old_state.assertions = old_state.assertions | new_state.assertions;
     for (auto const& [ch, new_edges] : new_state.edges) {
       auto& old_edges = old_state.edges[ch];
       old_edges.insert(new_edges.begin(), new_edges.end());
