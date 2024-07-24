@@ -2876,15 +2876,23 @@ TEST_P(AssertedRegexpTest, NotWordBoundary) {
 
 TEST_P(AssertedRegexpTest, WordBoundaries) {
   auto const status_or_pattern = Parse(".*(\\blorem\\b).*");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(Match(pattern, "dolorem ipsum lorem loremipsum"),
               IsOkAndHolds(Optional(ElementsAre("lorem"))));
 }
 
+TEST_P(AssertedRegexpTest, NotWordBoundaries) {
+  auto const status_or_pattern = Parse(".*(..(\\Blorem\\B)..).*");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, "ipsum lorem doloremdo lorem ipsum"),
+              IsOkAndHolds(Optional(ElementsAre("doloremdo", "lorem"))));
+}
+
 TEST_P(AssertedRegexpTest, WordBoundariesInPrefix) {
   auto const status_or_pattern = Parse(".*(\\blorem\\b)");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern->MatchPrefix("dolorem ipsum lorem loremipsum"),
               Optional(ElementsAre("lorem")));
@@ -2892,10 +2900,26 @@ TEST_P(AssertedRegexpTest, WordBoundariesInPrefix) {
 
 TEST_P(AssertedRegexpTest, NotWordBoundariesInPrefix) {
   auto const status_or_pattern = Parse(".*(..(\\Blorem\\B)..)");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern->MatchPrefix("ipsum lorem doloremdo lorem ipsum"),
               Optional(ElementsAre("doloremdo", "lorem")));
+}
+
+TEST_P(AssertedRegexpTest, WordBoundariesAtStringBoundaries) {
+  auto const status_or_pattern = Parse("(\\blorem\\b)");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, "lorem"), IsOkAndHolds(Optional(ElementsAre("lorem"))));
+  EXPECT_THAT(pattern->MatchPrefix("lorem"), Optional(ElementsAre("lorem")));
+}
+
+TEST_P(AssertedRegexpTest, NotWordBoundariesNotAtStringBoundaries) {
+  auto const status_or_pattern = Parse("(\\Blorem\\B)");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, "lorem"), IsOkAndHolds(std::nullopt));
+  EXPECT_EQ(pattern->MatchPrefix("lorem"), std::nullopt);
 }
 
 INSTANTIATE_TEST_SUITE_P(AssertedRegexpTest, AssertedRegexpTest,
