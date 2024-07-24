@@ -55,13 +55,7 @@ void NFA::Stepper::EpsilonClosure() { states_ = nfa_->EpsilonClosure(std::move(s
 bool NFA::IsDeterministic() const { return false; }
 
 std::pair<size_t, size_t> NFA::GetSize() const {
-  size_t num_edges = 0;
-  for (auto const& state : states_) {
-    for (auto const& [ch, edges] : state.edges) {
-      num_edges += edges.size();
-    }
-  }
-  return std::make_pair(states_.size(), num_edges);
+  return std::make_pair(states_.size(), total_edge_count_);
 }
 
 size_t NFA::GetNumCaptureGroups() const { return capture_groups_.size(); }
@@ -157,6 +151,28 @@ std::optional<std::vector<std::string>> NFA::MatchPrefix(std::string_view const 
     }
   }
   return result;
+}
+
+bool NFA::AssertsBegin() const { return asserts_begin_; }
+
+size_t NFA::GetTotalEdgeCount() const {
+  size_t num_edges = 0;
+  for (auto const& state : states_) {
+    for (auto const& [ch, edges] : state.edges) {
+      num_edges += edges.size();
+    }
+  }
+  return num_edges;
+}
+
+bool NFA::GetAssertsBegin() const {
+  for (auto const state_num : EpsilonClosure(StateSet{initial_state_})) {
+    auto const& state = states_[state_num];
+    if ((state.assertions & Assertions::kBegin) != Assertions::kNone) {
+      return true;
+    }
+  }
+  return false;
 }
 
 NFA::StateSet NFA::EpsilonClosure(StateSet states) const {

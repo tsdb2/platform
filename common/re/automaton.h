@@ -166,6 +166,11 @@ class AbstractAutomaton : public SimpleRefCounted {
   // Checks the specified `assertions` on the `input` text at the specified `offset`.
   static bool Assert(Assertions assertions, std::string_view input, size_t offset);
 
+  // Returns a boolean indicating whether the automaton asserts the begin of input (`^`). This is
+  // used by `PartialMatch` to determine if it can run `MatchPrefix` on suffixes of the original
+  // input string.
+  virtual bool AssertsBegin() const = 0;
+
  private:
   // Assertion helpers.
   static bool is_word_character(std::string_view text, size_t offset);

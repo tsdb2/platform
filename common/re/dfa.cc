@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_set.h"
 #include "common/flat_map.h"
 #include "common/re/automaton.h"
 
@@ -56,11 +57,7 @@ bool DFA::Stepper::Finish() {
 bool DFA::IsDeterministic() const { return true; }
 
 std::pair<size_t, size_t> DFA::GetSize() const {
-  size_t num_edges = 0;
-  for (auto const& state : states_) {
-    num_edges += state.edges.size();
-  }
-  return std::make_pair(states_.size(), num_edges);
+  return std::make_pair(states_.size(), total_edge_count_);
 }
 
 size_t DFA::GetNumCaptureGroups() const { return capture_groups_.size(); }
@@ -189,6 +186,43 @@ std::optional<std::vector<std::string>> DFA::MatchPrefix(std::string_view const 
     return result;
   }
   return captures;
+}
+
+bool DFA::AssertsBegin() const { return asserts_begin_; }
+
+size_t DFA::GetTotalEdgeCount() const {
+  size_t num_edges = 0;
+  for (auto const& state : states_) {
+    num_edges += state.edges.size();
+  }
+  return num_edges;
+}
+
+bool DFA::GetAssertsBegin() const {
+  if ((states_[initial_state_].assertions & Assertions::kBegin) != Assertions::kNone) {
+    return true;
+  }
+  absl::flat_hash_set<size_t> states{initial_state_};
+  bool new_state_found;
+  do {
+    new_state_found = false;
+    for (auto const state_num : states) {
+      auto const& edges = states_[state_num].edges;
+      auto const it = edges.find(0);
+      if (it != edges.end()) {
+        auto const transition = it->second;
+        if (!states.contains(transition)) {
+          new_state_found = true;
+          auto const& destination = states_[transition];
+          if ((destination.assertions & Assertions::kBegin) != Assertions::kNone) {
+            return true;
+          }
+          states.emplace(transition);
+        }
+      }
+    }
+  } while (new_state_found);
+  return false;
 }
 
 }  // namespace regexp_internal

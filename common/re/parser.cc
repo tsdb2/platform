@@ -499,8 +499,11 @@ absl::StatusOr<TempNFA> Parser::Parse0(size_t const recursion_depth, int const c
     case '?':
       return SyntaxError("question mark operator in invalid position");
     case '^':
+      Advance();
+      return MakeAssertionState(capture_group, Assertions::kBegin);
     case '$':
-      return SyntaxError("anchors are not allowed");
+      Advance();
+      return MakeAssertionState(capture_group, Assertions::kEnd);
     default:
       Advance();
       return TempNFA(

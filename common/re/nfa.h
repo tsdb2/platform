@@ -99,7 +99,9 @@ class NFA final : public AbstractAutomaton {
       : states_(std::move(states)),
         initial_state_(initial_state),
         final_state_(final_state),
-        capture_groups_(std::move(capture_groups)) {}
+        capture_groups_(std::move(capture_groups)),
+        total_edge_count_(GetTotalEdgeCount()),
+        asserts_begin_(GetAssertsBegin()) {}
 
   bool IsDeterministic() const override;
 
@@ -115,11 +117,17 @@ class NFA final : public AbstractAutomaton {
 
   std::optional<std::vector<std::string>> MatchPrefix(std::string_view input) const override;
 
+ protected:
+  bool AssertsBegin() const override;
+
  private:
   // Like `StateSet`, but it also maps capture sets to their states. This is used by `Match`
   // algorithms.
   using CaptureMap = flat_map<size_t, std::vector<std::string>, std::less<size_t>,
                               absl::InlinedVector<std::pair<size_t, std::vector<std::string>>, 1>>;
+
+  size_t GetTotalEdgeCount() const;
+  bool GetAssertsBegin() const;
 
   // Calculates the epsilon-closure in `Test` algorithms.
   StateSet EpsilonClosure(StateSet states) const;
@@ -139,6 +147,9 @@ class NFA final : public AbstractAutomaton {
   size_t const initial_state_;
   size_t const final_state_;
   CaptureGroups const capture_groups_;
+
+  size_t const total_edge_count_;
+  bool const asserts_begin_;
 };
 
 }  // namespace regexp_internal

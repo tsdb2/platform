@@ -12,8 +12,15 @@ namespace regexp_internal {
 
 std::optional<std::vector<std::string>> AbstractAutomaton::PartialMatch(
     std::string_view const input) const {
-  for (size_t offset = 0; offset < input.size(); ++offset) {
-    auto results = MatchPrefix(input.substr(offset));
+  auto results = MatchPrefix(input);
+  if (results) {
+    return results;
+  }
+  if (AssertsBegin()) {
+    return std::nullopt;
+  }
+  for (size_t offset = 1; offset < input.size(); ++offset) {
+    results = MatchPrefix(input.substr(offset));
     if (results) {
       return results;
     }
@@ -23,6 +30,16 @@ std::optional<std::vector<std::string>> AbstractAutomaton::PartialMatch(
 
 bool AbstractAutomaton::Assert(Assertions const assertions, std::string_view const input,
                                size_t const offset) {
+  if ((assertions & Assertions::kBegin) != Assertions::kNone) {
+    if (offset != 0) {
+      return false;
+    }
+  }
+  if ((assertions & Assertions::kEnd) != Assertions::kNone) {
+    if (offset < input.size() - 1) {
+      return false;
+    }
+  }
   if ((assertions & Assertions::kWordBoundary) != Assertions::kNone) {
     if (!at_word_boundary(input, offset)) {
       return false;

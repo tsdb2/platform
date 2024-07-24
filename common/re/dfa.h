@@ -82,7 +82,9 @@ class DFA final : public AbstractAutomaton {
       : states_(std::move(states)),
         initial_state_(initial_state),
         final_state_(final_state),
-        capture_groups_(std::move(capture_groups)) {}
+        capture_groups_(std::move(capture_groups)),
+        total_edge_count_(GetTotalEdgeCount()),
+        asserts_begin_(GetAssertsBegin()) {}
 
   bool IsDeterministic() const override;
 
@@ -98,11 +100,20 @@ class DFA final : public AbstractAutomaton {
 
   std::optional<std::vector<std::string>> MatchPrefix(std::string_view input) const override;
 
+ protected:
+  bool AssertsBegin() const override;
+
  private:
+  size_t GetTotalEdgeCount() const;
+  bool GetAssertsBegin() const;
+
   States const states_;
   size_t const initial_state_;
   size_t const final_state_;
   CaptureGroups const capture_groups_;
+
+  size_t const total_edge_count_;
+  bool const asserts_begin_;
 };
 
 }  // namespace regexp_internal

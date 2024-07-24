@@ -2830,9 +2830,33 @@ INSTANTIATE_TEST_SUITE_P(RegexpTest, RegexpTest,
 // TODO: update when steppers support assertions.
 class AssertedRegexpTest : public RegexpTest {};
 
+TEST_P(AssertedRegexpTest, StartAnchor) {
+  auto const status_or_pattern = Parse("(^lorem)");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_EQ(pattern->PartialMatch("ipsum lorem"), std::nullopt);
+  EXPECT_THAT(pattern->PartialMatch("lorem ipsum"), Optional(ElementsAre("lorem")));
+}
+
+TEST_P(AssertedRegexpTest, EndAnchor) {
+  auto const status_or_pattern = Parse("(lorem$)");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_EQ(pattern->PartialMatch("lorem ipsum"), std::nullopt);
+  EXPECT_THAT(pattern->PartialMatch("ipsum lorem"), Optional(ElementsAre("lorem")));
+}
+
+TEST_P(AssertedRegexpTest, AnchoredPartialMatch) {
+  auto const status_or_pattern = Parse("(^ipsum$)");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_EQ(pattern->PartialMatch("lorem ipsum dolor"), std::nullopt);
+  EXPECT_THAT(pattern->PartialMatch("ipsum"), Optional(ElementsAre("ipsum")));
+}
+
 TEST_P(AssertedRegexpTest, WordBoundary) {
   auto const status_or_pattern = Parse(".\\b.");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(Match(pattern, "A "), IsOkAndHolds(Optional(IsEmpty())));
   EXPECT_THAT(Match(pattern, " B"), IsOkAndHolds(Optional(IsEmpty())));
@@ -2854,7 +2878,7 @@ TEST_P(AssertedRegexpTest, WordBoundary) {
 
 TEST_P(AssertedRegexpTest, NotWordBoundary) {
   auto const status_or_pattern = Parse(".\\B.");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(Match(pattern, "A "), IsOkAndHolds(std::nullopt));
   EXPECT_THAT(Match(pattern, " B"), IsOkAndHolds(std::nullopt));
@@ -2920,6 +2944,21 @@ TEST_P(AssertedRegexpTest, NotWordBoundariesNotAtStringBoundaries) {
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(Match(pattern, "lorem"), IsOkAndHolds(std::nullopt));
   EXPECT_EQ(pattern->MatchPrefix("lorem"), std::nullopt);
+}
+
+TEST_P(AssertedRegexpTest, SearchWordWithBoundaries) {
+  auto const status_or_pattern = Parse("(\\blo?rem\\b)");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern->PartialMatch("dolrem lorem lremipsum"), Optional(ElementsAre("lorem")));
+}
+
+TEST_P(AssertedRegexpTest, SearchWordWithoutBoundaries) {
+  auto const status_or_pattern = Parse("(\\Blo?rem\\B)");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern->PartialMatch("ipsum lremdo doloremdo dolrem"),
+              Optional(ElementsAre("lorem")));
 }
 
 INSTANTIATE_TEST_SUITE_P(AssertedRegexpTest, AssertedRegexpTest,
