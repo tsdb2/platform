@@ -142,11 +142,13 @@ std::optional<std::vector<std::string>> DFA::Match(std::string_view const input)
   return captures;
 }
 
-std::optional<std::vector<std::string>> DFA::MatchPrefix(std::string_view const input) const {
+bool DFA::AssertsBegin() const { return asserts_begin_; }
+
+std::optional<std::vector<std::string>> DFA::MatchPrefixInternal(std::string_view const input,
+                                                                 size_t offset) const {
   std::optional<std::vector<std::string>> result = std::nullopt;
   size_t state_num = initial_state_;
   std::vector<std::string> captures{capture_groups_.size(), std::string()};
-  size_t offset = 0;
   while (offset < input.size()) {
     auto const& state = states_[state_num];
     if (!Assert(state.assertions, input, offset)) {
@@ -187,8 +189,6 @@ std::optional<std::vector<std::string>> DFA::MatchPrefix(std::string_view const 
   }
   return captures;
 }
-
-bool DFA::AssertsBegin() const { return asserts_begin_; }
 
 size_t DFA::GetTotalEdgeCount() const {
   size_t num_edges = 0;

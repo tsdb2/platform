@@ -116,17 +116,20 @@ std::optional<std::vector<std::string>> NFA::Match(std::string_view const input)
   }
 }
 
-std::optional<std::vector<std::string>> NFA::MatchPrefix(std::string_view const input) const {
+bool NFA::AssertsBegin() const { return asserts_begin_; }
+
+std::optional<std::vector<std::string>> NFA::MatchPrefixInternal(std::string_view const input,
+                                                                 size_t offset) const {
   std::optional<std::vector<std::string>> result = std::nullopt;
   CaptureMap states = AssertedEpsilonClosure(
       {
           {initial_state_, std::vector<std::string>(capture_groups_.size(), std::string())},
       },
-      input, 0);
+      input, offset);
   if (auto const it = states.find(final_state_); it != states.end()) {
     result = it->second;
   }
-  for (size_t offset = 0; offset < input.size() && !states.empty(); ++offset) {
+  for (; offset < input.size() && !states.empty(); ++offset) {
     CaptureMap next_states;
     char const ch = input[offset];
     for (auto const& [state_num, captures] : states) {
@@ -152,8 +155,6 @@ std::optional<std::vector<std::string>> NFA::MatchPrefix(std::string_view const 
   }
   return result;
 }
-
-bool NFA::AssertsBegin() const { return asserts_begin_; }
 
 size_t NFA::GetTotalEdgeCount() const {
   size_t num_edges = 0;
