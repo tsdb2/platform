@@ -407,6 +407,7 @@ TEST_P(RegexpTest, Spacing) {
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, " "), IsOkAndHolds(Optional(IsEmpty())));
   EXPECT_THAT(Match(pattern, "\f"), IsOkAndHolds(Optional(IsEmpty())));
   EXPECT_THAT(Match(pattern, "\n"), IsOkAndHolds(Optional(IsEmpty())));
   EXPECT_THAT(Match(pattern, "\r"), IsOkAndHolds(Optional(IsEmpty())));
@@ -423,6 +424,7 @@ TEST_P(RegexpTest, NotSpacing) {
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, " "), IsOkAndHolds(std::nullopt));
   EXPECT_THAT(Match(pattern, "\f"), IsOkAndHolds(std::nullopt));
   EXPECT_THAT(Match(pattern, "\n"), IsOkAndHolds(std::nullopt));
   EXPECT_THAT(Match(pattern, "\r"), IsOkAndHolds(std::nullopt));
@@ -847,7 +849,7 @@ TEST_P(RegexpTest, NegatedCharacterClassWithEscapes) {
 }
 
 TEST_P(RegexpTest, CharacterClassWithMoreEscapes) {
-  auto const status_or_pattern = Parse("[\\t\\r\\n\\v\\f\\b\\x12\\xAF]");
+  auto const status_or_pattern = Parse("[\\t\\r\\n\\v\\f\\x12\\xAF]");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
@@ -858,7 +860,6 @@ TEST_P(RegexpTest, CharacterClassWithMoreEscapes) {
   EXPECT_THAT(Match(pattern, "\n"), IsOkAndHolds(Optional(IsEmpty())));
   EXPECT_THAT(Match(pattern, "\v"), IsOkAndHolds(Optional(IsEmpty())));
   EXPECT_THAT(Match(pattern, "\f"), IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "\b"), IsOkAndHolds(Optional(IsEmpty())));
   EXPECT_THAT(Match(pattern, "\x12"), IsOkAndHolds(Optional(IsEmpty())));
   EXPECT_THAT(Match(pattern, "\xAF"), IsOkAndHolds(Optional(IsEmpty())));
   EXPECT_THAT(Match(pattern, "x"), IsOkAndHolds(std::nullopt));
@@ -866,7 +867,7 @@ TEST_P(RegexpTest, CharacterClassWithMoreEscapes) {
 }
 
 TEST_P(RegexpTest, NegatedCharacterClassWithMoreEscapes) {
-  auto const status_or_pattern = Parse("[^\\t\\r\\n\\v\\f\\b\\x12\\xAF]");
+  auto const status_or_pattern = Parse("[^\\t\\r\\n\\v\\f\\x12\\xAF]");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
@@ -877,7 +878,6 @@ TEST_P(RegexpTest, NegatedCharacterClassWithMoreEscapes) {
   EXPECT_THAT(Match(pattern, "\n"), IsOkAndHolds(std::nullopt));
   EXPECT_THAT(Match(pattern, "\v"), IsOkAndHolds(std::nullopt));
   EXPECT_THAT(Match(pattern, "\f"), IsOkAndHolds(std::nullopt));
-  EXPECT_THAT(Match(pattern, "\b"), IsOkAndHolds(std::nullopt));
   EXPECT_THAT(Match(pattern, "\x12"), IsOkAndHolds(std::nullopt));
   EXPECT_THAT(Match(pattern, "\xAF"), IsOkAndHolds(std::nullopt));
   EXPECT_THAT(Match(pattern, "x"), IsOkAndHolds(Optional(IsEmpty())));
@@ -892,6 +892,8 @@ TEST_P(RegexpTest, InvalidEscapeCodesInCharacterClass) {
   EXPECT_THAT(Parse("[\\x0Z]"), StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(Parse("[\\xZ0]"), StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(Parse("[\\a]"), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse("[\\b]"), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse("[\\B]"), StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST_P(RegexpTest, BlockBackrefsInCharacterClass) {
@@ -2822,5 +2824,82 @@ INSTANTIATE_TEST_SUITE_P(RegexpTest, RegexpTest,
                                 RegexpTestParams{.force_nfa = false, .use_stepper = true},
                                 RegexpTestParams{.force_nfa = true, .use_stepper = false},
                                 RegexpTestParams{.force_nfa = true, .use_stepper = true}));
+
+// Steppers do not currently support assertions, so these tests are executed aside without steppers.
+//
+// TODO: update when steppers support assertions.
+class AssertedRegexpTest : public RegexpTest {};
+
+TEST_P(AssertedRegexpTest, WordBoundary) {
+  auto const status_or_pattern = Parse(".\\b.");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, "A "), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, " B"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "c "), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, " d"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "0 "), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, " 1"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "_ "), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, " _"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "Ab"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "cD"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "2e"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "f3"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "_4"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "5_"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, ". "), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, " ."), IsOkAndHolds(std::nullopt));
+}
+
+TEST_P(AssertedRegexpTest, NotWordBoundary) {
+  auto const status_or_pattern = Parse(".\\B.");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, "A "), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, " B"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "c "), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, " d"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "0 "), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, " 1"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "_ "), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, " _"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(Match(pattern, "Ab"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "cD"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "2e"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "f3"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "_4"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, "5_"), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, ". "), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(Match(pattern, " ."), IsOkAndHolds(Optional(IsEmpty())));
+}
+
+TEST_P(AssertedRegexpTest, WordBoundaries) {
+  auto const status_or_pattern = Parse(".*(\\blorem\\b).*");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, "dolorem ipsum lorem loremipsum"),
+              IsOkAndHolds(Optional(ElementsAre("lorem"))));
+}
+
+TEST_P(AssertedRegexpTest, WordBoundariesInPrefix) {
+  auto const status_or_pattern = Parse(".*(\\blorem\\b)");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern->MatchPrefix("dolorem ipsum lorem loremipsum"),
+              Optional(ElementsAre("lorem")));
+}
+
+TEST_P(AssertedRegexpTest, NotWordBoundariesInPrefix) {
+  auto const status_or_pattern = Parse(".*(..(\\Blorem\\B)..)");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern->MatchPrefix("ipsum lorem doloremdo lorem ipsum"),
+              Optional(ElementsAre("doloremdo", "lorem")));
+}
+
+INSTANTIATE_TEST_SUITE_P(AssertedRegexpTest, AssertedRegexpTest,
+                         Values(RegexpTestParams{.force_nfa = false, .use_stepper = false},
+                                RegexpTestParams{.force_nfa = true, .use_stepper = false}));
 
 }  // namespace

@@ -114,6 +114,7 @@ class Parser final {
   TempNFA MakeSingleCharacterNFA(int capture_group, char ch);
   TempNFA MakeCharacterClassNFA(int capture_group, std::string_view chars);
   TempNFA MakeNegatedCharacterClassNFA(int capture_group, std::string_view chars);
+  TempNFA MakeAssertionState(int capture_group, Assertions assertions);
 
   static absl::Status UpdateCharacterClassEdge(bool negated, State* start_state, char ch,
                                                size_t stop_state_num);
@@ -234,6 +235,11 @@ TempNFA Parser::MakeNegatedCharacterClassNFA(int const capture_group,
       start, stop);
 }
 
+TempNFA Parser::MakeAssertionState(int const capture_group, Assertions const assertions) {
+  size_t const state = next_state_++;
+  return TempNFA({{state, State(capture_group, assertions, {})}}, state, state);
+}
+
 absl::Status Parser::UpdateCharacterClassEdge(bool const negated, State* const start_state,
                                               char const ch, size_t const stop_state_num) {
   if (negated) {
@@ -276,8 +282,6 @@ absl::Status Parser::ParseCharacterClassEscapeCode(bool const negated, State* co
       return UpdateCharacterClassEdge(negated, start_state, '\v', stop_state_num);
     case 'f':
       return UpdateCharacterClassEdge(negated, start_state, '\f', stop_state_num);
-    case 'b':
-      return UpdateCharacterClassEdge(negated, start_state, '\b', stop_state_num);
     case 'x': {
       ASSIGN_VAR_OR_RETURN(uint8_t, code, ParseHexCode());
       return UpdateCharacterClassEdge(negated, start_state, code, stop_state_num);
@@ -400,10 +404,10 @@ absl::StatusOr<TempNFA> Parser::ParseEscape(int const capture_group) {
           capture_group, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_");
     case 's':
       // TODO: add Unicode spaces.
-      return MakeCharacterClassNFA(capture_group, "\f\n\r\t\v");
+      return MakeCharacterClassNFA(capture_group, " \f\n\r\t\v");
     case 'S':
       // TODO: add Unicode spaces.
-      return MakeNegatedCharacterClassNFA(capture_group, "\f\n\r\t\v");
+      return MakeNegatedCharacterClassNFA(capture_group, " \f\n\r\t\v");
     case 't':
       return MakeSingleCharacterNFA(capture_group, '\t');
     case 'r':
@@ -414,7 +418,10 @@ absl::StatusOr<TempNFA> Parser::ParseEscape(int const capture_group) {
       return MakeSingleCharacterNFA(capture_group, '\v');
     case 'f':
       return MakeSingleCharacterNFA(capture_group, '\f');
-      // TODO: handle word boundary (`\b`).
+    case 'b':
+      return MakeAssertionState(capture_group, Assertions::kWordBoundary);
+    case 'B':
+      return MakeAssertionState(capture_group, Assertions::kNotWordBoundary);
     case 'x': {
       ASSIGN_VAR_OR_RETURN(uint8_t, code, ParseHexCode());
       return MakeSingleCharacterNFA(capture_group, code);

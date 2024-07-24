@@ -127,6 +127,14 @@ class NFA final : public AbstractAutomaton {
   // Calculates the epsilon-closure in `Match` algorithms.
   CaptureMap EpsilonClosure(CaptureMap captures) const;
 
+  // `AssertedEpsilonClosure` algorithms are like `EpsilonClosure` but in the end they also remove
+  // all states that fail one or more assertions. They may return empty state sets.
+
+  StateSet AssertedEpsilonClosure(StateSet states, std::string_view input, size_t offset) const;
+
+  CaptureMap AssertedEpsilonClosure(CaptureMap captures, std::string_view input,
+                                    size_t offset) const;
+
   States const states_;
   size_t const initial_state_;
   size_t const final_state_;

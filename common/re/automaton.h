@@ -41,10 +41,24 @@ class AbstractAutomaton : public SimpleRefCounted {
     return lhs = operator|(lhs, rhs);
   }
 
+  // Bitwise AND operator for assertions flags.
+  friend Assertions operator&(Assertions const lhs, Assertions const rhs) {
+    return static_cast<Assertions>(static_cast<int>(lhs) & static_cast<int>(rhs));
+  }
+
+  // Compound AND operator for assertions flags.
+  friend Assertions &operator&=(Assertions &lhs, Assertions const rhs) {
+    return lhs = operator&(lhs, rhs);
+  }
+
   // Abstract interface for an automaton stepper.
   //
   // A stepper allows running the automaton in separate steps, processing the input string character
   // by character.
+  //
+  // WARNING: steppers do not support assertions. `^`, `$`, `\b`, and `\B` will be ineffective.
+  //
+  // TODO: add support for assertions; will need changes in RawTrie.
   //
   // The caller needs to call `Step` repeatedly for every character or for every chunk of the input
   // string, and then needs to call `Finish`. The stepper keeps the running state (i.e. the current
@@ -148,7 +162,15 @@ class AbstractAutomaton : public SimpleRefCounted {
   // expression in a capture group before compiling it.
   std::optional<std::vector<std::string>> PartialMatch(std::string_view input) const;
 
+ protected:
+  // Checks the specified `assertions` on the `input` text at the specified `offset`.
+  static bool Assert(Assertions assertions, std::string_view input, size_t offset);
+
  private:
+  // Assertion helpers.
+  static bool is_word_character(std::string_view text, size_t offset);
+  static bool at_word_boundary(std::string_view text, size_t offset);
+
   // Copies are not needed: automata are immutable and reference-counted, so we can share them
   // rather than copying them.
   AbstractAutomaton(AbstractAutomaton const &) = delete;
