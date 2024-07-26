@@ -1,6 +1,7 @@
 #include "common/re/dfa.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -67,7 +68,7 @@ std::unique_ptr<AbstractAutomaton::StepperInterface> DFA::MakeStepper() const {
 }
 
 bool DFA::Test(std::string_view const input) const {
-  size_t state_num = initial_state_;
+  uint32_t state_num = initial_state_;
   size_t offset = 0;
   while (offset < input.size()) {
     auto const& state = states_[state_num];
@@ -103,7 +104,7 @@ bool DFA::Test(std::string_view const input) const {
 
 std::optional<std::vector<std::string>> DFA::Match(std::string_view const input) const {
   std::vector<std::string> captures{capture_groups_.size(), std::string()};
-  size_t state_num = initial_state_;
+  uint32_t state_num = initial_state_;
   size_t offset = 0;
   while (offset < input.size()) {
     auto const& state = states_[state_num];
@@ -147,7 +148,7 @@ bool DFA::AssertsBegin() const { return asserts_begin_; }
 std::optional<std::vector<std::string>> DFA::PartialMatchInternal(std::string_view const input,
                                                                   size_t offset) const {
   std::optional<std::vector<std::string>> result = std::nullopt;
-  size_t state_num = initial_state_;
+  uint32_t state_num = initial_state_;
   std::vector<std::string> captures{capture_groups_.size(), std::string()};
   while (offset < input.size()) {
     auto const& state = states_[state_num];
@@ -202,7 +203,7 @@ bool DFA::GetAssertsBegin() const {
   if ((states_[initial_state_].assertions & Assertions::kBegin) != Assertions::kNone) {
     return true;
   }
-  absl::flat_hash_set<size_t> states{initial_state_};
+  absl::flat_hash_set<uint32_t> states{initial_state_};
   bool new_state_found;
   do {
     new_state_found = false;

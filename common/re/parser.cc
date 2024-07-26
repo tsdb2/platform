@@ -117,7 +117,7 @@ class Parser final {
   TempNFA MakeAssertionState(int capture_group, Assertions assertions);
 
   static absl::Status UpdateCharacterClassEdge(bool negated, State* start_state, char ch,
-                                               size_t stop_state_num);
+                                               uint32_t stop_state_num);
 
   // Called by `ParseCharacterClass` to parse escape codes. `negated` indicates whether the
   // character class is negated (i.e. it begins with ^). `state` is the NFA state to update with the
@@ -126,9 +126,9 @@ class Parser final {
   //
   // REQUIRES: the backslash before the escape code must have already been consumed.
   absl::Status ParseCharacterClassEscapeCode(bool negated, State* start_state,
-                                             size_t stop_state_num);
+                                             uint32_t stop_state_num);
 
-  absl::Status ParseCharacterOrRange(bool negated, State* start_state, size_t stop_state_num);
+  absl::Status ParseCharacterOrRange(bool negated, State* start_state, uint32_t stop_state_num);
 
   // Called by `Parse0` to parse character classes (i.e. square brackets).
   absl::StatusOr<TempNFA> ParseCharacterClass(int capture_group);
@@ -155,7 +155,7 @@ class Parser final {
 
   std::string_view const pattern_;
   size_t offset_ = 0;
-  size_t next_state_ = 0;
+  uint32_t next_state_ = 0;
 
   CaptureGroups capture_groups_;
   int next_capture_group_ = 0;
@@ -191,8 +191,8 @@ absl::StatusOr<uint8_t> Parser::ParseHexCode() {
 }
 
 TempNFA Parser::MakeSingleCharacterNFA(int const capture_group, char const ch) {
-  size_t const start = next_state_++;
-  size_t const stop = next_state_++;
+  uint32_t const start = next_state_++;
+  uint32_t const stop = next_state_++;
   return TempNFA(
       {
           {start, State(capture_group, Assertions::kNone, {{ch, {stop}}})},
@@ -202,8 +202,8 @@ TempNFA Parser::MakeSingleCharacterNFA(int const capture_group, char const ch) {
 }
 
 TempNFA Parser::MakeCharacterClassNFA(int const capture_group, std::string_view const chars) {
-  size_t const start = next_state_++;
-  size_t const stop = next_state_++;
+  uint32_t const start = next_state_++;
+  uint32_t const stop = next_state_++;
   State state{capture_group, Assertions::kNone, {}};
   for (char const ch : chars) {
     state.edges[ch].emplace(stop);
@@ -218,8 +218,8 @@ TempNFA Parser::MakeCharacterClassNFA(int const capture_group, std::string_view 
 
 TempNFA Parser::MakeNegatedCharacterClassNFA(int const capture_group,
                                              std::string_view const chars) {
-  size_t const start = next_state_++;
-  size_t const stop = next_state_++;
+  uint32_t const start = next_state_++;
+  uint32_t const stop = next_state_++;
   State state{capture_group, Assertions::kNone, {}};
   for (int ch = 1; ch < 256; ++ch) {
     state.edges[ch].emplace(stop);
@@ -236,12 +236,12 @@ TempNFA Parser::MakeNegatedCharacterClassNFA(int const capture_group,
 }
 
 TempNFA Parser::MakeAssertionState(int const capture_group, Assertions const assertions) {
-  size_t const state = next_state_++;
+  uint32_t const state = next_state_++;
   return TempNFA({{state, State(capture_group, assertions, {})}}, state, state);
 }
 
 absl::Status Parser::UpdateCharacterClassEdge(bool const negated, State* const start_state,
-                                              char const ch, size_t const stop_state_num) {
+                                              char const ch, uint32_t const stop_state_num) {
   if (negated) {
     start_state->edges.erase(ch);
   } else {
@@ -251,7 +251,7 @@ absl::Status Parser::UpdateCharacterClassEdge(bool const negated, State* const s
 }
 
 absl::Status Parser::ParseCharacterClassEscapeCode(bool const negated, State* const start_state,
-                                                   size_t const stop_state_num) {
+                                                   uint32_t const stop_state_num) {
   if (at_end()) {
     return SyntaxError("invalid escape code");
   }
@@ -303,7 +303,7 @@ absl::Status Parser::ParseCharacterClassEscapeCode(bool const negated, State* co
 }
 
 absl::Status Parser::ParseCharacterOrRange(bool const negated, State* const start_state,
-                                           size_t const stop_state_num) {
+                                           uint32_t const stop_state_num) {
   char const ch1 = Advance();
   if (ConsumePrefix("-")) {
     if (at_end()) {
@@ -346,8 +346,8 @@ absl::Status Parser::ParseCharacterOrRange(bool const negated, State* const star
 
 absl::StatusOr<TempNFA> Parser::ParseCharacterClass(int const capture_group) {
   RETURN_IF_ERROR(ExpectPrefix("[", "expected ["));
-  size_t const start = next_state_++;
-  size_t const stop = next_state_++;
+  uint32_t const start = next_state_++;
+  uint32_t const stop = next_state_++;
   State state{capture_group, Assertions::kNone, {}};
   bool const negated = ConsumePrefix("^");
   if (negated) {
@@ -447,7 +447,7 @@ absl::StatusOr<TempNFA> Parser::Parse0(size_t const recursion_depth, int const c
   if (recursion_depth > max_recursion_depth_) {
     return MaxRecursionDepthExceededError();
   }
-  size_t const start = next_state_++;
+  uint32_t const start = next_state_++;
   if (at_end()) {
     return TempNFA({{start, State(capture_group, Assertions::kNone, {})}}, start, start);
   }
@@ -466,7 +466,7 @@ absl::StatusOr<TempNFA> Parser::Parse0(size_t const recursion_depth, int const c
       return result;
     }
   }
-  size_t const stop = next_state_++;
+  uint32_t const stop = next_state_++;
   if (ConsumePrefix(".")) {
     State state{capture_group, Assertions::kNone, {}};
     for (int ch = 1; ch < 256; ++ch) {
@@ -591,7 +591,7 @@ absl::StatusOr<TempNFA> Parser::Parse1(size_t const recursion_depth, int const c
       }
     } else {
       auto piece = std::move(nfa);
-      size_t const start = next_state_++;
+      uint32_t const start = next_state_++;
       nfa = TempNFA({{start, State(capture_group, Assertions::kNone, {})}}, start, start);
       for (int i = 0; i < min; ++i) {
         piece.RenameAllStates(&next_state_);
@@ -638,8 +638,8 @@ absl::StatusOr<TempNFA> Parser::Parse3(size_t const recursion_depth, int const c
   while (!at_end() && front() != ')') {
     RETURN_IF_ERROR(ExpectPrefix("|", "expected pipe operator"));
     ASSIGN_VAR_OR_RETURN(TempNFA, next, Parse2(recursion_depth + 1, capture_group));
-    size_t const initial_state = next_state_++;
-    size_t const final_state = next_state_++;
+    uint32_t const initial_state = next_state_++;
+    uint32_t const final_state = next_state_++;
     nfa.Merge(std::move(next), capture_group, initial_state, final_state);
   }
   return nfa;

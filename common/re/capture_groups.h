@@ -2,6 +2,7 @@
 #define __TSDB2_COMMON_RE_CAPTURE_GROUPS_H__
 
 #include <cstddef>
+#include <tuple>
 #include <utility>
 
 #include "common/flat_map.h"

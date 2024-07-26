@@ -2,6 +2,7 @@
 #define __TSDB2_COMMON_RE_DFA_H__
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -26,7 +27,7 @@ class DFA final : public AbstractAutomaton {
  public:
   // Represents a state of the automaton.
   struct State {
-    using Edges = flat_map<char, size_t>;
+    using Edges = flat_map<char, uint32_t>;
 
     explicit State(int const capture_group, Assertions const state_assertions, Edges edges)
         : innermost_capture_group(capture_group),
@@ -74,10 +75,10 @@ class DFA final : public AbstractAutomaton {
 
    private:
     DFA const *dfa_;
-    size_t current_state_;
+    uint32_t current_state_;
   };
 
-  explicit DFA(States states, size_t const initial_state, size_t const final_state,
+  explicit DFA(States states, uint32_t const initial_state, uint32_t const final_state,
                CaptureGroups capture_groups)
       : states_(std::move(states)),
         initial_state_(initial_state),
@@ -109,8 +110,8 @@ class DFA final : public AbstractAutomaton {
   bool GetAssertsBegin() const;
 
   States const states_;
-  size_t const initial_state_;
-  size_t const final_state_;
+  uint32_t const initial_state_;
+  uint32_t const final_state_;
   CaptureGroups const capture_groups_;
 
   size_t const total_edge_count_;

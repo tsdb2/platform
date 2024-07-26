@@ -2,6 +2,7 @@
 #define __TSDB2_COMMON_RE_NFA_H__
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -26,7 +27,7 @@ class NFA final : public AbstractAutomaton {
   // Represents the set of transitions from a given state with a given label. It's a sorted array of
   // unique destination states. Most commonly there will be only one destination state for that
   // label, so we use `absl::InlinedVector<..., 1>` as the underlying representation.
-  using Transitions = flat_set<size_t, std::less<size_t>, absl::InlinedVector<size_t, 1>>;
+  using Transitions = flat_set<uint32_t, std::less<uint32_t>, absl::InlinedVector<uint32_t, 1>>;
 
   // Represents a state of the automaton.
   struct State {
@@ -69,7 +70,7 @@ class NFA final : public AbstractAutomaton {
 
  private:
   // Used by our NFA algorithms to keep track of the current set of states efficiently.
-  using StateSet = flat_set<size_t, std::less<size_t>, absl::InlinedVector<size_t, 1>>;
+  using StateSet = flat_set<uint32_t, std::less<uint32_t>, absl::InlinedVector<uint32_t, 1>>;
 
  public:
   // Stepper implementation for NFAs.
@@ -94,7 +95,7 @@ class NFA final : public AbstractAutomaton {
     StateSet states_;
   };
 
-  explicit NFA(States states, size_t const initial_state, size_t const final_state,
+  explicit NFA(States states, uint32_t const initial_state, uint32_t const final_state,
                CaptureGroups capture_groups)
       : states_(std::move(states)),
         initial_state_(initial_state),
@@ -124,8 +125,9 @@ class NFA final : public AbstractAutomaton {
  private:
   // Like `StateSet`, but it also maps capture sets to their states. This is used by `Match`
   // algorithms.
-  using CaptureMap = flat_map<size_t, std::vector<std::string>, std::less<size_t>,
-                              absl::InlinedVector<std::pair<size_t, std::vector<std::string>>, 1>>;
+  using CaptureMap =
+      flat_map<uint32_t, std::vector<std::string>, std::less<uint32_t>,
+               absl::InlinedVector<std::pair<uint32_t, std::vector<std::string>>, 1>>;
 
   size_t GetTotalEdgeCount() const;
   bool GetAssertsBegin() const;
@@ -145,8 +147,8 @@ class NFA final : public AbstractAutomaton {
                                     size_t offset) const;
 
   States const states_;
-  size_t const initial_state_;
-  size_t const final_state_;
+  uint32_t const initial_state_;
+  uint32_t const final_state_;
   CaptureGroups const capture_groups_;
 
   size_t const total_edge_count_;

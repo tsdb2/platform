@@ -1,6 +1,7 @@
 #include "common/re/temp.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <utility>
 
@@ -18,7 +19,7 @@ namespace regexp_internal {
 namespace {
 
 Transitions RemapTransitions(Transitions const& transitions,
-                             absl::flat_hash_map<size_t, size_t> const& state_map) {
+                             absl::flat_hash_map<uint32_t, uint32_t> const& state_map) {
   Transitions remapped;
   remapped.reserve(transitions.size());
   for (auto const& transition : transitions) {
@@ -51,7 +52,7 @@ bool TempNFA::IsDeterministic() const {
   return true;
 }
 
-bool TempNFA::RenameState(size_t const old_name, size_t const new_name) {
+bool TempNFA::RenameState(uint32_t const old_name, uint32_t const new_name) {
   if (old_name == new_name) {
     return true;
   }
@@ -90,14 +91,14 @@ bool TempNFA::RenameState(size_t const old_name, size_t const new_name) {
   return true;
 }
 
-void TempNFA::RenameAllStates(size_t* const next_state) {
-  absl::flat_hash_map<size_t, size_t> state_map;
+void TempNFA::RenameAllStates(uint32_t* const next_state) {
+  absl::flat_hash_map<uint32_t, uint32_t> state_map;
   for (auto& [state_num, state] : states_) {
     state_map.try_emplace(state_num, (*next_state)++);
   }
   state_map.try_emplace(initial_state_, (*next_state)++);
   state_map.try_emplace(final_state_, (*next_state)++);
-  absl::btree_map<size_t, State> new_states;
+  absl::btree_map<uint32_t, State> new_states;
   for (auto& [state_num, state] : states_) {
     for (auto& [ch, transitions] : state.edges) {
       transitions = RemapTransitions(transitions, state_map);
@@ -109,7 +110,7 @@ void TempNFA::RenameAllStates(size_t* const next_state) {
   final_state_ = state_map[final_state_];
 }
 
-void TempNFA::AddEdge(char const label, size_t const from, size_t const to) {
+void TempNFA::AddEdge(char const label, uint32_t const from, uint32_t const to) {
   states_.at(from).edges[label].emplace(to);
 }
 
@@ -121,8 +122,8 @@ void TempNFA::Chain(TempNFA other) {
   final_state_ = other.final_state_;
 }
 
-void TempNFA::Merge(TempNFA&& other, int const capture_group, size_t const initial_state,
-                    size_t const final_state) {
+void TempNFA::Merge(TempNFA&& other, int const capture_group, uint32_t const initial_state,
+                    uint32_t const final_state) {
   for (auto& [state_num, state] : other.states_) {
     MergeState(state_num, std::move(state));
   }
@@ -144,7 +145,7 @@ reffed_ptr<AbstractAutomaton> TempNFA::Finalize(CaptureGroups capture_groups) &&
   }
 }
 
-void TempNFA::MergeState(size_t const state_num, State&& new_state) {
+void TempNFA::MergeState(uint32_t const state_num, State&& new_state) {
   auto const [it, inserted] = states_.try_emplace(state_num, std::move(new_state));
   if (!inserted) {
     auto& old_state = it->second;
@@ -180,7 +181,7 @@ bool TempNFA::CollapseNextEpsilonMove() {
   for (auto& [state_num, state] : states_) {
     if (HasOnlyOneEpsilonMove(state)) {
       auto const it = state.edges.find(0);
-      size_t const destination = *(it->second.begin());
+      uint32_t const destination = *(it->second.begin());
       if (state_num == destination || state_num != final_state_) {
         auto node = state.edges.extract(it);
         if (RenameState(destination, state_num)) {
@@ -201,10 +202,10 @@ void TempNFA::CollapseEpsilonMoves() {
 }
 
 reffed_ptr<DFA> TempNFA::ToDFA(CaptureGroups capture_groups) && {
-  absl::flat_hash_map<size_t, size_t> state_map;
+  absl::flat_hash_map<uint32_t, uint32_t> state_map;
   DFA::States dfa_states;
   dfa_states.reserve(states_.size());
-  size_t next_state = 0;
+  uint32_t next_state = 0;
   for (auto const& [state_num, state] : states_) {
     state_map.try_emplace(state_num, next_state++);
     DFA::State dfa_state{state.innermost_capture_group, state.assertions, {}};
@@ -225,10 +226,10 @@ reffed_ptr<DFA> TempNFA::ToDFA(CaptureGroups capture_groups) && {
 }
 
 reffed_ptr<NFA> TempNFA::ToNFA(CaptureGroups capture_groups) && {
-  absl::flat_hash_map<size_t, size_t> state_map;
+  absl::flat_hash_map<uint32_t, uint32_t> state_map;
   NFA::States nfa_states;
   nfa_states.reserve(states_.size());
-  size_t next_state = 0;
+  uint32_t next_state = 0;
   for (auto& [state_num, state] : states_) {
     state_map.try_emplace(state_num, next_state++);
     nfa_states.emplace_back(std::move(state));
