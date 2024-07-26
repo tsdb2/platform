@@ -210,29 +210,21 @@ size_t DFA::GetTotalEdgeCount() const {
 }
 
 bool DFA::GetAssertsBegin() const {
-  if ((states_[initial_state_].assertions & Assertions::kBegin) != Assertions::kNone) {
-    return true;
-  }
-  absl::flat_hash_set<uint32_t> states{initial_state_};
-  bool new_state_found;
-  do {
-    new_state_found = false;
-    for (auto const state_num : states) {
-      auto const& edges = states_[state_num].edges;
-      auto const it = edges.find(0);
-      if (it != edges.end()) {
-        auto const transition = it->second;
-        if (!states.contains(transition)) {
-          new_state_found = true;
-          if ((states_[transition].assertions & Assertions::kBegin) != Assertions::kNone) {
-            return true;
-          }
-          states.emplace(transition);
-          break;
-        }
-      }
+  absl::flat_hash_set<uint32_t> visited;
+  std::vector<uint32_t> stack{initial_state_};
+  while (!stack.empty()) {
+    uint32_t const state_num = stack.back();
+    auto const& state = states_[state_num];
+    if ((state.assertions & Assertions::kBegin) != Assertions::kNone) {
+      return true;
     }
-  } while (new_state_found);
+    stack.pop_back();
+    visited.emplace(state_num);
+    auto const it = state.edges.find(0);
+    if (it != state.edges.end() && !visited.contains(it->second)) {
+      stack.emplace_back(it->second);
+    }
+  }
   return false;
 }
 
