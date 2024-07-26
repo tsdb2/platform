@@ -46,7 +46,7 @@ AbstractAutomaton::CaptureSet AbstractAutomaton::RangeSet::Close() const& {
   CaptureSet result{ranges_.size(), CaptureEntry()};
   for (size_t i = 0; i < ranges_.size(); ++i) {
     for (size_t j = 0; j < ranges_[i].size() - 1; ++j) {
-      result[i][j] = ranges_[i][j];
+      result[i].emplace_back(ranges_[i][j]);
     }
   }
   return result;
@@ -56,7 +56,7 @@ AbstractAutomaton::CaptureSet AbstractAutomaton::RangeSet::Close() && {
   CaptureSet result{ranges_.size(), CaptureEntry()};
   for (size_t i = 0; i < ranges_.size(); ++i) {
     for (size_t j = 0; j < ranges_[i].size() - 1; ++j) {
-      result[i][j] = std::move(ranges_[i][j]);
+      result[i].emplace_back(std::move(ranges_[i][j]));
     }
   }
   return result;

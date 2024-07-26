@@ -193,13 +193,17 @@ NFA::StateCaptureMap NFA::EpsilonClosure(StateCaptureMap capture_map) const {
   do {
     new_state_found = false;
     for (auto const& [state_num, captures] : capture_map) {
-      auto const& edges = states_[state_num].edges;
+      auto const& state = states_[state_num];
+      auto const& edges = state.edges;
       auto const it = edges.find(0);
       if (it != edges.end()) {
         for (auto const transition : it->second) {
-          auto const [it, inserted] = capture_map.try_emplace(transition, captures);
+          auto const [next_it, inserted] = capture_map.try_emplace(transition, captures);
           if (inserted) {
             new_state_found = true;
+            if (states_[transition].innermost_capture_group < state.innermost_capture_group) {
+              next_it->second.Next(state.innermost_capture_group);
+            }
             break;
           }
         }
