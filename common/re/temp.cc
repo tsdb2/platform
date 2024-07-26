@@ -18,9 +18,9 @@ namespace regexp_internal {
 
 namespace {
 
-Transitions RemapTransitions(Transitions const& transitions,
-                             absl::flat_hash_map<uint32_t, uint32_t> const& state_map) {
-  Transitions remapped;
+StateSet RemapTransitions(StateSet const& transitions,
+                          absl::flat_hash_map<uint32_t, uint32_t> const& state_map) {
+  StateSet remapped;
   remapped.reserve(transitions.size());
   for (auto const& transition : transitions) {
     remapped.emplace(state_map.at(transition));

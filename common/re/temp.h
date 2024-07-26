@@ -16,7 +16,7 @@ namespace common {
 namespace regexp_internal {
 
 using Assertions = AbstractAutomaton::Assertions;
-using Transitions = NFA::Transitions;
+using StateSet = NFA::StateSet;
 using State = NFA::State;
 
 // Represents an NFA under construction.

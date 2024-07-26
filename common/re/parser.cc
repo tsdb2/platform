@@ -470,7 +470,7 @@ absl::StatusOr<TempNFA> Parser::Parse0(size_t const recursion_depth, int const c
   if (ConsumePrefix(".")) {
     State state{capture_group, Assertions::kNone, {}};
     for (int ch = 1; ch < 256; ++ch) {
-      state.edges.try_emplace(ch, Transitions{stop});
+      state.edges.try_emplace(ch, StateSet{stop});
     }
     return TempNFA(
         {

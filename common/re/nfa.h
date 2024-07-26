@@ -27,11 +27,11 @@ class NFA final : public AbstractAutomaton {
   // Represents the set of transitions from a given state with a given label. It's a sorted array of
   // unique destination states. Most commonly there will be only one destination state for that
   // label, so we use `absl::InlinedVector<..., 1>` as the underlying representation.
-  using Transitions = flat_set<uint32_t, std::less<uint32_t>, absl::InlinedVector<uint32_t, 1>>;
+  using StateSet = flat_set<uint32_t, std::less<uint32_t>, absl::InlinedVector<uint32_t, 1>>;
 
   // Represents a state of the automaton.
   struct State {
-    using Edges = flat_map<char, Transitions>;
+    using Edges = flat_map<char, StateSet>;
 
     explicit State(int const capture_group, Assertions const state_assertions, Edges edges)
         : innermost_capture_group(capture_group),
@@ -58,21 +58,16 @@ class NFA final : public AbstractAutomaton {
     Assertions assertions;
 
     // The edges are represented by a map of input characters to transitions. Each character is
-    // associated to all the edges that are labeled with it (the `Transitions` set). Character 0 is
-    // used to label epsilon-moves.
+    // associated to all the edges that are labeled with it (the `StateSet`). Character 0 is used to
+    // label epsilon-moves.
     Edges edges;
   };
 
   // The array of states. The state numbers are the indices in this array. For example, `states[0]`
   // is state 0, `states[1]` is state 1, and so on. State numbers are used as values in the
-  // `Transitions` sets.
+  // `StateSet` sets.
   using States = std::vector<State>;
 
- private:
-  // Used by our NFA algorithms to keep track of the current set of states efficiently.
-  using StateSet = flat_set<uint32_t, std::less<uint32_t>, absl::InlinedVector<uint32_t, 1>>;
-
- public:
   // Stepper implementation for NFAs.
   class Stepper final : public StepperInterface {
    public:
