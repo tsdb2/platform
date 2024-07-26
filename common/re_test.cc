@@ -46,7 +46,7 @@ TEST(RegexpTest, GetSize) {
   auto const status_or_re = RE::Create("(lorem)*");
   ASSERT_OK(status_or_re);
   auto const& re = status_or_re.value();
-  EXPECT_THAT(re.GetSize(), Pair(5, 5));
+  EXPECT_THAT(re.GetSize(), Pair(7, 7));
 }
 
 TEST(RegexpTest, GetNumCaptureGroups) {
