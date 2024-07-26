@@ -103,7 +103,7 @@ bool DFA::Test(std::string_view const input) const {
 }
 
 std::optional<AbstractAutomaton::CaptureSet> DFA::Match(std::string_view const input) const {
-  CaptureSet captures{capture_groups_.size(), CaptureEntry()};
+  RangeSet captures{capture_groups_};
   uint32_t state_num = initial_state_;
   size_t offset = 0;
   while (offset < input.size()) {
@@ -118,10 +118,7 @@ std::optional<AbstractAutomaton::CaptureSet> DFA::Match(std::string_view const i
       if (it == state.edges.end()) {
         return std::nullopt;
       }
-      for (auto it = capture_groups_.LookUp(state.innermost_capture_group);
-           it != capture_groups_.root(); ++it) {
-        captures[*it].back() += ch;
-      }
+      captures.Capture(ch, state.innermost_capture_group);
       ++offset;
     }
     state_num = it->second;
@@ -140,20 +137,20 @@ std::optional<AbstractAutomaton::CaptureSet> DFA::Match(std::string_view const i
   if (!Assert(states_[final_state_].assertions, input, offset)) {
     return std::nullopt;
   }
-  return captures;
+  return std::move(captures).Close();
 }
 
 bool DFA::AssertsBegin() const { return asserts_begin_; }
 
 std::optional<AbstractAutomaton::CaptureSet> DFA::PartialMatchInternal(std::string_view const input,
                                                                        size_t offset) const {
-  std::optional<CaptureSet> result = std::nullopt;
+  std::optional<RangeSet> result = std::nullopt;
   uint32_t state_num = initial_state_;
-  CaptureSet captures{capture_groups_.size(), CaptureEntry()};
+  RangeSet captures{capture_groups_};
   while (offset < input.size()) {
     auto const& state = states_[state_num];
     if (!Assert(state.assertions, input, offset)) {
-      return result;
+      return std::move(result).value().Close();
     }
     if (state_num == final_state_) {
       result = captures;
@@ -161,15 +158,12 @@ std::optional<AbstractAutomaton::CaptureSet> DFA::PartialMatchInternal(std::stri
     char const ch = input[offset];
     auto it = state.edges.find(ch);
     if (it != state.edges.end()) {
-      for (auto it = capture_groups_.LookUp(state.innermost_capture_group);
-           it != capture_groups_.root(); ++it) {
-        captures[*it].back() += ch;
-      }
+      captures.Capture(ch, state.innermost_capture_group);
       ++offset;
     } else {
       it = state.edges.find(0);
       if (it == state.edges.end()) {
-        return result;
+        return std::move(result).value().Close();
       }
     }
     state_num = it->second;
@@ -177,18 +171,18 @@ std::optional<AbstractAutomaton::CaptureSet> DFA::PartialMatchInternal(std::stri
   while (state_num != final_state_) {
     auto const& state = states_[state_num];
     if (!Assert(state.assertions, input, offset)) {
-      return result;
+      return std::move(result).value().Close();
     }
     auto const it = state.edges.find(0);
     if (it == state.edges.end()) {
-      return result;
+      return std::move(result).value().Close();
     }
     state_num = it->second;
   }
   if (!Assert(states_[final_state_].assertions, input, offset)) {
-    return result;
+    return std::move(result).value().Close();
   }
-  return captures;
+  return std::move(captures).Close();
 }
 
 size_t DFA::GetTotalEdgeCount() const {

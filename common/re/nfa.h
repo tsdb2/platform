@@ -118,29 +118,6 @@ class NFA final : public AbstractAutomaton {
                                                  size_t offset) const override;
 
  private:
-  class RangeSet {
-   public:
-    explicit RangeSet(CaptureGroups const &capture_groups)
-        : capture_groups_(&capture_groups),
-          ranges_(capture_groups.size(), absl::InlinedVector<std::string, 2>{""}) {}
-
-    RangeSet(RangeSet const &) = default;
-    RangeSet &operator=(RangeSet const &) = default;
-    RangeSet(RangeSet &&) noexcept = default;
-    RangeSet &operator=(RangeSet &&) noexcept = default;
-
-    void Next(int innermost_capture_group);
-
-    void Capture(char ch, int innermost_capture_group);
-
-    CaptureSet Close() const &;
-    CaptureSet Close() &&;
-
-   private:
-    CaptureGroups const *capture_groups_;
-    std::vector<absl::InlinedVector<std::string, 2>> ranges_;
-  };
-
   // Like `StateSet`, but it also maps capture sets to their states. This is used by `Match`
   // algorithms.
   using StateCaptureMap = flat_map<uint32_t, RangeSet, std::less<uint32_t>,

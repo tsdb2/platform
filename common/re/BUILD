@@ -13,6 +13,7 @@ cc_library(
     srcs = ["automaton.cc"],
     hdrs = ["automaton.h"],
     deps = [
+        ":capture_groups",
         "//common:ref_count",
         "@com_google_absl//absl/container:inlined_vector",
     ],

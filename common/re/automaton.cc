@@ -28,6 +28,40 @@ std::optional<AbstractAutomaton::CaptureSet> AbstractAutomaton::PartialMatch(
   return std::nullopt;
 }
 
+void AbstractAutomaton::RangeSet::Next(int const innermost_capture_group) {
+  for (auto it = capture_groups_->LookUp(innermost_capture_group); it != capture_groups_->root();
+       ++it) {
+    ranges_[*it].emplace_back();
+  }
+}
+
+void AbstractAutomaton::RangeSet::Capture(char const ch, int const innermost_capture_group) {
+  for (auto it = capture_groups_->LookUp(innermost_capture_group); it != capture_groups_->root();
+       ++it) {
+    ranges_[*it].back() += ch;
+  }
+}
+
+AbstractAutomaton::CaptureSet AbstractAutomaton::RangeSet::Close() const& {
+  CaptureSet result{ranges_.size(), CaptureEntry()};
+  for (size_t i = 0; i < ranges_.size(); ++i) {
+    for (size_t j = 0; j < ranges_[i].size() - 1; ++j) {
+      result[i][j] = ranges_[i][j];
+    }
+  }
+  return result;
+}
+
+AbstractAutomaton::CaptureSet AbstractAutomaton::RangeSet::Close() && {
+  CaptureSet result{ranges_.size(), CaptureEntry()};
+  for (size_t i = 0; i < ranges_.size(); ++i) {
+    for (size_t j = 0; j < ranges_[i].size() - 1; ++j) {
+      result[i][j] = std::move(ranges_[i][j]);
+    }
+  }
+  return result;
+}
+
 bool AbstractAutomaton::Assert(Assertions const assertions, std::string_view const input,
                                size_t const offset) {
   if ((assertions & Assertions::kBegin) != Assertions::kNone) {

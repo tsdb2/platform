@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "absl/container/inlined_vector.h"
+#include "common/re/capture_groups.h"
 #include "common/ref_count.h"
 
 namespace tsdb2 {
@@ -182,6 +183,29 @@ class AbstractAutomaton : public SimpleRefCounted {
   std::optional<CaptureSet> PartialMatch(std::string_view input) const;
 
  protected:
+  class RangeSet {
+   public:
+    explicit RangeSet(CaptureGroups const &capture_groups)
+        : capture_groups_(&capture_groups),
+          ranges_(capture_groups.size(), absl::InlinedVector<std::string, 2>{""}) {}
+
+    RangeSet(RangeSet const &) = default;
+    RangeSet &operator=(RangeSet const &) = default;
+    RangeSet(RangeSet &&) noexcept = default;
+    RangeSet &operator=(RangeSet &&) noexcept = default;
+
+    void Next(int innermost_capture_group);
+
+    void Capture(char ch, int innermost_capture_group);
+
+    CaptureSet Close() const &;
+    CaptureSet Close() &&;
+
+   private:
+    CaptureGroups const *capture_groups_;
+    std::vector<absl::InlinedVector<std::string, 2>> ranges_;
+  };
+
   // Checks the specified `assertions` on the `input` text at the specified `offset`.
   static bool Assert(Assertions assertions, std::string_view input, size_t offset);
 

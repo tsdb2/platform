@@ -147,40 +147,6 @@ std::optional<AbstractAutomaton::CaptureSet> NFA::PartialMatchInternal(std::stri
   return result;
 }
 
-void NFA::RangeSet::Next(int const innermost_capture_group) {
-  for (auto it = capture_groups_->LookUp(innermost_capture_group); it != capture_groups_->root();
-       ++it) {
-    ranges_[*it].emplace_back();
-  }
-}
-
-void NFA::RangeSet::Capture(char const ch, int const innermost_capture_group) {
-  for (auto it = capture_groups_->LookUp(innermost_capture_group); it != capture_groups_->root();
-       ++it) {
-    ranges_[*it].back() += ch;
-  }
-}
-
-AbstractAutomaton::CaptureSet NFA::RangeSet::Close() const& {
-  CaptureSet result{ranges_.size(), CaptureEntry()};
-  for (size_t i = 0; i < ranges_.size(); ++i) {
-    for (size_t j = 0; j < ranges_[i].size() - 1; ++j) {
-      result[i][j] = ranges_[i][j];
-    }
-  }
-  return result;
-}
-
-AbstractAutomaton::CaptureSet NFA::RangeSet::Close() && {
-  CaptureSet result{ranges_.size(), CaptureEntry()};
-  for (size_t i = 0; i < ranges_.size(); ++i) {
-    for (size_t j = 0; j < ranges_[i].size() - 1; ++j) {
-      result[i][j] = std::move(ranges_[i][j]);
-    }
-  }
-  return result;
-}
-
 size_t NFA::GetTotalEdgeCount() const {
   size_t num_edges = 0;
   for (auto const& state : states_) {
