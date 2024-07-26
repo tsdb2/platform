@@ -38,6 +38,9 @@ class NFA final : public AbstractAutomaton {
           assertions(state_assertions),
           edges(std::move(edges)) {}
 
+    explicit State(int const capture_group, Edges edges)
+        : State(capture_group, Assertions::kNone, std::move(edges)) {}
+
     State(State const &) = default;
     State &operator=(State const &) = default;
     State(State &&) noexcept = default;

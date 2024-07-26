@@ -130,9 +130,9 @@ void TempNFA::Merge(TempNFA&& other, int const capture_group, uint32_t const ini
   for (auto& [state_num, state] : other.states_) {
     MergeState(state_num, std::move(state));
   }
-  states_.try_emplace(initial_state, capture_group, Assertions::kNone,
+  states_.try_emplace(initial_state, capture_group,
                       State::Edges{{0, {initial_state_, other.initial_state_}}});
-  states_.try_emplace(final_state, capture_group, Assertions::kNone, State::Edges{});
+  states_.try_emplace(final_state, capture_group, State::Edges{});
   MaybeAddEpsilonEdge(final_state_, final_state);
   MaybeAddEpsilonEdge(other.final_state_, final_state);
   initial_state_ = initial_state;

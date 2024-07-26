@@ -195,8 +195,8 @@ TempNFA Parser::MakeSingleCharacterNFA(int const capture_group, char const ch) {
   uint32_t const stop = next_state_++;
   return TempNFA(
       {
-          {start, State(capture_group, Assertions::kNone, {{ch, {stop}}})},
-          {stop, State(capture_group, Assertions::kNone, {})},
+          {start, State(capture_group, {{ch, {stop}}})},
+          {stop, State(capture_group, {})},
       },
       start, stop);
 }
@@ -204,14 +204,14 @@ TempNFA Parser::MakeSingleCharacterNFA(int const capture_group, char const ch) {
 TempNFA Parser::MakeCharacterClassNFA(int const capture_group, std::string_view const chars) {
   uint32_t const start = next_state_++;
   uint32_t const stop = next_state_++;
-  State state{capture_group, Assertions::kNone, {}};
+  State state{capture_group, {}};
   for (char const ch : chars) {
     state.edges[ch].emplace(stop);
   }
   return TempNFA(
       {
           {start, std::move(state)},
-          {stop, State(capture_group, Assertions::kNone, {})},
+          {stop, State(capture_group, {})},
       },
       start, stop);
 }
@@ -220,7 +220,7 @@ TempNFA Parser::MakeNegatedCharacterClassNFA(int const capture_group,
                                              std::string_view const chars) {
   uint32_t const start = next_state_++;
   uint32_t const stop = next_state_++;
-  State state{capture_group, Assertions::kNone, {}};
+  State state{capture_group, {}};
   for (int ch = 1; ch < 256; ++ch) {
     state.edges[ch].emplace(stop);
   }
@@ -230,7 +230,7 @@ TempNFA Parser::MakeNegatedCharacterClassNFA(int const capture_group,
   return TempNFA(
       {
           {start, std::move(state)},
-          {stop, State(capture_group, Assertions::kNone, {})},
+          {stop, State(capture_group, {})},
       },
       start, stop);
 }
@@ -348,7 +348,7 @@ absl::StatusOr<TempNFA> Parser::ParseCharacterClass(int const capture_group) {
   RETURN_IF_ERROR(ExpectPrefix("[", "expected ["));
   uint32_t const start = next_state_++;
   uint32_t const stop = next_state_++;
-  State state{capture_group, Assertions::kNone, {}};
+  State state{capture_group, {}};
   bool const negated = ConsumePrefix("^");
   if (negated) {
     for (int ch = 1; ch < 256; ++ch) {
@@ -368,7 +368,7 @@ absl::StatusOr<TempNFA> Parser::ParseCharacterClass(int const capture_group) {
   return TempNFA(
       {
           {start, std::move(state)},
-          {stop, State(capture_group, Assertions::kNone, {})},
+          {stop, State(capture_group, {})},
       },
       start, stop);
 }
@@ -449,7 +449,7 @@ absl::StatusOr<TempNFA> Parser::Parse0(size_t const recursion_depth, int const c
   }
   uint32_t const start = next_state_++;
   if (at_end()) {
-    return TempNFA({{start, State(capture_group, Assertions::kNone, {})}}, start, start);
+    return TempNFA({{start, State(capture_group, {})}}, start, start);
   }
   if (ConsumePrefix("(")) {
     if (ConsumePrefix("?")) {
@@ -465,21 +465,21 @@ absl::StatusOr<TempNFA> Parser::Parse0(size_t const recursion_depth, int const c
       RETURN_IF_ERROR(ExpectPrefix(")", "unmatched parens"));
       uint32_t const start = next_state_++;
       uint32_t const stop = next_state_++;
-      return TempNFA({{start, State(capture_group, Assertions::kNone, {})}}, start, start)
+      return TempNFA({{start, State(capture_group, {})}}, start, start)
           .Chain(std::move(nfa))
-          .Chain(TempNFA({{stop, State(capture_group, Assertions::kNone, {})}}, stop, stop));
+          .Chain(TempNFA({{stop, State(capture_group, {})}}, stop, stop));
     }
   }
   uint32_t const stop = next_state_++;
   if (ConsumePrefix(".")) {
-    State state{capture_group, Assertions::kNone, {}};
+    State state{capture_group, {}};
     for (int ch = 1; ch < 256; ++ch) {
       state.edges.try_emplace(ch, StateSet{stop});
     }
     return TempNFA(
         {
             {start, State(std::move(state))},
-            {stop, State(capture_group, Assertions::kNone, {})},
+            {stop, State(capture_group, {})},
         },
         start, stop);
   }
@@ -487,7 +487,7 @@ absl::StatusOr<TempNFA> Parser::Parse0(size_t const recursion_depth, int const c
   switch (ch) {
     case ')':
     case '|':
-      return TempNFA({{start, State(capture_group, Assertions::kNone, {})}}, start, start);
+      return TempNFA({{start, State(capture_group, {})}}, start, start);
     case '[':
       return ParseCharacterClass(capture_group);
     case ']':
@@ -512,8 +512,8 @@ absl::StatusOr<TempNFA> Parser::Parse0(size_t const recursion_depth, int const c
       Advance();
       return TempNFA(
           {
-              {start, State(capture_group, Assertions::kNone, {{ch, {stop}}})},
-              {stop, State(capture_group, Assertions::kNone, {})},
+              {start, State(capture_group, {{ch, {stop}}})},
+              {stop, State(capture_group, {})},
           },
           start, stop);
   }
@@ -596,7 +596,7 @@ absl::StatusOr<TempNFA> Parser::Parse1(size_t const recursion_depth, int const c
     } else {
       auto piece = std::move(nfa);
       uint32_t const start = next_state_++;
-      nfa = TempNFA({{start, State(capture_group, Assertions::kNone, {})}}, start, start);
+      nfa = TempNFA({{start, State(capture_group, {})}}, start, start);
       for (int i = 0; i < min; ++i) {
         piece.RenameAllStates(&next_state_);
         nfa.Chain(piece);

@@ -2473,6 +2473,16 @@ TEST_P(RegexpTest, QuantifierOrQuantifier) {
   EXPECT_THAT(Match(pattern, "aabb"), IsOkAndHolds(std::nullopt));
 }
 
+TEST_P(RegexpTest, CaptureMultipleTimes) {
+  auto const status_or_pattern = Parse("((ab.)*)");
+  EXPECT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(ElementsAre(ElementsAre(""), IsEmpty()))));
+  EXPECT_THAT(Match(pattern, "abcabdabe"),
+              IsOkAndHolds(Optional(
+                  ElementsAre(ElementsAre("abcabdabe"), ElementsAre("abc", "abd", "abe")))));
+}
+
 TEST_P(RegexpTest, CantMergeLoopEndpoints) {
   auto const status_or_pattern = Parse("(lore(m))*");
   EXPECT_OK(status_or_pattern);
