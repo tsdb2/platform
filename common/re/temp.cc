@@ -42,9 +42,11 @@ bool TempNFA::IsDeterministic() const {
     if (num_epsilon > 1) {
       return false;
     }
-    bool const has_epsilon = num_epsilon > 0;
+    if (num_epsilon > 0 && state.edges.size() > 1) {
+      return false;
+    }
     for (auto const& [ch, transitions] : state.edges) {
-      if (transitions.size() > 1 || (!transitions.empty() && has_epsilon)) {
+      if (transitions.size() > 1) {
         return false;
       }
     }
@@ -211,7 +213,7 @@ reffed_ptr<DFA> TempNFA::ToDFA(CaptureGroups capture_groups) && {
     state_map.try_emplace(state_num, next_state++);
     DFA::State dfa_state{state.innermost_capture_group, state.assertions, {}};
     for (auto const& [ch, transitions] : state.edges) {
-      dfa_state.edges.try_emplace(ch, *transitions.begin());
+      dfa_state.edges.try_emplace(ch, *(transitions.begin()));
     }
     dfa_states.emplace_back(std::move(dfa_state));
   }

@@ -208,11 +208,11 @@ bool DFA::GetAssertsBegin() const {
         auto const transition = it->second;
         if (!states.contains(transition)) {
           new_state_found = true;
-          auto const& destination = states_[transition];
-          if ((destination.assertions & Assertions::kBegin) != Assertions::kNone) {
+          if ((states_[transition].assertions & Assertions::kBegin) != Assertions::kNone) {
             return true;
           }
           states.emplace(transition);
+          break;
         }
       }
     }
