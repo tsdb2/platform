@@ -121,6 +121,9 @@ std::optional<AbstractAutomaton::CaptureSet> DFA::Match(std::string_view const i
       captures.Capture(ch, state.innermost_capture_group);
       ++offset;
     }
+    if (states_[it->second].innermost_capture_group < state.innermost_capture_group) {
+      captures.Next(state.innermost_capture_group);
+    }
     state_num = it->second;
   }
   while (state_num != final_state_) {
@@ -131,6 +134,9 @@ std::optional<AbstractAutomaton::CaptureSet> DFA::Match(std::string_view const i
     auto const it = state.edges.find(0);
     if (it == state.edges.end()) {
       return std::nullopt;
+    }
+    if (states_[it->second].innermost_capture_group < state.innermost_capture_group) {
+      captures.Next(state.innermost_capture_group);
     }
     state_num = it->second;
   }
@@ -166,6 +172,9 @@ std::optional<AbstractAutomaton::CaptureSet> DFA::PartialMatchInternal(std::stri
         return MaybeCloseRanges(std::move(result));
       }
     }
+    if (states_[it->second].innermost_capture_group < state.innermost_capture_group) {
+      captures.Next(state.innermost_capture_group);
+    }
     state_num = it->second;
   }
   while (state_num != final_state_) {
@@ -176,6 +185,9 @@ std::optional<AbstractAutomaton::CaptureSet> DFA::PartialMatchInternal(std::stri
     auto const it = state.edges.find(0);
     if (it == state.edges.end()) {
       return MaybeCloseRanges(std::move(result));
+    }
+    if (states_[it->second].innermost_capture_group < state.innermost_capture_group) {
+      captures.Next(state.innermost_capture_group);
     }
     state_num = it->second;
   }
