@@ -102,8 +102,8 @@ bool DFA::Test(std::string_view const input) const {
   return true;
 }
 
-std::optional<std::vector<std::string>> DFA::Match(std::string_view const input) const {
-  std::vector<std::string> captures{capture_groups_.size(), std::string()};
+std::optional<AbstractAutomaton::CaptureSet> DFA::Match(std::string_view const input) const {
+  CaptureSet captures{capture_groups_.size(), CaptureEntry()};
   uint32_t state_num = initial_state_;
   size_t offset = 0;
   while (offset < input.size()) {
@@ -120,7 +120,7 @@ std::optional<std::vector<std::string>> DFA::Match(std::string_view const input)
       }
       for (auto it = capture_groups_.LookUp(state.innermost_capture_group);
            it != capture_groups_.root(); ++it) {
-        captures[*it] += ch;
+        captures[*it].back() += ch;
       }
       ++offset;
     }
@@ -145,11 +145,11 @@ std::optional<std::vector<std::string>> DFA::Match(std::string_view const input)
 
 bool DFA::AssertsBegin() const { return asserts_begin_; }
 
-std::optional<std::vector<std::string>> DFA::PartialMatchInternal(std::string_view const input,
-                                                                  size_t offset) const {
-  std::optional<std::vector<std::string>> result = std::nullopt;
+std::optional<AbstractAutomaton::CaptureSet> DFA::PartialMatchInternal(std::string_view const input,
+                                                                       size_t offset) const {
+  std::optional<CaptureSet> result = std::nullopt;
   uint32_t state_num = initial_state_;
-  std::vector<std::string> captures{capture_groups_.size(), std::string()};
+  CaptureSet captures{capture_groups_.size(), CaptureEntry()};
   while (offset < input.size()) {
     auto const& state = states_[state_num];
     if (!Assert(state.assertions, input, offset)) {
@@ -163,7 +163,7 @@ std::optional<std::vector<std::string>> DFA::PartialMatchInternal(std::string_vi
     if (it != state.edges.end()) {
       for (auto it = capture_groups_.LookUp(state.innermost_capture_group);
            it != capture_groups_.root(); ++it) {
-        captures[*it] += ch;
+        captures[*it].back() += ch;
       }
       ++offset;
     } else {

@@ -4,7 +4,6 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -40,8 +39,8 @@ bool RE::Test(std::string_view const input, std::string_view const pattern) {
   }
 }
 
-absl::StatusOr<std::vector<std::string>> RE::Match(std::string_view const input,
-                                                   std::string_view const pattern) {
+absl::StatusOr<RE::CaptureSet> RE::Match(std::string_view const input,
+                                         std::string_view const pattern) {
   auto status_or_re = RE::Create(pattern);
   if (status_or_re.ok()) {
     auto maybe_results = status_or_re->Match(input);
@@ -56,8 +55,8 @@ absl::StatusOr<std::vector<std::string>> RE::Match(std::string_view const input,
   }
 }
 
-absl::StatusOr<std::vector<std::string>> RE::PartialMatch(std::string_view const input,
-                                                          std::string_view const pattern) {
+absl::StatusOr<RE::CaptureSet> RE::PartialMatch(std::string_view const input,
+                                                std::string_view const pattern) {
   auto status_or_re = RE::Create(pattern);
   if (status_or_re.ok()) {
     auto maybe_results = status_or_re->PartialMatch(input);
@@ -72,8 +71,8 @@ absl::StatusOr<std::vector<std::string>> RE::PartialMatch(std::string_view const
   }
 }
 
-absl::StatusOr<std::vector<std::string>> RE::ConsumePrefix(std::string_view *const input,
-                                                           std::string_view const pattern) {
+absl::StatusOr<RE::CaptureSet> RE::ConsumePrefix(std::string_view *const input,
+                                                 std::string_view const pattern) {
   auto status_or_re = RE::Create(absl::StrCat("(", pattern, ")"));
   if (!status_or_re.ok()) {
     return std::move(status_or_re).status();
@@ -86,9 +85,14 @@ absl::StatusOr<std::vector<std::string>> RE::ConsumePrefix(std::string_view *con
                                             absl::CEscape(ClipString(original_input)), "\""));
   }
   auto &matches = maybe_matches.value();
-  std::string const prefix = std::move(matches[0]);
-  matches.erase(matches.begin());
-  input->remove_prefix(prefix.size());
+  size_t prefix_length = 0;
+  if (!matches.empty()) {
+    for (auto const &prefix : matches[0]) {
+      prefix_length += prefix.size();
+    }
+    matches.erase(matches.begin());
+  }
+  input->remove_prefix(prefix_length);
   return std::move(matches);
 }
 

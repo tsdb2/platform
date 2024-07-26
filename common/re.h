@@ -3,10 +3,8 @@
 
 #include <cstddef>
 #include <optional>
-#include <string>
 #include <string_view>
 #include <utility>
-#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -42,6 +40,19 @@ class TrieNode;
 //
 class RE {
  public:
+  // Set of captured strings returned by `Match` methods. Each entry corresponds to a capture group
+  // and is an array of strings (rather than a single string) because in the presence of a Kleene
+  // operator a capture group may capture multiple substrings. For example, the pattern
+  // `(f(oo)bar)*` will produce the following capture set when running on the string `foobarfoobar`:
+  //
+  //   0 -> `foobar`, `foobar`
+  //   1 -> `oo`, `oo`
+  //
+  // Note that we cannot store all substrings captured by a group in a single string. Even if we did
+  // that for group #0 (`foobarfoobar`) it would be incorrect to do it for group #1 (`oooo` is not a
+  // substring of the original input).
+  using CaptureSet = regexp_internal::AbstractAutomaton::CaptureSet;
+
   // Checks if `input` matches `pattern`.
   //
   // This function doesn't allow the caller to tell if `pattern` fails to compile; in that case it
@@ -52,16 +63,14 @@ class RE {
 
   // Checks if `input` matches `pattern` and returns an array of the strings captured by the capture
   // groups. An error status is returned if `pattern` fails to compile or `input` doesn't match.
-  static absl::StatusOr<std::vector<std::string>> Match(std::string_view input,
-                                                        std::string_view pattern);
+  static absl::StatusOr<CaptureSet> Match(std::string_view input, std::string_view pattern);
 
-  static absl::StatusOr<std::vector<std::string>> PartialMatch(std::string_view input,
-                                                               std::string_view pattern);
+  static absl::StatusOr<CaptureSet> PartialMatch(std::string_view input, std::string_view pattern);
 
   // Strips the longest possible prefix matching `pattern` from the provided `input` string. Returns
   // true iff a prefix was matched and removed.
-  static absl::StatusOr<std::vector<std::string>> ConsumePrefix(std::string_view *input,
-                                                                std::string_view pattern);
+  static absl::StatusOr<CaptureSet> ConsumePrefix(std::string_view *input,
+                                                  std::string_view pattern);
 
   // Compiles the provided `pattern` into a `RE` object that can be run efficiently multiple times.
   static absl::StatusOr<RE> Create(std::string_view pattern);
@@ -95,14 +104,14 @@ class RE {
 
   // Checks if `input` matches this regular expression and returns an array of the strings captured
   // by the capture groups. An empty optional is returned if `input` doesn't match.
-  std::optional<std::vector<std::string>> Match(std::string_view const input) const {
+  std::optional<CaptureSet> Match(std::string_view const input) const {
     return automaton_->Match(input);
   }
 
   // Matches the longest possible prefix of the provided string against this regular expression.
   // Returns the array of strings captured by any capture groups, or an empty optional if no
   // matching prefix is found.
-  std::optional<std::vector<std::string>> MatchPrefix(std::string_view const input) const {
+  std::optional<CaptureSet> MatchPrefix(std::string_view const input) const {
     return automaton_->MatchPrefix(input);
   }
 
@@ -113,7 +122,7 @@ class RE {
   // NOTE: unlike other regular expression implementations this function does not return the full
   // match in the first capture group. If you need that information you need to surround the whole
   // expression in a capture group before compiling it.
-  std::optional<std::vector<std::string>> PartialMatch(std::string_view const input) const {
+  std::optional<CaptureSet> PartialMatch(std::string_view const input) const {
     return automaton_->PartialMatch(input);
   }
 

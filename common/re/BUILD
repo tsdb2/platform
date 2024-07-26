@@ -14,6 +14,7 @@ cc_library(
     hdrs = ["automaton.h"],
     deps = [
         "//common:ref_count",
+        "@com_google_absl//absl/container:inlined_vector",
     ],
 )
 

@@ -109,20 +109,19 @@ class NFA final : public AbstractAutomaton {
 
   bool Test(std::string_view input) const override;
 
-  std::optional<std::vector<std::string>> Match(std::string_view input) const override;
+  std::optional<CaptureSet> Match(std::string_view input) const override;
 
  protected:
   bool AssertsBegin() const override;
 
-  std::optional<std::vector<std::string>> PartialMatchInternal(std::string_view input,
-                                                               size_t offset) const override;
+  std::optional<CaptureSet> PartialMatchInternal(std::string_view input,
+                                                 size_t offset) const override;
 
  private:
   // Like `StateSet`, but it also maps capture sets to their states. This is used by `Match`
   // algorithms.
-  using CaptureMap =
-      flat_map<uint32_t, std::vector<std::string>, std::less<uint32_t>,
-               absl::InlinedVector<std::pair<uint32_t, std::vector<std::string>>, 1>>;
+  using StateCaptureMap = flat_map<uint32_t, CaptureSet, std::less<uint32_t>,
+                                   absl::InlinedVector<std::pair<uint32_t, CaptureSet>, 1>>;
 
   size_t GetTotalEdgeCount() const;
   bool GetAssertsBegin() const;
@@ -131,15 +130,15 @@ class NFA final : public AbstractAutomaton {
   StateSet EpsilonClosure(StateSet states) const;
 
   // Calculates the epsilon-closure in `Match` algorithms.
-  CaptureMap EpsilonClosure(CaptureMap captures) const;
+  StateCaptureMap EpsilonClosure(StateCaptureMap capture_map) const;
 
   // `AssertedEpsilonClosure` algorithms are like `EpsilonClosure` but in the end they also remove
   // all states that fail one or more assertions. They may return empty state sets.
 
   StateSet AssertedEpsilonClosure(StateSet states, std::string_view input, size_t offset) const;
 
-  CaptureMap AssertedEpsilonClosure(CaptureMap captures, std::string_view input,
-                                    size_t offset) const;
+  StateCaptureMap AssertedEpsilonClosure(StateCaptureMap capture_map, std::string_view input,
+                                         size_t offset) const;
 
   States const states_;
   uint32_t const initial_state_;

@@ -9,7 +9,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/container/inlined_vector.h"
 #include "common/re/automaton.h"
 
 namespace tsdb2 {
@@ -82,14 +81,11 @@ bool NFA::Test(std::string_view const input) const {
   return states.contains(final_state_);
 }
 
-std::optional<std::vector<std::string>> NFA::Match(std::string_view const input) const {
-  CaptureMap states = AssertedEpsilonClosure(
-      {
-          {initial_state_, std::vector<std::string>(capture_groups_.size(), std::string())},
-      },
-      input, 0);
+std::optional<AbstractAutomaton::CaptureSet> NFA::Match(std::string_view const input) const {
+  StateCaptureMap states = AssertedEpsilonClosure(
+      {{initial_state_, CaptureSet(capture_groups_.size(), CaptureEntry())}}, input, 0);
   for (size_t offset = 0; offset < input.size() && !states.empty(); ++offset) {
-    CaptureMap next_states;
+    StateCaptureMap next_states;
     char const ch = input[offset];
     for (auto const& [state_num, captures] : states) {
       auto const& state = states_[state_num];
@@ -97,10 +93,10 @@ std::optional<std::vector<std::string>> NFA::Match(std::string_view const input)
         for (auto const transition : it->second) {
           auto const [next_it, inserted] = next_states.try_emplace(transition);
           if (inserted) {
-            std::vector<std::string> next_captures = captures;
+            CaptureSet next_captures = captures;
             for (auto cg_it = capture_groups_.LookUp(state.innermost_capture_group);
                  cg_it != capture_groups_.root(); ++cg_it) {
-              next_captures[*cg_it] += ch;
+              next_captures[*cg_it].back() += ch;
             }
             next_it->second = std::move(next_captures);
           }
@@ -118,19 +114,16 @@ std::optional<std::vector<std::string>> NFA::Match(std::string_view const input)
 
 bool NFA::AssertsBegin() const { return asserts_begin_; }
 
-std::optional<std::vector<std::string>> NFA::PartialMatchInternal(std::string_view const input,
-                                                                  size_t offset) const {
-  std::optional<std::vector<std::string>> result = std::nullopt;
-  CaptureMap states = AssertedEpsilonClosure(
-      {
-          {initial_state_, std::vector<std::string>(capture_groups_.size(), std::string())},
-      },
-      input, offset);
+std::optional<AbstractAutomaton::CaptureSet> NFA::PartialMatchInternal(std::string_view const input,
+                                                                       size_t offset) const {
+  std::optional<CaptureSet> result = std::nullopt;
+  StateCaptureMap states = AssertedEpsilonClosure(
+      {{initial_state_, CaptureSet(capture_groups_.size(), CaptureEntry())}}, input, offset);
   if (auto const it = states.find(final_state_); it != states.end()) {
     result = it->second;
   }
   for (; offset < input.size() && !states.empty(); ++offset) {
-    CaptureMap next_states;
+    StateCaptureMap next_states;
     char const ch = input[offset];
     for (auto const& [state_num, captures] : states) {
       auto const& state = states_[state_num];
@@ -138,10 +131,10 @@ std::optional<std::vector<std::string>> NFA::PartialMatchInternal(std::string_vi
         for (auto const transition : it->second) {
           auto const [next_it, inserted] = next_states.try_emplace(transition, captures);
           if (inserted) {
-            std::vector<std::string> next_captures = captures;
+            CaptureSet next_captures = captures;
             for (auto cg_it = capture_groups_.LookUp(state.innermost_capture_group);
                  cg_it != capture_groups_.root(); ++cg_it) {
-              next_captures[*cg_it] += ch;
+              next_captures[*cg_it].back() += ch;
             }
             next_it->second = std::move(next_captures);
           }
@@ -197,7 +190,7 @@ NFA::StateSet NFA::EpsilonClosure(StateSet states) const {
   return states;
 }
 
-NFA::CaptureMap NFA::EpsilonClosure(CaptureMap capture_map) const {
+NFA::StateCaptureMap NFA::EpsilonClosure(StateCaptureMap capture_map) const {
   bool new_state_found;
   do {
     new_state_found = false;
@@ -234,8 +227,9 @@ NFA::StateSet NFA::AssertedEpsilonClosure(StateSet states, std::string_view cons
   return states;
 }
 
-NFA::CaptureMap NFA::AssertedEpsilonClosure(CaptureMap capture_map, std::string_view const input,
-                                            size_t const offset) const {
+NFA::StateCaptureMap NFA::AssertedEpsilonClosure(StateCaptureMap capture_map,
+                                                 std::string_view const input,
+                                                 size_t const offset) const {
   capture_map = EpsilonClosure(std::move(capture_map));
   for (auto it = capture_map.begin(); it != capture_map.end();) {
     if (Assert(states_[it->first].assertions, input, offset)) {

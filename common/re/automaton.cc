@@ -10,7 +10,7 @@ namespace tsdb2 {
 namespace common {
 namespace regexp_internal {
 
-std::optional<std::vector<std::string>> AbstractAutomaton::PartialMatch(
+std::optional<AbstractAutomaton::CaptureSet> AbstractAutomaton::PartialMatch(
     std::string_view const input) const {
   auto results = PartialMatchInternal(input, 0);
   if (results) {

@@ -97,13 +97,13 @@ class DFA final : public AbstractAutomaton {
 
   bool Test(std::string_view input) const override;
 
-  std::optional<std::vector<std::string>> Match(std::string_view input) const override;
+  std::optional<CaptureSet> Match(std::string_view input) const override;
 
  protected:
   bool AssertsBegin() const override;
 
-  std::optional<std::vector<std::string>> PartialMatchInternal(std::string_view input,
-                                                               size_t offset) const override;
+  std::optional<CaptureSet> PartialMatchInternal(std::string_view input,
+                                                 size_t offset) const override;
 
  private:
   size_t GetTotalEdgeCount() const;

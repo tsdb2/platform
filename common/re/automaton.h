@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/inlined_vector.h"
 #include "common/ref_count.h"
 
 namespace tsdb2 {
@@ -50,6 +51,22 @@ class AbstractAutomaton : public SimpleRefCounted {
   friend Assertions &operator&=(Assertions &lhs, Assertions const rhs) {
     return lhs = operator&(lhs, rhs);
   }
+
+  // Individual entry of a capture set (see below).
+  using CaptureEntry = absl::InlinedVector<std::string, 1>;
+
+  // Set of captured strings returned by `Match` methods. Each entry corresponds to a capture group
+  // and is an array of strings (rather than a single string) because in the presence of a Kleene
+  // operator a capture group may capture multiple substrings. For example, the pattern
+  // `(f(oo)bar)*` will produce the following capture set when running on the string `foobarfoobar`:
+  //
+  //   0 -> `foobar`, `foobar`
+  //   1 -> `oo`, `oo`
+  //
+  // Note that we cannot store all substrings captured by a group in a single string. Even if we did
+  // that for group #0 (`foobarfoobar`) it would be incorrect to do it for group #1 (`oooo` is not a
+  // substring of the original input).
+  using CaptureSet = std::vector<CaptureEntry>;
 
   // Abstract interface for an automaton stepper.
   //
@@ -147,11 +164,11 @@ class AbstractAutomaton : public SimpleRefCounted {
   // Runs the automaton on the provided input string and, if it matches, returns the array of
   // strings captured by the capture groups (if any). If the string doesn't match an empty optional
   // is returned.
-  virtual std::optional<std::vector<std::string>> Match(std::string_view input) const = 0;
+  virtual std::optional<CaptureSet> Match(std::string_view input) const = 0;
 
   // Runs the automaton on the provided input string trying to matches its longest possible prefix.
   // Returns the array of captured substrings if a match is found, or an empty optional otherwise.
-  std::optional<std::vector<std::string>> MatchPrefix(std::string_view const input) const {
+  std::optional<CaptureSet> MatchPrefix(std::string_view const input) const {
     return PartialMatchInternal(input, 0);
   }
 
@@ -162,7 +179,7 @@ class AbstractAutomaton : public SimpleRefCounted {
   // NOTE: unlike other regular expression implementations this function does not return the full
   // match in the first capture group. If you need that information you need to surround the whole
   // expression in a capture group before compiling it.
-  std::optional<std::vector<std::string>> PartialMatch(std::string_view input) const;
+  std::optional<CaptureSet> PartialMatch(std::string_view input) const;
 
  protected:
   // Checks the specified `assertions` on the `input` text at the specified `offset`.
@@ -175,8 +192,8 @@ class AbstractAutomaton : public SimpleRefCounted {
 
   // Tries to match a substring of `input` starting at `offset` against this regular expression.
   // This is the internal implementation of `PartialMatch` and `MatchPrefix`.
-  virtual std::optional<std::vector<std::string>> PartialMatchInternal(std::string_view input,
-                                                                       size_t offset) const = 0;
+  virtual std::optional<CaptureSet> PartialMatchInternal(std::string_view input,
+                                                         size_t offset) const = 0;
 
  private:
   // Assertion helpers.

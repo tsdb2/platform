@@ -127,8 +127,9 @@ TEST(RegexpTest, Move) {
 }
 
 TEST(RegexpTest, StaticMatch) {
-  EXPECT_THAT(RE::Match("lore", "l(o+r)em?"), IsOkAndHolds(ElementsAre("or")));
-  EXPECT_THAT(RE::Match("looorem", "l((o+r)em?)"), IsOkAndHolds(ElementsAre("ooorem", "ooor")));
+  EXPECT_THAT(RE::Match("lore", "l(o+r)em?"), IsOkAndHolds(ElementsAre(ElementsAre("or"))));
+  EXPECT_THAT(RE::Match("looorem", "l((o+r)em?)"),
+              IsOkAndHolds(ElementsAre(ElementsAre("ooorem"), ElementsAre("ooor"))));
   EXPECT_THAT(RE::Match("lrem", "lo+rem?"), StatusIs(absl::StatusCode::kNotFound));
 }
 
@@ -136,8 +137,9 @@ TEST(RegexpTest, Match) {
   auto const status_or_re = RE::Create("l((o+r)em?)");
   ASSERT_OK(status_or_re);
   auto const& re = status_or_re.value();
-  EXPECT_THAT(re.Match("lore"), Optional(ElementsAre("ore", "or")));
-  EXPECT_THAT(re.Match("looorem"), Optional(ElementsAre("ooorem", "ooor")));
+  EXPECT_THAT(re.Match("lore"), Optional(ElementsAre(ElementsAre("ore"), ElementsAre("or"))));
+  EXPECT_THAT(re.Match("looorem"),
+              Optional(ElementsAre(ElementsAre("ooorem"), ElementsAre("ooor"))));
   EXPECT_EQ(re.Match("lrem"), std::nullopt);
 }
 
@@ -178,13 +180,14 @@ TEST(RegexpTest, LongestPrefix) {
 
 TEST(RegexpTest, DeadPrefixBranch) {
   std::string_view input = "loremips";
-  EXPECT_THAT(RE::ConsumePrefix(&input, "lorem(ipsum)?"), IsOkAndHolds(ElementsAre("")));
+  EXPECT_THAT(RE::ConsumePrefix(&input, "lorem(ipsum)?"), IsOkAndHolds(ElementsAre(IsEmpty())));
   EXPECT_EQ(input, "ips");
 }
 
 TEST(RegexpTest, PrefixPatternWithCapture) {
   std::string_view input = "lorem ipsum dolor";
-  EXPECT_THAT(RE::ConsumePrefix(&input, "lorem (.*) "), IsOkAndHolds(ElementsAre("ipsum")));
+  EXPECT_THAT(RE::ConsumePrefix(&input, "lorem (.*) "),
+              IsOkAndHolds(ElementsAre(ElementsAre("ipsum"))));
   EXPECT_EQ(input, "dolor");
 }
 
@@ -192,15 +195,17 @@ TEST(RegexpTest, PartialMatch) {
   auto const status_or_re = RE::Create("(do+lor)");
   ASSERT_OK(status_or_re);
   auto const& re = status_or_re.value();
-  EXPECT_THAT(re.PartialMatch("lorem ipsum dolor sic amat"), Optional(ElementsAre("dolor")));
-  EXPECT_THAT(re.PartialMatch("lorem ipsum dooolor sic amat"), Optional(ElementsAre("dooolor")));
+  EXPECT_THAT(re.PartialMatch("lorem ipsum dolor sic amat"),
+              Optional(ElementsAre(ElementsAre("dolor"))));
+  EXPECT_THAT(re.PartialMatch("lorem ipsum dooolor sic amat"),
+              Optional(ElementsAre(ElementsAre("dooolor"))));
   EXPECT_EQ(re.PartialMatch("lorem ipsum color sic amat"), std::nullopt);
   EXPECT_EQ(re.PartialMatch("lorem ipsum dolet et amat"), std::nullopt);
 }
 
 TEST(RegexpTest, StaticPartialMatch) {
   EXPECT_THAT(RE::PartialMatch("lorem ipsum dooolor sic amat", "(do+lor)"),
-              IsOkAndHolds(ElementsAre("dooolor")));
+              IsOkAndHolds(ElementsAre(ElementsAre("dooolor"))));
   EXPECT_THAT(RE::PartialMatch("lorem ipsum color sic amat", "(do+lor)"),
               StatusIs(absl::StatusCode::kNotFound));
   EXPECT_THAT(RE::PartialMatch("lorem ipsum dolor sic amat", "(do+lor"),
