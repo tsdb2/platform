@@ -150,7 +150,7 @@ std::optional<AbstractAutomaton::CaptureSet> DFA::PartialMatchInternal(std::stri
   while (offset < input.size()) {
     auto const& state = states_[state_num];
     if (!Assert(state.assertions, input, offset)) {
-      return std::move(result).value().Close();
+      return MaybeCloseRanges(std::move(result));
     }
     if (state_num == final_state_) {
       result = captures;
@@ -163,7 +163,7 @@ std::optional<AbstractAutomaton::CaptureSet> DFA::PartialMatchInternal(std::stri
     } else {
       it = state.edges.find(0);
       if (it == state.edges.end()) {
-        return std::move(result).value().Close();
+        return MaybeCloseRanges(std::move(result));
       }
     }
     state_num = it->second;
@@ -171,16 +171,16 @@ std::optional<AbstractAutomaton::CaptureSet> DFA::PartialMatchInternal(std::stri
   while (state_num != final_state_) {
     auto const& state = states_[state_num];
     if (!Assert(state.assertions, input, offset)) {
-      return std::move(result).value().Close();
+      return MaybeCloseRanges(std::move(result));
     }
     auto const it = state.edges.find(0);
     if (it == state.edges.end()) {
-      return std::move(result).value().Close();
+      return MaybeCloseRanges(std::move(result));
     }
     state_num = it->second;
   }
   if (!Assert(states_[final_state_].assertions, input, offset)) {
-    return std::move(result).value().Close();
+    return MaybeCloseRanges(std::move(result));
   }
   return std::move(captures).Close();
 }
@@ -218,6 +218,15 @@ bool DFA::GetAssertsBegin() const {
     }
   } while (new_state_found);
   return false;
+}
+
+std::optional<AbstractAutomaton::CaptureSet> DFA::MaybeCloseRanges(
+    std::optional<RangeSet>&& ranges) {
+  if (ranges) {
+    return std::move(ranges).value().Close();
+  } else {
+    return std::nullopt;
+  }
 }
 
 }  // namespace regexp_internal

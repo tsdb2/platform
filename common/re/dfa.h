@@ -109,6 +109,8 @@ class DFA final : public AbstractAutomaton {
   size_t GetTotalEdgeCount() const;
   bool GetAssertsBegin() const;
 
+  static std::optional<CaptureSet> MaybeCloseRanges(std::optional<RangeSet> &&ranges);
+
   States const states_;
   uint32_t const initial_state_;
   uint32_t const final_state_;
