@@ -218,7 +218,6 @@ NFA::StateCaptureMap NFA::EpsilonClosure(StateCaptureMap capture_map) const {
 
 NFA::StateSet NFA::AssertedEpsilonClosure(StateSet states, std::string_view const input,
                                           size_t const offset) const {
-  states = EpsilonClosure(std::move(states));
   for (auto it = states.begin(); it != states.end();) {
     if (Assert(states_[*it].assertions, input, offset)) {
       ++it;
@@ -226,13 +225,32 @@ NFA::StateSet NFA::AssertedEpsilonClosure(StateSet states, std::string_view cons
       it = states.erase(it);
     }
   }
+  bool new_state_found;
+  do {
+    new_state_found = false;
+    for (auto const state : states) {
+      auto const& edges = states_[state].edges;
+      auto const it = edges.find(0);
+      if (it != edges.end()) {
+        for (auto const transition : it->second) {
+          auto const& destination = states_[transition];
+          if (Assert(destination.assertions, input, offset)) {
+            auto const [it, inserted] = states.emplace(transition);
+            new_state_found |= inserted;
+          }
+        }
+        if (new_state_found) {
+          break;
+        }
+      }
+    }
+  } while (new_state_found);
   return states;
 }
 
 NFA::StateCaptureMap NFA::AssertedEpsilonClosure(StateCaptureMap capture_map,
                                                  std::string_view const input,
                                                  size_t const offset) const {
-  capture_map = EpsilonClosure(std::move(capture_map));
   for (auto it = capture_map.begin(); it != capture_map.end();) {
     if (Assert(states_[it->first].assertions, input, offset)) {
       ++it;
@@ -240,6 +258,33 @@ NFA::StateCaptureMap NFA::AssertedEpsilonClosure(StateCaptureMap capture_map,
       it = capture_map.erase(it);
     }
   }
+  bool new_state_found;
+  do {
+    new_state_found = false;
+    for (auto const& [state_num, captures] : capture_map) {
+      auto const& state = states_[state_num];
+      auto const& edges = state.edges;
+      auto const it = edges.find(0);
+      if (it != edges.end()) {
+        for (auto const transition : it->second) {
+          auto const& destination = states_[transition];
+          if (Assert(destination.assertions, input, offset)) {
+            auto const [next_it, inserted] = capture_map.try_emplace(transition, captures);
+            if (inserted) {
+              new_state_found = true;
+              if (states_[transition].innermost_capture_group < state.innermost_capture_group) {
+                next_it->second.Next(state.innermost_capture_group);
+              }
+              break;
+            }
+          }
+        }
+        if (new_state_found) {
+          break;
+        }
+      }
+    }
+  } while (new_state_found);
   return capture_map;
 }
 

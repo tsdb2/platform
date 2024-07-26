@@ -461,9 +461,13 @@ absl::StatusOr<TempNFA> Parser::Parse0(size_t const recursion_depth, int const c
       return result;
     } else {
       capture_groups_.Add(next_capture_group_, capture_group);
-      ASSIGN_VAR_OR_RETURN(TempNFA, result, Parse3(recursion_depth + 1, next_capture_group_++));
+      ASSIGN_VAR_OR_RETURN(TempNFA, nfa, Parse3(recursion_depth + 1, next_capture_group_++));
       RETURN_IF_ERROR(ExpectPrefix(")", "unmatched parens"));
-      return result;
+      uint32_t const start = next_state_++;
+      uint32_t const stop = next_state_++;
+      return TempNFA({{start, State(capture_group, Assertions::kNone, {})}}, start, start)
+          .Chain(std::move(nfa))
+          .Chain(TempNFA({{stop, State(capture_group, Assertions::kNone, {})}}, stop, stop));
     }
   }
   uint32_t const stop = next_state_++;

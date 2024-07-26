@@ -29,10 +29,8 @@ std::optional<AbstractAutomaton::CaptureSet> AbstractAutomaton::PartialMatch(
 }
 
 void AbstractAutomaton::RangeSet::Next(int const innermost_capture_group) {
-  for (auto it = capture_groups_->LookUp(innermost_capture_group); it != capture_groups_->root();
-       ++it) {
-    ranges_[*it].emplace_back();
-  }
+  auto const it = capture_groups_->LookUp(innermost_capture_group);
+  ranges_[*it].emplace_back();
 }
 
 void AbstractAutomaton::RangeSet::Capture(char const ch, int const innermost_capture_group) {

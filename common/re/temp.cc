@@ -114,12 +114,13 @@ void TempNFA::AddEdge(char const label, uint32_t const from, uint32_t const to) 
   states_.at(from).edges[label].emplace(to);
 }
 
-void TempNFA::Chain(TempNFA other) {
+TempNFA& TempNFA::Chain(TempNFA other) {
   for (auto& [state_num, state] : other.states_) {
     MergeState(state_num, std::move(state));
   }
   MaybeAddEpsilonEdge(final_state_, other.initial_state_);
   final_state_ = other.final_state_;
+  return *this;
 }
 
 void TempNFA::Merge(TempNFA&& other, int const capture_group, uint32_t const initial_state,
