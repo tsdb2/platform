@@ -22,16 +22,20 @@ std::unique_ptr<AbstractAutomaton::StepperInterface> DFA::Stepper::Clone() const
 }
 
 bool DFA::Stepper::Step(char const ch) {
-  auto const& edges = dfa_->states_[current_state_].edges;
-  auto it = edges.find(0);
-  if (it == edges.end()) {
-    it = edges.find(ch);
-    if (it == edges.end()) {
-      return false;
+  while (true) {
+    auto const& edges = dfa_->states_[current_state_].edges;
+    auto it = edges.find(ch);
+    if (it != edges.end()) {
+      current_state_ = it->second;
+      return true;
+    } else {
+      it = edges.find(0);
+      if (it == edges.end()) {
+        return false;
+      }
+      current_state_ = it->second;
     }
   }
-  current_state_ = it->second;
-  return true;
 }
 
 bool DFA::Stepper::Step(std::string_view const chars) {

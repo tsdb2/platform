@@ -1465,7 +1465,7 @@ TEST_P(RegexpTest, EmptyBrackets) {
   auto const status_or_pattern = Parse("()");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(ElementsAre(IsEmpty()))));
+  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(ElementsAre(ElementsAre("")))));
   EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(std::nullopt));
   EXPECT_THAT(Match(pattern, "aa"), IsOkAndHolds(std::nullopt));
   EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(std::nullopt));
