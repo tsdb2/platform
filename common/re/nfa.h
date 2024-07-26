@@ -129,7 +129,8 @@ class NFA final : public AbstractAutomaton {
   size_t GetTotalEdgeCount() const;
   bool GetAssertsBegin() const;
 
-  // Calculates the epsilon-closure in `Test` algorithms.
+  // Calculates the epsilon-closure in `Test` algorithms. The implementation performs an iterative
+  // depth-first search.
   StateSet EpsilonClosure(StateSet states) const;
 
   // Calculates the epsilon-closure in `Match` algorithms.

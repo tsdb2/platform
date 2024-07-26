@@ -168,23 +168,21 @@ bool NFA::GetAssertsBegin() const {
 }
 
 NFA::StateSet NFA::EpsilonClosure(StateSet states) const {
-  bool new_state_found;
-  do {
-    new_state_found = false;
-    for (auto const state : states) {
-      auto const& edges = states_[state].edges;
-      auto const it = edges.find(0);
-      if (it != edges.end()) {
-        for (auto const transition : it->second) {
-          auto const [it, inserted] = states.emplace(transition);
-          new_state_found |= inserted;
-        }
-        if (new_state_found) {
-          break;
+  std::vector<uint32_t> stack{states.begin(), states.end()};
+  while (!stack.empty()) {
+    uint32_t const state_num = stack.back();
+    stack.pop_back();
+    states.emplace(state_num);
+    auto const& edges = states_[state_num].edges;
+    auto const it = edges.find(0);
+    if (it != edges.end()) {
+      for (auto const transition : it->second) {
+        if (!states.contains(transition)) {
+          stack.emplace_back(transition);
         }
       }
     }
-  } while (new_state_found);
+  }
   return states;
 }
 
@@ -225,26 +223,22 @@ NFA::StateSet NFA::AssertedEpsilonClosure(StateSet states, std::string_view cons
       it = states.erase(it);
     }
   }
-  bool new_state_found;
-  do {
-    new_state_found = false;
-    for (auto const state : states) {
-      auto const& edges = states_[state].edges;
-      auto const it = edges.find(0);
-      if (it != edges.end()) {
-        for (auto const transition : it->second) {
-          auto const& destination = states_[transition];
-          if (Assert(destination.assertions, input, offset)) {
-            auto const [it, inserted] = states.emplace(transition);
-            new_state_found |= inserted;
-          }
-        }
-        if (new_state_found) {
-          break;
+  std::vector<uint32_t> stack{states.begin(), states.end()};
+  while (!stack.empty()) {
+    uint32_t const state_num = stack.back();
+    stack.pop_back();
+    states.emplace(state_num);
+    auto const& edges = states_[state_num].edges;
+    auto const it = edges.find(0);
+    if (it != edges.end()) {
+      for (auto const transition : it->second) {
+        auto const& destination = states_[transition];
+        if (Assert(destination.assertions, input, offset) && !states.contains(transition)) {
+          stack.emplace_back(transition);
         }
       }
     }
-  } while (new_state_found);
+  }
   return states;
 }
 
