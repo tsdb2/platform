@@ -118,8 +118,8 @@ std::optional<std::vector<std::string>> NFA::Match(std::string_view const input)
 
 bool NFA::AssertsBegin() const { return asserts_begin_; }
 
-std::optional<std::vector<std::string>> NFA::MatchPrefixInternal(std::string_view const input,
-                                                                 size_t offset) const {
+std::optional<std::vector<std::string>> NFA::PartialMatchInternal(std::string_view const input,
+                                                                  size_t offset) const {
   std::optional<std::vector<std::string>> result = std::nullopt;
   CaptureMap states = AssertedEpsilonClosure(
       {

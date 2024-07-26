@@ -12,7 +12,7 @@ namespace regexp_internal {
 
 std::optional<std::vector<std::string>> AbstractAutomaton::PartialMatch(
     std::string_view const input) const {
-  auto results = MatchPrefixInternal(input, 0);
+  auto results = PartialMatchInternal(input, 0);
   if (results) {
     return results;
   }
@@ -20,7 +20,7 @@ std::optional<std::vector<std::string>> AbstractAutomaton::PartialMatch(
     return std::nullopt;
   }
   for (size_t offset = 1; offset < input.size(); ++offset) {
-    results = MatchPrefixInternal(input, offset);
+    results = PartialMatchInternal(input, offset);
     if (results) {
       return results;
     }

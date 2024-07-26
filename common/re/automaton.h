@@ -152,7 +152,7 @@ class AbstractAutomaton : public SimpleRefCounted {
   // Runs the automaton on the provided input string trying to matches its longest possible prefix.
   // Returns the array of captured substrings if a match is found, or an empty optional otherwise.
   std::optional<std::vector<std::string>> MatchPrefix(std::string_view const input) const {
-    return MatchPrefixInternal(input, 0);
+    return PartialMatchInternal(input, 0);
   }
 
   // Searches for a substring of the `input` string matching this regular expression. The returned
@@ -173,9 +173,10 @@ class AbstractAutomaton : public SimpleRefCounted {
   // input string.
   virtual bool AssertsBegin() const = 0;
 
-  // Internal implementation of `MatchPrefix`.
-  virtual std::optional<std::vector<std::string>> MatchPrefixInternal(std::string_view input,
-                                                                      size_t offset) const = 0;
+  // Tries to match a substring of `input` starting at `offset` against this regular expression.
+  // This is the internal implementation of `PartialMatch` and `MatchPrefix`.
+  virtual std::optional<std::vector<std::string>> PartialMatchInternal(std::string_view input,
+                                                                       size_t offset) const = 0;
 
  private:
   // Assertion helpers.

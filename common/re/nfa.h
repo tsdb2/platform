@@ -118,8 +118,8 @@ class NFA final : public AbstractAutomaton {
  protected:
   bool AssertsBegin() const override;
 
-  std::optional<std::vector<std::string>> MatchPrefixInternal(std::string_view input,
-                                                              size_t offset) const override;
+  std::optional<std::vector<std::string>> PartialMatchInternal(std::string_view input,
+                                                               size_t offset) const override;
 
  private:
   // Like `StateSet`, but it also maps capture sets to their states. This is used by `Match`

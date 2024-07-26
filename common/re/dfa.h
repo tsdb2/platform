@@ -101,8 +101,8 @@ class DFA final : public AbstractAutomaton {
  protected:
   bool AssertsBegin() const override;
 
-  std::optional<std::vector<std::string>> MatchPrefixInternal(std::string_view input,
-                                                              size_t offset) const override;
+  std::optional<std::vector<std::string>> PartialMatchInternal(std::string_view input,
+                                                               size_t offset) const override;
 
  private:
   size_t GetTotalEdgeCount() const;

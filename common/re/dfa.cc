@@ -144,8 +144,8 @@ std::optional<std::vector<std::string>> DFA::Match(std::string_view const input)
 
 bool DFA::AssertsBegin() const { return asserts_begin_; }
 
-std::optional<std::vector<std::string>> DFA::MatchPrefixInternal(std::string_view const input,
-                                                                 size_t offset) const {
+std::optional<std::vector<std::string>> DFA::PartialMatchInternal(std::string_view const input,
+                                                                  size_t offset) const {
   std::optional<std::vector<std::string>> result = std::nullopt;
   size_t state_num = initial_state_;
   std::vector<std::string> captures{capture_groups_.size(), std::string()};
