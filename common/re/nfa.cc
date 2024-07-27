@@ -188,25 +188,20 @@ NFA::StateSet NFA::EpsilonClosure(StateSet states) const {
 
 NFA::StateSet NFA::AssertedEpsilonClosure(StateSet states, std::string_view const input,
                                           size_t const offset) const {
-  for (auto it = states.begin(); it != states.end();) {
-    if (Assert(states_[*it].assertions, input, offset)) {
-      ++it;
-    } else {
-      it = states.erase(it);
-    }
-  }
-  std::vector<uint32_t> stack{states.begin(), states.end()};
+  auto stack = std::move(states).rep();
+  states = StateSet();
   while (!stack.empty()) {
     uint32_t const state_num = stack.back();
     stack.pop_back();
-    states.emplace(state_num);
-    auto const& edges = states_[state_num].edges;
-    auto const it = edges.find(0);
-    if (it != edges.end()) {
-      for (auto const transition : it->second) {
-        auto const& destination = states_[transition];
-        if (Assert(destination.assertions, input, offset) && !states.contains(transition)) {
-          stack.emplace_back(transition);
+    auto const& state = states_[state_num];
+    if (Assert(state.assertions, input, offset)) {
+      states.emplace(state_num);
+      auto const it = state.edges.find(0);
+      if (it != state.edges.end()) {
+        for (auto const transition : it->second) {
+          if (!states.contains(transition)) {
+            stack.emplace_back(transition);
+          }
         }
       }
     }
@@ -217,40 +212,27 @@ NFA::StateSet NFA::AssertedEpsilonClosure(StateSet states, std::string_view cons
 NFA::StateCaptureMap NFA::AssertedEpsilonClosure(StateCaptureMap capture_map,
                                                  std::string_view const input,
                                                  size_t const offset) const {
-  for (auto it = capture_map.begin(); it != capture_map.end();) {
-    if (Assert(states_[it->first].assertions, input, offset)) {
-      ++it;
-    } else {
-      it = capture_map.erase(it);
-    }
-  }
-  bool new_state_found;
-  do {
-    new_state_found = false;
-    for (auto const& [state_num, captures] : capture_map) {
-      auto const& state = states_[state_num];
-      auto const& edges = state.edges;
-      auto const it = edges.find(0);
-      if (it != edges.end()) {
-        for (auto const transition : it->second) {
-          auto const& destination = states_[transition];
-          if (Assert(destination.assertions, input, offset)) {
-            auto const [next_it, inserted] = capture_map.try_emplace(transition, captures);
-            if (inserted) {
-              new_state_found = true;
-              if (states_[transition].innermost_capture_group < state.innermost_capture_group) {
-                next_it->second.CloseGroup(state.innermost_capture_group);
-              }
-              break;
+  auto stack = std::move(capture_map).rep();
+  capture_map = StateCaptureMap();
+  while (!stack.empty()) {
+    std::pair<uint32_t, RangeSet> frame = std::move(stack.back());
+    stack.pop_back();
+    auto const& state = states_[frame.first];
+    if (Assert(state.assertions, input, offset)) {
+      auto const [it, inserted] = capture_map.emplace(std::move(frame));
+      if (auto const edge_it = state.edges.find(0); edge_it != state.edges.end()) {
+        for (auto const transition : edge_it->second) {
+          if (!capture_map.contains(transition)) {
+            RangeSet captures = it->second;
+            if (states_[transition].innermost_capture_group < state.innermost_capture_group) {
+              captures.CloseGroup(state.innermost_capture_group);
             }
+            stack.emplace_back(std::make_pair(transition, std::move(captures)));
           }
-        }
-        if (new_state_found) {
-          break;
         }
       }
     }
-  } while (new_state_found);
+  }
   return capture_map;
 }
 

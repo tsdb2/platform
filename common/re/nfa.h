@@ -133,8 +133,8 @@ class NFA final : public AbstractAutomaton {
   // depth-first search.
   StateSet EpsilonClosure(StateSet states) const;
 
-  // `AssertedEpsilonClosure` algorithms are like `EpsilonClosure` but in the end they also remove
-  // all states that fail one or more assertions. They may return empty state sets.
+  // `AssertedEpsilonClosure` algorithms are like `EpsilonClosure` but they also remove all states
+  // that fail one or more assertions. They may return empty state sets.
 
   StateSet AssertedEpsilonClosure(StateSet states, std::string_view input, size_t offset) const;
 
