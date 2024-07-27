@@ -96,7 +96,7 @@ std::optional<AbstractAutomaton::CaptureSet> NFA::Match(std::string_view const i
             auto& next_captures = next_it->second;
             next_captures.Capture(ch, state.innermost_capture_group);
             if (states_[transition].innermost_capture_group < state.innermost_capture_group) {
-              next_captures.Next(state.innermost_capture_group);
+              next_captures.CloseGroup(state.innermost_capture_group);
             }
           }
         }
@@ -105,7 +105,7 @@ std::optional<AbstractAutomaton::CaptureSet> NFA::Match(std::string_view const i
     states = AssertedEpsilonClosure(std::move(next_states), input, offset + 1);
   }
   if (auto const it = states.find(final_state_); it != states.end()) {
-    return std::move(it->second).Close();
+    return std::move(it->second).ToCaptureSet();
   } else {
     return std::nullopt;
   }
@@ -119,7 +119,7 @@ std::optional<AbstractAutomaton::CaptureSet> NFA::PartialMatchInternal(std::stri
   StateCaptureMap states =
       AssertedEpsilonClosure({{initial_state_, RangeSet(capture_groups_)}}, input, offset);
   if (auto const it = states.find(final_state_); it != states.end()) {
-    result = it->second.Close();
+    result = it->second.ToCaptureSet();
   }
   for (; offset < input.size() && !states.empty(); ++offset) {
     StateCaptureMap next_states;
@@ -133,7 +133,7 @@ std::optional<AbstractAutomaton::CaptureSet> NFA::PartialMatchInternal(std::stri
             auto& next_captures = next_it->second;
             next_captures.Capture(ch, state.innermost_capture_group);
             if (states_[transition].innermost_capture_group < state.innermost_capture_group) {
-              next_captures.Next(state.innermost_capture_group);
+              next_captures.CloseGroup(state.innermost_capture_group);
             }
           }
         }
@@ -141,7 +141,7 @@ std::optional<AbstractAutomaton::CaptureSet> NFA::PartialMatchInternal(std::stri
     }
     states = AssertedEpsilonClosure(std::move(next_states), input, offset + 1);
     if (auto const it = states.find(final_state_); it != states.end()) {
-      result = it->second.Close();
+      result = it->second.ToCaptureSet();
     }
   }
   return result;
@@ -184,34 +184,6 @@ NFA::StateSet NFA::EpsilonClosure(StateSet states) const {
     }
   }
   return states;
-}
-
-NFA::StateCaptureMap NFA::EpsilonClosure(StateCaptureMap capture_map) const {
-  bool new_state_found;
-  do {
-    new_state_found = false;
-    for (auto const& [state_num, captures] : capture_map) {
-      auto const& state = states_[state_num];
-      auto const& edges = state.edges;
-      auto const it = edges.find(0);
-      if (it != edges.end()) {
-        for (auto const transition : it->second) {
-          auto const [next_it, inserted] = capture_map.try_emplace(transition, captures);
-          if (inserted) {
-            new_state_found = true;
-            if (states_[transition].innermost_capture_group < state.innermost_capture_group) {
-              next_it->second.Next(state.innermost_capture_group);
-            }
-            break;
-          }
-        }
-        if (new_state_found) {
-          break;
-        }
-      }
-    }
-  } while (new_state_found);
-  return capture_map;
 }
 
 NFA::StateSet NFA::AssertedEpsilonClosure(StateSet states, std::string_view const input,
@@ -267,7 +239,7 @@ NFA::StateCaptureMap NFA::AssertedEpsilonClosure(StateCaptureMap capture_map,
             if (inserted) {
               new_state_found = true;
               if (states_[transition].innermost_capture_group < state.innermost_capture_group) {
-                next_it->second.Next(state.innermost_capture_group);
+                next_it->second.CloseGroup(state.innermost_capture_group);
               }
               break;
             }

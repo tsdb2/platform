@@ -33,22 +33,22 @@ class AbstractAutomaton : public SimpleRefCounted {
     kNotWordBoundary = 8,  // Assert not word boundary (\B).
   };
 
-  // Bitwise OR operator for assertions flags.
+  // Bitwise OR operator for assertion flags.
   friend Assertions operator|(Assertions const lhs, Assertions const rhs) {
     return static_cast<Assertions>(static_cast<int>(lhs) | static_cast<int>(rhs));
   }
 
-  // Compound OR operator for assertions flags.
+  // Compound OR operator for assertion flags.
   friend Assertions &operator|=(Assertions &lhs, Assertions const rhs) {
     return lhs = operator|(lhs, rhs);
   }
 
-  // Bitwise AND operator for assertions flags.
+  // Bitwise AND operator for assertion flags.
   friend Assertions operator&(Assertions const lhs, Assertions const rhs) {
     return static_cast<Assertions>(static_cast<int>(lhs) & static_cast<int>(rhs));
   }
 
-  // Compound AND operator for assertions flags.
+  // Compound AND operator for assertion flags.
   friend Assertions &operator&=(Assertions &lhs, Assertions const rhs) {
     return lhs = operator&(lhs, rhs);
   }
@@ -183,6 +183,7 @@ class AbstractAutomaton : public SimpleRefCounted {
   std::optional<CaptureSet> PartialMatch(std::string_view input) const;
 
  protected:
+  // Used by `Match*` methods in subclasses to capture characters and build the final `CaptureSet`.
   class RangeSet {
    public:
     explicit RangeSet(CaptureGroups const &capture_groups)
@@ -194,12 +195,15 @@ class AbstractAutomaton : public SimpleRefCounted {
     RangeSet(RangeSet &&) noexcept = default;
     RangeSet &operator=(RangeSet &&) noexcept = default;
 
-    void Next(int innermost_capture_group);
+    // Closes the current capture group.
+    void CloseGroup(int innermost_capture_group);
 
+    // Captures a single character in the specified group and its ancestors.
     void Capture(char ch, int innermost_capture_group);
 
-    CaptureSet Close() const &;
-    CaptureSet Close() &&;
+    // Finalizes the RangeSet, converting it to a `CaptureSet`.
+    CaptureSet ToCaptureSet() const &;
+    CaptureSet ToCaptureSet() &&;
 
    private:
     CaptureGroups const *capture_groups_;
