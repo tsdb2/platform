@@ -38,7 +38,7 @@ void AbstractAutomaton::RangeSet::CloseGroup(intptr_t const offset, int const ca
     if (range.first < 0) {
       range = std::make_pair(offset, offset + 1);
     }
-    ranges_[*it].emplace_back(-1, -1);
+    ranges.emplace_back(-1, -1);
   }
 }
 
