@@ -193,17 +193,17 @@ class AbstractAutomaton : public SimpleRefCounted {
   // Internally this class maintains arrays of "ranges", each range being the pair of boundaries of
   // a captured string. `CaptureSet` has a similar structure but holds `std::string_view`s rather
   // than pairs of boundaries.
-  class RangeSet {
+  class RangeSetCaptureManager {
    public:
-    explicit RangeSet(CaptureGroups const &capture_groups)
+    explicit RangeSetCaptureManager(CaptureGroups const &capture_groups)
         : capture_groups_(&capture_groups),
           ranges_(capture_groups.size(),
                   absl::InlinedVector<std::pair<intptr_t, intptr_t>, 2>{{-1, -1}}) {}
 
-    RangeSet(RangeSet const &) = default;
-    RangeSet &operator=(RangeSet const &) = default;
-    RangeSet(RangeSet &&) noexcept = default;
-    RangeSet &operator=(RangeSet &&) noexcept = default;
+    RangeSetCaptureManager(RangeSetCaptureManager const &) = default;
+    RangeSetCaptureManager &operator=(RangeSetCaptureManager const &) = default;
+    RangeSetCaptureManager(RangeSetCaptureManager &&) noexcept = default;
+    RangeSetCaptureManager &operator=(RangeSetCaptureManager &&) noexcept = default;
 
     // Closes the current capture group.
     void CloseGroup(intptr_t offset, int capture_group);
@@ -211,7 +211,7 @@ class AbstractAutomaton : public SimpleRefCounted {
     // Captures a single character in the specified group and its ancestors.
     void Capture(intptr_t offset, int innermost_capture_group);
 
-    // Finalizes the RangeSet, converting it to a `CaptureSet`.
+    // Build the final `CaptureSet`.
     CaptureSet ToCaptureSet(std::string_view source) const;
 
    private:

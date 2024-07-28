@@ -106,7 +106,7 @@ bool DFA::Test(std::string_view const input) const {
 }
 
 std::optional<AbstractAutomaton::CaptureSet> DFA::Match(std::string_view const input) const {
-  RangeSet ranges{capture_groups_};
+  RangeSetCaptureManager ranges{capture_groups_};
   if (MatchInternal(input, &ranges)) {
     return ranges.ToCaptureSet(input);
   } else {
@@ -124,7 +124,7 @@ bool DFA::AssertsBegin() const { return asserts_begin_; }
 
 std::optional<AbstractAutomaton::CaptureSet> DFA::PartialMatch(std::string_view const input,
                                                                size_t const offset) const {
-  RangeSet ranges{capture_groups_};
+  RangeSetCaptureManager ranges{capture_groups_};
   if (PartialMatchInternal(input, offset, &ranges)) {
     return ranges.ToCaptureSet(input);
   } else {
@@ -164,15 +164,6 @@ bool DFA::GetAssertsBegin() const {
     }
   }
   return false;
-}
-
-std::optional<AbstractAutomaton::CaptureSet> DFA::MaybeCloseRanges(
-    std::optional<RangeSet> const& ranges, std::string_view const source) {
-  if (ranges) {
-    return ranges.value().ToCaptureSet(source);
-  } else {
-    return std::nullopt;
-  }
 }
 
 }  // namespace regexp_internal

@@ -30,7 +30,8 @@ std::optional<AbstractAutomaton::CaptureSet> AbstractAutomaton::PartialMatch(
   return std::nullopt;
 }
 
-void AbstractAutomaton::RangeSet::CloseGroup(intptr_t const offset, int const capture_group) {
+void AbstractAutomaton::RangeSetCaptureManager::CloseGroup(intptr_t const offset,
+                                                           int const capture_group) {
   auto const it = capture_groups_->LookUp(capture_group);
   if (it != capture_groups_->root()) {
     auto& ranges = ranges_[*it];
@@ -42,8 +43,8 @@ void AbstractAutomaton::RangeSet::CloseGroup(intptr_t const offset, int const ca
   }
 }
 
-void AbstractAutomaton::RangeSet::Capture(intptr_t const offset,
-                                          int const innermost_capture_group) {
+void AbstractAutomaton::RangeSetCaptureManager::Capture(intptr_t const offset,
+                                                        int const innermost_capture_group) {
   for (auto it = capture_groups_->LookUp(innermost_capture_group); it != capture_groups_->root();
        ++it) {
     auto& range = ranges_[*it].back();
@@ -54,7 +55,7 @@ void AbstractAutomaton::RangeSet::Capture(intptr_t const offset,
   }
 }
 
-AbstractAutomaton::CaptureSet AbstractAutomaton::RangeSet::ToCaptureSet(
+AbstractAutomaton::CaptureSet AbstractAutomaton::RangeSetCaptureManager::ToCaptureSet(
     std::string_view const source) const {
   CaptureSet result{ranges_.size(), CaptureEntry()};
   for (size_t i = 0; i < ranges_.size(); ++i) {

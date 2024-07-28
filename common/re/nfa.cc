@@ -82,7 +82,7 @@ bool NFA::Test(std::string_view const input) const {
 }
 
 std::optional<AbstractAutomaton::CaptureSet> NFA::Match(std::string_view const input) const {
-  auto maybe_captures = MatchInternal(input, RangeSet(capture_groups_));
+  auto maybe_captures = MatchInternal(input, RangeSetCaptureManager(capture_groups_));
   if (maybe_captures) {
     return std::move(maybe_captures).value().ToCaptureSet(input);
   } else {
@@ -100,7 +100,8 @@ bool NFA::AssertsBegin() const { return asserts_begin_; }
 
 std::optional<AbstractAutomaton::CaptureSet> NFA::PartialMatch(std::string_view const input,
                                                                size_t const offset) const {
-  auto maybe_captures = PartialMatchInternal(input, offset, RangeSet(capture_groups_));
+  auto maybe_captures =
+      PartialMatchInternal(input, offset, RangeSetCaptureManager(capture_groups_));
   if (maybe_captures) {
     return std::move(maybe_captures).value().ToCaptureSet(input);
   } else {
