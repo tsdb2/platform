@@ -2,6 +2,7 @@
 #define __TSDB2_COMMON_RE_AUTOMATON_H__
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -54,7 +55,7 @@ class AbstractAutomaton : public SimpleRefCounted {
   }
 
   // Individual entry of a capture set (see below).
-  using CaptureEntry = absl::InlinedVector<std::string, 1>;
+  using CaptureEntry = absl::InlinedVector<std::string_view, 1>;
 
   // Set of captured strings returned by `Match` methods. Each entry corresponds to a capture group
   // and is an array of strings (rather than a single string) because in the presence of a Kleene
@@ -188,7 +189,8 @@ class AbstractAutomaton : public SimpleRefCounted {
    public:
     explicit RangeSet(CaptureGroups const &capture_groups)
         : capture_groups_(&capture_groups),
-          ranges_(capture_groups.size(), absl::InlinedVector<std::string, 2>{""}) {}
+          ranges_(capture_groups.size(),
+                  absl::InlinedVector<std::pair<intptr_t, intptr_t>, 2>{{-1, -1}}) {}
 
     RangeSet(RangeSet const &) = default;
     RangeSet &operator=(RangeSet const &) = default;
@@ -196,18 +198,17 @@ class AbstractAutomaton : public SimpleRefCounted {
     RangeSet &operator=(RangeSet &&) noexcept = default;
 
     // Closes the current capture group.
-    void CloseGroup(int innermost_capture_group);
+    void CloseGroup(intptr_t offset, int capture_group);
 
     // Captures a single character in the specified group and its ancestors.
-    void Capture(char ch, int innermost_capture_group);
+    void Capture(intptr_t offset, int innermost_capture_group);
 
     // Finalizes the RangeSet, converting it to a `CaptureSet`.
-    CaptureSet ToCaptureSet() const &;
-    CaptureSet ToCaptureSet() &&;
+    CaptureSet ToCaptureSet(std::string_view source) const;
 
    private:
     CaptureGroups const *capture_groups_;
-    std::vector<absl::InlinedVector<std::string, 2>> ranges_;
+    std::vector<absl::InlinedVector<std::pair<intptr_t, intptr_t>, 2>> ranges_;
   };
 
   // Checks the specified `assertions` on the `input` text at the specified `offset`.

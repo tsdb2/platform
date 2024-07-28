@@ -121,11 +121,11 @@ std::optional<AbstractAutomaton::CaptureSet> DFA::Match(std::string_view const i
       if (it == state.edges.end()) {
         return std::nullopt;
       }
-      captures.Capture(ch, state.innermost_capture_group);
+      captures.Capture(offset, state.innermost_capture_group);
       ++offset;
     }
     if (states_[it->second].innermost_capture_group < state.innermost_capture_group) {
-      captures.CloseGroup(state.innermost_capture_group);
+      captures.CloseGroup(offset, state.innermost_capture_group);
     }
     state_num = it->second;
   }
@@ -139,14 +139,14 @@ std::optional<AbstractAutomaton::CaptureSet> DFA::Match(std::string_view const i
       return std::nullopt;
     }
     if (states_[it->second].innermost_capture_group < state.innermost_capture_group) {
-      captures.CloseGroup(state.innermost_capture_group);
+      captures.CloseGroup(offset, state.innermost_capture_group);
     }
     state_num = it->second;
   }
   if (!Assert(states_[final_state_].assertions, input, offset)) {
     return std::nullopt;
   }
-  return std::move(captures).ToCaptureSet();
+  return captures.ToCaptureSet(input);
 }
 
 bool DFA::AssertsBegin() const { return asserts_begin_; }
@@ -159,7 +159,7 @@ std::optional<AbstractAutomaton::CaptureSet> DFA::PartialMatchInternal(std::stri
   while (offset < input.size()) {
     auto const& state = states_[state_num];
     if (!Assert(state.assertions, input, offset)) {
-      return MaybeCloseRanges(std::move(result));
+      return MaybeCloseRanges(result, input);
     }
     if (state_num == final_state_) {
       result = captures;
@@ -167,37 +167,37 @@ std::optional<AbstractAutomaton::CaptureSet> DFA::PartialMatchInternal(std::stri
     char const ch = input[offset];
     auto it = state.edges.find(ch);
     if (it != state.edges.end()) {
-      captures.Capture(ch, state.innermost_capture_group);
+      captures.Capture(offset, state.innermost_capture_group);
       ++offset;
     } else {
       it = state.edges.find(0);
       if (it == state.edges.end()) {
-        return MaybeCloseRanges(std::move(result));
+        return MaybeCloseRanges(result, input);
       }
     }
     if (states_[it->second].innermost_capture_group < state.innermost_capture_group) {
-      captures.CloseGroup(state.innermost_capture_group);
+      captures.CloseGroup(offset, state.innermost_capture_group);
     }
     state_num = it->second;
   }
   while (state_num != final_state_) {
     auto const& state = states_[state_num];
     if (!Assert(state.assertions, input, offset)) {
-      return MaybeCloseRanges(std::move(result));
+      return MaybeCloseRanges(result, input);
     }
     auto const it = state.edges.find(0);
     if (it == state.edges.end()) {
-      return MaybeCloseRanges(std::move(result));
+      return MaybeCloseRanges(result, input);
     }
     if (states_[it->second].innermost_capture_group < state.innermost_capture_group) {
-      captures.CloseGroup(state.innermost_capture_group);
+      captures.CloseGroup(offset, state.innermost_capture_group);
     }
     state_num = it->second;
   }
   if (!Assert(states_[final_state_].assertions, input, offset)) {
-    return MaybeCloseRanges(std::move(result));
+    return MaybeCloseRanges(result, input);
   }
-  return std::move(captures).ToCaptureSet();
+  return captures.ToCaptureSet(input);
 }
 
 size_t DFA::GetTotalEdgeCount() const {
@@ -228,9 +228,9 @@ bool DFA::GetAssertsBegin() const {
 }
 
 std::optional<AbstractAutomaton::CaptureSet> DFA::MaybeCloseRanges(
-    std::optional<RangeSet>&& ranges) {
+    std::optional<RangeSet> const& ranges, std::string_view const source) {
   if (ranges) {
-    return std::move(ranges).value().ToCaptureSet();
+    return ranges.value().ToCaptureSet(source);
   } else {
     return std::nullopt;
   }

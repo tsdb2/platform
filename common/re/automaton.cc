@@ -1,9 +1,11 @@
 #include "common/re/automaton.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace tsdb2 {
@@ -28,35 +30,37 @@ std::optional<AbstractAutomaton::CaptureSet> AbstractAutomaton::PartialMatch(
   return std::nullopt;
 }
 
-void AbstractAutomaton::RangeSet::CloseGroup(int const innermost_capture_group) {
-  auto const it = capture_groups_->LookUp(innermost_capture_group);
+void AbstractAutomaton::RangeSet::CloseGroup(intptr_t const offset, int const capture_group) {
+  auto const it = capture_groups_->LookUp(capture_group);
   if (it != capture_groups_->root()) {
-    ranges_[*it].emplace_back();
+    auto& ranges = ranges_[*it];
+    auto& range = ranges.back();
+    if (range.first < 0) {
+      range = std::make_pair(offset, offset + 1);
+    }
+    ranges_[*it].emplace_back(-1, -1);
   }
 }
 
-void AbstractAutomaton::RangeSet::Capture(char const ch, int const innermost_capture_group) {
+void AbstractAutomaton::RangeSet::Capture(intptr_t const offset,
+                                          int const innermost_capture_group) {
   for (auto it = capture_groups_->LookUp(innermost_capture_group); it != capture_groups_->root();
        ++it) {
-    ranges_[*it].back() += ch;
-  }
-}
-
-AbstractAutomaton::CaptureSet AbstractAutomaton::RangeSet::ToCaptureSet() const& {
-  CaptureSet result{ranges_.size(), CaptureEntry()};
-  for (size_t i = 0; i < ranges_.size(); ++i) {
-    for (size_t j = 0; j < ranges_[i].size() - 1; ++j) {
-      result[i].emplace_back(ranges_[i][j]);
+    auto& range = ranges_[*it].back();
+    if (range.first < 0) {
+      range.first = offset;
     }
+    range.second = offset + 1;
   }
-  return result;
 }
 
-AbstractAutomaton::CaptureSet AbstractAutomaton::RangeSet::ToCaptureSet() && {
+AbstractAutomaton::CaptureSet AbstractAutomaton::RangeSet::ToCaptureSet(
+    std::string_view const source) const {
   CaptureSet result{ranges_.size(), CaptureEntry()};
   for (size_t i = 0; i < ranges_.size(); ++i) {
     for (size_t j = 0; j < ranges_[i].size() - 1; ++j) {
-      result[i].emplace_back(std::move(ranges_[i][j]));
+      auto const [start, end] = ranges_[i][j];
+      result[i].emplace_back(source.substr(start, end - start));
     }
   }
   return result;
