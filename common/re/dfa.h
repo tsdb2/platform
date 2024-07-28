@@ -3,9 +3,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <initializer_list>
 #include <memory>
 #include <optional>
-#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -102,11 +102,24 @@ class DFA final : public AbstractAutomaton {
 
   std::optional<CaptureSet> Match(std::string_view input) const override;
 
+  std::optional<CaptureSet> MatchArgs(
+      std::string_view input, std::initializer_list<std::string_view *> args) const override;
+
  protected:
   bool AssertsBegin() const override;
 
-  std::optional<CaptureSet> PartialMatchInternal(std::string_view input,
-                                                 size_t offset) const override;
+  template <typename CaptureManager>
+  bool MatchInternal(std::string_view input, CaptureManager *capture_manager) const;
+
+  std::optional<CaptureSet> PartialMatch(std::string_view input, size_t offset) const override;
+
+  std::optional<CaptureSet> PartialMatchArgs(
+      std::string_view input, size_t offset,
+      std::initializer_list<std::string_view *> args) const override;
+
+  template <typename CaptureManager>
+  bool PartialMatchInternal(std::string_view input, size_t offset,
+                            CaptureManager capture_manager) const;
 
  private:
   size_t GetTotalEdgeCount() const;
@@ -123,6 +136,99 @@ class DFA final : public AbstractAutomaton {
   size_t const total_edge_count_;
   bool const asserts_begin_;
 };
+
+template <typename CaptureManager>
+bool DFA::MatchInternal(std::string_view const input, CaptureManager *const capture_manager) const {
+  uint32_t state_num = initial_state_;
+  size_t offset = 0;
+  while (offset < input.size()) {
+    auto const &state = states_[state_num];
+    if (!Assert(state.assertions, input, offset)) {
+      return false;
+    }
+    auto it = state.edges.find(0);
+    if (it == state.edges.end()) {
+      char const ch = input[offset];
+      it = state.edges.find(ch);
+      if (it == state.edges.end()) {
+        return false;
+      }
+      capture_manager->Capture(offset, state.innermost_capture_group);
+      ++offset;
+    }
+    if (states_[it->second].innermost_capture_group < state.innermost_capture_group) {
+      capture_manager->CloseGroup(offset, state.innermost_capture_group);
+    }
+    state_num = it->second;
+  }
+  while (state_num != final_state_) {
+    auto const &state = states_[state_num];
+    if (!Assert(state.assertions, input, offset)) {
+      return false;
+    }
+    auto const it = state.edges.find(0);
+    if (it == state.edges.end()) {
+      return false;
+    }
+    if (states_[it->second].innermost_capture_group < state.innermost_capture_group) {
+      capture_manager->CloseGroup(offset, state.innermost_capture_group);
+    }
+    state_num = it->second;
+  }
+  if (!Assert(states_[final_state_].assertions, input, offset)) {
+    return false;
+  }
+  return true;
+}
+
+template <typename CaptureManager>
+bool DFA::PartialMatchInternal(std::string_view const input, size_t offset,
+                               CaptureManager capture_manager) const {
+  bool result = false;
+  uint32_t state_num = initial_state_;
+  while (offset < input.size()) {
+    auto const &state = states_[state_num];
+    if (!Assert(state.assertions, input, offset)) {
+      return result;
+    }
+    if (state_num == final_state_) {
+      result = true;
+    }
+    char const ch = input[offset];
+    auto it = state.edges.find(ch);
+    if (it != state.edges.end()) {
+      capture_manager->Capture(offset, state.innermost_capture_group);
+      ++offset;
+    } else {
+      it = state.edges.find(0);
+      if (it == state.edges.end()) {
+        return result;
+      }
+    }
+    if (states_[it->second].innermost_capture_group < state.innermost_capture_group) {
+      capture_manager->CloseGroup(offset, state.innermost_capture_group);
+    }
+    state_num = it->second;
+  }
+  while (state_num != final_state_) {
+    auto const &state = states_[state_num];
+    if (!Assert(state.assertions, input, offset)) {
+      return result;
+    }
+    auto const it = state.edges.find(0);
+    if (it == state.edges.end()) {
+      return result;
+    }
+    if (states_[it->second].innermost_capture_group < state.innermost_capture_group) {
+      capture_manager->CloseGroup(offset, state.innermost_capture_group);
+    }
+    state_num = it->second;
+  }
+  if (!Assert(states_[final_state_].assertions, input, offset)) {
+    return result;
+  }
+  return true;
+}
 
 }  // namespace regexp_internal
 }  // namespace common

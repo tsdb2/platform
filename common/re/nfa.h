@@ -4,9 +4,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <initializer_list>
 #include <memory>
 #include <optional>
-#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -114,17 +114,32 @@ class NFA final : public AbstractAutomaton {
 
   std::optional<CaptureSet> Match(std::string_view input) const override;
 
+  std::optional<CaptureSet> MatchArgs(
+      std::string_view input, std::initializer_list<std::string_view *> args) const override;
+
  protected:
   bool AssertsBegin() const override;
 
-  std::optional<CaptureSet> PartialMatchInternal(std::string_view input,
-                                                 size_t offset) const override;
+  template <typename CaptureManager>
+  std::optional<CaptureManager> MatchInternal(std::string_view input,
+                                              CaptureManager capture_manager) const;
+
+  std::optional<CaptureSet> PartialMatch(std::string_view input, size_t offset) const override;
+
+  std::optional<CaptureSet> PartialMatchArgs(
+      std::string_view input, size_t offset,
+      std::initializer_list<std::string_view *> args) const override;
+
+  template <typename CaptureManager>
+  std::optional<CaptureManager> PartialMatchInternal(std::string_view input, size_t offset,
+                                                     CaptureManager capture_manager) const;
 
  private:
-  // Like `StateSet`, but it also maps capture sets to their states. This is used by `Match`
+  // Like `StateSet`, but it also maps capture managers to their states. This is used by `Match`
   // algorithms.
-  using StateCaptureMap = flat_map<uint32_t, RangeSet, std::less<uint32_t>,
-                                   absl::InlinedVector<std::pair<uint32_t, RangeSet>, 1>>;
+  template <typename CaptureManager>
+  using StateCaptureMap = flat_map<uint32_t, CaptureManager, std::less<uint32_t>,
+                                   absl::InlinedVector<std::pair<uint32_t, CaptureManager>, 1>>;
 
   size_t GetTotalEdgeCount() const;
   bool GetAssertsBegin() const;
@@ -138,8 +153,9 @@ class NFA final : public AbstractAutomaton {
 
   StateSet AssertedEpsilonClosure(StateSet states, std::string_view input, size_t offset) const;
 
-  StateCaptureMap AssertedEpsilonClosure(StateCaptureMap capture_map, std::string_view input,
-                                         size_t offset) const;
+  template <typename CaptureManager>
+  StateCaptureMap<CaptureManager> AssertedEpsilonClosure(
+      StateCaptureMap<CaptureManager> capture_map, std::string_view input, size_t offset) const;
 
   States const states_;
   uint32_t const initial_state_;
@@ -149,6 +165,101 @@ class NFA final : public AbstractAutomaton {
   size_t const total_edge_count_;
   bool const asserts_begin_;
 };
+
+template <typename CaptureManager>
+std::optional<CaptureManager> NFA::MatchInternal(std::string_view const input,
+                                                 CaptureManager capture_manager) const {
+  StateCaptureMap<CaptureManager> states = AssertedEpsilonClosure<CaptureManager>(
+      {{initial_state_, std::move(capture_manager)}}, input, 0);
+  for (size_t offset = 0; offset < input.size() && !states.empty(); ++offset) {
+    StateCaptureMap<CaptureManager> next_states;
+    char const ch = input[offset];
+    for (auto const &[state_num, captures] : states) {
+      auto const &state = states_[state_num];
+      if (auto const it = state.edges.find(ch); it != state.edges.end()) {
+        for (auto const transition : it->second) {
+          auto const [next_it, inserted] = next_states.try_emplace(transition, captures);
+          if (inserted) {
+            auto &next_captures = next_it->second;
+            next_captures.Capture(offset, state.innermost_capture_group);
+            if (states_[transition].innermost_capture_group < state.innermost_capture_group) {
+              next_captures.CloseGroup(offset, state.innermost_capture_group);
+            }
+          }
+        }
+      }
+    }
+    states = AssertedEpsilonClosure(std::move(next_states), input, offset + 1);
+  }
+  if (auto const it = states.find(final_state_); it != states.end()) {
+    return it->second;
+  } else {
+    return std::nullopt;
+  }
+}
+
+template <typename CaptureManager>
+std::optional<CaptureManager> NFA::PartialMatchInternal(std::string_view const input, size_t offset,
+                                                        CaptureManager capture_manager) const {
+  std::optional<CaptureManager> result = std::nullopt;
+  StateCaptureMap<CaptureManager> states = AssertedEpsilonClosure<CaptureManager>(
+      {{initial_state_, std::move(capture_manager)}}, input, offset);
+  if (auto const it = states.find(final_state_); it != states.end()) {
+    result = it->second;
+  }
+  for (; offset < input.size() && !states.empty(); ++offset) {
+    StateCaptureMap<CaptureManager> next_states;
+    char const ch = input[offset];
+    for (auto const &[state_num, captures] : states) {
+      auto const &state = states_[state_num];
+      if (auto const it = state.edges.find(ch); it != state.edges.end()) {
+        for (auto const transition : it->second) {
+          auto const [next_it, inserted] = next_states.try_emplace(transition, captures);
+          if (inserted) {
+            auto &next_captures = next_it->second;
+            next_captures.Capture(offset, state.innermost_capture_group);
+            if (states_[transition].innermost_capture_group < state.innermost_capture_group) {
+              next_captures.CloseGroup(offset, state.innermost_capture_group);
+            }
+          }
+        }
+      }
+    }
+    states = AssertedEpsilonClosure(std::move(next_states), input, offset + 1);
+    if (auto const it = states.find(final_state_); it != states.end()) {
+      result = it->second;
+    }
+  }
+  return result;
+}
+
+template <typename CaptureManager>
+NFA::StateCaptureMap<CaptureManager> NFA::AssertedEpsilonClosure(
+    StateCaptureMap<CaptureManager> capture_map, std::string_view const input,
+    size_t const offset) const {
+  auto stack = std::move(capture_map).rep();
+  capture_map = StateCaptureMap<CaptureManager>();
+  while (!stack.empty()) {
+    std::pair<uint32_t, CaptureManager> frame = std::move(stack.back());
+    stack.pop_back();
+    auto const &state = states_[frame.first];
+    if (Assert(state.assertions, input, offset)) {
+      auto const [it, inserted] = capture_map.emplace(std::move(frame));
+      if (auto const edge_it = state.edges.find(0); edge_it != state.edges.end()) {
+        for (auto const transition : edge_it->second) {
+          if (!capture_map.contains(transition)) {
+            CaptureManager captures = it->second;
+            if (states_[transition].innermost_capture_group < state.innermost_capture_group) {
+              captures.CloseGroup(offset, state.innermost_capture_group);
+            }
+            stack.emplace_back(std::make_pair(transition, std::move(captures)));
+          }
+        }
+      }
+    }
+  }
+  return capture_map;
+}
 
 }  // namespace regexp_internal
 }  // namespace common

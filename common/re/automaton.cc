@@ -14,7 +14,7 @@ namespace regexp_internal {
 
 std::optional<AbstractAutomaton::CaptureSet> AbstractAutomaton::PartialMatch(
     std::string_view const input) const {
-  auto results = PartialMatchInternal(input, 0);
+  auto results = PartialMatch(input, 0);
   if (results) {
     return results;
   }
@@ -22,7 +22,7 @@ std::optional<AbstractAutomaton::CaptureSet> AbstractAutomaton::PartialMatch(
     return std::nullopt;
   }
   for (size_t offset = 1; offset < input.size(); ++offset) {
-    results = PartialMatchInternal(input, offset);
+    results = PartialMatch(input, offset);
     if (results) {
       return results;
     }

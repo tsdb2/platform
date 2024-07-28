@@ -51,6 +51,10 @@ class RE {
   // Note that we cannot store all substrings captured by a group in a single string. Even if we did
   // that for group #0 (`foobarfoobar`) it would be incorrect to do it for group #1 (`oooo` is not a
   // substring of the original input).
+  //
+  // The returned strings are `std::string_view` objects referring to substrings of the string
+  // provided by the caller, so the latter mus remain alive in order for the caller to read the
+  // captured strings.
   using CaptureSet = regexp_internal::AbstractAutomaton::CaptureSet;
 
   // Checks if `input` matches `pattern`.

@@ -2,9 +2,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <initializer_list>
 #include <memory>
 #include <optional>
-#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -106,98 +106,37 @@ bool DFA::Test(std::string_view const input) const {
 }
 
 std::optional<AbstractAutomaton::CaptureSet> DFA::Match(std::string_view const input) const {
-  RangeSet captures{capture_groups_};
-  uint32_t state_num = initial_state_;
-  size_t offset = 0;
-  while (offset < input.size()) {
-    auto const& state = states_[state_num];
-    if (!Assert(state.assertions, input, offset)) {
-      return std::nullopt;
-    }
-    auto it = state.edges.find(0);
-    if (it == state.edges.end()) {
-      char const ch = input[offset];
-      it = state.edges.find(ch);
-      if (it == state.edges.end()) {
-        return std::nullopt;
-      }
-      captures.Capture(offset, state.innermost_capture_group);
-      ++offset;
-    }
-    if (states_[it->second].innermost_capture_group < state.innermost_capture_group) {
-      captures.CloseGroup(offset, state.innermost_capture_group);
-    }
-    state_num = it->second;
-  }
-  while (state_num != final_state_) {
-    auto const& state = states_[state_num];
-    if (!Assert(state.assertions, input, offset)) {
-      return std::nullopt;
-    }
-    auto const it = state.edges.find(0);
-    if (it == state.edges.end()) {
-      return std::nullopt;
-    }
-    if (states_[it->second].innermost_capture_group < state.innermost_capture_group) {
-      captures.CloseGroup(offset, state.innermost_capture_group);
-    }
-    state_num = it->second;
-  }
-  if (!Assert(states_[final_state_].assertions, input, offset)) {
+  RangeSet ranges{capture_groups_};
+  if (MatchInternal(input, &ranges)) {
+    return ranges.ToCaptureSet(input);
+  } else {
     return std::nullopt;
   }
-  return captures.ToCaptureSet(input);
+}
+
+std::optional<AbstractAutomaton::CaptureSet> DFA::MatchArgs(
+    std::string_view const input, std::initializer_list<std::string_view*> const args) const {
+  // TODO
+  return std::nullopt;
 }
 
 bool DFA::AssertsBegin() const { return asserts_begin_; }
 
-std::optional<AbstractAutomaton::CaptureSet> DFA::PartialMatchInternal(std::string_view const input,
-                                                                       size_t offset) const {
-  std::optional<RangeSet> result = std::nullopt;
-  uint32_t state_num = initial_state_;
-  RangeSet captures{capture_groups_};
-  while (offset < input.size()) {
-    auto const& state = states_[state_num];
-    if (!Assert(state.assertions, input, offset)) {
-      return MaybeCloseRanges(result, input);
-    }
-    if (state_num == final_state_) {
-      result = captures;
-    }
-    char const ch = input[offset];
-    auto it = state.edges.find(ch);
-    if (it != state.edges.end()) {
-      captures.Capture(offset, state.innermost_capture_group);
-      ++offset;
-    } else {
-      it = state.edges.find(0);
-      if (it == state.edges.end()) {
-        return MaybeCloseRanges(result, input);
-      }
-    }
-    if (states_[it->second].innermost_capture_group < state.innermost_capture_group) {
-      captures.CloseGroup(offset, state.innermost_capture_group);
-    }
-    state_num = it->second;
+std::optional<AbstractAutomaton::CaptureSet> DFA::PartialMatch(std::string_view const input,
+                                                               size_t const offset) const {
+  RangeSet ranges{capture_groups_};
+  if (PartialMatchInternal(input, offset, &ranges)) {
+    return ranges.ToCaptureSet(input);
+  } else {
+    return std::nullopt;
   }
-  while (state_num != final_state_) {
-    auto const& state = states_[state_num];
-    if (!Assert(state.assertions, input, offset)) {
-      return MaybeCloseRanges(result, input);
-    }
-    auto const it = state.edges.find(0);
-    if (it == state.edges.end()) {
-      return MaybeCloseRanges(result, input);
-    }
-    if (states_[it->second].innermost_capture_group < state.innermost_capture_group) {
-      captures.CloseGroup(offset, state.innermost_capture_group);
-    }
-    state_num = it->second;
-  }
-  if (!Assert(states_[final_state_].assertions, input, offset)) {
-    return MaybeCloseRanges(result, input);
-  }
-  return captures.ToCaptureSet(input);
+}
+
+std::optional<AbstractAutomaton::CaptureSet> DFA::PartialMatchArgs(
+    std::string_view const input, size_t const offset,
+    std::initializer_list<std::string_view*> const args) const {
+  // TODO
+  return std::nullopt;
 }
 
 size_t DFA::GetTotalEdgeCount() const {

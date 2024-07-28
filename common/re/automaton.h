@@ -3,9 +3,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <initializer_list>
 #include <memory>
 #include <optional>
-#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -168,10 +168,13 @@ class AbstractAutomaton : public SimpleRefCounted {
   // is returned.
   virtual std::optional<CaptureSet> Match(std::string_view input) const = 0;
 
+  virtual std::optional<CaptureSet> MatchArgs(
+      std::string_view input, std::initializer_list<std::string_view *> args) const = 0;
+
   // Runs the automaton on the provided input string trying to matches its longest possible prefix.
   // Returns the array of captured substrings if a match is found, or an empty optional otherwise.
   std::optional<CaptureSet> MatchPrefix(std::string_view const input) const {
-    return PartialMatchInternal(input, 0);
+    return PartialMatch(input, 0);
   }
 
   // Searches for a substring of the `input` string matching this regular expression. The returned
@@ -236,8 +239,11 @@ class AbstractAutomaton : public SimpleRefCounted {
 
   // Tries to match a substring of `input` starting at `offset` against this regular expression.
   // This is the internal implementation of `PartialMatch` and `MatchPrefix`.
-  virtual std::optional<CaptureSet> PartialMatchInternal(std::string_view input,
-                                                         size_t offset) const = 0;
+  virtual std::optional<CaptureSet> PartialMatch(std::string_view input, size_t offset) const = 0;
+
+  virtual std::optional<CaptureSet> PartialMatchArgs(
+      std::string_view input, size_t offset,
+      std::initializer_list<std::string_view *> args) const = 0;
 
  private:
   // Assertion helpers.

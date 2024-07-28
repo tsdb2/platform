@@ -2,9 +2,9 @@
 
 #include <cstddef>
 #include <functional>
+#include <initializer_list>
 #include <memory>
 #include <optional>
-#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -82,69 +82,37 @@ bool NFA::Test(std::string_view const input) const {
 }
 
 std::optional<AbstractAutomaton::CaptureSet> NFA::Match(std::string_view const input) const {
-  StateCaptureMap states =
-      AssertedEpsilonClosure({{initial_state_, RangeSet(capture_groups_)}}, input, 0);
-  for (size_t offset = 0; offset < input.size() && !states.empty(); ++offset) {
-    StateCaptureMap next_states;
-    char const ch = input[offset];
-    for (auto const& [state_num, captures] : states) {
-      auto const& state = states_[state_num];
-      if (auto const it = state.edges.find(ch); it != state.edges.end()) {
-        for (auto const transition : it->second) {
-          auto const [next_it, inserted] = next_states.try_emplace(transition, captures);
-          if (inserted) {
-            auto& next_captures = next_it->second;
-            next_captures.Capture(offset, state.innermost_capture_group);
-            if (states_[transition].innermost_capture_group < state.innermost_capture_group) {
-              next_captures.CloseGroup(offset, state.innermost_capture_group);
-            }
-          }
-        }
-      }
-    }
-    states = AssertedEpsilonClosure(std::move(next_states), input, offset + 1);
-  }
-  if (auto const it = states.find(final_state_); it != states.end()) {
-    return it->second.ToCaptureSet(input);
+  auto maybe_captures = MatchInternal(input, RangeSet(capture_groups_));
+  if (maybe_captures) {
+    return std::move(maybe_captures).value().ToCaptureSet(input);
   } else {
     return std::nullopt;
   }
 }
 
+std::optional<AbstractAutomaton::CaptureSet> NFA::MatchArgs(
+    std::string_view const input, std::initializer_list<std::string_view*> const args) const {
+  // TODO
+  return std::nullopt;
+}
+
 bool NFA::AssertsBegin() const { return asserts_begin_; }
 
-std::optional<AbstractAutomaton::CaptureSet> NFA::PartialMatchInternal(std::string_view const input,
-                                                                       size_t offset) const {
-  std::optional<CaptureSet> result = std::nullopt;
-  StateCaptureMap states =
-      AssertedEpsilonClosure({{initial_state_, RangeSet(capture_groups_)}}, input, offset);
-  if (auto const it = states.find(final_state_); it != states.end()) {
-    result = it->second.ToCaptureSet(input);
+std::optional<AbstractAutomaton::CaptureSet> NFA::PartialMatch(std::string_view const input,
+                                                               size_t const offset) const {
+  auto maybe_captures = PartialMatchInternal(input, offset, RangeSet(capture_groups_));
+  if (maybe_captures) {
+    return std::move(maybe_captures).value().ToCaptureSet(input);
+  } else {
+    return std::nullopt;
   }
-  for (; offset < input.size() && !states.empty(); ++offset) {
-    StateCaptureMap next_states;
-    char const ch = input[offset];
-    for (auto const& [state_num, captures] : states) {
-      auto const& state = states_[state_num];
-      if (auto const it = state.edges.find(ch); it != state.edges.end()) {
-        for (auto const transition : it->second) {
-          auto const [next_it, inserted] = next_states.try_emplace(transition, captures);
-          if (inserted) {
-            auto& next_captures = next_it->second;
-            next_captures.Capture(offset, state.innermost_capture_group);
-            if (states_[transition].innermost_capture_group < state.innermost_capture_group) {
-              next_captures.CloseGroup(offset, state.innermost_capture_group);
-            }
-          }
-        }
-      }
-    }
-    states = AssertedEpsilonClosure(std::move(next_states), input, offset + 1);
-    if (auto const it = states.find(final_state_); it != states.end()) {
-      result = it->second.ToCaptureSet(input);
-    }
-  }
-  return result;
+}
+
+std::optional<AbstractAutomaton::CaptureSet> NFA::PartialMatchArgs(
+    std::string_view const input, size_t const offset,
+    std::initializer_list<std::string_view*> const args) const {
+  // TODO
+  return std::nullopt;
 }
 
 size_t NFA::GetTotalEdgeCount() const {
@@ -207,33 +175,6 @@ NFA::StateSet NFA::AssertedEpsilonClosure(StateSet states, std::string_view cons
     }
   }
   return states;
-}
-
-NFA::StateCaptureMap NFA::AssertedEpsilonClosure(StateCaptureMap capture_map,
-                                                 std::string_view const input,
-                                                 size_t const offset) const {
-  auto stack = std::move(capture_map).rep();
-  capture_map = StateCaptureMap();
-  while (!stack.empty()) {
-    std::pair<uint32_t, RangeSet> frame = std::move(stack.back());
-    stack.pop_back();
-    auto const& state = states_[frame.first];
-    if (Assert(state.assertions, input, offset)) {
-      auto const [it, inserted] = capture_map.emplace(std::move(frame));
-      if (auto const edge_it = state.edges.find(0); edge_it != state.edges.end()) {
-        for (auto const transition : edge_it->second) {
-          if (!capture_map.contains(transition)) {
-            RangeSet captures = it->second;
-            if (states_[transition].innermost_capture_group < state.innermost_capture_group) {
-              captures.CloseGroup(offset, state.innermost_capture_group);
-            }
-            stack.emplace_back(std::make_pair(transition, std::move(captures)));
-          }
-        }
-      }
-    }
-  }
-  return capture_map;
 }
 
 }  // namespace regexp_internal
