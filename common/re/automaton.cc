@@ -67,6 +67,39 @@ AbstractAutomaton::CaptureSet AbstractAutomaton::RangeSetCaptureManager::ToCaptu
   return result;
 }
 
+void AbstractAutomaton::SingleRangeCaptureManager::CloseGroup(intptr_t const offset,
+                                                              int const capture_group) {
+  auto const it = capture_groups_->LookUp(capture_group);
+  if (it != capture_groups_->root()) {
+    auto const index = *it;
+    if (index < ranges_.size()) {
+      std::string_view* const sv = *(args_.begin() + index);
+      auto& range = ranges_[index];
+      if (range.first < 0) {
+        *sv = source_.substr(0, 0);
+      } else {
+        *sv = source_.substr(range.first, range.second - range.first);
+      }
+      range = std::make_pair(-1, -1);
+    }
+  }
+}
+
+void AbstractAutomaton::SingleRangeCaptureManager::Capture(intptr_t const offset,
+                                                           int const innermost_capture_group) {
+  for (auto it = capture_groups_->LookUp(innermost_capture_group); it != capture_groups_->root();
+       ++it) {
+    auto const index = *it;
+    if (index < ranges_.size()) {
+      auto& range = ranges_[index];
+      if (range.first < 0) {
+        range.first = offset;
+      }
+      range.second = offset + 1;
+    }
+  }
+}
+
 bool AbstractAutomaton::Assert(Assertions const assertions, std::string_view const input,
                                size_t const offset) {
   if ((assertions & Assertions::kBegin) != Assertions::kNone) {

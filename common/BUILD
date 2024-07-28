@@ -257,6 +257,7 @@ cc_library(
     srcs = ["re.cc"],
     hdrs = ["re.h"],
     deps = [
+        ":fixed",
         ":reffed_ptr",
         ":utilities",
         "//common/re:automaton",

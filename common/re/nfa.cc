@@ -90,10 +90,9 @@ std::optional<AbstractAutomaton::CaptureSet> NFA::Match(std::string_view const i
   }
 }
 
-std::optional<AbstractAutomaton::CaptureSet> NFA::MatchArgs(
-    std::string_view const input, std::initializer_list<std::string_view*> const args) const {
-  // TODO
-  return std::nullopt;
+bool NFA::MatchArgs(std::string_view const input,
+                    std::initializer_list<std::string_view*> const args) const {
+  return MatchInternal(input, SingleRangeCaptureManager(capture_groups_, input, args)).has_value();
 }
 
 bool NFA::AssertsBegin() const { return asserts_begin_; }
@@ -109,11 +108,11 @@ std::optional<AbstractAutomaton::CaptureSet> NFA::PartialMatch(std::string_view 
   }
 }
 
-std::optional<AbstractAutomaton::CaptureSet> NFA::PartialMatchArgs(
-    std::string_view const input, size_t const offset,
-    std::initializer_list<std::string_view*> const args) const {
-  // TODO
-  return std::nullopt;
+bool NFA::PartialMatchArgs(std::string_view const input, size_t const offset,
+                           std::initializer_list<std::string_view*> const args) const {
+  return PartialMatchInternal(input, offset,
+                              SingleRangeCaptureManager(capture_groups_, input, args))
+      .has_value();
 }
 
 size_t NFA::GetTotalEdgeCount() const {

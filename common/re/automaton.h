@@ -1,6 +1,7 @@
 #ifndef __TSDB2_COMMON_RE_AUTOMATON_H__
 #define __TSDB2_COMMON_RE_AUTOMATON_H__
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
@@ -168,8 +169,8 @@ class AbstractAutomaton : public SimpleRefCounted {
   // is returned.
   virtual std::optional<CaptureSet> Match(std::string_view input) const = 0;
 
-  virtual std::optional<CaptureSet> MatchArgs(
-      std::string_view input, std::initializer_list<std::string_view *> args) const = 0;
+  virtual bool MatchArgs(std::string_view input,
+                         std::initializer_list<std::string_view *> args) const = 0;
 
   // Runs the automaton on the provided input string trying to matches its longest possible prefix.
   // Returns the array of captured substrings if a match is found, or an empty optional otherwise.
@@ -211,7 +212,7 @@ class AbstractAutomaton : public SimpleRefCounted {
     // Captures a single character in the specified group and its ancestors.
     void Capture(intptr_t offset, int innermost_capture_group);
 
-    // Build the final `CaptureSet`.
+    // Builds the final `CaptureSet`.
     CaptureSet ToCaptureSet(std::string_view source) const;
 
    private:
@@ -229,6 +230,34 @@ class AbstractAutomaton : public SimpleRefCounted {
     std::vector<absl::InlinedVector<std::pair<intptr_t, intptr_t>, 2>> ranges_;
   };
 
+  class SingleRangeCaptureManager {
+   public:
+    explicit SingleRangeCaptureManager(CaptureGroups const &capture_groups,
+                                       std::string_view const source,
+                                       std::initializer_list<std::string_view *> const args)
+        : capture_groups_(&capture_groups),
+          source_(source),
+          args_(args),
+          ranges_(std::min(capture_groups.size(), args.size()), std::make_pair(-1, -1)) {}
+
+    SingleRangeCaptureManager(SingleRangeCaptureManager const &) = default;
+    SingleRangeCaptureManager &operator=(SingleRangeCaptureManager const &) = default;
+    SingleRangeCaptureManager(SingleRangeCaptureManager &&) noexcept = default;
+    SingleRangeCaptureManager &operator=(SingleRangeCaptureManager &&) noexcept = default;
+
+    // Closes the current capture group.
+    void CloseGroup(intptr_t offset, int capture_group);
+
+    // Captures a single character in the specified group and its ancestors.
+    void Capture(intptr_t offset, int innermost_capture_group);
+
+   private:
+    CaptureGroups const *capture_groups_;
+    std::string_view source_;
+    std::initializer_list<std::string_view *> args_;
+    std::vector<std::pair<intptr_t, intptr_t>> ranges_;
+  };
+
   // Checks the specified `assertions` on the `input` text at the specified `offset`.
   static bool Assert(Assertions assertions, std::string_view input, size_t offset);
 
@@ -241,9 +270,8 @@ class AbstractAutomaton : public SimpleRefCounted {
   // This is the internal implementation of `PartialMatch` and `MatchPrefix`.
   virtual std::optional<CaptureSet> PartialMatch(std::string_view input, size_t offset) const = 0;
 
-  virtual std::optional<CaptureSet> PartialMatchArgs(
-      std::string_view input, size_t offset,
-      std::initializer_list<std::string_view *> args) const = 0;
+  virtual bool PartialMatchArgs(std::string_view input, size_t offset,
+                                std::initializer_list<std::string_view *> args) const = 0;
 
  private:
   // Assertion helpers.

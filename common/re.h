@@ -8,6 +8,9 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/escaping.h"
+#include "absl/strings/str_cat.h"
+#include "common/fixed.h"
 #include "common/re/automaton.h"
 #include "common/reffed_ptr.h"
 #include "common/utilities.h"
@@ -21,6 +24,9 @@ namespace internal {
 // we can declare `TrieNode` as a friend of `RE`, allowing integration between the two.
 template <typename Label, typename Allocator>
 class TrieNode;
+
+// Used internally to produce error statuses.
+std::string ClipString(std::string_view text);
 
 }  // namespace internal
 
@@ -69,6 +75,10 @@ class RE {
   // groups. An error status is returned if `pattern` fails to compile or `input` doesn't match.
   static absl::StatusOr<CaptureSet> Match(std::string_view input, std::string_view pattern);
 
+  template <typename... Args>
+  static absl::Status MatchArgs(std::string_view const input, std::string_view const pattern,
+                                FixedT<std::string_view *, Args> const... args);
+
   static absl::StatusOr<CaptureSet> PartialMatch(std::string_view input, std::string_view pattern);
 
   // Strips the longest possible prefix matching `pattern` from the provided `input` string. Returns
@@ -112,6 +122,12 @@ class RE {
     return automaton_->Match(input);
   }
 
+  template <typename... Args>
+  bool MatchArgs(std::string_view const input,
+                 FixedT<std::string_view *, Args> const... args) const {
+    return automaton_->MatchArgs(input, {args...});
+  }
+
   // Matches the longest possible prefix of the provided string against this regular expression.
   // Returns the array of strings captured by any capture groups, or an empty optional if no
   // matching prefix is found.
@@ -139,6 +155,24 @@ class RE {
 
   reffed_ptr<regexp_internal::AbstractAutomaton> automaton_;
 };
+
+template <typename... Args>
+absl::Status RE::MatchArgs(std::string_view const input, std::string_view const pattern,
+                           FixedT<std::string_view *, Args> const... args) {
+  auto status_or_re = RE::Create(pattern);
+  if (status_or_re.ok()) {
+    auto maybe_results = status_or_re->MatchArgs(input, args...);
+    if (maybe_results) {
+      return std::move(maybe_results).value();
+    } else {
+      return absl::NotFoundError(absl::StrCat("string \"",
+                                              absl::CEscape(internal::ClipString(input)),
+                                              "\" doesn't match \"", absl::CEscape(pattern), "\""));
+    }
+  } else {
+    return std::move(status_or_re).status();
+  }
+}
 
 }  // namespace common
 }  // namespace tsdb2

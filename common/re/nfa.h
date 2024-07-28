@@ -114,8 +114,8 @@ class NFA final : public AbstractAutomaton {
 
   std::optional<CaptureSet> Match(std::string_view input) const override;
 
-  std::optional<CaptureSet> MatchArgs(
-      std::string_view input, std::initializer_list<std::string_view *> args) const override;
+  bool MatchArgs(std::string_view input,
+                 std::initializer_list<std::string_view *> args) const override;
 
  protected:
   bool AssertsBegin() const override;
@@ -126,9 +126,8 @@ class NFA final : public AbstractAutomaton {
 
   std::optional<CaptureSet> PartialMatch(std::string_view input, size_t offset) const override;
 
-  std::optional<CaptureSet> PartialMatchArgs(
-      std::string_view input, size_t offset,
-      std::initializer_list<std::string_view *> args) const override;
+  bool PartialMatchArgs(std::string_view input, size_t offset,
+                        std::initializer_list<std::string_view *> args) const override;
 
   template <typename CaptureManager>
   std::optional<CaptureManager> PartialMatchInternal(std::string_view input, size_t offset,

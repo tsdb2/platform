@@ -17,7 +17,7 @@
 namespace tsdb2 {
 namespace common {
 
-namespace {
+namespace internal {
 
 std::string ClipString(std::string_view const text) {
   static size_t constexpr kMaxLength = 50;
@@ -28,7 +28,7 @@ std::string ClipString(std::string_view const text) {
   }
 }
 
-}  // namespace
+}  // namespace internal
 
 bool RE::Test(std::string_view const input, std::string_view const pattern) {
   auto const status_or_re = RE::Create(pattern);
@@ -47,7 +47,8 @@ absl::StatusOr<RE::CaptureSet> RE::Match(std::string_view const input,
     if (maybe_results) {
       return std::move(maybe_results).value();
     } else {
-      return absl::NotFoundError(absl::StrCat("string \"", absl::CEscape(ClipString(input)),
+      return absl::NotFoundError(absl::StrCat("string \"",
+                                              absl::CEscape(internal::ClipString(input)),
                                               "\" doesn't match \"", absl::CEscape(pattern), "\""));
     }
   } else {
@@ -80,9 +81,9 @@ absl::StatusOr<RE::CaptureSet> RE::ConsumePrefix(std::string_view *const input,
   std::string_view const original_input = *input;
   auto maybe_matches = status_or_re->MatchPrefix(*input);
   if (!maybe_matches) {
-    return absl::NotFoundError(absl::StrCat("no prefix matching \"", absl::CEscape(pattern),
-                                            "\" found in \"",
-                                            absl::CEscape(ClipString(original_input)), "\""));
+    return absl::NotFoundError(
+        absl::StrCat("no prefix matching \"", absl::CEscape(pattern), "\" found in \"",
+                     absl::CEscape(internal::ClipString(original_input)), "\""));
   }
   auto &matches = maybe_matches.value();
   size_t prefix_length = 0;
