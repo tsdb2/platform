@@ -184,7 +184,12 @@ class AbstractAutomaton : public SimpleRefCounted {
   std::optional<CaptureSet> PartialMatch(std::string_view input) const;
 
  protected:
-  // Used by `Match*` methods in subclasses to capture characters and build the final `CaptureSet`.
+  // Used in subclasses by `Match*` methods to track the boundaries of the captured substrings and
+  // build the final `CaptureSet`.
+  //
+  // Internally this class maintains arrays of "ranges", each range being the pair of boundaries of
+  // a captured string. `CaptureSet` has a similar structure but holds `std::string_view`s rather
+  // than pairs of boundaries.
   class RangeSet {
    public:
     explicit RangeSet(CaptureGroups const &capture_groups)
@@ -208,6 +213,16 @@ class AbstractAutomaton : public SimpleRefCounted {
 
    private:
     CaptureGroups const *capture_groups_;
+
+    // `ranges_` has the same structure of a `CaptureSet`: the i-th element of the main vector keeps
+    // track of the strings captured by the i-th capture group. The innermost values are "ranges",
+    // i.e. pairs of the boundaries of the corresponding substring.
+    //
+    // We always have at least 1 element for each capture group because the last element in that
+    // group is a "pending string" (the one we're currently building). For this reason we inline the
+    // first 2 elements: the first is inlined with the same rationale as `CaptureSet` (it's often
+    // the case that a capture group captures only 1 string), and the second is inlined because it's
+    // the pending string.
     std::vector<absl::InlinedVector<std::pair<intptr_t, intptr_t>, 2>> ranges_;
   };
 
