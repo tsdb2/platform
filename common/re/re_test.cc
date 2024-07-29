@@ -1232,12 +1232,9 @@ TEST_P(RegexpTest, ExactlyFourtyTwo) {
   EXPECT_THAT(pattern, DoesntMatch("a"));
   EXPECT_THAT(pattern, DoesntMatch("aa"));
   EXPECT_THAT(pattern, DoesntMatch("aaa"));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(std::nullopt));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(pattern, DoesntMatch("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, DoesntMatch("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
   EXPECT_THAT(pattern, DoesntMatch("b"));
   EXPECT_THAT(pattern, DoesntMatch("ab"));
   EXPECT_THAT(pattern, DoesntMatch("ba"));
@@ -1304,14 +1301,10 @@ TEST_P(RegexpTest, AtLeastFourtyTwo) {
   EXPECT_THAT(pattern, DoesntMatch("a"));
   EXPECT_THAT(pattern, DoesntMatch("aa"));
   EXPECT_THAT(pattern, DoesntMatch("aaa"));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(std::nullopt));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(pattern, DoesntMatch("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
   EXPECT_THAT(pattern, DoesntMatch("b"));
   EXPECT_THAT(pattern, DoesntMatch("ab"));
   EXPECT_THAT(pattern, DoesntMatch("ba"));
@@ -1429,20 +1422,13 @@ TEST_P(RegexpTest, BetweenFourtyTwoAndFourtyFive) {
   EXPECT_THAT(pattern, DoesntMatch("a"));
   EXPECT_THAT(pattern, DoesntMatch("aa"));
   EXPECT_THAT(pattern, DoesntMatch("aaa"));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(std::nullopt));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(std::nullopt));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(pattern, DoesntMatch("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, DoesntMatch("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+  EXPECT_THAT(pattern, DoesntMatch("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
   EXPECT_THAT(pattern, DoesntMatch("b"));
   EXPECT_THAT(pattern, DoesntMatch("ab"));
   EXPECT_THAT(pattern, DoesntMatch("ba"));
@@ -1503,8 +1489,8 @@ TEST_P(RegexpTest, MultipleQuantifiersWithBrackets) {
   auto const status_or_pattern = Parse("(a+)*");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(ElementsAre(IsEmpty()))));
-  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(Optional(ElementsAre(ElementsAre("a")))));
+  EXPECT_THAT(pattern, Matches("", {{}}));
+  EXPECT_THAT(pattern, Matches("a", {{"a"}}));
   EXPECT_THAT(pattern, DoesntMatch("b"));
   EXPECT_THAT(Match(pattern, "aa"),
               IsOkAndHolds(Optional(ElementsAre(AnyOf(ElementsAre("aa"), ElementsAre("a", "a"))))));
