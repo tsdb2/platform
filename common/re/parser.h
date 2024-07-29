@@ -14,8 +14,8 @@ namespace common {
 namespace regexp_internal {
 
 // Parses a regular expression and compiles it into a runnable automaton. The automaton is initially
-// an `NFA` but it's automatically converted to a `DFA` if it's found to be deterministic. That is
-// because DFAs run faster.
+// an `NFA` but it's automatically converted to a `DFA` if it's found to be deterministic. We do
+// that because DFAs are faster.
 absl::StatusOr<reffed_ptr<AbstractAutomaton>> Parse(std::string_view pattern);
 
 }  // namespace regexp_internal

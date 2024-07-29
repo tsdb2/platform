@@ -48,7 +48,7 @@ class Parser final {
 
   // Parses the pattern provided at construction and returns a runnable automaton. The automaton is
   // initially an `NFA` but it's automatically converted to a `DFA` if it's found to be
-  // deterministic. We do that because DFAs run faster.
+  // deterministic. We do that because DFAs are faster.
   absl::StatusOr<reffed_ptr<AbstractAutomaton>> Parse() &&;
 
  private:
@@ -74,9 +74,9 @@ class Parser final {
     return ch;
   }
 
-  // If the pattern contains the provided `prefix` string at the current position then advance the
-  // current position by the number of characters in `prefix` and return true, otherwise do nothing
-  // and return false.
+  // If the pattern contains the specified `prefix` at the current position, advance the current
+  // position by consuming the characters of `prefix` and return true; otherwise do nothing and
+  // return false.
   bool ConsumePrefix(std::string_view const prefix) {
     if (absl::StartsWith(pattern_.substr(offset_), prefix)) {
       offset_ += prefix.size();
@@ -86,9 +86,9 @@ class Parser final {
     }
   }
 
-  // If the pattern contains the provided `prefix` string at the current position then advance the
-  // current position by the number of characters in `prefix` and return an OK status, otherwise do
-  // nothing and return a syntax error with the provided `error_message`.
+  // If the pattern contains the specified `prefix` at the current position, advance the current
+  // position by consuming the characters of `prefix` and return an OK status; otherwise do nothing
+  // and return a syntax error with the provided `error_message`.
   absl::Status ExpectPrefix(std::string_view const prefix, std::string_view const error_message) {
     if (absl::StartsWith(pattern_.substr(offset_), prefix)) {
       offset_ += prefix.size();

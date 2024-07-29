@@ -75,6 +75,27 @@ class RE {
   // groups. An error status is returned if `pattern` fails to compile or `input` doesn't match.
   static absl::StatusOr<CaptureSet> Match(std::string_view input, std::string_view pattern);
 
+  // Same as `Match` above but stores the captured substrings in the provided `std::string_view`
+  // objects rather than returning a `CaptureSet`. Returns an OK status if the `input` matched, or
+  // an error if the `pattern` didn't compile or the `input` didn't match. The contents of the
+  // string views are undefined if false is returned.
+  //
+  // Example:
+  //
+  //   std::string_view blah;
+  //   RETURN_IF_ERROR(RE::MatchArgs("blah blah", "blah (blah)", &blah));
+  //   LOG(INFO) << blah;  // logs "blah"
+  //
+  // NOTE: only one substring is retrieved for each capture group. If the corresponding capture
+  // group matched more than one substring, only the last one is returned. Example:
+  //
+  //   std::string_view sv;
+  //   RETURN_IF_ERROR(RE::MatchArgs("foo bar fee bar ", "(?:f(..) bar )*", &sv));
+  //   LOG(INFO) << sv;  // logs "ee", not "oo".
+  //
+  // NOTE: normally there would be as many `args` as there are capture groups in the `pattern`, but
+  // it's okay to provide fewer or more: missing substrings won't be retrieved and extra string
+  // views will be ignored.
   template <typename... Args>
   static absl::Status MatchArgs(std::string_view const input, std::string_view const pattern,
                                 FixedT<std::string_view *, Args> const... args);
@@ -126,6 +147,35 @@ class RE {
     return automaton_->Match(input);
   }
 
+  // Same as `Match` above but stores the captured substrings in the provided `std::string_view`
+  // objects rather than returning a `CaptureSet`. Returns an OK status if the `input` matched, or
+  // an error if the `pattern` didn't compile or the `input` didn't match. The contents of the
+  // string views are undefined if false is returned.
+  //
+  // Example:
+  //
+  //   ASSIGN_VAR_OR_RETURN(RE, re, RE::Create("blah (blah)"));
+  //   std::string_view blah;
+  //   if (re.MatchArgs("blah blah", &blah)) {
+  //     LOG(INFO) << blah;  // logs "blah"
+  //   } else {
+  //      // didn't match.
+  //   }
+  //
+  // NOTE: only one substring is retrieved for each capture group. If the corresponding capture
+  // group matched more than one substring, only the last one is returned. Example:
+  //
+  //   ASSIGN_VAR_OR_RETURN(RE, re, RE::Create("(?:f(..) bar )*"));
+  //   std::string_view sv;
+  //   if (re.MatchArgs("foo bar fee bar ", &sv)) {
+  //     LOG(INFO) << sv;  // logs "ee", not "oo".
+  //   } else {
+  //      // didn't match.
+  //   }
+  //
+  // NOTE: normally there would be as many `args` as there are capture groups in the `pattern`, but
+  // it's okay to provide fewer or more: missing substrings won't be retrieved and extra string
+  // views will be ignored.
   template <typename... Args>
   bool MatchArgs(std::string_view const input,
                  FixedT<std::string_view *, Args> const... args) const {
