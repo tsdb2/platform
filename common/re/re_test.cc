@@ -1492,18 +1492,16 @@ TEST_P(RegexpTest, MultipleQuantifiersWithBrackets) {
   EXPECT_THAT(pattern, Matches("", {{}}));
   EXPECT_THAT(pattern, Matches("a", {{"a"}}));
   EXPECT_THAT(pattern, DoesntMatch("b"));
-  EXPECT_THAT(Match(pattern, "aa"),
-              IsOkAndHolds(Optional(ElementsAre(AnyOf(ElementsAre("aa"), ElementsAre("a", "a"))))));
+  EXPECT_THAT(pattern, AnyOf(Matches("aa", {{"aa"}}), Matches("aa", {{"a", "a"}})));
   EXPECT_THAT(pattern, DoesntMatch("ab"));
   EXPECT_THAT(pattern, DoesntMatch("ba"));
-  EXPECT_THAT(Match(pattern, "aaa"), IsOkAndHolds(Optional(ElementsAre(AnyOf(
-                                         ElementsAre("aaa"), ElementsAre("aa", "a"),
-                                         ElementsAre("a", "aa"), ElementsAre("a", "a", "a"))))));
-  EXPECT_THAT(Match(pattern, "aaaa"),
-              IsOkAndHolds(Optional(ElementsAre(AnyOf(
-                  ElementsAre("aaaa"), ElementsAre("aaa", "a"), ElementsAre("aa", "aa"),
-                  ElementsAre("aa", "a", "a"), ElementsAre("a", "aaa"), ElementsAre("a", "aa", "a"),
-                  ElementsAre("a", "a", "aa"), ElementsAre("a", "a", "a", "a"))))));
+  EXPECT_THAT(pattern, AnyOf(Matches("aaa", {{"aaa"}}), Matches("aaa", {{"aa", "a"}}),
+                             Matches("aaa", {{"a", "aa"}}), Matches("aaa", {{"a", "a", "a"}})));
+  EXPECT_THAT(pattern,
+              AnyOf(Matches("aaaa", {{"aaaa"}}), Matches("aaaa", {{"aaa", "a"}}),
+                    Matches("aaaa", {{"aa", "aa"}}), Matches("aaaa", {{"aa", "a", "a"}}),
+                    Matches("aaaa", {{"a", "aaa"}}), Matches("aaaa", {{"a", "aa", "a"}}),
+                    Matches("aaaa", {{"a", "a", "aa"}}), Matches("aaaa", {{"a", "a", "a", "a"}})));
 }
 
 TEST_P(RegexpTest, MultipleQuantifiersWithNonCapturingBrackets) {
@@ -1592,7 +1590,7 @@ TEST_P(RegexpTest, EmptyBrackets) {
   auto const status_or_pattern = Parse("()");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(ElementsAre(ElementsAre("")))));
+  EXPECT_THAT(pattern, Matches("", {{""}}));
   EXPECT_THAT(pattern, DoesntMatch("a"));
   EXPECT_THAT(pattern, DoesntMatch("aa"));
   EXPECT_THAT(pattern, DoesntMatch("b"));
@@ -1623,7 +1621,7 @@ TEST_P(RegexpTest, Brackets) {
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
-  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(Optional(ElementsAre(ElementsAre("a")))));
+  EXPECT_THAT(pattern, Matches("a", {{"a"}}));
   EXPECT_THAT(pattern, DoesntMatch("b"));
   EXPECT_THAT(pattern, DoesntMatch("anchor"));
   EXPECT_THAT(pattern, DoesntMatch("banana"));
@@ -1650,8 +1648,7 @@ TEST_P(RegexpTest, IpsumInBrackets) {
   EXPECT_THAT(pattern, DoesntMatch("dolor"));
   EXPECT_THAT(pattern, DoesntMatch("loremdolor"));
   EXPECT_THAT(pattern, DoesntMatch("loremidolor"));
-  EXPECT_THAT(Match(pattern, "loremipsumdolor"),
-              IsOkAndHolds(Optional(ElementsAre(ElementsAre("ipsum")))));
+  EXPECT_THAT(pattern, Matches("loremipsumdolor", {{"ipsum"}}));
 }
 
 TEST_P(RegexpTest, IpsumInNonCapturingBrackets) {
@@ -1682,9 +1679,7 @@ TEST_P(RegexpTest, NestedBrackets) {
   EXPECT_THAT(pattern, DoesntMatch("amet"));
   EXPECT_THAT(pattern, DoesntMatch("adipisci"));
   EXPECT_THAT(pattern, DoesntMatch("ipsumdoloramet"));
-  EXPECT_THAT(
-      Match(pattern, "loremipsumdolorametadipisci"),
-      IsOkAndHolds(Optional(ElementsAre(ElementsAre("ipsumdoloramet"), ElementsAre("dolor")))));
+  EXPECT_THAT(pattern, Matches("loremipsumdolorametadipisci", {{"ipsumdoloramet"}, {"dolor"}}));
 }
 
 TEST_P(RegexpTest, CapturingBracketsNestedInNonCapturingBrackets) {
@@ -1702,8 +1697,7 @@ TEST_P(RegexpTest, CapturingBracketsNestedInNonCapturingBrackets) {
   EXPECT_THAT(pattern, DoesntMatch("amet"));
   EXPECT_THAT(pattern, DoesntMatch("adipisci"));
   EXPECT_THAT(pattern, DoesntMatch("ipsumdoloramet"));
-  EXPECT_THAT(Match(pattern, "loremipsumdolorametadipisci"),
-              IsOkAndHolds(Optional(ElementsAre(ElementsAre("dolor")))));
+  EXPECT_THAT(pattern, Matches("loremipsumdolorametadipisci", {{"dolor"}}));
 }
 
 TEST_P(RegexpTest, NonCapturingBracketsNestedInCapturingBrackets) {
@@ -1721,8 +1715,7 @@ TEST_P(RegexpTest, NonCapturingBracketsNestedInCapturingBrackets) {
   EXPECT_THAT(pattern, DoesntMatch("amet"));
   EXPECT_THAT(pattern, DoesntMatch("adipisci"));
   EXPECT_THAT(pattern, DoesntMatch("ipsumdoloramet"));
-  EXPECT_THAT(Match(pattern, "loremipsumdolorametadipisci"),
-              IsOkAndHolds(Optional(ElementsAre(ElementsAre("ipsumdoloramet")))));
+  EXPECT_THAT(pattern, Matches("loremipsumdolorametadipisci", {{"ipsumdoloramet"}}));
 }
 
 TEST_P(RegexpTest, NestedNonCapturingBrackets) {
@@ -1757,8 +1750,7 @@ TEST_P(RegexpTest, PeeringBrackets) {
   EXPECT_THAT(pattern, DoesntMatch("dolor"));
   EXPECT_THAT(pattern, DoesntMatch("amet"));
   EXPECT_THAT(pattern, DoesntMatch("adipisci"));
-  EXPECT_THAT(Match(pattern, "loremipsumdolorametadipisci"),
-              IsOkAndHolds(Optional(ElementsAre(ElementsAre("ipsum"), ElementsAre("amet")))));
+  EXPECT_THAT(pattern, Matches("loremipsumdolorametadipisci", {{"ipsum"}, {"amet"}}));
 }
 
 TEST_P(RegexpTest, CapturingBracketsPeeringWithNonCapturingBrackets) {
@@ -1775,8 +1767,7 @@ TEST_P(RegexpTest, CapturingBracketsPeeringWithNonCapturingBrackets) {
   EXPECT_THAT(pattern, DoesntMatch("dolor"));
   EXPECT_THAT(pattern, DoesntMatch("amet"));
   EXPECT_THAT(pattern, DoesntMatch("adipisci"));
-  EXPECT_THAT(Match(pattern, "loremipsumdolorametadipisci"),
-              IsOkAndHolds(Optional(ElementsAre(ElementsAre("ipsum")))));
+  EXPECT_THAT(pattern, Matches("loremipsumdolorametadipisci", {{"ipsum"}}));
 }
 
 TEST_P(RegexpTest, NonCapturingBracketsPeeringWithCapturingBrackets) {
@@ -1793,8 +1784,7 @@ TEST_P(RegexpTest, NonCapturingBracketsPeeringWithCapturingBrackets) {
   EXPECT_THAT(pattern, DoesntMatch("dolor"));
   EXPECT_THAT(pattern, DoesntMatch("amet"));
   EXPECT_THAT(pattern, DoesntMatch("adipisci"));
-  EXPECT_THAT(Match(pattern, "loremipsumdolorametadipisci"),
-              IsOkAndHolds(Optional(ElementsAre(ElementsAre("amet")))));
+  EXPECT_THAT(pattern, Matches("loremipsumdolorametadipisci", {{"amet"}}));
 }
 
 TEST_P(RegexpTest, PeeringNonCapturingBrackets) {
@@ -1822,13 +1812,11 @@ TEST_P(RegexpTest, EpsilonLoop1) {
   auto const status_or_pattern = Parse("(|a)+");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(ElementsAre(ElementsAre("")))));
-  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(Optional(ElementsAre(ElementsAre("a")))));
-  EXPECT_THAT(Match(pattern, "aa"),
-              IsOkAndHolds(Optional(ElementsAre(AnyOf(ElementsAre("aa"), ElementsAre("a", "a"))))));
-  EXPECT_THAT(Match(pattern, "aaa"), IsOkAndHolds(Optional(ElementsAre(AnyOf(
-                                         ElementsAre("aaa"), ElementsAre("aa", "a"),
-                                         ElementsAre("a", "aa"), ElementsAre("a", "a", "a"))))));
+  EXPECT_THAT(pattern, Matches("", {{""}}));
+  EXPECT_THAT(pattern, Matches("a", {{"a"}}));
+  EXPECT_THAT(pattern, AnyOf(Matches("aa", {{"aa"}}), Matches("aa", {{"a", "a"}})));
+  EXPECT_THAT(pattern, AnyOf(Matches("aaa", {{"aaa"}}), Matches("aaa", {{"aa", "a"}}),
+                             Matches("aaa", {{"a", "aa"}}), Matches("aaa", {{"a", "a", "a"}})));
   EXPECT_THAT(pattern, DoesntMatch("b"));
   EXPECT_THAT(pattern, DoesntMatch("bb"));
   EXPECT_THAT(pattern, DoesntMatch("ab"));
@@ -1839,13 +1827,11 @@ TEST_P(RegexpTest, EpsilonLoop2) {
   auto const status_or_pattern = Parse("(a|)+");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(ElementsAre(ElementsAre("")))));
-  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(Optional(ElementsAre(ElementsAre("a")))));
-  EXPECT_THAT(Match(pattern, "aa"),
-              IsOkAndHolds(Optional(ElementsAre(AnyOf(ElementsAre("aa"), ElementsAre("a", "a"))))));
-  EXPECT_THAT(Match(pattern, "aaa"), IsOkAndHolds(Optional(ElementsAre(AnyOf(
-                                         ElementsAre("aaa"), ElementsAre("aa", "a"),
-                                         ElementsAre("a", "aa"), ElementsAre("a", "a", "a"))))));
+  EXPECT_THAT(pattern, Matches("", {{""}}));
+  EXPECT_THAT(pattern, Matches("a", {{"a"}}));
+  EXPECT_THAT(pattern, AnyOf(Matches("aa", {{"aa"}}), Matches("aa", {{"a", "a"}})));
+  EXPECT_THAT(pattern, AnyOf(Matches("aaa", {{"aaa"}}), Matches("aaa", {{"aa", "a"}}),
+                             Matches("aaa", {{"a", "aa"}}), Matches("aaa", {{"a", "a", "a"}})));
   EXPECT_THAT(pattern, DoesntMatch("b"));
   EXPECT_THAT(pattern, DoesntMatch("bb"));
   EXPECT_THAT(pattern, DoesntMatch("ab"));
@@ -2604,28 +2590,21 @@ TEST_P(RegexpTest, CaptureMultipleTimes) {
   auto const status_or_pattern = Parse("((ab.)*)");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(ElementsAre(ElementsAre(""), IsEmpty()))));
-  EXPECT_THAT(Match(pattern, "abcabdabe"),
-              IsOkAndHolds(Optional(
-                  ElementsAre(ElementsAre("abcabdabe"), ElementsAre("abc", "abd", "abe")))));
+  EXPECT_THAT(pattern, Matches("", {{""}, {}}));
+  EXPECT_THAT(pattern, Matches("abcabdabe", {{"abcabdabe"}, {"abc", "abd", "abe"}}));
 }
 
 TEST_P(RegexpTest, CantMergeLoopEndpoints) {
   auto const status_or_pattern = Parse("(lore(m))*");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(ElementsAre(IsEmpty(), IsEmpty()))));
-  EXPECT_THAT(Match(pattern, "lorem"),
-              IsOkAndHolds(Optional(ElementsAre(ElementsAre("lorem"), ElementsAre("m")))));
+  EXPECT_THAT(pattern, Matches("", {{}, {}}));
+  EXPECT_THAT(pattern, Matches("lorem", {{"lorem"}, {"m"}}));
   EXPECT_THAT(pattern, DoesntMatch("ipsum"));
-  EXPECT_THAT(
-      Match(pattern, "loremlorem"),
-      IsOkAndHolds(Optional(ElementsAre(ElementsAre("lorem", "lorem"), ElementsAre("m", "m")))));
+  EXPECT_THAT(pattern, Matches("loremlorem", {{"lorem", "lorem"}, {"m", "m"}}));
   EXPECT_THAT(pattern, DoesntMatch("loremipsum"));
   EXPECT_THAT(pattern, DoesntMatch("ipsumlorem"));
-  EXPECT_THAT(Match(pattern, "loremloremlorem"),
-              IsOkAndHolds(Optional(ElementsAre(ElementsAre("lorem", "lorem", "lorem"),
-                                                ElementsAre("m", "m", "m")))));
+  EXPECT_THAT(pattern, Matches("loremloremlorem", {{"lorem", "lorem", "lorem"}, {"m", "m", "m"}}));
 }
 
 TEST_P(RegexpTest, CantMergeLoopEndpointsOfPrefix) {
@@ -2695,29 +2674,18 @@ TEST_P(RegexpTest, AmbiguousMatch) {
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch("lorem"));
   EXPECT_THAT(pattern, DoesntMatch("lorem ipsum"));
-  EXPECT_THAT(Match(pattern, "lorem ipsum dolor"),
-              IsOkAndHolds(Optional(
-                  ElementsAre(ElementsAre("lorem"), ElementsAre("ipsum"), ElementsAre("dolor")))));
-  EXPECT_THAT(
-      Match(pattern, "lorem ipsum dolor amet"),
-      IsOkAndHolds(Optional(AnyOf(
-          ElementsAre(ElementsAre("lorem"), ElementsAre("ipsum"), ElementsAre("dolor amet")),
-          ElementsAre(ElementsAre("lorem"), ElementsAre("ipsum dolor"), ElementsAre("amet")),
-          ElementsAre(ElementsAre("lorem ipsum"), ElementsAre("dolor"), ElementsAre("amet"))))));
-  EXPECT_THAT(
-      Match(pattern, "lorem ipsum dolor amet consectetur"),
-      IsOkAndHolds(Optional(AnyOf(ElementsAre(ElementsAre("lorem"), ElementsAre("ipsum"),
-                                              ElementsAre("dolor amet consectetur")),
-                                  ElementsAre(ElementsAre("lorem"), ElementsAre("ipsum dolor"),
-                                              ElementsAre("amet consectetur")),
-                                  ElementsAre(ElementsAre("lorem"), ElementsAre("ipsum dolor amet"),
-                                              ElementsAre("consectetur")),
-                                  ElementsAre(ElementsAre("lorem ipsum"), ElementsAre("dolor"),
-                                              ElementsAre("amet consectetur")),
-                                  ElementsAre(ElementsAre("lorem ipsum"), ElementsAre("dolor amet"),
-                                              ElementsAre("consectetur")),
-                                  ElementsAre(ElementsAre("lorem ipsum dolor"), ElementsAre("amet"),
-                                              ElementsAre("consectetur"))))));
+  EXPECT_THAT(pattern, Matches("lorem ipsum dolor", {{"lorem"}, {"ipsum"}, {"dolor"}}));
+  std::string_view input = "lorem ipsum dolor amet";
+  EXPECT_THAT(pattern, AnyOf(Matches(input, {{"lorem"}, {"ipsum"}, {"dolor amet"}}),
+                             Matches(input, {{"lorem"}, {"ipsum dolor"}, {"amet"}}),
+                             Matches(input, {{"lorem ipsum"}, {"dolor"}, {"amet"}})));
+  input = "lorem ipsum dolor amet consectetur";
+  EXPECT_THAT(pattern, AnyOf(Matches(input, {{"lorem"}, {"ipsum"}, {"dolor amet consectetur"}}),
+                             Matches(input, {{"lorem"}, {"ipsum dolor"}, {"amet consectetur"}}),
+                             Matches(input, {{"lorem"}, {"ipsum dolor amet"}, {"consectetur"}}),
+                             Matches(input, {{"lorem ipsum"}, {"dolor"}, {"amet consectetur"}}),
+                             Matches(input, {{"lorem ipsum"}, {"dolor amet"}, {"consectetur"}}),
+                             Matches(input, {{"lorem ipsum dolor"}, {"amet"}, {"consectetur"}})));
 }
 
 TEST_P(RegexpTest, AmbiguousPrefixMatch) {
