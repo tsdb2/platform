@@ -1,4 +1,5 @@
 #include <optional>
+#include <ostream>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -9,6 +10,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "common/flag_override.h"
 #include "common/re/automaton.h"
 #include "common/re/dfa.h"
@@ -38,6 +40,113 @@ using ::tsdb2::common::regexp_internal::Parse;
 using ::tsdb2::common::regexp_internal::TempNFA;
 using ::tsdb2::common::testing::FlagOverride;
 
+class MatchesImpl {
+ public:
+  using is_gtest_matcher = void;
+
+  explicit MatchesImpl(std::string_view const input, std::vector<std::vector<std::string>> captures,
+                       bool const use_stepper)
+      : input_(input), captures_(std::move(captures)), use_stepper_(use_stepper) {}
+
+  void DescribeTo(std::ostream* const os) const {
+    *os << "matches \"" << absl::CEscape(input_) << "\" with ";
+    PrintCaptures(os);
+  }
+
+  void DescribeNegationTo(std::ostream* const os) const {
+    *os << "doesn't match \"" << absl::CEscape(input_) << "\" with ";
+    PrintCaptures(os);
+  }
+
+  bool MatchAndExplain(reffed_ptr<AbstractAutomaton> const& automaton,
+                       ::testing::MatchResultListener* const listener) const {
+    if (!Run(automaton)) {
+      return false;
+    }
+    auto maybe_results = automaton->Match(input_);
+    if (!maybe_results.has_value()) {
+      return false;
+    }
+    auto const& results = maybe_results.value();
+    if (results.size() != captures_.size()) {
+      return false;
+    }
+    for (size_t i = 0; i < results.size(); ++i) {
+      if (results[i].size() != captures_[i].size()) {
+        return false;
+      }
+      for (size_t j = 0; j < results[i].size(); ++j) {
+        if (results[i][j] != captures_[i][j]) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+ private:
+  bool Run(reffed_ptr<AbstractAutomaton> const& automaton) const {
+    if (use_stepper_) {
+      auto const stepper = automaton->MakeStepper();
+      return stepper->Step(input_) && stepper->Finish();
+    } else {
+      return automaton->Test(input_);
+    }
+  }
+
+  void PrintCaptures(std::ostream* const os) const {
+    *os << "{";
+    for (auto strings : captures_) {
+      for (auto& string : strings) {
+        string = absl::StrCat("\"", absl::CEscape(string), "\"");
+      }
+      *os << "{" << absl::StrJoin(strings, ", ") << "}, ";
+    }
+    *os << "}";
+  }
+
+  std::string const input_;
+  std::vector<std::vector<std::string>> const captures_;
+  bool const use_stepper_;
+};
+
+class DoesntMatchImpl {
+ public:
+  using is_gtest_matcher = void;
+
+  explicit DoesntMatchImpl(std::string_view const input, bool const use_stepper)
+      : input_(input), use_stepper_(use_stepper) {}
+
+  void DescribeTo(std::ostream* const os) const {
+    *os << "doesn't match \"" << absl::CEscape(input_) << "\"";
+  }
+
+  void DescribeNegationTo(std::ostream* const os) const {
+    *os << "matches \"" << absl::CEscape(input_) << "\"";
+  }
+
+  bool MatchAndExplain(reffed_ptr<AbstractAutomaton> const& automaton,
+                       ::testing::MatchResultListener* const listener) const {
+    if (Run(automaton)) {
+      return false;
+    }
+    return !automaton->Match(input_).has_value();
+  }
+
+ private:
+  bool Run(reffed_ptr<AbstractAutomaton> const& automaton) const {
+    if (use_stepper_) {
+      auto const stepper = automaton->MakeStepper();
+      return stepper->Step(input_) && stepper->Finish();
+    } else {
+      return automaton->Test(input_);
+    }
+  }
+
+  std::string const input_;
+  bool const use_stepper_;
+};
+
 struct RegexpTestParams {
   bool force_nfa;
   bool use_stepper;
@@ -51,11 +160,22 @@ class RegexpTest : public ::testing::TestWithParam<RegexpTestParams> {
   bool CheckDeterministic(reffed_ptr<AbstractAutomaton> const& automaton);
   bool CheckNotDeterministic(reffed_ptr<AbstractAutomaton> const& automaton);
 
+  MatchesImpl Matches(std::string_view const input,
+                      std::vector<std::vector<std::string>> captures) const {
+    return MatchesImpl(input, std::move(captures), GetParam().use_stepper);
+  }
+
+  DoesntMatchImpl DoesntMatch(std::string_view const input) const {
+    return DoesntMatchImpl(input, GetParam().use_stepper);
+  }
+
+  // TODO: remove.
   absl::StatusOr<std::optional<AbstractAutomaton::CaptureSet>> Match(
-      reffed_ptr<AbstractAutomaton> const& automaton, std::string_view input);
+      reffed_ptr<AbstractAutomaton> const& automaton, std::string_view input) const;
 
  private:
-  bool Run(reffed_ptr<AbstractAutomaton> const& automaton, std::string_view input);
+  // TODO: remove.
+  bool Run(reffed_ptr<AbstractAutomaton> const& automaton, std::string_view input) const;
 };
 
 bool RegexpTest::CheckDeterministic(reffed_ptr<AbstractAutomaton> const& automaton) {
@@ -66,7 +186,8 @@ bool RegexpTest::CheckNotDeterministic(reffed_ptr<AbstractAutomaton> const& auto
   return GetParam().force_nfa || !automaton->IsDeterministic();
 }
 
-bool RegexpTest::Run(reffed_ptr<AbstractAutomaton> const& automaton, std::string_view const input) {
+bool RegexpTest::Run(reffed_ptr<AbstractAutomaton> const& automaton,
+                     std::string_view const input) const {
   if (GetParam().use_stepper) {
     auto const stepper = automaton->MakeStepper();
     return stepper->Step(input) && stepper->Finish();
@@ -76,7 +197,7 @@ bool RegexpTest::Run(reffed_ptr<AbstractAutomaton> const& automaton, std::string
 }
 
 absl::StatusOr<std::optional<AbstractAutomaton::CaptureSet>> RegexpTest::Match(
-    reffed_ptr<AbstractAutomaton> const& automaton, std::string_view const input) {
+    reffed_ptr<AbstractAutomaton> const& automaton, std::string_view const input) const {
   bool const run_result = Run(automaton, input);
   auto match_results = automaton->Match(input);
   if (run_result != match_results.has_value()) {
@@ -166,21 +287,21 @@ TEST_P(RegexpTest, Empty) {
   auto const status_or_pattern = Parse("");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(std::nullopt));
-  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(std::nullopt));
-  EXPECT_THAT(Match(pattern, "hello"), IsOkAndHolds(std::nullopt));
-  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(Optional(IsEmpty())));
+  EXPECT_THAT(pattern, DoesntMatch("a"));
+  EXPECT_THAT(pattern, DoesntMatch("b"));
+  EXPECT_THAT(pattern, DoesntMatch("hello"));
+  EXPECT_THAT(pattern, Matches("", {}));
 }
 
 TEST_P(RegexpTest, SimpleCharacter) {
   auto const status_or_pattern = Parse("a");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(Match(pattern, "a"), IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "b"), IsOkAndHolds(std::nullopt));
-  EXPECT_THAT(Match(pattern, "anchor"), IsOkAndHolds(std::nullopt));
-  EXPECT_THAT(Match(pattern, "banana"), IsOkAndHolds(std::nullopt));
-  EXPECT_THAT(Match(pattern, ""), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(pattern, Matches("a", {}));
+  EXPECT_THAT(pattern, DoesntMatch("b"));
+  EXPECT_THAT(pattern, DoesntMatch("anchor"));
+  EXPECT_THAT(pattern, DoesntMatch("banana"));
+  EXPECT_THAT(pattern, DoesntMatch(""));
 }
 
 TEST_P(RegexpTest, AnotherSimpleCharacter) {
