@@ -2,6 +2,7 @@
 #define __TSDB2_COMMON_UTILITIES_H__
 
 #include <type_traits>
+#include <utility>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -126,5 +127,36 @@ inline absl::Status ReturnIfError_GetStatus(absl::StatusOr<T> const& status_or) 
       return std::move(status_or_value).status();    \
     }                                                \
   }
+
+// Evaluates the provided `expression` assuming it returns an `absl::StatusOr` and, if the status is
+// OK, assigns the wrapped value to a new variable named with `name`. If the returned status is not
+// OK it returns prematurely with the error status.
+//
+// Example:
+//
+//   absl::StatusOr<int> Foo();
+//
+//   absl::Status Bar() {
+//     DEFINE_VAR_OR_RETURN(n, Foo());
+//     Baz(n);
+//     return absl::OkStatus();
+//   }
+//
+// NOTE: this macro will also define an extra intermediate variable called `status_or_##name`, where
+// `name` is the first parameter.
+#define DEFINE_VAR_OR_RETURN(name, expression)   \
+  auto status_or_##name = (expression);          \
+  if (!(status_or_##name).ok()) {                \
+    return std::move(status_or_##name).status(); \
+  }                                              \
+  auto& name = status_or_##name.value();
+
+// Like `DEFINE_VAR_OR_RETURN` but the resulting variable is const.
+#define DEFINE_CONST_OR_RETURN(name, expression) \
+  auto status_or_##name = (expression);          \
+  if (!(status_or_##name).ok()) {                \
+    return std::move(status_or_##name).status(); \
+  }                                              \
+  auto const& name = status_or_##name.value();
 
 #endif  // __TSDB2_COMMON_UTILITIES_H__

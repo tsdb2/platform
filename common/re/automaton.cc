@@ -2,8 +2,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <initializer_list>
 #include <optional>
-#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -28,6 +28,22 @@ std::optional<AbstractAutomaton::CaptureSet> AbstractAutomaton::PartialMatch(
     }
   }
   return std::nullopt;
+}
+
+bool AbstractAutomaton::PartialMatchArgs(
+    std::string_view const input, std::initializer_list<std::string_view*> const args) const {
+  if (PartialMatchArgs(input, 0, args)) {
+    return true;
+  }
+  if (AssertsBegin()) {
+    return false;
+  }
+  for (size_t offset = 1; offset < input.size(); ++offset) {
+    if (PartialMatch(input, offset)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 void AbstractAutomaton::RangeSetCaptureManager::CloseGroup(intptr_t const offset,

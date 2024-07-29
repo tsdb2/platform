@@ -41,43 +41,31 @@ bool RE::Test(std::string_view const input, std::string_view const pattern) {
 
 absl::StatusOr<RE::CaptureSet> RE::Match(std::string_view const input,
                                          std::string_view const pattern) {
-  auto status_or_re = RE::Create(pattern);
-  if (status_or_re.ok()) {
-    auto maybe_results = status_or_re->Match(input);
-    if (maybe_results) {
-      return std::move(maybe_results).value();
-    } else {
-      return absl::NotFoundError(absl::StrCat("string \"",
-                                              absl::CEscape(internal::ClipString(input)),
-                                              "\" doesn't match \"", absl::CEscape(pattern), "\""));
-    }
+  DEFINE_CONST_OR_RETURN(re, RE::Create(pattern));
+  auto maybe_results = re.Match(input);
+  if (maybe_results) {
+    return std::move(maybe_results).value();
   } else {
-    return std::move(status_or_re).status();
+    return absl::NotFoundError(absl::StrCat("string \"", absl::CEscape(internal::ClipString(input)),
+                                            "\" doesn't match \"", absl::CEscape(pattern), "\""));
   }
 }
 
 absl::StatusOr<RE::CaptureSet> RE::PartialMatch(std::string_view const input,
                                                 std::string_view const pattern) {
-  auto status_or_re = RE::Create(pattern);
-  if (status_or_re.ok()) {
-    auto maybe_results = status_or_re->PartialMatch(input);
-    if (maybe_results) {
-      return std::move(maybe_results).value();
-    } else {
-      return absl::NotFoundError(absl::StrCat("no substring matching \"", absl::CEscape(pattern),
-                                              "\" found in \"", absl::CEscape(input), "\""));
-    }
+  DEFINE_CONST_OR_RETURN(re, RE::Create(pattern));
+  auto maybe_results = re.PartialMatch(input);
+  if (maybe_results) {
+    return std::move(maybe_results).value();
   } else {
-    return std::move(status_or_re).status();
+    return absl::NotFoundError(absl::StrCat("no substring matching \"", absl::CEscape(pattern),
+                                            "\" found in \"", absl::CEscape(input), "\""));
   }
 }
 
 absl::StatusOr<RE::CaptureSet> RE::ConsumePrefix(std::string_view *const input,
                                                  std::string_view const pattern) {
-  auto status_or_re = RE::Create(absl::StrCat("(", pattern, ")"));
-  if (!status_or_re.ok()) {
-    return std::move(status_or_re).status();
-  }
+  DEFINE_CONST_OR_RETURN(re, RE::Create(absl::StrCat("(", pattern, ")")));
   std::string_view const original_input = *input;
   auto maybe_matches = status_or_re->MatchPrefix(*input);
   if (!maybe_matches) {

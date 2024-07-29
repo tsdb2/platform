@@ -81,6 +81,10 @@ class RE {
 
   static absl::StatusOr<CaptureSet> PartialMatch(std::string_view input, std::string_view pattern);
 
+  template <typename... Args>
+  static absl::Status PartialMatchArgs(std::string_view const input, std::string_view const pattern,
+                                       FixedT<std::string_view *, Args> const... args);
+
   // Strips the longest possible prefix matching `pattern` from the provided `input` string. Returns
   // true iff a prefix was matched and removed.
   static absl::StatusOr<CaptureSet> ConsumePrefix(std::string_view *input,
@@ -135,6 +139,12 @@ class RE {
     return automaton_->MatchPrefix(input);
   }
 
+  template <typename... Args>
+  bool MatchPrefixArgs(std::string_view const input,
+                       FixedT<std::string_view *, Args> const... args) const {
+    return automaton_->MatchPrefixArgs(input, {args...});
+  }
+
   // Searches for a substring of the `input` string matching this regular expression. The returned
   // match is guaranteed to be the earliest and longest in the input string, with earliest matches
   // taking precedence over longer ones.
@@ -144,6 +154,12 @@ class RE {
   // expression in a capture group before compiling it.
   std::optional<CaptureSet> PartialMatch(std::string_view const input) const {
     return automaton_->PartialMatch(input);
+  }
+
+  template <typename... Args>
+  bool PartialMatchArgs(std::string_view const input,
+                        FixedT<std::string_view *, Args> const... args) const {
+    return automaton_->PartialMatchArgs(input, {args...});
   }
 
  private:
@@ -159,18 +175,26 @@ class RE {
 template <typename... Args>
 absl::Status RE::MatchArgs(std::string_view const input, std::string_view const pattern,
                            FixedT<std::string_view *, Args> const... args) {
-  auto status_or_re = RE::Create(pattern);
-  if (status_or_re.ok()) {
-    auto maybe_results = status_or_re->MatchArgs(input, args...);
-    if (maybe_results) {
-      return std::move(maybe_results).value();
-    } else {
-      return absl::NotFoundError(absl::StrCat("string \"",
-                                              absl::CEscape(internal::ClipString(input)),
-                                              "\" doesn't match \"", absl::CEscape(pattern), "\""));
-    }
+  DEFINE_CONST_OR_RETURN(re, RE::Create(pattern));
+  auto maybe_results = re.MatchArgs(input, args...);
+  if (maybe_results) {
+    return std::move(maybe_results).value();
   } else {
-    return std::move(status_or_re).status();
+    return absl::NotFoundError(absl::StrCat("string \"", absl::CEscape(internal::ClipString(input)),
+                                            "\" doesn't match \"", absl::CEscape(pattern), "\""));
+  }
+}
+
+template <typename... Args>
+absl::Status RE::PartialMatchArgs(std::string_view const input, std::string_view const pattern,
+                                  FixedT<std::string_view *, Args> const... args) {
+  DEFINE_CONST_OR_RETURN(re, RE::Create(pattern));
+  auto maybe_results = re.PartialMatchArgs(input, args...);
+  if (maybe_results) {
+    return std::move(maybe_results).value();
+  } else {
+    return absl::NotFoundError(absl::StrCat("no substring matching \"", absl::CEscape(pattern),
+                                            "\" found in \"", absl::CEscape(input), "\""));
   }
 }
 

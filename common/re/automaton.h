@@ -169,6 +169,16 @@ class AbstractAutomaton : public SimpleRefCounted {
   // is returned.
   virtual std::optional<CaptureSet> Match(std::string_view input) const = 0;
 
+  // Same as `Match` above but stores the captured substrings in the provided `std::string_view`
+  // objects rather than returning a `CaptureSet`. Returns a boolean indicating whether the `input`
+  // string matched. The contents of the string views are undefined if false is returned.
+  //
+  // NOTE: only one substring is retrieved for each capture group. If the corresponding capture
+  // group matched more than one substring, only the last one is returned.
+  //
+  // NOTE: `args` would normally have as many elements as there are capture groups in the
+  // expression, but it's okay to provide a different number: missing substrings won't be retrieved
+  // and extra string views will be ignored.
   virtual bool MatchArgs(std::string_view input,
                          std::initializer_list<std::string_view *> args) const = 0;
 
@@ -176,6 +186,22 @@ class AbstractAutomaton : public SimpleRefCounted {
   // Returns the array of captured substrings if a match is found, or an empty optional otherwise.
   std::optional<CaptureSet> MatchPrefix(std::string_view const input) const {
     return PartialMatch(input, 0);
+  }
+
+  // Same as `MatchPrefix` above but stores the captured substrings in the provided
+  // `std::string_view` objects rather than returning a `CaptureSet`. Returns a boolean indicating
+  // whether a matching prefix was found. The contents of the string views are undefined if false is
+  // returned.
+  //
+  // NOTE: only one substring is retrieved for each capture group. If the corresponding capture
+  // group matched more than one substring, only the last one is returned.
+  //
+  // NOTE: `args` would normally have as many elements as there are capture groups in the
+  // expression, but it's okay to provide a different number: missing substrings won't be retrieved
+  // and extra string views will be ignored.
+  bool MatchPrefixArgs(std::string_view const input,
+                       std::initializer_list<std::string_view *> const args) const {
+    return PartialMatchArgs(input, 0, args);
   }
 
   // Searches for a substring of the `input` string matching this regular expression. The returned
@@ -187,9 +213,23 @@ class AbstractAutomaton : public SimpleRefCounted {
   // expression in a capture group before compiling it.
   std::optional<CaptureSet> PartialMatch(std::string_view input) const;
 
+  // Same as `PartialMatch` above but stores the captured substrings in the provided
+  // `std::string_view` objects rather than returning a `CaptureSet`. Returns a boolean indicating
+  // whether a matching substring was found. The contents of the string views are undefined if false
+  // is returned.
+  //
+  // NOTE: only one substring is retrieved for each capture group. If the corresponding capture
+  // group matched more than one substring, only the last one is returned.
+  //
+  // NOTE: `args` would normally have as many elements as there are capture groups in the
+  // expression, but it's okay to provide a different number: missing substrings won't be retrieved
+  // and extra string views will be ignored.
+  bool PartialMatchArgs(std::string_view input,
+                        std::initializer_list<std::string_view *> args) const;
+
  protected:
-  // Used in subclasses by `Match*` methods to track the boundaries of the captured substrings and
-  // build the final `CaptureSet`.
+  // Used in subclasses by non-Args versions of the `Match*` methods to track the boundaries of the
+  // captured substrings and build the final `CaptureSet`.
   //
   // Internally this class maintains arrays of "ranges", each range being the pair of boundaries of
   // a captured string. `CaptureSet` has a similar structure but holds `std::string_view`s rather
@@ -230,6 +270,11 @@ class AbstractAutomaton : public SimpleRefCounted {
     std::vector<absl::InlinedVector<std::pair<intptr_t, intptr_t>, 2>> ranges_;
   };
 
+  // Used in subclasses by the `Args` versions of the `Match*` methods to track the latest capture
+  // of each group.
+  //
+  // Internally this class maintains a single array of "ranges", each range being the pair of
+  // boundaries of the last substring captured by the corresponding capture group.
   class SingleRangeCaptureManager {
    public:
     explicit SingleRangeCaptureManager(CaptureGroups const &capture_groups,
@@ -270,6 +315,9 @@ class AbstractAutomaton : public SimpleRefCounted {
   // This is the internal implementation of `PartialMatch` and `MatchPrefix`.
   virtual std::optional<CaptureSet> PartialMatch(std::string_view input, size_t offset) const = 0;
 
+  // Same as `PartialMatch` above but stores the captured substrings in the provided
+  // `std::string_view` objects rather than returning a `CaptureSet`. This is the internal
+  // implementation of `PartialMatchArgs` and `MatchPrefixArgs`.
   virtual bool PartialMatchArgs(std::string_view input, size_t offset,
                                 std::initializer_list<std::string_view *> args) const = 0;
 
