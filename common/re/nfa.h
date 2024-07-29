@@ -50,11 +50,11 @@ class NFA final : public AbstractAutomaton {
     // doesn't belong to a capture group.
     //
     // Capture groups may be nested, so each state may belong to more than one. This field indicates
-    // the innermost, the caller is responsible for inferring all the ancestors up to the root.
+    // the innermost, the caller is responsible for inferring all ancestors up to the root.
     //
     // Every time this state processes a character (that is, every time a character is looked up in
-    // the `edges`) that character is added to the strings captured by the innermost group as well
-    // as all of its ancestors.
+    // the `edges`) the character is added to the strings captured by the innermost group as well as
+    // all of its ancestors.
     int innermost_capture_group;
 
     // Any assertions this state needs to make.
