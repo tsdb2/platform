@@ -2,7 +2,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <initializer_list>
 #include <memory>
 #include <optional>
 #include <string_view>
@@ -10,6 +9,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/types/span.h"
 #include "common/flat_map.h"
 #include "common/re/automaton.h"
 
@@ -115,7 +115,7 @@ std::optional<AbstractAutomaton::CaptureSet> DFA::Match(std::string_view const i
 }
 
 bool DFA::MatchArgs(std::string_view const input,
-                    std::initializer_list<std::string_view*> const args) const {
+                    absl::Span<std::string_view* const> const args) const {
   SingleRangeCaptureManager capture_manager{capture_groups_, input, args};
   return MatchInternal(input, &capture_manager);
 }
@@ -133,7 +133,7 @@ std::optional<AbstractAutomaton::CaptureSet> DFA::PartialMatch(std::string_view 
 }
 
 bool DFA::PartialMatchArgs(std::string_view const input, size_t const offset,
-                           std::initializer_list<std::string_view*> const args) const {
+                           absl::Span<std::string_view* const> const args) const {
   SingleRangeCaptureManager capture_manager{capture_groups_, input, args};
   return PartialMatchInternal(input, offset, &capture_manager);
 }

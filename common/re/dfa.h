@@ -3,13 +3,13 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <initializer_list>
 #include <memory>
 #include <optional>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "absl/types/span.h"
 #include "common/flat_map.h"
 #include "common/re/automaton.h"
 #include "common/re/capture_groups.h"
@@ -102,8 +102,7 @@ class DFA final : public AbstractAutomaton {
 
   std::optional<CaptureSet> Match(std::string_view input) const override;
 
-  bool MatchArgs(std::string_view input,
-                 std::initializer_list<std::string_view *> args) const override;
+  bool MatchArgs(std::string_view input, absl::Span<std::string_view *const> args) const override;
 
  protected:
   bool AssertsBegin() const override;
@@ -114,7 +113,7 @@ class DFA final : public AbstractAutomaton {
   std::optional<CaptureSet> PartialMatch(std::string_view input, size_t offset) const override;
 
   bool PartialMatchArgs(std::string_view input, size_t offset,
-                        std::initializer_list<std::string_view *> args) const override;
+                        absl::Span<std::string_view *const> args) const override;
 
   template <typename CaptureManager>
   bool PartialMatchInternal(std::string_view input, size_t offset,

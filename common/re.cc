@@ -67,7 +67,7 @@ absl::StatusOr<RE::CaptureSet> RE::ConsumePrefix(std::string_view *const input,
                                                  std::string_view const pattern) {
   DEFINE_CONST_OR_RETURN(re, RE::Create(absl::StrCat("(", pattern, ")")));
   std::string_view const original_input = *input;
-  auto maybe_matches = status_or_re->MatchPrefix(*input);
+  auto maybe_matches = re.MatchPrefix(*input);
   if (!maybe_matches) {
     return absl::NotFoundError(
         absl::StrCat("no prefix matching \"", absl::CEscape(pattern), "\" found in \"",

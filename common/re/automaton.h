@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <initializer_list>
 #include <memory>
 #include <optional>
 #include <string_view>
@@ -12,6 +11,7 @@
 #include <vector>
 
 #include "absl/container/inlined_vector.h"
+#include "absl/types/span.h"
 #include "common/re/capture_groups.h"
 #include "common/ref_count.h"
 
@@ -180,7 +180,7 @@ class AbstractAutomaton : public SimpleRefCounted {
   // expression, but it's okay to provide a different number: missing substrings won't be retrieved
   // and extra string views will be ignored.
   virtual bool MatchArgs(std::string_view input,
-                         std::initializer_list<std::string_view *> args) const = 0;
+                         absl::Span<std::string_view *const> args) const = 0;
 
   // Runs the automaton on the provided input string trying to matches its longest possible prefix.
   // Returns the array of captured substrings if a match is found, or an empty optional otherwise.
@@ -200,7 +200,7 @@ class AbstractAutomaton : public SimpleRefCounted {
   // expression, but it's okay to provide a different number: missing substrings won't be retrieved
   // and extra string views will be ignored.
   bool MatchPrefixArgs(std::string_view const input,
-                       std::initializer_list<std::string_view *> const args) const {
+                       absl::Span<std::string_view *const> const args) const {
     return PartialMatchArgs(input, 0, args);
   }
 
@@ -224,8 +224,7 @@ class AbstractAutomaton : public SimpleRefCounted {
   // NOTE: `args` would normally have as many elements as there are capture groups in the
   // expression, but it's okay to provide a different number: missing substrings won't be retrieved
   // and extra string views will be ignored.
-  bool PartialMatchArgs(std::string_view input,
-                        std::initializer_list<std::string_view *> args) const;
+  bool PartialMatchArgs(std::string_view input, absl::Span<std::string_view *const> args) const;
 
  protected:
   // Used in subclasses by non-Args versions of the `Match*` methods to track the boundaries of the
@@ -279,7 +278,7 @@ class AbstractAutomaton : public SimpleRefCounted {
    public:
     explicit SingleRangeCaptureManager(CaptureGroups const &capture_groups,
                                        std::string_view const source,
-                                       std::initializer_list<std::string_view *> const args)
+                                       absl::Span<std::string_view *const> const args)
         : capture_groups_(&capture_groups),
           source_(source),
           args_(args),
@@ -299,7 +298,7 @@ class AbstractAutomaton : public SimpleRefCounted {
    private:
     CaptureGroups const *capture_groups_;
     std::string_view source_;
-    std::initializer_list<std::string_view *> args_;
+    absl::Span<std::string_view *const> args_;
     std::vector<std::pair<intptr_t, intptr_t>> ranges_;
   };
 
@@ -319,7 +318,7 @@ class AbstractAutomaton : public SimpleRefCounted {
   // `std::string_view` objects rather than returning a `CaptureSet`. This is the internal
   // implementation of `PartialMatchArgs` and `MatchPrefixArgs`.
   virtual bool PartialMatchArgs(std::string_view input, size_t offset,
-                                std::initializer_list<std::string_view *> args) const = 0;
+                                absl::Span<std::string_view *const> args) const = 0;
 
  private:
   // Assertion helpers.

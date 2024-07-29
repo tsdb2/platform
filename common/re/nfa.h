@@ -4,7 +4,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <initializer_list>
 #include <memory>
 #include <optional>
 #include <string_view>
@@ -12,6 +11,7 @@
 #include <vector>
 
 #include "absl/container/inlined_vector.h"
+#include "absl/types/span.h"
 #include "common/flat_map.h"
 #include "common/flat_set.h"
 #include "common/re/automaton.h"
@@ -114,8 +114,7 @@ class NFA final : public AbstractAutomaton {
 
   std::optional<CaptureSet> Match(std::string_view input) const override;
 
-  bool MatchArgs(std::string_view input,
-                 std::initializer_list<std::string_view *> args) const override;
+  bool MatchArgs(std::string_view input, absl::Span<std::string_view *const> args) const override;
 
  protected:
   bool AssertsBegin() const override;
@@ -127,7 +126,7 @@ class NFA final : public AbstractAutomaton {
   std::optional<CaptureSet> PartialMatch(std::string_view input, size_t offset) const override;
 
   bool PartialMatchArgs(std::string_view input, size_t offset,
-                        std::initializer_list<std::string_view *> args) const override;
+                        absl::Span<std::string_view *const> args) const override;
 
   template <typename CaptureManager>
   std::optional<CaptureManager> PartialMatchInternal(std::string_view input, size_t offset,

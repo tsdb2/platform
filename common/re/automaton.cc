@@ -2,11 +2,12 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <initializer_list>
 #include <optional>
 #include <string_view>
 #include <utility>
 #include <vector>
+
+#include "absl/types/span.h"
 
 namespace tsdb2 {
 namespace common {
@@ -30,8 +31,8 @@ std::optional<AbstractAutomaton::CaptureSet> AbstractAutomaton::PartialMatch(
   return std::nullopt;
 }
 
-bool AbstractAutomaton::PartialMatchArgs(
-    std::string_view const input, std::initializer_list<std::string_view*> const args) const {
+bool AbstractAutomaton::PartialMatchArgs(std::string_view const input,
+                                         absl::Span<std::string_view* const> const args) const {
   if (PartialMatchArgs(input, 0, args)) {
     return true;
   }

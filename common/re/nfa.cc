@@ -2,13 +2,13 @@
 
 #include <cstddef>
 #include <functional>
-#include <initializer_list>
 #include <memory>
 #include <optional>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "absl/types/span.h"
 #include "common/re/automaton.h"
 
 namespace tsdb2 {
@@ -91,7 +91,7 @@ std::optional<AbstractAutomaton::CaptureSet> NFA::Match(std::string_view const i
 }
 
 bool NFA::MatchArgs(std::string_view const input,
-                    std::initializer_list<std::string_view*> const args) const {
+                    absl::Span<std::string_view* const> const args) const {
   return MatchInternal(input, SingleRangeCaptureManager(capture_groups_, input, args)).has_value();
 }
 
@@ -109,7 +109,7 @@ std::optional<AbstractAutomaton::CaptureSet> NFA::PartialMatch(std::string_view 
 }
 
 bool NFA::PartialMatchArgs(std::string_view const input, size_t const offset,
-                           std::initializer_list<std::string_view*> const args) const {
+                           absl::Span<std::string_view* const> const args) const {
   return PartialMatchInternal(input, offset,
                               SingleRangeCaptureManager(capture_groups_, input, args))
       .has_value();
