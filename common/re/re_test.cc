@@ -7,7 +7,6 @@
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -188,14 +187,6 @@ class RegexpTest : public ::testing::TestWithParam<RegexpTestParams> {
   DoesntMatchImpl DoesntMatch(std::string_view const input) const {
     return DoesntMatchImpl(input, GetParam().use_stepper);
   }
-
-  // TODO: remove.
-  absl::StatusOr<std::optional<AbstractAutomaton::CaptureSet>> Match(
-      reffed_ptr<AbstractAutomaton> const& automaton, std::string_view input) const;
-
- private:
-  // TODO: remove.
-  bool Run(reffed_ptr<AbstractAutomaton> const& automaton, std::string_view input) const;
 };
 
 bool RegexpTest::CheckDeterministic(reffed_ptr<AbstractAutomaton> const& automaton) {
@@ -204,26 +195,6 @@ bool RegexpTest::CheckDeterministic(reffed_ptr<AbstractAutomaton> const& automat
 
 bool RegexpTest::CheckNotDeterministic(reffed_ptr<AbstractAutomaton> const& automaton) {
   return GetParam().force_nfa || !automaton->IsDeterministic();
-}
-
-bool RegexpTest::Run(reffed_ptr<AbstractAutomaton> const& automaton,
-                     std::string_view const input) const {
-  if (GetParam().use_stepper) {
-    auto const stepper = automaton->MakeStepper();
-    return stepper->Step(input) && stepper->Finish();
-  } else {
-    return automaton->Test(input);
-  }
-}
-
-absl::StatusOr<std::optional<AbstractAutomaton::CaptureSet>> RegexpTest::Match(
-    reffed_ptr<AbstractAutomaton> const& automaton, std::string_view const input) const {
-  bool const run_result = Run(automaton, input);
-  auto match_results = automaton->Match(input);
-  if (run_result != match_results.has_value()) {
-    return absl::FailedPreconditionError("Test result differs from Match result");
-  }
-  return match_results;
 }
 
 TEST_P(RegexpTest, MaxRecursionDepth) {
@@ -2746,12 +2717,8 @@ TEST_P(RegexpTest, NotAllCaptured) {
   auto const status_or_pattern = Parse("sator(arepo(tenet)|(opera)(rotas))");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(Match(pattern, "satorarepotenet"),
-              IsOkAndHolds(Optional(ElementsAre(ElementsAre("arepotenet"), ElementsAre("tenet"),
-                                                IsEmpty(), IsEmpty()))));
-  EXPECT_THAT(Match(pattern, "satoroperarotas"),
-              IsOkAndHolds(Optional(ElementsAre(ElementsAre("operarotas"), IsEmpty(),
-                                                ElementsAre("opera"), ElementsAre("rotas")))));
+  EXPECT_THAT(pattern, Matches("satorarepotenet", {{"arepotenet"}, {"tenet"}, {}, {}}));
+  EXPECT_THAT(pattern, Matches("satoroperarotas", {{"operarotas"}, {}, {"opera"}, {"rotas"}}));
 }
 
 TEST_P(RegexpTest, HeavyBacktracker) {
@@ -2769,68 +2736,39 @@ TEST_P(RegexpTest, HeavyBacktracker) {
   EXPECT_THAT(pattern, DoesntMatch("aaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
   EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
   EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(Optional(IsEmpty())));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(std::nullopt));
-  EXPECT_THAT(Match(pattern, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern, Matches("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {}));
+  EXPECT_THAT(pattern,
+              DoesntMatch("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+  EXPECT_THAT(pattern,
+              DoesntMatch("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 
 TEST_P(RegexpTest, InvalidPrefixPattern) {
@@ -3081,16 +3019,14 @@ TEST_P(AssertedRegexpTest, WordBoundaries) {
   auto const status_or_pattern = Parse(".*(\\blorem\\b).*");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(Match(pattern, "dolorem ipsum lorem loremipsum"),
-              IsOkAndHolds(Optional(ElementsAre(ElementsAre("lorem")))));
+  EXPECT_THAT(pattern, Matches("dolorem ipsum lorem loremipsum", {{"lorem"}}));
 }
 
 TEST_P(AssertedRegexpTest, NotWordBoundaries) {
   auto const status_or_pattern = Parse(".*(..(\\Blorem\\B)..).*");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(Match(pattern, "ipsum lorem doloremdo lorem ipsum"),
-              IsOkAndHolds(Optional(ElementsAre(ElementsAre("doloremdo"), ElementsAre("lorem")))));
+  EXPECT_THAT(pattern, Matches("ipsum lorem doloremdo lorem ipsum", {{"doloremdo"}, {"lorem"}}));
 }
 
 TEST_P(AssertedRegexpTest, WordBoundariesInPrefix) {
@@ -3113,7 +3049,7 @@ TEST_P(AssertedRegexpTest, WordBoundariesAtStringBoundaries) {
   auto const status_or_pattern = Parse("(\\blorem\\b)");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(Match(pattern, "lorem"), IsOkAndHolds(Optional(ElementsAre(ElementsAre("lorem")))));
+  EXPECT_THAT(pattern, Matches("lorem", {{"lorem"}}));
   EXPECT_THAT(pattern->MatchPrefix("lorem"), Optional(ElementsAre(ElementsAre("lorem"))));
 }
 
