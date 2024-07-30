@@ -152,12 +152,18 @@ class MatchesImpl {
     auto const match_outcome = Match(automaton, listener);
     if ((match_outcome != Outcome::kNoMatch) != test_result) {
       *listener << ", Match() results differ from Test result";
-      return !test_result;
+      return false;
+    }
+    if (test_result && match_outcome == Outcome::kUnexpected) {
+      return false;
     }
     auto const match_args_outcome = MatchArgs(automaton, listener);
     if ((match_args_outcome != Outcome::kNoMatch) != test_result) {
       *listener << ", MatchArgs() result differs from Test result";
-      return !test_result;
+      return false;
+    }
+    if (test_result && match_args_outcome == Outcome::kUnexpected) {
+      return false;
     }
     return test_result;
   }
@@ -262,12 +268,18 @@ class MatchesPrefixOfImpl {
     auto const match_outcome = Match(automaton, listener);
     if ((match_outcome != Outcome::kNoMatch) != test_result) {
       *listener << ", Match() results differ from Test result";
-      return !test_result;
+      return false;
+    }
+    if (test_result && match_outcome == Outcome::kUnexpected) {
+      return false;
     }
     auto const match_args_outcome = MatchArgs(automaton, listener);
     if ((match_args_outcome != Outcome::kNoMatch) != test_result) {
       *listener << ", MatchArgs() result differs from Test result";
-      return !test_result;
+      return false;
+    }
+    if (test_result && match_args_outcome == Outcome::kUnexpected) {
+      return false;
     }
     return test_result;
   }
