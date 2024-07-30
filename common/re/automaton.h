@@ -164,6 +164,10 @@ class AbstractAutomaton : public SimpleRefCounted {
   // automaton.
   virtual bool Test(std::string_view input) const = 0;
 
+  // Runs the automaton on the provided input string, returning true if it finds a prefix that
+  // matches this regular expression or false otherwise.
+  bool TestPrefix(std::string_view const input) const { return PartialTest(input, 0); }
+
   // Runs the automaton on the provided input string and, if it matches, returns the array of
   // strings captured by the capture groups (if any). If the string doesn't match an empty optional
   // is returned.
@@ -182,7 +186,7 @@ class AbstractAutomaton : public SimpleRefCounted {
   virtual bool MatchArgs(std::string_view input,
                          absl::Span<std::string_view *const> args) const = 0;
 
-  // Runs the automaton on the provided input string trying to matches its longest possible prefix.
+  // Runs the automaton on the provided input string trying to match the longest possible prefix.
   // Returns the array of captured substrings if a match is found, or an empty optional otherwise.
   std::optional<CaptureSet> MatchPrefix(std::string_view const input) const {
     return PartialMatch(input, 0);
@@ -323,6 +327,10 @@ class AbstractAutomaton : public SimpleRefCounted {
   // used by `PartialMatch` to determine if it can run `MatchPrefix` on suffixes of the original
   // input string.
   virtual bool AssertsBegin() const = 0;
+
+  // Tries to match a substring of `input` starting at `offset` against this regular expression.
+  // This is the internal implementation of `PartialTest` and `TestPrefix`.
+  virtual bool PartialTest(std::string_view input, size_t offset) const = 0;
 
   // Tries to match a substring of `input` starting at `offset` against this regular expression.
   // This is the internal implementation of `PartialMatch` and `MatchPrefix`.

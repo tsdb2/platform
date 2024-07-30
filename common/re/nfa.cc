@@ -92,6 +92,9 @@ std::optional<AbstractAutomaton::CaptureSet> NFA::Match(std::string_view const i
 
 bool NFA::MatchArgs(std::string_view const input,
                     absl::Span<std::string_view* const> const args) const {
+  if (args.empty()) {
+    return Test(input);
+  }
   auto const maybe_result =
       MatchInternal(input, SingleRangeCaptureManager(capture_groups_, input, args));
   if (maybe_result.has_value()) {
@@ -103,6 +106,30 @@ bool NFA::MatchArgs(std::string_view const input,
 }
 
 bool NFA::AssertsBegin() const { return asserts_begin_; }
+
+bool NFA::PartialTest(std::string_view const input, size_t offset) const {
+  StateSet states = AssertedEpsilonClosure({initial_state_}, input, offset);
+  if (states.contains(final_state_)) {
+    return true;
+  }
+  for (; offset < input.size() && !states.empty(); ++offset) {
+    StateSet next_states;
+    char const ch = input[offset];
+    for (auto const state_num : states) {
+      auto const& state = states_[state_num];
+      if (auto const it = state.edges.find(ch); it != state.edges.end()) {
+        for (auto const transition : it->second) {
+          next_states.emplace(transition);
+        }
+      }
+    }
+    states = AssertedEpsilonClosure(std::move(next_states), input, offset + 1);
+    if (states.contains(final_state_)) {
+      return true;
+    }
+  }
+  return false;
+}
 
 std::optional<AbstractAutomaton::CaptureSet> NFA::PartialMatch(std::string_view const input,
                                                                size_t const offset) const {
@@ -117,6 +144,9 @@ std::optional<AbstractAutomaton::CaptureSet> NFA::PartialMatch(std::string_view 
 
 bool NFA::PartialMatchArgs(std::string_view const input, size_t const offset,
                            absl::Span<std::string_view* const> const args) const {
+  if (args.empty()) {
+    return PartialTest(input, offset);
+  }
   auto const maybe_result =
       PartialMatchInternal(input, offset, SingleRangeCaptureManager(capture_groups_, input, args));
   if (maybe_result.has_value()) {

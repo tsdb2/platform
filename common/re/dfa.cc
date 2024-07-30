@@ -116,6 +116,9 @@ std::optional<AbstractAutomaton::CaptureSet> DFA::Match(std::string_view const i
 
 bool DFA::MatchArgs(std::string_view const input,
                     absl::Span<std::string_view* const> const args) const {
+  if (args.empty()) {
+    return Test(input);
+  }
   SingleRangeCaptureManager capture_manager{capture_groups_, input, args};
   if (MatchInternal(input, &capture_manager)) {
     capture_manager.Dump();
@@ -126,6 +129,39 @@ bool DFA::MatchArgs(std::string_view const input,
 }
 
 bool DFA::AssertsBegin() const { return asserts_begin_; }
+
+bool DFA::PartialTest(std::string_view const input, size_t offset) const {
+  uint32_t state_num = initial_state_;
+  while (state_num != final_state_ && offset < input.size()) {
+    auto const& state = states_[state_num];
+    if (!Assert(state.assertions, input, offset)) {
+      return false;
+    }
+    char const ch = input[offset];
+    auto it = state.edges.find(ch);
+    if (it != state.edges.end()) {
+      ++offset;
+    } else {
+      it = state.edges.find(0);
+      if (it == state.edges.end()) {
+        return false;
+      }
+    }
+    state_num = it->second;
+  }
+  while (state_num != final_state_) {
+    auto const& state = states_[state_num];
+    if (!Assert(state.assertions, input, offset)) {
+      return false;
+    }
+    auto const it = state.edges.find(0);
+    if (it == state.edges.end()) {
+      return false;
+    }
+    state_num = it->second;
+  }
+  return Assert(states_[final_state_].assertions, input, offset);
+}
 
 std::optional<AbstractAutomaton::CaptureSet> DFA::PartialMatch(std::string_view const input,
                                                                size_t const offset) const {
@@ -139,6 +175,9 @@ std::optional<AbstractAutomaton::CaptureSet> DFA::PartialMatch(std::string_view 
 
 bool DFA::PartialMatchArgs(std::string_view const input, size_t const offset,
                            absl::Span<std::string_view* const> const args) const {
+  if (args.empty()) {
+    return PartialTest(input, offset);
+  }
   SingleRangeCaptureManager capture_manager{capture_groups_, input, args};
   if (PartialMatchInternal(input, offset, &capture_manager)) {
     capture_manager.Dump();

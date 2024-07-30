@@ -123,6 +123,8 @@ class NFA final : public AbstractAutomaton {
   std::optional<CaptureManager> MatchInternal(std::string_view input,
                                               CaptureManager capture_manager) const;
 
+  bool PartialTest(std::string_view input, size_t offset) const override;
+
   std::optional<CaptureSet> PartialMatch(std::string_view input, size_t offset) const override;
 
   bool PartialMatchArgs(std::string_view input, size_t offset,

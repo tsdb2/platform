@@ -78,7 +78,7 @@ class MatchesImpl {
   bool MatchAndExplain(reffed_ptr<AbstractAutomaton> const& automaton,
                        ::testing::MatchResultListener* const listener) const {
     if (!Run(automaton)) {
-      *listener << "matches \"" << absl::CEscape(input_) << "\"";
+      *listener << "doesn't match";
       return false;
     }
     auto maybe_results = automaton->Match(input_);
@@ -126,7 +126,7 @@ class MatchesImpl {
         }
       }
     }
-    *listener << "matches \"" << absl::CEscape(input_) << "\" with " << PrintCaptures(captures_);
+    *listener << "matches with " << PrintCaptures(captures_);
     return true;
   }
 
@@ -163,7 +163,7 @@ class DoesntMatchImpl {
   bool MatchAndExplain(reffed_ptr<AbstractAutomaton> const& automaton,
                        ::testing::MatchResultListener* const listener) const {
     if (Run(automaton)) {
-      *listener << "matches \"" << absl::CEscape(input_) << "\"";
+      *listener << "matches";
       return false;
     }
     if (automaton->Match(input_).has_value()) {
@@ -174,7 +174,7 @@ class DoesntMatchImpl {
       *listener << "MatchArgs result differs from Test result";
       return false;
     } else {
-      *listener << "doesn't match \"" << absl::CEscape(input_) << "\"";
+      *listener << "doesn't match";
       return true;
     }
   }
@@ -193,11 +193,110 @@ class DoesntMatchImpl {
   bool const use_stepper_;
 };
 
-class DoesntMatchPrefix {
+class MatchesPrefixOfImpl {
  public:
   using is_gtest_matcher = void;
 
-  explicit DoesntMatchPrefix(std::string_view const input) : input_(input) {}
+  explicit MatchesPrefixOfImpl(std::string_view const input,
+                               std::vector<std::vector<std::string>> captures,
+                               bool const use_stepper)
+      : input_(input), captures_(std::move(captures)), use_stepper_(use_stepper) {}
+
+  void DescribeTo(std::ostream* const os) const {
+    *os << "matches some prefix of \"" << absl::CEscape(input_) << "\" with "
+        << PrintCaptures(captures_);
+  }
+
+  void DescribeNegationTo(std::ostream* const os) const {
+    *os << "doesn't match any prefix of \"" << absl::CEscape(input_) << "\" with "
+        << PrintCaptures(captures_);
+  }
+
+  bool MatchAndExplain(reffed_ptr<AbstractAutomaton> const& automaton,
+                       ::testing::MatchResultListener* const listener) const {
+    if (!Run(automaton)) {
+      *listener << "doesn't match";
+      return false;
+    }
+    auto maybe_results = automaton->MatchPrefix(input_);
+    if (!maybe_results.has_value()) {
+      *listener << "MatchPrefix results differ from Stepper's result";
+      return false;
+    }
+    auto const& results = maybe_results.value();
+    if (results.size() != captures_.size()) {
+      *listener << "unexpected MatchPrefix results: " << PrintCaptures(results);
+      return false;
+    }
+    for (size_t i = 0; i < results.size(); ++i) {
+      if (results[i].size() != captures_[i].size()) {
+        *listener << "unexpected MatchPrefix results: " << PrintCaptures(results);
+        return false;
+      }
+      for (size_t j = 0; j < results[i].size(); ++j) {
+        if (results[i][j] != captures_[i][j]) {
+          *listener << "unexpected MatchPrefix results: " << PrintCaptures(results);
+          return false;
+        }
+      }
+    }
+    std::vector<std::string_view> args{captures_.size(), std::string_view("")};
+    std::vector<std::string_view*> arg_ptrs;
+    arg_ptrs.reserve(args.size());
+    for (auto& arg : args) {
+      arg_ptrs.emplace_back(&arg);
+    }
+    if (!automaton->MatchPrefixArgs(input_, arg_ptrs)) {
+      *listener << "MatchPrefixArgs result differs from Stepper's result";
+      return false;
+    }
+    for (size_t i = 0; i < captures_.size(); ++i) {
+      if (captures_[i].empty()) {
+        if (args[i] != "") {
+          *listener << "unexpected MatchPrefixArgs results: " << PrintStringList(args);
+          return false;
+        }
+      } else {
+        if (args[i] != captures_[i].back()) {
+          *listener << "unexpected MatchPrefixArgs results: " << PrintStringList(args);
+          return false;
+        }
+      }
+    }
+    *listener << "matches with " << PrintCaptures(captures_);
+    return true;
+  }
+
+ private:
+  bool Run(reffed_ptr<AbstractAutomaton> const& automaton) const {
+    if (use_stepper_) {
+      auto const stepper = automaton->MakeStepper();
+      if (stepper->Finish()) {
+        return true;
+      }
+      for (char const ch : input_) {
+        if (!stepper->Step(ch)) {
+          return false;
+        } else if (stepper->Finish()) {
+          return true;
+        }
+      }
+      return false;
+    } else {
+      return automaton->TestPrefix(input_);
+    }
+  }
+
+  std::string const input_;
+  std::vector<std::vector<std::string>> const captures_;
+  bool const use_stepper_;
+};
+
+class DoesntMatchPrefixOf {
+ public:
+  using is_gtest_matcher = void;
+
+  explicit DoesntMatchPrefixOf(std::string_view const input) : input_(input) {}
 
   void DescribeTo(std::ostream* const os) const {
     *os << "doesn't match any prefix of \"" << absl::CEscape(input_) << "\"";
@@ -247,6 +346,11 @@ class RegexpTest : public ::testing::TestWithParam<RegexpTestParams> {
 
   DoesntMatchImpl DoesntMatch(std::string_view const input) const {
     return DoesntMatchImpl(input, GetParam().use_stepper);
+  }
+
+  MatchesPrefixOfImpl MatchesPrefixOf(std::string_view const input,
+                                      std::vector<std::vector<std::string>> captures) const {
+    return MatchesPrefixOfImpl(input, std::move(captures), GetParam().use_stepper);
   }
 };
 
@@ -2643,9 +2747,8 @@ TEST_P(RegexpTest, CantMergeLoopEndpointsOfPrefix) {
   auto const status_or_pattern = Parse("(lore(m))*");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern->MatchPrefix(""), Optional(ElementsAre(IsEmpty(), IsEmpty())));
-  EXPECT_THAT(pattern->MatchPrefix("lorem"),
-              Optional(ElementsAre(ElementsAre("lorem"), ElementsAre("m"))));
+  EXPECT_THAT(pattern, MatchesPrefixOf("", {{}, {}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("lorem", {{"lorem"}, {"m"}}));
   EXPECT_THAT(pattern->MatchPrefix("ipsum"), Optional(ElementsAre(IsEmpty(), IsEmpty())));
   EXPECT_THAT(pattern->MatchPrefix("loremlorem"),
               Optional(ElementsAre(ElementsAre("lorem", "lorem"), ElementsAre("m", "m"))));
@@ -2724,10 +2827,10 @@ TEST_P(RegexpTest, AmbiguousPrefixMatch) {
   auto const status_or_pattern = Parse("([^END-]*) ([^END-]*) ([^END-]*)");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern, DoesntMatchPrefix("lorem"));
-  EXPECT_THAT(pattern, DoesntMatchPrefix("lorem-END"));
-  EXPECT_THAT(pattern, DoesntMatchPrefix("lorem ipsum"));
-  EXPECT_THAT(pattern, DoesntMatchPrefix("lorem ipsum-END"));
+  EXPECT_THAT(pattern, DoesntMatchPrefixOf("lorem"));
+  EXPECT_THAT(pattern, DoesntMatchPrefixOf("lorem-END"));
+  EXPECT_THAT(pattern, DoesntMatchPrefixOf("lorem ipsum"));
+  EXPECT_THAT(pattern, DoesntMatchPrefixOf("lorem ipsum-END"));
   EXPECT_THAT(
       pattern->MatchPrefix("lorem ipsum dolor"),
       Optional(ElementsAre(ElementsAre("lorem"), ElementsAre("ipsum"), ElementsAre("dolor"))));
@@ -2847,7 +2950,7 @@ TEST_P(RegexpTest, NonEmptyPrefixOfEmptyString) {
   auto const status_or_pattern = Parse("lorem");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern, DoesntMatchPrefix(""));
+  EXPECT_THAT(pattern, DoesntMatchPrefixOf(""));
 }
 
 TEST_P(RegexpTest, ProperPrefix) {
@@ -2900,14 +3003,14 @@ TEST_P(RegexpTest, HeavyPrefixBacktracker) {
       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa)");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern, DoesntMatchPrefix(""));
-  EXPECT_THAT(pattern, DoesntMatchPrefix("b"));
-  EXPECT_THAT(pattern, DoesntMatchPrefix("ab"));
-  EXPECT_THAT(pattern, DoesntMatchPrefix("a"));
-  EXPECT_THAT(pattern, DoesntMatchPrefix("aa"));
-  EXPECT_THAT(pattern, DoesntMatchPrefix("aaa"));
-  EXPECT_THAT(pattern, DoesntMatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
-  EXPECT_THAT(pattern, DoesntMatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+  EXPECT_THAT(pattern, DoesntMatchPrefixOf(""));
+  EXPECT_THAT(pattern, DoesntMatchPrefixOf("b"));
+  EXPECT_THAT(pattern, DoesntMatchPrefixOf("ab"));
+  EXPECT_THAT(pattern, DoesntMatchPrefixOf("a"));
+  EXPECT_THAT(pattern, DoesntMatchPrefixOf("aa"));
+  EXPECT_THAT(pattern, DoesntMatchPrefixOf("aaa"));
+  EXPECT_THAT(pattern, DoesntMatchPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+  EXPECT_THAT(pattern, DoesntMatchPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
   EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
               Optional(ElementsAre(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
   EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
@@ -3119,7 +3222,7 @@ TEST_P(AssertedRegexpTest, NotWordBoundariesNotAtStringBoundaries) {
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch("lorem"));
-  EXPECT_THAT(pattern, DoesntMatchPrefix("lorem"));
+  EXPECT_THAT(pattern, DoesntMatchPrefixOf("lorem"));
 }
 
 TEST_P(AssertedRegexpTest, SearchWordWithBoundaries) {
