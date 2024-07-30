@@ -26,6 +26,7 @@ namespace {
 using ::testing::AnyOf;
 using ::testing::ElementsAre;
 using ::testing::IsEmpty;
+using ::testing::Not;
 using ::testing::Optional;
 using ::testing::Pair;
 using ::testing::Values;
@@ -113,113 +114,112 @@ class MatchesImpl {
  public:
   using is_gtest_matcher = void;
 
-  explicit MatchesImpl(std::string_view const input, std::vector<std::vector<std::string>> captures,
-                       bool const use_stepper)
-      : input_(input), captures_(std::move(captures)), use_stepper_(use_stepper) {}
+  explicit MatchesImpl(std::string_view const input, bool const use_stepper)
+      : input_(input), captures_(std::nullopt), use_stepper_(use_stepper) {}
+
+  MatchesImpl(MatchesImpl const&) = default;
+  MatchesImpl& operator=(MatchesImpl const&) = default;
+  MatchesImpl(MatchesImpl&&) noexcept = default;
+  MatchesImpl& operator=(MatchesImpl&&) noexcept = default;
+
+  MatchesImpl With(std::vector<std::vector<std::string>> captures) && {
+    captures_ = std::move(captures);
+    return *this;
+  }
 
   void DescribeTo(std::ostream* const os) const {
-    *os << "matches \"" << absl::CEscape(input_) << "\" with " << PrintCaptures(captures_);
+    if (captures_) {
+      *os << "matches \"" << absl::CEscape(input_) << "\" with " << PrintCaptures(*captures_);
+    } else {
+      *os << "matches \"" << absl::CEscape(input_) << "\"";
+    }
   }
 
   void DescribeNegationTo(std::ostream* const os) const {
-    *os << "doesn't match \"" << absl::CEscape(input_) << "\" with " << PrintCaptures(captures_);
+    if (captures_) {
+      *os << "doesn't match \"" << absl::CEscape(input_) << "\" with " << PrintCaptures(*captures_);
+    } else {
+      *os << "doesn't match \"" << absl::CEscape(input_) << "\"";
+    }
   }
 
   bool MatchAndExplain(reffed_ptr<AbstractAutomaton> const& automaton,
                        ::testing::MatchResultListener* const listener) const {
-    if (!Run(automaton)) {
+    bool const test_result = Run(automaton);
+    if (test_result) {
+      *listener << "matches";
+    } else {
       *listener << "doesn't match";
-      return false;
     }
+    auto const match_outcome = Match(automaton, listener);
+    if ((match_outcome != Outcome::kNoMatch) != test_result) {
+      *listener << ", Match() results differ from Test result";
+      return !test_result;
+    }
+    auto const match_args_outcome = MatchArgs(automaton, listener);
+    if ((match_args_outcome != Outcome::kNoMatch) != test_result) {
+      *listener << ", MatchArgs() result differs from Test result";
+      return !test_result;
+    }
+    return test_result;
+  }
+
+ private:
+  enum class Outcome { kMatch, kNoMatch, kUnexpected };
+
+  bool Run(reffed_ptr<AbstractAutomaton> const& automaton) const {
+    if (use_stepper_) {
+      auto const stepper = automaton->MakeStepper();
+      return stepper->Step(input_) && stepper->Finish();
+    } else {
+      return automaton->Test(input_);
+    }
+  }
+
+  Outcome Match(reffed_ptr<AbstractAutomaton> const& automaton,
+                ::testing::MatchResultListener* const listener) const {
     auto maybe_results = automaton->Match(input_);
     if (!maybe_results.has_value()) {
-      *listener << "Match results differ from Test result";
-      return false;
+      *listener << ", Match() doesn't match";
+      return Outcome::kNoMatch;
     }
     auto const& results = maybe_results.value();
-    if (!CheckMatchResults(results, captures_)) {
-      *listener << "unexpected Match results: " << PrintCaptures(results);
-      return false;
+    if (!captures_ || CheckMatchResults(results, *captures_)) {
+      *listener << ", Match() matches";
+      return Outcome::kMatch;
+    } else {
+      *listener << ", Match() matches with unexpected captures: " << PrintCaptures(results);
+      return Outcome::kUnexpected;
     }
-    std::vector<std::string_view> args{captures_.size(), std::string_view("")};
+  }
+
+  Outcome MatchArgs(reffed_ptr<AbstractAutomaton> const& automaton,
+                    ::testing::MatchResultListener* const listener) const {
+    std::vector<std::string_view> args;
     std::vector<std::string_view*> arg_ptrs;
-    arg_ptrs.reserve(args.size());
-    for (auto& arg : args) {
-      arg_ptrs.emplace_back(&arg);
+    if (captures_) {
+      args = std::vector<std::string_view>{captures_->size(), std::string_view("")};
+      arg_ptrs.reserve(args.size());
+      for (auto& arg : args) {
+        arg_ptrs.emplace_back(&arg);
+      }
     }
     if (!automaton->MatchArgs(input_, arg_ptrs)) {
-      *listener << "MatchArgs result differs from Test result";
-      return false;
+      *listener << ", MatchArgs() doesn't match";
+      return Outcome::kNoMatch;
     }
-    if (!CheckMatchArgs(args, captures_)) {
-      *listener << "unexpected MatchArgs results: " << PrintStringList(args);
-      return false;
-    }
-    *listener << "matches with " << PrintCaptures(captures_);
-    return true;
-  }
-
- private:
-  bool Run(reffed_ptr<AbstractAutomaton> const& automaton) const {
-    if (use_stepper_) {
-      auto const stepper = automaton->MakeStepper();
-      return stepper->Step(input_) && stepper->Finish();
+    if (!captures_ || CheckMatchArgs(args, *captures_)) {
+      *listener << ", MatchArgs() matches";
+      return Outcome::kMatch;
     } else {
-      return automaton->Test(input_);
+      *listener << ", MatchArgs() matches with unexpected captures: " << PrintStringList(args);
+      return Outcome::kUnexpected;
     }
   }
 
-  std::string const input_;
-  std::vector<std::vector<std::string>> const captures_;
-  bool const use_stepper_;
-};
-
-class DoesntMatchImpl {
- public:
-  using is_gtest_matcher = void;
-
-  explicit DoesntMatchImpl(std::string_view const input, bool const use_stepper)
-      : input_(input), use_stepper_(use_stepper) {}
-
-  void DescribeTo(std::ostream* const os) const {
-    *os << "doesn't match \"" << absl::CEscape(input_) << "\"";
-  }
-
-  void DescribeNegationTo(std::ostream* const os) const {
-    *os << "matches \"" << absl::CEscape(input_) << "\"";
-  }
-
-  bool MatchAndExplain(reffed_ptr<AbstractAutomaton> const& automaton,
-                       ::testing::MatchResultListener* const listener) const {
-    if (Run(automaton)) {
-      *listener << "matches";
-      return false;
-    }
-    if (automaton->Match(input_).has_value()) {
-      *listener << "Match results differ from Test result";
-      return false;
-    }
-    if (automaton->MatchArgs(input_, {})) {
-      *listener << "MatchArgs result differs from Test result";
-      return false;
-    } else {
-      *listener << "doesn't match";
-      return true;
-    }
-  }
-
- private:
-  bool Run(reffed_ptr<AbstractAutomaton> const& automaton) const {
-    if (use_stepper_) {
-      auto const stepper = automaton->MakeStepper();
-      return stepper->Step(input_) && stepper->Finish();
-    } else {
-      return automaton->Test(input_);
-    }
-  }
-
-  std::string const input_;
-  bool const use_stepper_;
+  std::string input_;
+  std::optional<std::vector<std::vector<std::string>>> captures_;
+  bool use_stepper_;
 };
 
 class MatchesPrefixOfImpl {
@@ -349,21 +349,20 @@ class RegexpTest : public ::testing::TestWithParam<RegexpTestParams> {
   bool CheckDeterministic(reffed_ptr<AbstractAutomaton> const& automaton);
   bool CheckNotDeterministic(reffed_ptr<AbstractAutomaton> const& automaton);
 
-  MatchesImpl Matches(std::string_view const input,
-                      std::vector<std::vector<std::string>> captures) const {
-    return MatchesImpl(input, std::move(captures), GetParam().use_stepper);
+  auto Matches(std::string_view const input, std::vector<std::vector<std::string>> captures) const {
+    return MatchesImpl(input, GetParam().use_stepper).With(std::move(captures));
   }
 
-  DoesntMatchImpl DoesntMatch(std::string_view const input) const {
-    return DoesntMatchImpl(input, GetParam().use_stepper);
+  auto DoesntMatch(std::string_view const input) const {
+    return Not(MatchesImpl(input, GetParam().use_stepper));
   }
 
-  MatchesPrefixOfImpl MatchesPrefixOf(std::string_view const input,
-                                      std::vector<std::vector<std::string>> captures) const {
+  auto MatchesPrefixOf(std::string_view const input,
+                       std::vector<std::vector<std::string>> captures) const {
     return MatchesPrefixOfImpl(input, std::move(captures), GetParam().use_stepper);
   }
 
-  DoesntMatchPrefixOfImpl DoesntMatchPrefixOf(std::string_view const input) const {
+  auto DoesntMatchPrefixOf(std::string_view const input) const {
     return DoesntMatchPrefixOfImpl(input, GetParam().use_stepper);
   }
 };
