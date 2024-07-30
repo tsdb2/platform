@@ -115,7 +115,7 @@ class AbstractAutomaton : public SimpleRefCounted {
     virtual std::unique_ptr<StepperInterface> Clone() const = 0;
 
     // Transitions the automaton into the next state, or returns false if `ch` has no transition
-    // (i.e. the string doesn't match). When false is returned the automaton is no longer usable and
+    // (i.e. the string doesn't match). When false is returned the stepper is no longer usable and
     // must be discarded (further calls to `Step` or `Finish` lead to undefined behavior).
     virtual bool Step(char ch) = 0;
 
@@ -129,7 +129,7 @@ class AbstractAutomaton : public SimpleRefCounted {
     // If `Finish` returns false the state of the stepper will either not change or change in a way
     // that makes it possible to perform further `Step` calls on subsequent pieces of input. This
     // property makes steppers easily usable to find strings in tries. If, on the other hand,
-    // `Finish` returns true, the automaton is no longer usable and must be discarded.
+    // `Finish` returns true, the stepper is no longer usable and must be discarded.
     virtual bool Finish() = 0;
 
    protected:
