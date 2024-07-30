@@ -876,12 +876,11 @@ typename TrieNode<Label, Allocator>::NodeSet::iterator TrieNode<Label, Allocator
   if (prefix[0] > needle[0]) {
     return it;
   }
-  size_t i = 1;
-  while (i < needle.size() && i < prefix.size()) {
-    if (needle[i] != prefix[i]) {
+  for (size_t i = 1; i < needle.size() && i < prefix.size(); ++i) {
+    if (needle[i] < prefix[i]) {
+      return it;
+    } else if (prefix[i] < needle[i]) {
       return ++it;
-    } else {
-      ++i;
     }
   }
   return it;

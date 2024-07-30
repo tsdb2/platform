@@ -843,6 +843,9 @@ TEST(TrieMapTest, LowerBoundSingleElementMap) {
   it = tm.lower_bound("lorem");
   EXPECT_NE(it, tm.end());
   EXPECT_THAT(*it, Pair("lorem", 42));
+  it = tm.lower_bound("loramet");
+  EXPECT_NE(it, tm.end());
+  EXPECT_THAT(*it, Pair("lorem", 42));
   it = tm.lower_bound("lorlor");
   EXPECT_EQ(it, tm.end());
   it = tm.lower_bound("sator");
@@ -857,6 +860,9 @@ TEST(TrieMapTest, LowerBoundTwoElementMap) {
   it = tm.lower_bound("ips");
   EXPECT_NE(it, tm.end());
   EXPECT_THAT(*it, Pair("ipsum", 34));
+  it = tm.lower_bound("ipsamet");
+  EXPECT_NE(it, tm.end());
+  EXPECT_THAT(*it, Pair("ipsum", 34));
   it = tm.lower_bound("ipsum");
   EXPECT_NE(it, tm.end());
   EXPECT_THAT(*it, Pair("ipsum", 34));
@@ -867,6 +873,9 @@ TEST(TrieMapTest, LowerBoundTwoElementMap) {
   EXPECT_NE(it, tm.end());
   EXPECT_THAT(*it, Pair("lorem", 12));
   it = tm.lower_bound("lor");
+  EXPECT_NE(it, tm.end());
+  EXPECT_THAT(*it, Pair("lorem", 12));
+  it = tm.lower_bound("loramet");
   EXPECT_NE(it, tm.end());
   EXPECT_THAT(*it, Pair("lorem", 12));
   it = tm.lower_bound("lorem");
@@ -931,6 +940,9 @@ TEST(TrieMapTest, UpperBoundSingleElementMap) {
   it = tm.upper_bound("lor");
   EXPECT_NE(it, tm.end());
   EXPECT_THAT(*it, Pair("lorem", 42));
+  it = tm.upper_bound("loramet");
+  EXPECT_NE(it, tm.end());
+  EXPECT_THAT(*it, Pair("lorem", 42));
   it = tm.upper_bound("lorem");
   EXPECT_EQ(it, tm.end());
   it = tm.upper_bound("lorlor");
@@ -947,6 +959,9 @@ TEST(TrieMapTest, UpperBoundTwoElementMap) {
   it = tm.upper_bound("ips");
   EXPECT_NE(it, tm.end());
   EXPECT_THAT(*it, Pair("ipsum", 34));
+  it = tm.upper_bound("ipsamet");
+  EXPECT_NE(it, tm.end());
+  EXPECT_THAT(*it, Pair("ipsum", 34));
   it = tm.upper_bound("ipsum");
   EXPECT_NE(it, tm.end());
   EXPECT_THAT(*it, Pair("lorem", 12));
@@ -957,6 +972,9 @@ TEST(TrieMapTest, UpperBoundTwoElementMap) {
   EXPECT_NE(it, tm.end());
   EXPECT_THAT(*it, Pair("lorem", 12));
   it = tm.upper_bound("lor");
+  EXPECT_NE(it, tm.end());
+  EXPECT_THAT(*it, Pair("lorem", 12));
+  it = tm.upper_bound("loramet");
   EXPECT_NE(it, tm.end());
   EXPECT_THAT(*it, Pair("lorem", 12));
   it = tm.upper_bound("lorem");

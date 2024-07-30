@@ -584,6 +584,9 @@ TEST(TrieSetTest, LowerBoundSingleElementSet) {
   it = ts.lower_bound("lorem");
   EXPECT_NE(it, ts.end());
   EXPECT_EQ(*it, "lorem");
+  it = ts.lower_bound("loramet");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "lorem");
   it = ts.lower_bound("lorlor");
   EXPECT_EQ(it, ts.end());
   it = ts.lower_bound("sator");
@@ -598,6 +601,9 @@ TEST(TrieSetTest, LowerBoundTwoElementSet) {
   it = ts.lower_bound("ips");
   EXPECT_NE(it, ts.end());
   EXPECT_EQ(*it, "ipsum");
+  it = ts.lower_bound("ipsamet");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "ipsum");
   it = ts.lower_bound("ipsum");
   EXPECT_NE(it, ts.end());
   EXPECT_EQ(*it, "ipsum");
@@ -608,6 +614,9 @@ TEST(TrieSetTest, LowerBoundTwoElementSet) {
   EXPECT_NE(it, ts.end());
   EXPECT_EQ(*it, "lorem");
   it = ts.lower_bound("lor");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "lorem");
+  it = ts.lower_bound("loramet");
   EXPECT_NE(it, ts.end());
   EXPECT_EQ(*it, "lorem");
   it = ts.lower_bound("lorem");
@@ -672,6 +681,9 @@ TEST(TrieSetTest, UpperBoundSingleElementSet) {
   it = ts.upper_bound("lor");
   EXPECT_NE(it, ts.end());
   EXPECT_EQ(*it, "lorem");
+  it = ts.upper_bound("loramet");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "lorem");
   it = ts.upper_bound("lorem");
   EXPECT_EQ(it, ts.end());
   it = ts.upper_bound("lorlor");
@@ -688,6 +700,9 @@ TEST(TrieSetTest, UpperBoundTwoElementSet) {
   it = ts.upper_bound("ips");
   EXPECT_NE(it, ts.end());
   EXPECT_EQ(*it, "ipsum");
+  it = ts.upper_bound("ipsamet");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "ipsum");
   it = ts.upper_bound("ipsum");
   EXPECT_NE(it, ts.end());
   EXPECT_EQ(*it, "lorem");
@@ -698,6 +713,9 @@ TEST(TrieSetTest, UpperBoundTwoElementSet) {
   EXPECT_NE(it, ts.end());
   EXPECT_EQ(*it, "lorem");
   it = ts.upper_bound("lor");
+  EXPECT_NE(it, ts.end());
+  EXPECT_EQ(*it, "lorem");
+  it = ts.upper_bound("loramet");
   EXPECT_NE(it, ts.end());
   EXPECT_EQ(*it, "lorem");
   it = ts.upper_bound("lorem");
