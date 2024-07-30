@@ -162,7 +162,7 @@ bool AbstractAutomaton::at_word_boundary(std::string_view const text, size_t con
   if (offset > 0) {
     return is_word_character(text, offset - 1) != is_word_character(text, offset);
   } else {
-    return is_word_character(text, offset);
+    return is_word_character(text, 0);
   }
 }
 

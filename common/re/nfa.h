@@ -190,7 +190,7 @@ std::optional<CaptureManager> NFA::MatchInternal(std::string_view const input,
     states = AssertedEpsilonClosure(std::move(next_states), input, offset + 1);
   }
   if (auto const it = states.find(final_state_); it != states.end()) {
-    return it->second;
+    return std::move(it->second);
   } else {
     return std::nullopt;
   }
