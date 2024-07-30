@@ -59,6 +59,40 @@ std::string PrintCaptures(CaptureSet const& captures) {
   return absl::StrCat("{", absl::StrJoin(entries, ", "), "}");
 }
 
+bool CheckMatchResults(AbstractAutomaton::CaptureSet const& results,
+                       std::vector<std::vector<std::string>> expected) {
+  if (results.size() != expected.size()) {
+    return false;
+  }
+  for (size_t i = 0; i < results.size(); ++i) {
+    if (results[i].size() != expected[i].size()) {
+      return false;
+    }
+    for (size_t j = 0; j < results[i].size(); ++j) {
+      if (results[i][j] != expected[i][j]) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+bool CheckMatchArgs(std::vector<std::string_view> const& args,
+                    std::vector<std::vector<std::string>> expected) {
+  for (size_t i = 0; i < expected.size(); ++i) {
+    if (expected[i].empty()) {
+      if (args[i] != "") {
+        return false;
+      }
+    } else {
+      if (args[i] != expected[i].back()) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 class MatchesImpl {
  public:
   using is_gtest_matcher = void;
@@ -87,21 +121,9 @@ class MatchesImpl {
       return false;
     }
     auto const& results = maybe_results.value();
-    if (results.size() != captures_.size()) {
+    if (!CheckMatchResults(results, captures_)) {
       *listener << "unexpected Match results: " << PrintCaptures(results);
       return false;
-    }
-    for (size_t i = 0; i < results.size(); ++i) {
-      if (results[i].size() != captures_[i].size()) {
-        *listener << "unexpected Match results: " << PrintCaptures(results);
-        return false;
-      }
-      for (size_t j = 0; j < results[i].size(); ++j) {
-        if (results[i][j] != captures_[i][j]) {
-          *listener << "unexpected Match results: " << PrintCaptures(results);
-          return false;
-        }
-      }
     }
     std::vector<std::string_view> args{captures_.size(), std::string_view("")};
     std::vector<std::string_view*> arg_ptrs;
@@ -113,18 +135,9 @@ class MatchesImpl {
       *listener << "MatchArgs result differs from Test result";
       return false;
     }
-    for (size_t i = 0; i < captures_.size(); ++i) {
-      if (captures_[i].empty()) {
-        if (args[i] != "") {
-          *listener << "unexpected MatchArgs results: " << PrintStringList(args);
-          return false;
-        }
-      } else {
-        if (args[i] != captures_[i].back()) {
-          *listener << "unexpected MatchArgs results: " << PrintStringList(args);
-          return false;
-        }
-      }
+    if (!CheckMatchArgs(args, captures_)) {
+      *listener << "unexpected MatchArgs results: " << PrintStringList(args);
+      return false;
     }
     *listener << "matches with " << PrintCaptures(captures_);
     return true;
@@ -220,25 +233,13 @@ class MatchesPrefixOfImpl {
     }
     auto maybe_results = automaton->MatchPrefix(input_);
     if (!maybe_results.has_value()) {
-      *listener << "MatchPrefix results differ from Stepper's result";
+      *listener << "MatchPrefix results differ from Test result";
       return false;
     }
     auto const& results = maybe_results.value();
-    if (results.size() != captures_.size()) {
+    if (!CheckMatchResults(results, captures_)) {
       *listener << "unexpected MatchPrefix results: " << PrintCaptures(results);
       return false;
-    }
-    for (size_t i = 0; i < results.size(); ++i) {
-      if (results[i].size() != captures_[i].size()) {
-        *listener << "unexpected MatchPrefix results: " << PrintCaptures(results);
-        return false;
-      }
-      for (size_t j = 0; j < results[i].size(); ++j) {
-        if (results[i][j] != captures_[i][j]) {
-          *listener << "unexpected MatchPrefix results: " << PrintCaptures(results);
-          return false;
-        }
-      }
     }
     std::vector<std::string_view> args{captures_.size(), std::string_view("")};
     std::vector<std::string_view*> arg_ptrs;
@@ -247,21 +248,12 @@ class MatchesPrefixOfImpl {
       arg_ptrs.emplace_back(&arg);
     }
     if (!automaton->MatchPrefixArgs(input_, arg_ptrs)) {
-      *listener << "MatchPrefixArgs result differs from Stepper's result";
+      *listener << "MatchPrefixArgs result differs from Test result";
       return false;
     }
-    for (size_t i = 0; i < captures_.size(); ++i) {
-      if (captures_[i].empty()) {
-        if (args[i] != "") {
-          *listener << "unexpected MatchPrefixArgs results: " << PrintStringList(args);
-          return false;
-        }
-      } else {
-        if (args[i] != captures_[i].back()) {
-          *listener << "unexpected MatchPrefixArgs results: " << PrintStringList(args);
-          return false;
-        }
-      }
+    if (!CheckMatchArgs(args, captures_)) {
+      *listener << "unexpected MatchPrefixArgs results: " << PrintStringList(args);
+      return false;
     }
     *listener << "matches with " << PrintCaptures(captures_);
     return true;
@@ -2749,15 +2741,12 @@ TEST_P(RegexpTest, CantMergeLoopEndpointsOfPrefix) {
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, MatchesPrefixOf("", {{}, {}}));
   EXPECT_THAT(pattern, MatchesPrefixOf("lorem", {{"lorem"}, {"m"}}));
-  EXPECT_THAT(pattern->MatchPrefix("ipsum"), Optional(ElementsAre(IsEmpty(), IsEmpty())));
-  EXPECT_THAT(pattern->MatchPrefix("loremlorem"),
-              Optional(ElementsAre(ElementsAre("lorem", "lorem"), ElementsAre("m", "m"))));
-  EXPECT_THAT(pattern->MatchPrefix("loremipsum"),
-              Optional(ElementsAre(ElementsAre("lorem"), ElementsAre("m"))));
-  EXPECT_THAT(pattern->MatchPrefix("ipsumlorem"), Optional(ElementsAre(IsEmpty(), IsEmpty())));
-  EXPECT_THAT(
-      pattern->MatchPrefix("loremloremlorem"),
-      Optional(ElementsAre(ElementsAre("lorem", "lorem", "lorem"), ElementsAre("m", "m", "m"))));
+  EXPECT_THAT(pattern, MatchesPrefixOf("ipsum", {{}, {}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("loremlorem", {{"lorem", "lorem"}, {"m", "m"}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("loremipsum", {{"lorem"}, {"m"}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("ipsumlorem", {{}, {}}));
+  EXPECT_THAT(pattern,
+              MatchesPrefixOf("loremloremlorem", {{"lorem", "lorem", "lorem"}, {"m", "m", "m"}}));
 }
 
 TEST_P(RegexpTest, Fork) {
@@ -2831,50 +2820,32 @@ TEST_P(RegexpTest, AmbiguousPrefixMatch) {
   EXPECT_THAT(pattern, DoesntMatchPrefixOf("lorem-END"));
   EXPECT_THAT(pattern, DoesntMatchPrefixOf("lorem ipsum"));
   EXPECT_THAT(pattern, DoesntMatchPrefixOf("lorem ipsum-END"));
-  EXPECT_THAT(
-      pattern->MatchPrefix("lorem ipsum dolor"),
-      Optional(ElementsAre(ElementsAre("lorem"), ElementsAre("ipsum"), ElementsAre("dolor"))));
-  EXPECT_THAT(
-      pattern->MatchPrefix("lorem ipsum dolor-END"),
-      Optional(ElementsAre(ElementsAre("lorem"), ElementsAre("ipsum"), ElementsAre("dolor"))));
-  EXPECT_THAT(
-      pattern->MatchPrefix("lorem ipsum dolor amet"),
-      Optional(AnyOf(
-          ElementsAre(ElementsAre("lorem"), ElementsAre("ipsum"), ElementsAre("dolor amet")),
-          ElementsAre(ElementsAre("lorem"), ElementsAre("ipsum dolor"), ElementsAre("amet")),
-          ElementsAre(ElementsAre("lorem ipsum"), ElementsAre("dolor"), ElementsAre("amet")))));
-  EXPECT_THAT(
-      pattern->MatchPrefix("lorem ipsum dolor amet-END"),
-      Optional(AnyOf(
-          ElementsAre(ElementsAre("lorem"), ElementsAre("ipsum"), ElementsAre("dolor amet")),
-          ElementsAre(ElementsAre("lorem"), ElementsAre("ipsum dolor"), ElementsAre("amet")),
-          ElementsAre(ElementsAre("lorem ipsum"), ElementsAre("dolor"), ElementsAre("amet")))));
-  EXPECT_THAT(pattern->MatchPrefix("lorem ipsum dolor amet consectetur"),
-              Optional(AnyOf(ElementsAre(ElementsAre("lorem"), ElementsAre("ipsum"),
-                                         ElementsAre("dolor amet consectetur")),
-                             ElementsAre(ElementsAre("lorem"), ElementsAre("ipsum dolor"),
-                                         ElementsAre("amet consectetur")),
-                             ElementsAre(ElementsAre("lorem"), ElementsAre("ipsum dolor amet"),
-                                         ElementsAre("consectetur")),
-                             ElementsAre(ElementsAre("lorem ipsum"), ElementsAre("dolor"),
-                                         ElementsAre("amet consectetur")),
-                             ElementsAre(ElementsAre("lorem ipsum"), ElementsAre("dolor amet"),
-                                         ElementsAre("consectetur")),
-                             ElementsAre(ElementsAre("lorem ipsum dolor"), ElementsAre("amet"),
-                                         ElementsAre("consectetur")))));
-  EXPECT_THAT(pattern->MatchPrefix("lorem ipsum dolor amet consectetur-END"),
-              Optional(AnyOf(ElementsAre(ElementsAre("lorem"), ElementsAre("ipsum"),
-                                         ElementsAre("dolor amet consectetur")),
-                             ElementsAre(ElementsAre("lorem"), ElementsAre("ipsum dolor"),
-                                         ElementsAre("amet consectetur")),
-                             ElementsAre(ElementsAre("lorem"), ElementsAre("ipsum dolor amet"),
-                                         ElementsAre("consectetur")),
-                             ElementsAre(ElementsAre("lorem ipsum"), ElementsAre("dolor"),
-                                         ElementsAre("amet consectetur")),
-                             ElementsAre(ElementsAre("lorem ipsum"), ElementsAre("dolor amet"),
-                                         ElementsAre("consectetur")),
-                             ElementsAre(ElementsAre("lorem ipsum dolor"), ElementsAre("amet"),
-                                         ElementsAre("consectetur")))));
+  EXPECT_THAT(pattern, MatchesPrefixOf("lorem ipsum dolor", {{"lorem"}, {"ipsum"}, {"dolor"}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("lorem ipsum dolor-END", {{"lorem"}, {"ipsum"}, {"dolor"}}));
+  std::string_view input = "lorem ipsum dolor amet";
+  EXPECT_THAT(pattern, AnyOf(MatchesPrefixOf(input, {{"lorem"}, {"ipsum"}, {"dolor amet"}}),
+                             MatchesPrefixOf(input, {{"lorem"}, {"ipsum dolor"}, {"amet"}}),
+                             MatchesPrefixOf(input, {{"lorem ipsum"}, {"dolor"}, {"amet"}})));
+  input = "lorem ipsum dolor amet-END";
+  EXPECT_THAT(pattern, AnyOf(MatchesPrefixOf(input, {{"lorem"}, {"ipsum"}, {"dolor amet"}}),
+                             MatchesPrefixOf(input, {{"lorem"}, {"ipsum dolor"}, {"amet"}}),
+                             MatchesPrefixOf(input, {{"lorem ipsum"}, {"dolor"}, {"amet"}})));
+  input = "lorem ipsum dolor amet consectetur";
+  EXPECT_THAT(pattern,
+              AnyOf(MatchesPrefixOf(input, {{"lorem"}, {"ipsum"}, {"dolor amet consectetur"}}),
+                    MatchesPrefixOf(input, {{"lorem"}, {"ipsum dolor"}, {"amet consectetur"}}),
+                    MatchesPrefixOf(input, {{"lorem"}, {"ipsum dolor amet"}, {"consectetur"}}),
+                    MatchesPrefixOf(input, {{"lorem ipsum"}, {"dolor"}, {"amet consectetur"}}),
+                    MatchesPrefixOf(input, {{"lorem ipsum"}, {"dolor amet"}, {"consectetur"}}),
+                    MatchesPrefixOf(input, {{"lorem ipsum dolor"}, {"amet"}, {"consectetur"}})));
+  input = "lorem ipsum dolor amet consectetur-END";
+  EXPECT_THAT(pattern,
+              AnyOf(MatchesPrefixOf(input, {{"lorem"}, {"ipsum"}, {"dolor amet consectetur"}}),
+                    MatchesPrefixOf(input, {{"lorem"}, {"ipsum dolor"}, {"amet consectetur"}}),
+                    MatchesPrefixOf(input, {{"lorem"}, {"ipsum dolor amet"}, {"consectetur"}}),
+                    MatchesPrefixOf(input, {{"lorem ipsum"}, {"dolor"}, {"amet consectetur"}}),
+                    MatchesPrefixOf(input, {{"lorem ipsum"}, {"dolor amet"}, {"consectetur"}}),
+                    MatchesPrefixOf(input, {{"lorem ipsum dolor"}, {"amet"}, {"consectetur"}})));
 }
 
 TEST_P(RegexpTest, NotAllCaptured) {
@@ -2943,7 +2914,7 @@ TEST_P(RegexpTest, EmptyPrefixOfEmptyString) {
   auto const status_or_pattern = Parse("");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern->MatchPrefix(""), Optional(IsEmpty()));
+  EXPECT_THAT(pattern, MatchesPrefixOf("", {}));
 }
 
 TEST_P(RegexpTest, NonEmptyPrefixOfEmptyString) {
@@ -2957,44 +2928,42 @@ TEST_P(RegexpTest, ProperPrefix) {
   auto const status_or_pattern = Parse("(lorem)");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern->MatchPrefix("loremipsum"), Optional(ElementsAre(ElementsAre("lorem"))));
+  EXPECT_THAT(pattern, MatchesPrefixOf("loremipsum", {{"lorem"}}));
 }
 
 TEST_P(RegexpTest, ImproperPrefix) {
   auto const status_or_pattern = Parse("(lorem)");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern->MatchPrefix("lorem"), Optional(ElementsAre(ElementsAre("lorem"))));
+  EXPECT_THAT(pattern, MatchesPrefixOf("lorem", {{"lorem"}}));
 }
 
 TEST_P(RegexpTest, LongestPrefix) {
   auto const status_or_pattern = Parse("(lorem.*)");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern->MatchPrefix("loremipsum"), Optional(ElementsAre(ElementsAre("loremipsum"))));
+  EXPECT_THAT(pattern, MatchesPrefixOf("loremipsum", {{"loremipsum"}}));
 }
 
 TEST_P(RegexpTest, DeadPrefixBranch1) {
   auto const status_or_pattern = Parse("(lorem(ipsum)?)");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern->MatchPrefix("loremips"),
-              Optional(ElementsAre(ElementsAre("lorem"), IsEmpty())));
+  EXPECT_THAT(pattern, MatchesPrefixOf("loremips", {{"lorem"}, {}}));
 }
 
 TEST_P(RegexpTest, DeadPrefixBranch2) {
   auto const status_or_pattern = Parse("(lorem)*");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern->MatchPrefix("loremlor"), Optional(ElementsAre(ElementsAre("lorem"))));
+  EXPECT_THAT(pattern, MatchesPrefixOf("loremlor", {{"lorem"}}));
 }
 
 TEST_P(RegexpTest, PrefixPatternWithCapture) {
   auto const status_or_pattern = Parse("(lorem (.*) )");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern->MatchPrefix("lorem ipsum dolor"),
-              Optional(ElementsAre(ElementsAre("lorem ipsum "), ElementsAre("ipsum"))));
+  EXPECT_THAT(pattern, MatchesPrefixOf("lorem ipsum dolor", {{"lorem ipsum "}, {"ipsum"}}));
 }
 
 TEST_P(RegexpTest, HeavyPrefixBacktracker) {
@@ -3011,93 +2980,85 @@ TEST_P(RegexpTest, HeavyPrefixBacktracker) {
   EXPECT_THAT(pattern, DoesntMatchPrefixOf("aaa"));
   EXPECT_THAT(pattern, DoesntMatchPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
   EXPECT_THAT(pattern, DoesntMatchPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
-  EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              Optional(ElementsAre(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              Optional(ElementsAre(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              Optional(ElementsAre(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              Optional(ElementsAre(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              Optional(ElementsAre(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              Optional(ElementsAre(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              Optional(ElementsAre(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              Optional(ElementsAre(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              Optional(ElementsAre(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              Optional(ElementsAre(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              Optional(ElementsAre(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              Optional(ElementsAre(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              Optional(ElementsAre(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              Optional(ElementsAre(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              Optional(ElementsAre(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              Optional(ElementsAre(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              Optional(ElementsAre(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(
-      pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-      Optional(ElementsAre(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(
-      pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-      Optional(ElementsAre(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(
-      pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-      Optional(ElementsAre(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(
-      pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-      Optional(ElementsAre(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(
-      pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-      Optional(ElementsAre(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(
-      pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-      Optional(ElementsAre(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(
-      pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-      Optional(ElementsAre(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(
-      pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-      Optional(ElementsAre(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              Optional(ElementsAre(
-                  ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              Optional(ElementsAre(
-                  ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              Optional(ElementsAre(
-                  ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              Optional(ElementsAre(
-                  ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              Optional(ElementsAre(
-                  ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              Optional(ElementsAre(
-                  ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-              Optional(ElementsAre(
-                  ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(
-      pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-      Optional(ElementsAre(
-          ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
-  EXPECT_THAT(
-      pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-      Optional(ElementsAre(
-          ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
+  EXPECT_THAT(pattern, MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                       {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                       {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                       {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                       {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                       {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                       {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                       {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                       {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                       {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                       {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                       {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                       {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                       {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                       {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                       {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                       {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                       {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                       {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                       {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                       {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                       {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                       {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                       {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern,
+              MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                              {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern,
+              MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                              {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern,
+              MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                              {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern,
+              MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                              {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern,
+              MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                              {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern,
+              MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                              {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern,
+              MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                              {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern,
+              MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                              {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern,
+              MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                              {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern,
+              MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                              {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
+  EXPECT_THAT(pattern,
+              MatchesPrefixOf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                              {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
 }
 
 INSTANTIATE_TEST_SUITE_P(RegexpTest, RegexpTest,
@@ -3197,16 +3158,15 @@ TEST_P(AssertedRegexpTest, WordBoundariesInPrefix) {
   auto const status_or_pattern = Parse(".*(\\blorem\\b)");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern->MatchPrefix("dolorem ipsum lorem loremipsum"),
-              Optional(ElementsAre(ElementsAre("lorem"))));
+  EXPECT_THAT(pattern, MatchesPrefixOf("dolorem ipsum lorem loremipsum", {{"lorem"}}));
 }
 
 TEST_P(AssertedRegexpTest, NotWordBoundariesInPrefix) {
   auto const status_or_pattern = Parse(".*(..(\\Blorem\\B)..)");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern->MatchPrefix("ipsum lorem doloremdo lorem ipsum"),
-              Optional(ElementsAre(ElementsAre("doloremdo"), ElementsAre("lorem"))));
+  EXPECT_THAT(pattern,
+              MatchesPrefixOf("ipsum lorem doloremdo lorem ipsum", {{"doloremdo"}, {"lorem"}}));
 }
 
 TEST_P(AssertedRegexpTest, WordBoundariesAtStringBoundaries) {
@@ -3214,7 +3174,7 @@ TEST_P(AssertedRegexpTest, WordBoundariesAtStringBoundaries) {
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("lorem", {{"lorem"}}));
-  EXPECT_THAT(pattern->MatchPrefix("lorem"), Optional(ElementsAre(ElementsAre("lorem"))));
+  EXPECT_THAT(pattern, MatchesPrefixOf("lorem", {{"lorem"}}));
 }
 
 TEST_P(AssertedRegexpTest, NotWordBoundariesNotAtStringBoundaries) {
