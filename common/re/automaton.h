@@ -282,7 +282,7 @@ class AbstractAutomaton : public SimpleRefCounted {
         : capture_groups_(&capture_groups),
           source_(source),
           args_(args),
-          ranges_(std::min(capture_groups.size(), args.size()), std::make_pair(-1, -1)) {}
+          ranges_(std::min(capture_groups.size(), args.size()), Range()) {}
 
     SingleRangeCaptureManager(SingleRangeCaptureManager const &) = default;
     SingleRangeCaptureManager &operator=(SingleRangeCaptureManager const &) = default;
@@ -295,11 +295,25 @@ class AbstractAutomaton : public SimpleRefCounted {
     // Captures a single character in the specified group and its ancestors.
     void Capture(intptr_t offset, int innermost_capture_group);
 
+    // Dumps the strings captured so far to the caller-provided arg span cached in `args_`.
+    //
+    // Note that we can't simply dump each string as we close the corresponding group because NFAs
+    // may make many failed attempts with many different capture managers that we'll eventually
+    // discard. We need an actual signal that this capture manager has been accepted, which we get
+    // when the caller calls `Dump`.
+    void Dump() const;
+
    private:
+    struct Range {
+      std::string_view closed_string = "";
+      intptr_t begin = -1;
+      intptr_t end = -1;
+    };
+
     CaptureGroups const *capture_groups_;
     std::string_view source_;
     absl::Span<std::string_view *const> args_;
-    std::vector<std::pair<intptr_t, intptr_t>> ranges_;
+    std::vector<Range> ranges_;
   };
 
   // Checks the specified `assertions` on the `input` text at the specified `offset`.

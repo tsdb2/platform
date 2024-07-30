@@ -90,14 +90,14 @@ void AbstractAutomaton::SingleRangeCaptureManager::CloseGroup(intptr_t const off
   if (it != capture_groups_->root()) {
     auto const index = *it;
     if (index < ranges_.size()) {
-      std::string_view* const sv = *(args_.begin() + index);
-      auto& range = ranges_[index];
-      if (range.first < 0) {
-        *sv = source_.substr(0, 0);
+      auto& [closed_string, begin, end] = ranges_[index];
+      if (begin < 0) {
+        closed_string = "";
       } else {
-        *sv = source_.substr(range.first, range.second - range.first);
+        closed_string = source_.substr(begin, end - begin);
       }
-      range = std::make_pair(-1, -1);
+      begin = -1;
+      end = -1;
     }
   }
 }
@@ -108,12 +108,18 @@ void AbstractAutomaton::SingleRangeCaptureManager::Capture(intptr_t const offset
        ++it) {
     auto const index = *it;
     if (index < ranges_.size()) {
-      auto& range = ranges_[index];
-      if (range.first < 0) {
-        range.first = offset;
+      auto& [unused, begin, end] = ranges_[index];
+      if (begin < 0) {
+        begin = offset;
       }
-      range.second = offset + 1;
+      end = offset + 1;
     }
+  }
+}
+
+void AbstractAutomaton::SingleRangeCaptureManager::Dump() const {
+  for (size_t i = 0; i < args_.size(); ++i) {
+    *args_[i] = ranges_[i].closed_string;
   }
 }
 
