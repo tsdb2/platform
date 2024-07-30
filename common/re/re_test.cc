@@ -39,6 +39,26 @@ using ::tsdb2::common::regexp_internal::Parse;
 using ::tsdb2::common::regexp_internal::TempNFA;
 using ::tsdb2::common::testing::FlagOverride;
 
+template <typename StringList>
+std::string PrintStringList(StringList const& string_list) {
+  std::vector<std::string> quoted_strings;
+  quoted_strings.reserve(string_list.size());
+  for (auto const& string : string_list) {
+    quoted_strings.emplace_back(absl::StrCat("\"", string, "\""));
+  }
+  return absl::StrCat("{", absl::StrJoin(quoted_strings, ", "), "}");
+}
+
+template <typename CaptureSet>
+std::string PrintCaptures(CaptureSet const& captures) {
+  std::vector<std::string> entries;
+  entries.reserve(captures.size());
+  for (auto const& strings : captures) {
+    entries.emplace_back(PrintStringList(strings));
+  }
+  return absl::StrCat("{", absl::StrJoin(entries, ", "), "}");
+}
+
 class MatchesImpl {
  public:
   using is_gtest_matcher = void;
@@ -48,34 +68,37 @@ class MatchesImpl {
       : input_(input), captures_(std::move(captures)), use_stepper_(use_stepper) {}
 
   void DescribeTo(std::ostream* const os) const {
-    *os << "matches \"" << absl::CEscape(input_) << "\" with ";
-    PrintCaptures(os);
+    *os << "matches \"" << absl::CEscape(input_) << "\" with " << PrintCaptures(captures_);
   }
 
   void DescribeNegationTo(std::ostream* const os) const {
-    *os << "doesn't match \"" << absl::CEscape(input_) << "\" with ";
-    PrintCaptures(os);
+    *os << "doesn't match \"" << absl::CEscape(input_) << "\" with " << PrintCaptures(captures_);
   }
 
   bool MatchAndExplain(reffed_ptr<AbstractAutomaton> const& automaton,
                        ::testing::MatchResultListener* const listener) const {
     if (!Run(automaton)) {
+      *listener << "matches \"" << absl::CEscape(input_) << "\"";
       return false;
     }
     auto maybe_results = automaton->Match(input_);
     if (!maybe_results.has_value()) {
+      *listener << "Match results differ from Test result";
       return false;
     }
     auto const& results = maybe_results.value();
     if (results.size() != captures_.size()) {
+      *listener << "unexpected Match results: " << PrintCaptures(results);
       return false;
     }
     for (size_t i = 0; i < results.size(); ++i) {
       if (results[i].size() != captures_[i].size()) {
+        *listener << "unexpected Match results: " << PrintCaptures(results);
         return false;
       }
       for (size_t j = 0; j < results[i].size(); ++j) {
         if (results[i][j] != captures_[i][j]) {
+          *listener << "unexpected Match results: " << PrintCaptures(results);
           return false;
         }
       }
@@ -87,19 +110,23 @@ class MatchesImpl {
       arg_ptrs.emplace_back(&arg);
     }
     if (!automaton->MatchArgs(input_, arg_ptrs)) {
+      *listener << "MatchArgs result differs from Test result";
       return false;
     }
     for (size_t i = 0; i < captures_.size(); ++i) {
       if (captures_[i].empty()) {
         if (args[i] != "") {
+          *listener << "unexpected MatchArgs results: " << PrintStringList(args);
           return false;
         }
       } else {
         if (args[i] != captures_[i].back()) {
+          *listener << "unexpected MatchArgs results: " << PrintStringList(args);
           return false;
         }
       }
     }
+    *listener << "matches \"" << absl::CEscape(input_) << "\" with " << PrintCaptures(captures_);
     return true;
   }
 
@@ -111,17 +138,6 @@ class MatchesImpl {
     } else {
       return automaton->Test(input_);
     }
-  }
-
-  void PrintCaptures(std::ostream* const os) const {
-    *os << "{";
-    for (auto strings : captures_) {
-      for (auto& string : strings) {
-        string = absl::StrCat("\"", absl::CEscape(string), "\"");
-      }
-      *os << "{" << absl::StrJoin(strings, ", ") << "}, ";
-    }
-    *os << "}";
   }
 
   std::string const input_;
@@ -147,9 +163,20 @@ class DoesntMatchImpl {
   bool MatchAndExplain(reffed_ptr<AbstractAutomaton> const& automaton,
                        ::testing::MatchResultListener* const listener) const {
     if (Run(automaton)) {
+      *listener << "matches \"" << absl::CEscape(input_) << "\"";
       return false;
     }
-    return !automaton->Match(input_).has_value();
+    if (automaton->Match(input_).has_value()) {
+      *listener << "Match results differ from Test result";
+      return false;
+    }
+    if (automaton->MatchArgs(input_, {})) {
+      *listener << "MatchArgs result differs from Test result";
+      return false;
+    } else {
+      *listener << "doesn't match \"" << absl::CEscape(input_) << "\"";
+      return true;
+    }
   }
 
  private:
@@ -164,6 +191,40 @@ class DoesntMatchImpl {
 
   std::string const input_;
   bool const use_stepper_;
+};
+
+class DoesntMatchPrefix {
+ public:
+  using is_gtest_matcher = void;
+
+  explicit DoesntMatchPrefix(std::string_view const input) : input_(input) {}
+
+  void DescribeTo(std::ostream* const os) const {
+    *os << "doesn't match any prefix of \"" << absl::CEscape(input_) << "\"";
+  }
+
+  void DescribeNegationTo(std::ostream* const os) const {
+    *os << "matches some prefix of \"" << absl::CEscape(input_) << "\"";
+  }
+
+  bool MatchAndExplain(reffed_ptr<AbstractAutomaton> const& automaton,
+                       ::testing::MatchResultListener* const listener) const {
+    auto const maybe_captures = automaton->MatchPrefix(input_);
+    if (maybe_captures.has_value()) {
+      *listener << "matches with " << PrintCaptures(maybe_captures.value());
+      return false;
+    }
+    if (automaton->MatchPrefixArgs(input_, {})) {
+      *listener << "matches";
+      return false;
+    } else {
+      *listener << "doesn't match";
+      return true;
+    }
+  }
+
+ private:
+  std::string const input_;
 };
 
 struct RegexpTestParams {
@@ -2663,10 +2724,10 @@ TEST_P(RegexpTest, AmbiguousPrefixMatch) {
   auto const status_or_pattern = Parse("([^END-]*) ([^END-]*) ([^END-]*)");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_EQ(pattern->MatchPrefix("lorem"), std::nullopt);
-  EXPECT_EQ(pattern->MatchPrefix("lorem-END"), std::nullopt);
-  EXPECT_EQ(pattern->MatchPrefix("lorem ipsum"), std::nullopt);
-  EXPECT_EQ(pattern->MatchPrefix("lorem ipsum-END"), std::nullopt);
+  EXPECT_THAT(pattern, DoesntMatchPrefix("lorem"));
+  EXPECT_THAT(pattern, DoesntMatchPrefix("lorem-END"));
+  EXPECT_THAT(pattern, DoesntMatchPrefix("lorem ipsum"));
+  EXPECT_THAT(pattern, DoesntMatchPrefix("lorem ipsum-END"));
   EXPECT_THAT(
       pattern->MatchPrefix("lorem ipsum dolor"),
       Optional(ElementsAre(ElementsAre("lorem"), ElementsAre("ipsum"), ElementsAre("dolor"))));
@@ -2786,7 +2847,7 @@ TEST_P(RegexpTest, NonEmptyPrefixOfEmptyString) {
   auto const status_or_pattern = Parse("lorem");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_EQ(pattern->MatchPrefix(""), std::nullopt);
+  EXPECT_THAT(pattern, DoesntMatchPrefix(""));
 }
 
 TEST_P(RegexpTest, ProperPrefix) {
@@ -2839,14 +2900,14 @@ TEST_P(RegexpTest, HeavyPrefixBacktracker) {
       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa)");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_EQ(pattern->MatchPrefix(""), std::nullopt);
-  EXPECT_EQ(pattern->MatchPrefix("b"), std::nullopt);
-  EXPECT_EQ(pattern->MatchPrefix("ab"), std::nullopt);
-  EXPECT_EQ(pattern->MatchPrefix("a"), std::nullopt);
-  EXPECT_EQ(pattern->MatchPrefix("aa"), std::nullopt);
-  EXPECT_EQ(pattern->MatchPrefix("aaa"), std::nullopt);
-  EXPECT_EQ(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaa"), std::nullopt);
-  EXPECT_EQ(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), std::nullopt);
+  EXPECT_THAT(pattern, DoesntMatchPrefix(""));
+  EXPECT_THAT(pattern, DoesntMatchPrefix("b"));
+  EXPECT_THAT(pattern, DoesntMatchPrefix("ab"));
+  EXPECT_THAT(pattern, DoesntMatchPrefix("a"));
+  EXPECT_THAT(pattern, DoesntMatchPrefix("aa"));
+  EXPECT_THAT(pattern, DoesntMatchPrefix("aaa"));
+  EXPECT_THAT(pattern, DoesntMatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+  EXPECT_THAT(pattern, DoesntMatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
   EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
               Optional(ElementsAre(ElementsAre("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))));
   EXPECT_THAT(pattern->MatchPrefix("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
@@ -3058,7 +3119,7 @@ TEST_P(AssertedRegexpTest, NotWordBoundariesNotAtStringBoundaries) {
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch("lorem"));
-  EXPECT_EQ(pattern->MatchPrefix("lorem"), std::nullopt);
+  EXPECT_THAT(pattern, DoesntMatchPrefix("lorem"));
 }
 
 TEST_P(AssertedRegexpTest, SearchWordWithBoundaries) {
