@@ -13,6 +13,21 @@ namespace tsdb2 {
 namespace common {
 namespace regexp_internal {
 
+bool AbstractAutomaton::PartialTest(std::string_view const input) const {
+  if (PartialTest(input, 0)) {
+    return true;
+  }
+  if (AssertsBegin()) {
+    return false;
+  }
+  for (size_t offset = 1; offset < input.size(); ++offset) {
+    if (PartialMatch(input, offset)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 std::optional<AbstractAutomaton::CaptureSet> AbstractAutomaton::PartialMatch(
     std::string_view const input) const {
   auto results = PartialMatch(input, 0);

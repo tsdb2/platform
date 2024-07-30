@@ -168,6 +168,9 @@ class AbstractAutomaton : public SimpleRefCounted {
   // matches this regular expression or false otherwise.
   bool TestPrefix(std::string_view const input) const { return PartialTest(input, 0); }
 
+  // Checks if the `input` string contains a substring matching this regular expression.
+  bool PartialTest(std::string_view input) const;
+
   // Runs the automaton on the provided input string and, if it matches, returns the array of
   // strings captured by the capture groups (if any). If the string doesn't match an empty optional
   // is returned.

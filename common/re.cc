@@ -39,6 +39,15 @@ bool RE::Test(std::string_view const input, std::string_view const pattern) {
   }
 }
 
+bool RE::Contains(std::string_view const input, std::string_view const pattern) {
+  auto const status_or_re = RE::Create(pattern);
+  if (status_or_re.ok()) {
+    return status_or_re->ContainedIn(input);
+  } else {
+    return false;
+  }
+}
+
 absl::StatusOr<RE::CaptureSet> RE::Match(std::string_view const input,
                                          std::string_view const pattern) {
   DEFINE_CONST_OR_RETURN(re, RE::Create(pattern));

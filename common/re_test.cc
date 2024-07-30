@@ -24,6 +24,12 @@ TEST(RegexpTest, StaticTest) {
   EXPECT_FALSE(RE::Test("lrem", "lo+rem?"));
 }
 
+TEST(RegexpTest, StaticPartialTest) {
+  EXPECT_TRUE(RE::Contains("ipsum lore amet", "lo+rem?"));
+  EXPECT_TRUE(RE::Contains("ipsum looorem amet", "lo+rem?"));
+  EXPECT_FALSE(RE::Contains("ipsum lrem amet", "lo+rem?"));
+}
+
 TEST(RegexpTest, InvalidPattern) {
   EXPECT_THAT(RE::Create("?invalid"), StatusIs(absl::StatusCode::kInvalidArgument));
 }
@@ -63,6 +69,15 @@ TEST(RegexpTest, Test) {
   EXPECT_TRUE(re.Test("lore"));
   EXPECT_TRUE(re.Test("looorem"));
   EXPECT_FALSE(re.Test("lrem"));
+}
+
+TEST(RegexpTest, PartialTest) {
+  auto const status_or_re = RE::Create("lo+rem?");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_TRUE(re.ContainedIn("ipsum lore amet"));
+  EXPECT_TRUE(re.ContainedIn("ipsum looorem amet"));
+  EXPECT_FALSE(re.ContainedIn("ipsum lrem amet"));
 }
 
 TEST(RegexpTest, CopyConstruct) {

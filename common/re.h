@@ -59,8 +59,8 @@ class RE {
   // substring of the original input).
   //
   // The returned strings are `std::string_view` objects referring to substrings of the string
-  // provided by the caller, so the latter mus remain alive in order for the caller to read the
-  // captured strings.
+  // provided by the caller, so the latter must remain alive in order for the caller to be able to
+  // read the captured strings.
   using CaptureSet = regexp_internal::AbstractAutomaton::CaptureSet;
 
   // Checks if `input` matches `pattern`.
@@ -68,8 +68,16 @@ class RE {
   // This function doesn't allow the caller to tell if `pattern` fails to compile; in that case it
   // will simply return false. It's recommended to use this function only if the caller is 100% sure
   // the pattern compiles, e.g. it's hard-coded in the program rather than being provided by a
-  // human.
+  // human. Otherwise you need to use the non-static version of this method.
   static bool Test(std::string_view input, std::string_view pattern);
+
+  // Checks if the `input` string contains a substring matching `pattern`.
+  //
+  // This function doesn't allow the caller to tell if `pattern` fails to compile; in that case it
+  // will simply return false. It's recommended to use this function only if the caller is 100% sure
+  // the pattern compiles, e.g. it's hard-coded in the program rather than being provided by a
+  // human. Otherwise you need to use the non-static `ContainedIn` method.
+  static bool Contains(std::string_view input, std::string_view pattern);
 
   // Checks if `input` matches `pattern` and returns an array of the strings captured by the capture
   // groups. An error status is returned if `pattern` fails to compile or `input` doesn't match.
@@ -140,6 +148,9 @@ class RE {
 
   // Checks if the provided `input` string matches this compiled regular expression.
   bool Test(std::string_view const input) const { return automaton_->Test(input); }
+
+  // Checks if the `input` string contains a substring matching this compiled regular expression.
+  bool ContainedIn(std::string_view const input) const { return automaton_->PartialTest(input); }
 
   // Checks if `input` matches this regular expression and returns an array of the strings captured
   // by the capture groups. An empty optional is returned if `input` doesn't match.
