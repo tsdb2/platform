@@ -331,6 +331,11 @@ class AbstractAutomaton : public SimpleRefCounted {
   // Checks the specified `assertions` on the `input` text at the specified `offset`.
   static bool Assert(Assertions assertions, std::string_view input, size_t offset);
 
+  // Checks the `kWordBoundary` and `kNotWordBOundary` assertions as specified `assertions` on the
+  // two input characters. Unlike `Assert`, this function ignores the `kBegin` and `kEnd`
+  // assertions. This version of the asserter is used by steppers, which do not support anchors.
+  static bool HalfAssert(Assertions assertions, char ch1, char ch2);
+
   // Tries to match a substring of `input` starting at `offset` against this regular expression.
   // This is the internal implementation of `PartialTest` and `TestPrefix`.
   virtual bool PartialTest(std::string_view input, size_t offset) const = 0;
@@ -347,7 +352,9 @@ class AbstractAutomaton : public SimpleRefCounted {
 
  private:
   // Assertion helpers.
+  static bool is_word_character(char ch);
   static bool is_word_character(std::string_view text, size_t offset);
+  static bool at_word_boundary(char ch1, char ch2);
   static bool at_word_boundary(std::string_view text, size_t offset);
 
   // Copies are not needed: automata are immutable and reference-counted, so we can share them

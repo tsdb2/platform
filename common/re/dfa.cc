@@ -27,6 +27,7 @@ bool DFA::Stepper::Step(char const ch) {
     auto it = edges.find(ch);
     if (it != edges.end()) {
       current_state_ = it->second;
+      last_character_ = ch;
       return true;
     }
     it = edges.find(0);

@@ -347,13 +347,6 @@ TEST_P(RegexpTest, MaxRecursionDepth) {
               StatusIs(absl::StatusCode::kResourceExhausted));
 }
 
-TEST_P(RegexpTest, NoAnchors) {
-  EXPECT_OK(Parse("sator(arepo(tenet)|(?:opera)(rotas)+)", {.no_anchors = true}));
-  EXPECT_THAT(Parse("^lorem", {.no_anchors = true}), StatusIs(absl::StatusCode::kInvalidArgument));
-  EXPECT_THAT(Parse("ipsum$", {.no_anchors = true}), StatusIs(absl::StatusCode::kInvalidArgument));
-  EXPECT_THAT(Parse("^dolor$", {.no_anchors = true}), StatusIs(absl::StatusCode::kInvalidArgument));
-}
-
 TEST_P(RegexpTest, EmptyIsDeterministic) {
   auto const status_or_pattern = Parse("");
   ASSERT_OK(status_or_pattern);
@@ -3176,6 +3169,13 @@ INSTANTIATE_TEST_SUITE_P(RegexpTest, RegexpTest,
 // TODO: update when steppers support word boundary assertions. Anchor assertions will not be
 // supported.
 class AssertedRegexpTest : public RegexpTest {};
+
+TEST_P(AssertedRegexpTest, NoAnchors) {
+  EXPECT_OK(Parse("sator(arepo(tenet)|(?:opera)(rotas)+)", {.no_anchors = true}));
+  EXPECT_THAT(Parse("^lorem", {.no_anchors = true}), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse("ipsum$", {.no_anchors = true}), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse("^dolor$", {.no_anchors = true}), StatusIs(absl::StatusCode::kInvalidArgument));
+}
 
 TEST_P(AssertedRegexpTest, StartAnchor) {
   auto const status_or_pattern = Parse("(^lorem)");

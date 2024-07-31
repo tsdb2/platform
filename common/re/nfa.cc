@@ -35,6 +35,7 @@ bool NFA::Stepper::Step(char const ch) {
     return false;
   }
   EpsilonClosure();
+  last_character_ = ch;
   return true;
 }
 

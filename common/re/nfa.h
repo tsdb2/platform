@@ -91,6 +91,10 @@ class NFA final : public AbstractAutomaton {
 
     NFA const *nfa_;
     StateSet states_;
+
+    // The last character consumed by `Step` is cached here because we may need it to perform word
+    // boundary assertion checks. Value 0 means no characters have been consumed yet.
+    char last_character_ = 0;
   };
 
   explicit NFA(States states, uint32_t const initial_state, uint32_t const final_state,

@@ -163,21 +163,42 @@ bool AbstractAutomaton::Assert(Assertions const assertions, std::string_view con
   return true;
 }
 
+bool AbstractAutomaton::HalfAssert(Assertions const assertions, char const ch1, char const ch2) {
+  if ((assertions & Assertions::kWordBoundary) != Assertions::kNone) {
+    if (!at_word_boundary(ch1, ch2)) {
+      return false;
+    }
+  }
+  if ((assertions & Assertions::kNotWordBoundary) != Assertions::kNone) {
+    if (at_word_boundary(ch1, ch2)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool AbstractAutomaton::is_word_character(char const ch) {
+  return (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') ||
+         (ch == '_');
+}
+
 bool AbstractAutomaton::is_word_character(std::string_view const text, size_t const offset) {
   if (offset < text.size()) {
-    char const ch = text[offset];
-    return (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') ||
-           (ch == '_');
+    return is_word_character(text[offset]);
   } else {
     return false;
   }
+}
+
+bool AbstractAutomaton::at_word_boundary(char const ch1, char const ch2) {
+  return is_word_character(ch1) != is_word_character(ch2);
 }
 
 bool AbstractAutomaton::at_word_boundary(std::string_view const text, size_t const offset) {
   if (offset > 0) {
     return is_word_character(text, offset - 1) != is_word_character(text, offset);
   } else {
-    return is_word_character(text, 0);
+    return is_word_character(text[0]);
   }
 }
 
