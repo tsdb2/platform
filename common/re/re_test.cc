@@ -10,6 +10,7 @@
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/span.h"
 #include "common/flag_override.h"
 #include "common/re/automaton.h"
 #include "common/re/dfa.h"
@@ -58,6 +59,11 @@ std::string PrintCaptures(CaptureSet const& captures) {
     entries.emplace_back(PrintStringList(strings));
   }
   return absl::StrCat("{", absl::StrJoin(entries, ", "), "}");
+}
+
+bool TestWithStepper(reffed_ptr<AbstractAutomaton> const& automaton, std::string_view const input) {
+  auto const stepper = automaton->MakeStepper();
+  return stepper->Step(input) && stepper->Finish();
 }
 
 bool TestPrefixWithStepper(reffed_ptr<AbstractAutomaton> const& automaton,
@@ -110,19 +116,32 @@ bool CheckMatchArgs(std::vector<std::string_view> const& args,
   return true;
 }
 
-class MatchesImpl {
+using TestMethod = bool (AbstractAutomaton::*)(std::string_view) const;
+using StepperTestFunction = bool (*)(reffed_ptr<AbstractAutomaton> const&, std::string_view);
+
+using MatchMethod =
+    std::optional<AbstractAutomaton::CaptureSet> (AbstractAutomaton::*)(std::string_view) const;
+
+using MatchArgsMethod = bool (AbstractAutomaton::*)(std::string_view,
+                                                    absl::Span<std::string_view* const>) const;
+
+template <TestMethod test_method, char const test_method_name[],
+          StepperTestFunction stepper_test_function, MatchMethod match_method,
+          char const match_method_name[], MatchArgsMethod match_args_method,
+          char const match_args_method_name[]>
+class GenericMatcher {
  public:
   using is_gtest_matcher = void;
 
-  explicit MatchesImpl(std::string_view const input, bool const use_stepper)
+  explicit GenericMatcher(std::string_view const input, bool const use_stepper)
       : input_(input), captures_(std::nullopt), use_stepper_(use_stepper) {}
 
-  MatchesImpl(MatchesImpl const&) = default;
-  MatchesImpl& operator=(MatchesImpl const&) = default;
-  MatchesImpl(MatchesImpl&&) noexcept = default;
-  MatchesImpl& operator=(MatchesImpl&&) noexcept = default;
+  GenericMatcher(GenericMatcher const&) = default;
+  GenericMatcher& operator=(GenericMatcher const&) = default;
+  GenericMatcher(GenericMatcher&&) noexcept = default;
+  GenericMatcher& operator=(GenericMatcher&&) noexcept = default;
 
-  MatchesImpl With(std::vector<std::vector<std::string>> captures) && {
+  GenericMatcher With(std::vector<std::vector<std::string>> captures) && {
     captures_ = std::move(captures);
     return *this;
   }
@@ -143,7 +162,7 @@ class MatchesImpl {
 
   bool MatchAndExplain(reffed_ptr<AbstractAutomaton> const& automaton,
                        ::testing::MatchResultListener* const listener) const {
-    bool const test_result = Run(automaton);
+    bool const test_result = Test(automaton);
     if (test_result) {
       *listener << "matches";
     } else {
@@ -151,7 +170,8 @@ class MatchesImpl {
     }
     auto const match_outcome = Match(automaton, listener);
     if ((match_outcome != Outcome::kNoMatch) != test_result) {
-      *listener << ", Match() results differ from Test result";
+      *listener << ", " << match_method_name << "() results differ from " << test_method_name
+                << "() result";
       return false;
     }
     if (test_result && match_outcome == Outcome::kUnexpected) {
@@ -159,7 +179,8 @@ class MatchesImpl {
     }
     auto const match_args_outcome = MatchArgs(automaton, listener);
     if ((match_args_outcome != Outcome::kNoMatch) != test_result) {
-      *listener << ", MatchArgs() result differs from Test result";
+      *listener << ", " << match_args_method_name << "() result differs from " << test_method_name
+                << "() result";
       return false;
     }
     if (test_result && match_args_outcome == Outcome::kUnexpected) {
@@ -171,28 +192,28 @@ class MatchesImpl {
  private:
   enum class Outcome { kMatch, kNoMatch, kUnexpected };
 
-  bool Run(reffed_ptr<AbstractAutomaton> const& automaton) const {
+  bool Test(reffed_ptr<AbstractAutomaton> const& automaton) const {
     if (use_stepper_) {
-      auto const stepper = automaton->MakeStepper();
-      return stepper->Step(input_) && stepper->Finish();
+      return stepper_test_function(automaton, input_);
     } else {
-      return automaton->Test(input_);
+      return (*automaton.*test_method)(input_);
     }
   }
 
   Outcome Match(reffed_ptr<AbstractAutomaton> const& automaton,
                 ::testing::MatchResultListener* const listener) const {
-    auto maybe_results = automaton->Match(input_);
+    auto maybe_results = (*automaton.*match_method)(input_);
     if (!maybe_results.has_value()) {
-      *listener << ", Match() doesn't match";
+      *listener << ", " << match_method_name << "() doesn't match";
       return Outcome::kNoMatch;
     }
     auto const& results = maybe_results.value();
     if (!captures_ || CheckMatchResults(results, *captures_)) {
-      *listener << ", Match() matches";
+      *listener << ", " << match_method_name << "() matches";
       return Outcome::kMatch;
     } else {
-      *listener << ", Match() matches with unexpected captures: " << PrintCaptures(results);
+      *listener << ", " << match_method_name
+                << "() matches with unexpected captures: " << PrintCaptures(results);
       return Outcome::kUnexpected;
     }
   }
@@ -208,15 +229,16 @@ class MatchesImpl {
         arg_ptrs.emplace_back(&arg);
       }
     }
-    if (!automaton->MatchArgs(input_, arg_ptrs)) {
-      *listener << ", MatchArgs() doesn't match";
+    if (!(*automaton.*match_args_method)(input_, arg_ptrs)) {
+      *listener << ", " << match_args_method_name << "() doesn't match";
       return Outcome::kNoMatch;
     }
     if (!captures_ || CheckMatchArgs(args, *captures_)) {
-      *listener << ", MatchArgs() matches";
+      *listener << ", " << match_args_method_name << "() matches";
       return Outcome::kMatch;
     } else {
-      *listener << ", MatchArgs() matches with unexpected captures: " << PrintStringList(args);
+      *listener << ", " << match_args_method_name
+                << "() matches with unexpected captures: " << PrintStringList(args);
       return Outcome::kUnexpected;
     }
   }
@@ -226,121 +248,23 @@ class MatchesImpl {
   bool use_stepper_;
 };
 
-class MatchesPrefixOfImpl {
- public:
-  using is_gtest_matcher = void;
+char const kTestMethodName[] = "Test";
+char const kTestPrefixMethodName[] = "TestPrefix";
 
-  explicit MatchesPrefixOfImpl(std::string_view const input, bool const use_stepper)
-      : input_(input), captures_(std::nullopt), use_stepper_(use_stepper) {}
+char const kMatchMethodName[] = "Match";
+char const kMatchPrefixMethodName[] = "MatchPrefix";
 
-  MatchesPrefixOfImpl(MatchesPrefixOfImpl const&) = default;
-  MatchesPrefixOfImpl& operator=(MatchesPrefixOfImpl const&) = default;
-  MatchesPrefixOfImpl(MatchesPrefixOfImpl&&) noexcept = default;
-  MatchesPrefixOfImpl& operator=(MatchesPrefixOfImpl&&) noexcept = default;
+char const kMatchArgsMethodName[] = "MatchArgs";
+char const kMatchPrefixArgsMethodName[] = "MatchPrefixArgs";
 
-  MatchesPrefixOfImpl With(std::vector<std::vector<std::string>> captures) && {
-    captures_ = std::move(captures);
-    return *this;
-  }
+using MatchesImpl = GenericMatcher<&AbstractAutomaton::Test, kTestMethodName, TestWithStepper,
+                                   &AbstractAutomaton::Match, kMatchMethodName,
+                                   &AbstractAutomaton::MatchArgs, kMatchArgsMethodName>;
 
-  void DescribeTo(std::ostream* const os) const {
-    *os << "matches some prefix of \"" << absl::CEscape(input_) << "\"";
-    if (captures_) {
-      *os << " with " << PrintCaptures(*captures_);
-    }
-  }
-
-  void DescribeNegationTo(std::ostream* const os) const {
-    *os << "doesn't match any prefix of \"" << absl::CEscape(input_) << "\"";
-    if (captures_) {
-      *os << " with " << PrintCaptures(*captures_);
-    }
-  }
-
-  bool MatchAndExplain(reffed_ptr<AbstractAutomaton> const& automaton,
-                       ::testing::MatchResultListener* const listener) const {
-    bool const test_result = Run(automaton);
-    if (test_result) {
-      *listener << "matches a prefix";
-    } else {
-      *listener << "doesn't match any prefix";
-    }
-    auto const match_outcome = Match(automaton, listener);
-    if ((match_outcome != Outcome::kNoMatch) != test_result) {
-      *listener << ", Match() results differ from Test result";
-      return false;
-    }
-    if (test_result && match_outcome == Outcome::kUnexpected) {
-      return false;
-    }
-    auto const match_args_outcome = MatchArgs(automaton, listener);
-    if ((match_args_outcome != Outcome::kNoMatch) != test_result) {
-      *listener << ", MatchArgs() result differs from Test result";
-      return false;
-    }
-    if (test_result && match_args_outcome == Outcome::kUnexpected) {
-      return false;
-    }
-    return test_result;
-  }
-
- private:
-  enum class Outcome { kMatch, kNoMatch, kUnexpected };
-
-  bool Run(reffed_ptr<AbstractAutomaton> const& automaton) const {
-    if (use_stepper_) {
-      return TestPrefixWithStepper(automaton, input_);
-    } else {
-      return automaton->TestPrefix(input_);
-    }
-  }
-
-  Outcome Match(reffed_ptr<AbstractAutomaton> const& automaton,
-                ::testing::MatchResultListener* const listener) const {
-    auto maybe_results = automaton->MatchPrefix(input_);
-    if (!maybe_results.has_value()) {
-      *listener << ", MatchPrefix() doesn't match";
-      return Outcome::kNoMatch;
-    }
-    auto const& results = maybe_results.value();
-    if (!captures_ || CheckMatchResults(results, *captures_)) {
-      *listener << ", MatchPrefix() matches";
-      return Outcome::kMatch;
-    } else {
-      *listener << ", MatchPrefix() matches with unexpected captures: " << PrintCaptures(results);
-      return Outcome::kUnexpected;
-    }
-  }
-
-  Outcome MatchArgs(reffed_ptr<AbstractAutomaton> const& automaton,
-                    ::testing::MatchResultListener* const listener) const {
-    std::vector<std::string_view> args;
-    std::vector<std::string_view*> arg_ptrs;
-    if (captures_) {
-      args = std::vector<std::string_view>{captures_->size(), std::string_view("")};
-      arg_ptrs.reserve(args.size());
-      for (auto& arg : args) {
-        arg_ptrs.emplace_back(&arg);
-      }
-    }
-    if (!automaton->MatchPrefixArgs(input_, arg_ptrs)) {
-      *listener << ", MatchPrefixArgs() doesn't match";
-      return Outcome::kNoMatch;
-    }
-    if (!captures_ || CheckMatchArgs(args, *captures_)) {
-      *listener << ", MatchPrefixArgs() matches";
-      return Outcome::kMatch;
-    } else {
-      *listener << ", MatchPrefixArgs() matches with unexpected captures: "
-                << PrintStringList(args);
-      return Outcome::kUnexpected;
-    }
-  }
-
-  std::string input_;
-  std::optional<std::vector<std::vector<std::string>>> captures_;
-  bool use_stepper_;
-};
+using MatchesPrefixOfImpl =
+    GenericMatcher<&AbstractAutomaton::TestPrefix, kTestPrefixMethodName, TestPrefixWithStepper,
+                   &AbstractAutomaton::MatchPrefix, kMatchPrefixMethodName,
+                   &AbstractAutomaton::MatchPrefixArgs, kMatchPrefixArgsMethodName>;
 
 struct RegexpTestParams {
   bool force_nfa;
