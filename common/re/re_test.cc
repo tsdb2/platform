@@ -3171,16 +3171,14 @@ TEST_P(AssertedRegexpTest, SearchWordWithBoundaries) {
   auto const status_or_pattern = Parse("(\\blo?rem\\b)");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern->PartialMatch("dolrem lorem lremipsum"),
-              Optional(ElementsAre(ElementsAre("lorem"))));
+  EXPECT_THAT(pattern, PartiallyMatches("dolrem lorem lremipsum", {{"lorem"}}));
 }
 
 TEST_P(AssertedRegexpTest, SearchWordWithoutBoundaries) {
   auto const status_or_pattern = Parse("(\\Blo?rem\\B)");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern->PartialMatch("ipsum lremdo doloremdo dolrem"),
-              Optional(ElementsAre(ElementsAre("lorem"))));
+  EXPECT_THAT(pattern, PartiallyMatches("ipsum lremdo doloremdo dolrem", {{"lorem"}}));
 }
 
 INSTANTIATE_TEST_SUITE_P(AssertedRegexpTest, AssertedRegexpTest,
