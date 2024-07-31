@@ -106,13 +106,40 @@ class RE {
   // views will be ignored.
   template <typename... Args>
   static absl::Status MatchArgs(std::string_view const input, std::string_view const pattern,
-                                FixedT<std::string_view *, Args> const... args);
+                                Args *const... args);
 
+  // Checks if `input` contains a substring matching `pattern` and returns an array of the strings
+  // captured by the capture groups. An error status is returned if `pattern` fails to compile or
+  // `input` doesn't have any matching substrings.
+  //
+  // The matching substring is guaranteed to be the earliest and longest possible one, with earliest
+  // taking precedence over longest.
   static absl::StatusOr<CaptureSet> PartialMatch(std::string_view input, std::string_view pattern);
 
+  // Same as `PartialMatch` above but stores the captured substrings in the provided
+  // `std::string_view` objects rather than returning a `CaptureSet`. Returns an OK status if the
+  // `input` matched, or an error if the `pattern` didn't compile or the `input` didn't match. The
+  // contents of the string views are undefined if false is returned.
+  //
+  // Example:
+  //
+  //   std::string_view blah;
+  //   RETURN_IF_ERROR(RE::PartialMatchArgs("blah blah", "(blah)", &blah));
+  //   LOG(INFO) << blah;  // logs "blah"
+  //
+  // NOTE: only one substring is retrieved for each capture group. If the corresponding capture
+  // group matched more than one substring, only the last one is returned. Example:
+  //
+  //   std::string_view sv;
+  //   RETURN_IF_ERROR(RE::PartialMatchArgs("foo bar fee bar ", "(?:f(..) bar )*", &sv));
+  //   LOG(INFO) << sv;  // logs "ee", not "oo".
+  //
+  // NOTE: normally there would be as many `args` as there are capture groups in the `pattern`, but
+  // it's okay to provide fewer or more: missing substrings won't be retrieved and extra string
+  // views will be ignored.
   template <typename... Args>
   static absl::Status PartialMatchArgs(std::string_view const input, std::string_view const pattern,
-                                       FixedT<std::string_view *, Args> const... args);
+                                       Args *const... args);
 
   // Strips the longest possible prefix matching `pattern` from the provided `input` string. Returns
   // true iff a prefix was matched and removed.
@@ -188,8 +215,7 @@ class RE {
   // it's okay to provide fewer or more: missing substrings won't be retrieved and extra string
   // views will be ignored.
   template <typename... Args>
-  bool MatchArgs(std::string_view const input,
-                 FixedT<std::string_view *, Args> const... args) const {
+  bool MatchArgs(std::string_view const input, Args *const... args) const {
     return automaton_->MatchArgs(input, {args...});
   }
 
@@ -201,8 +227,7 @@ class RE {
   }
 
   template <typename... Args>
-  bool MatchPrefixArgs(std::string_view const input,
-                       FixedT<std::string_view *, Args> const... args) const {
+  bool MatchPrefixArgs(std::string_view const input, Args *const... args) const {
     return automaton_->MatchPrefixArgs(input, {args...});
   }
 
@@ -218,8 +243,7 @@ class RE {
   }
 
   template <typename... Args>
-  bool PartialMatchArgs(std::string_view const input,
-                        FixedT<std::string_view *, Args> const... args) const {
+  bool PartialMatchArgs(std::string_view const input, Args *const... args) const {
     return automaton_->PartialMatchArgs(input, {args...});
   }
 
@@ -235,11 +259,10 @@ class RE {
 
 template <typename... Args>
 absl::Status RE::MatchArgs(std::string_view const input, std::string_view const pattern,
-                           FixedT<std::string_view *, Args> const... args) {
+                           Args *const... args) {
   DEFINE_CONST_OR_RETURN(re, RE::Create(pattern));
-  auto maybe_results = re.MatchArgs(input, args...);
-  if (maybe_results) {
-    return std::move(maybe_results).value();
+  if (re.MatchArgs(input, args...)) {
+    return absl::OkStatus();
   } else {
     return absl::NotFoundError(absl::StrCat("string \"", absl::CEscape(internal::ClipString(input)),
                                             "\" doesn't match \"", absl::CEscape(pattern), "\""));
@@ -248,11 +271,10 @@ absl::Status RE::MatchArgs(std::string_view const input, std::string_view const 
 
 template <typename... Args>
 absl::Status RE::PartialMatchArgs(std::string_view const input, std::string_view const pattern,
-                                  FixedT<std::string_view *, Args> const... args) {
+                                  Args *const... args) {
   DEFINE_CONST_OR_RETURN(re, RE::Create(pattern));
-  auto maybe_results = re.PartialMatchArgs(input, args...);
-  if (maybe_results) {
-    return std::move(maybe_results).value();
+  if (re.PartialMatchArgs(input, args...)) {
+    return absl::OkStatus();
   } else {
     return absl::NotFoundError(absl::StrCat("no substring matching \"", absl::CEscape(pattern),
                                             "\" found in \"", absl::CEscape(input), "\""));

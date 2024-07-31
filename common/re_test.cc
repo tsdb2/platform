@@ -1,6 +1,7 @@
 #include "common/re.h"
 
 #include <optional>
+#include <string_view>
 #include <utility>
 
 #include "absl/status/status.h"
@@ -146,6 +147,7 @@ TEST(RegexpTest, StaticMatch) {
   EXPECT_THAT(RE::Match("looorem", "l((o+r)em?)"),
               IsOkAndHolds(ElementsAre(ElementsAre("ooorem"), ElementsAre("ooor"))));
   EXPECT_THAT(RE::Match("lrem", "lo+rem?"), StatusIs(absl::StatusCode::kNotFound));
+  EXPECT_THAT(RE::Match("lore", "l(o+rem?"), StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(RegexpTest, Match) {
@@ -156,6 +158,31 @@ TEST(RegexpTest, Match) {
   EXPECT_THAT(re.Match("looorem"),
               Optional(ElementsAre(ElementsAre("ooorem"), ElementsAre("ooor"))));
   EXPECT_EQ(re.Match("lrem"), std::nullopt);
+}
+
+TEST(RegexpTest, StaticMatchArgs) {
+  std::string_view sv1, sv2;
+  EXPECT_OK(RE::MatchArgs("lore", "l(o+r)em?", &sv1));
+  EXPECT_EQ(sv1, "or");
+  EXPECT_OK(RE::MatchArgs("looorem", "l((o+r)em?)", &sv1, &sv2));
+  EXPECT_EQ(sv1, "ooorem");
+  EXPECT_EQ(sv2, "ooor");
+  EXPECT_THAT(RE::MatchArgs("lrem", "lo+rem?"), StatusIs(absl::StatusCode::kNotFound));
+  EXPECT_THAT(RE::MatchArgs("lore", "l(o+rem?"), StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(RegexpTest, MatchArgs) {
+  auto const status_or_re = RE::Create("l((o+r)em?)");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  std::string_view sv1, sv2;
+  EXPECT_TRUE(re.MatchArgs("lore", &sv1, &sv2));
+  EXPECT_EQ(sv1, "ore");
+  EXPECT_EQ(sv2, "or");
+  EXPECT_TRUE(re.MatchArgs("looorem", &sv1, &sv2));
+  EXPECT_EQ(sv1, "ooorem");
+  EXPECT_EQ(sv2, "ooor");
+  EXPECT_FALSE(re.MatchArgs("lrem", &sv1, &sv2));
 }
 
 TEST(RegexpTest, InvalidPrefixPattern) {
@@ -224,6 +251,29 @@ TEST(RegexpTest, StaticPartialMatch) {
   EXPECT_THAT(RE::PartialMatch("lorem ipsum color sic amat", "(do+lor)"),
               StatusIs(absl::StatusCode::kNotFound));
   EXPECT_THAT(RE::PartialMatch("lorem ipsum dolor sic amat", "(do+lor"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(RegexpTest, PartialMatchArgs) {
+  auto const status_or_re = RE::Create("(do+lor)");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  std::string_view sv;
+  EXPECT_TRUE(re.PartialMatchArgs("lorem ipsum dolor sic amat", &sv));
+  EXPECT_EQ(sv, "dolor");
+  EXPECT_TRUE(re.PartialMatchArgs("lorem ipsum dooolor sic amat", &sv));
+  EXPECT_EQ(sv, "dooolor");
+  EXPECT_FALSE(re.PartialMatchArgs("lorem ipsum color sic amat"));
+  EXPECT_FALSE(re.PartialMatchArgs("lorem ipsum dolet et amat"));
+}
+
+TEST(RegexpTest, StaticPartialMatchArgs) {
+  std::string_view sv;
+  EXPECT_OK(RE::PartialMatchArgs("lorem ipsum dooolor sic amat", "(do+lor)", &sv));
+  EXPECT_EQ(sv, "dooolor");
+  EXPECT_THAT(RE::PartialMatchArgs("lorem ipsum color sic amat", "(do+lor)", &sv),
+              StatusIs(absl::StatusCode::kNotFound));
+  EXPECT_THAT(RE::PartialMatchArgs("lorem ipsum dolor sic amat", "(do+lor"),
               StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
