@@ -24,8 +24,10 @@
 
 namespace {
 
+using ::testing::_;
 using ::testing::AnyOf;
 using ::testing::ElementsAre;
+using ::testing::FieldsAre;
 using ::testing::IsEmpty;
 using ::testing::Not;
 using ::testing::Optional;
@@ -2836,6 +2838,62 @@ TEST_P(RegexpTest, NotAllCaptured) {
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("satorarepotenet", {{"arepotenet"}, {"tenet"}, {}, {}}));
   EXPECT_THAT(pattern, Matches("satoroperarotas", {{"operarotas"}, {}, {"opera"}, {"rotas"}}));
+}
+
+TEST_P(RegexpTest, MatchArgCount) {
+  auto const status_or_pattern = Parse("sator(arepo(tenet)|(opera)(rotas))");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_TRUE(pattern->MatchArgs("satorarepotenet", {}));
+  std::string_view sv1, sv2, sv3, sv4, sv5, sv6;
+  auto const tie = [&] { return std::tie(sv1, sv2, sv3, sv4, sv5, sv6); };
+  auto const reset = [&] { tie() = std::tie("", "", "", "", "", ""); };
+  reset();
+  EXPECT_TRUE(pattern->MatchArgs("satorarepotenet", {&sv1}));
+  EXPECT_THAT(tie(), FieldsAre("arepotenet", _, _, _, _, _));
+  reset();
+  EXPECT_TRUE(pattern->MatchArgs("satorarepotenet", {&sv1, &sv2}));
+  EXPECT_THAT(tie(), FieldsAre("arepotenet", "tenet", _, _, _, _));
+  reset();
+  EXPECT_TRUE(pattern->MatchArgs("satorarepotenet", {&sv1, &sv2, &sv3}));
+  EXPECT_THAT(tie(), FieldsAre("arepotenet", "tenet", "", _, _, _));
+  reset();
+  EXPECT_TRUE(pattern->MatchArgs("satorarepotenet", {&sv1, &sv2, &sv3, &sv4}));
+  EXPECT_THAT(tie(), FieldsAre("arepotenet", "tenet", "", "", _, _));
+  reset();
+  EXPECT_TRUE(pattern->MatchArgs("satorarepotenet", {&sv1, &sv2, &sv3, &sv4, &sv5}));
+  EXPECT_THAT(tie(), FieldsAre("arepotenet", "tenet", "", "", _, _));
+  reset();
+  EXPECT_TRUE(pattern->MatchArgs("satorarepotenet", {&sv1, &sv2, &sv3, &sv4, &sv5, &sv6}));
+  EXPECT_THAT(tie(), FieldsAre("arepotenet", "tenet", "", "", _, _));
+}
+
+TEST_P(RegexpTest, PartialMatchArgCount) {
+  auto const status_or_pattern = Parse("sator(arepo(tenet)|(opera)(rotas))");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_TRUE(pattern->PartialMatchArgs("satorarepotenet", {}));
+  std::string_view sv1, sv2, sv3, sv4, sv5, sv6;
+  auto const tie = [&] { return std::tie(sv1, sv2, sv3, sv4, sv5, sv6); };
+  auto const reset = [&] { tie() = std::tie("", "", "", "", "", ""); };
+  reset();
+  EXPECT_TRUE(pattern->PartialMatchArgs("satorarepotenet", {&sv1}));
+  EXPECT_THAT(tie(), FieldsAre("arepotenet", _, _, _, _, _));
+  reset();
+  EXPECT_TRUE(pattern->PartialMatchArgs("satorarepotenet", {&sv1, &sv2}));
+  EXPECT_THAT(tie(), FieldsAre("arepotenet", "tenet", _, _, _, _));
+  reset();
+  EXPECT_TRUE(pattern->PartialMatchArgs("satorarepotenet", {&sv1, &sv2, &sv3}));
+  EXPECT_THAT(tie(), FieldsAre("arepotenet", "tenet", "", _, _, _));
+  reset();
+  EXPECT_TRUE(pattern->PartialMatchArgs("satorarepotenet", {&sv1, &sv2, &sv3, &sv4}));
+  EXPECT_THAT(tie(), FieldsAre("arepotenet", "tenet", "", "", _, _));
+  reset();
+  EXPECT_TRUE(pattern->PartialMatchArgs("satorarepotenet", {&sv1, &sv2, &sv3, &sv4, &sv5}));
+  EXPECT_THAT(tie(), FieldsAre("arepotenet", "tenet", "", "", _, _));
+  reset();
+  EXPECT_TRUE(pattern->PartialMatchArgs("satorarepotenet", {&sv1, &sv2, &sv3, &sv4, &sv5, &sv6}));
+  EXPECT_THAT(tie(), FieldsAre("arepotenet", "tenet", "", "", _, _));
 }
 
 TEST_P(RegexpTest, HeavyBacktracker) {
