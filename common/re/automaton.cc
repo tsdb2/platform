@@ -55,7 +55,7 @@ bool AbstractAutomaton::PartialMatchArgs(std::string_view const input,
     return false;
   }
   for (size_t offset = 1; offset < input.size(); ++offset) {
-    if (PartialMatch(input, offset)) {
+    if (PartialMatchArgs(input, offset, args)) {
       return true;
     }
   }
