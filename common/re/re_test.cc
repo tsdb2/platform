@@ -2847,7 +2847,7 @@ TEST_P(RegexpTest, MatchArgCount) {
   EXPECT_TRUE(pattern->MatchArgs("satorarepotenet", {}));
   std::string_view sv1, sv2, sv3, sv4, sv5, sv6;
   auto const tie = [&] { return std::tie(sv1, sv2, sv3, sv4, sv5, sv6); };
-  auto const reset = [&] { tie() = std::tie("", "", "", "", "", ""); };
+  auto const reset = [&] { tie() = std::tie("sv1", "sv2", "sv3", "sv4", "sv5", "sv6"); };
   reset();
   EXPECT_TRUE(pattern->MatchArgs("satorarepotenet", {&sv1}));
   EXPECT_THAT(tie(), FieldsAre("arepotenet", _, _, _, _, _));
@@ -2875,7 +2875,7 @@ TEST_P(RegexpTest, PartialMatchArgCount) {
   EXPECT_TRUE(pattern->PartialMatchArgs("satorarepotenet", {}));
   std::string_view sv1, sv2, sv3, sv4, sv5, sv6;
   auto const tie = [&] { return std::tie(sv1, sv2, sv3, sv4, sv5, sv6); };
-  auto const reset = [&] { tie() = std::tie("", "", "", "", "", ""); };
+  auto const reset = [&] { tie() = std::tie("sv1", "sv2", "sv3", "sv4", "sv5", "sv6"); };
   reset();
   EXPECT_TRUE(pattern->PartialMatchArgs("satorarepotenet", {&sv1}));
   EXPECT_THAT(tie(), FieldsAre("arepotenet", _, _, _, _, _));
