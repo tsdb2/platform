@@ -60,6 +60,8 @@ bool DFA::Stepper::Finish() {
 
 bool DFA::IsDeterministic() const { return true; }
 
+bool DFA::AssertsBegin() const { return asserts_begin_; }
+
 std::pair<size_t, size_t> DFA::GetSize() const {
   return std::make_pair(states_.size(), total_edge_count_);
 }
@@ -127,8 +129,6 @@ bool DFA::MatchArgs(std::string_view const input,
     return false;
   }
 }
-
-bool DFA::AssertsBegin() const { return asserts_begin_; }
 
 bool DFA::PartialTest(std::string_view const input, size_t offset) const {
   uint32_t state_num = initial_state_;

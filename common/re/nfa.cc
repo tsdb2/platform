@@ -53,6 +53,8 @@ void NFA::Stepper::EpsilonClosure() { states_ = nfa_->EpsilonClosure(std::move(s
 
 bool NFA::IsDeterministic() const { return false; }
 
+bool NFA::AssertsBegin() const { return asserts_begin_; }
+
 std::pair<size_t, size_t> NFA::GetSize() const {
   return std::make_pair(states_.size(), total_edge_count_);
 }
@@ -104,8 +106,6 @@ bool NFA::MatchArgs(std::string_view const input,
     return false;
   }
 }
-
-bool NFA::AssertsBegin() const { return asserts_begin_; }
 
 bool NFA::PartialTest(std::string_view const input, size_t offset) const {
   StateSet states = AssertedEpsilonClosure({initial_state_}, input, offset);

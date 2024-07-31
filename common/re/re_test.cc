@@ -82,6 +82,22 @@ bool TestPrefixWithStepper(reffed_ptr<AbstractAutomaton> const& automaton,
   return false;
 }
 
+bool PartialTestWithStepper(reffed_ptr<AbstractAutomaton> const& automaton,
+                            std::string_view const input) {
+  if (TestPrefixWithStepper(automaton, input)) {
+    return true;
+  }
+  if (automaton->AssertsBegin()) {
+    return false;
+  }
+  for (size_t i = 1; i < input.size(); ++i) {
+    if (TestPrefixWithStepper(automaton, input.substr(i))) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool CheckMatchResults(AbstractAutomaton::CaptureSet const& results,
                        std::vector<std::vector<std::string>> expected) {
   if (results.size() != expected.size()) {
@@ -250,12 +266,15 @@ class GenericMatcher {
 
 char const kTestMethodName[] = "Test";
 char const kTestPrefixMethodName[] = "TestPrefix";
+char const kPartialTestMethodName[] = "PartialTest";
 
 char const kMatchMethodName[] = "Match";
 char const kMatchPrefixMethodName[] = "MatchPrefix";
+char const kPartialMatchMethodName[] = "PartialMatch";
 
 char const kMatchArgsMethodName[] = "MatchArgs";
 char const kMatchPrefixArgsMethodName[] = "MatchPrefixArgs";
+char const kPartialMatchArgsMethodName[] = "PartialMatchArgs";
 
 using MatchesImpl = GenericMatcher<&AbstractAutomaton::Test, kTestMethodName, TestWithStepper,
                                    &AbstractAutomaton::Match, kMatchMethodName,
@@ -265,6 +284,11 @@ using MatchesPrefixOfImpl =
     GenericMatcher<&AbstractAutomaton::TestPrefix, kTestPrefixMethodName, TestPrefixWithStepper,
                    &AbstractAutomaton::MatchPrefix, kMatchPrefixMethodName,
                    &AbstractAutomaton::MatchPrefixArgs, kMatchPrefixArgsMethodName>;
+
+using PartiallyMatchesImpl =
+    GenericMatcher<&AbstractAutomaton::PartialTest, kPartialTestMethodName, PartialTestWithStepper,
+                   &AbstractAutomaton::PartialMatch, kPartialMatchMethodName,
+                   &AbstractAutomaton::PartialMatchArgs, kPartialMatchArgsMethodName>;
 
 struct RegexpTestParams {
   bool force_nfa;
@@ -294,6 +318,15 @@ class RegexpTest : public ::testing::TestWithParam<RegexpTestParams> {
 
   auto DoesntMatchPrefixOf(std::string_view const input) const {
     return Not(MatchesPrefixOfImpl(input, GetParam().use_stepper));
+  }
+
+  auto PartiallyMatches(std::string_view const input,
+                        std::vector<std::vector<std::string>> captures) const {
+    return PartiallyMatchesImpl(input, GetParam().use_stepper).With(std::move(captures));
+  }
+
+  auto DoesntPartiallyMatch(std::string_view const input) const {
+    return Not(PartiallyMatchesImpl(input, GetParam().use_stepper));
   }
 };
 
@@ -2725,22 +2758,20 @@ TEST_P(RegexpTest, SearchWithPartialMatch) {
   auto const status_or_pattern = Parse("do+lor");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern->PartialMatch("lorem ipsum dolor sic amat"), Optional(IsEmpty()));
-  EXPECT_THAT(pattern->PartialMatch("lorem ipsum dooolor sic amat"), Optional(IsEmpty()));
-  EXPECT_EQ(pattern->PartialMatch("lorem ipsum color sic amat"), std::nullopt);
-  EXPECT_EQ(pattern->PartialMatch("lorem ipsum dolet et amat"), std::nullopt);
+  EXPECT_THAT(pattern, PartiallyMatches("lorem ipsum dolor sic amat", {}));
+  EXPECT_THAT(pattern, PartiallyMatches("lorem ipsum dooolor sic amat", {}));
+  EXPECT_THAT(pattern, DoesntPartiallyMatch("lorem ipsum color sic amat"));
+  EXPECT_THAT(pattern, DoesntPartiallyMatch("lorem ipsum dolet et amat"));
 }
 
 TEST_P(RegexpTest, SearchWithCapturingPartialMatch) {
   auto const status_or_pattern = Parse("(do+lor)");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern->PartialMatch("lorem ipsum dolor sic amat"),
-              Optional(ElementsAre(ElementsAre("dolor"))));
-  EXPECT_THAT(pattern->PartialMatch("lorem ipsum dooolor sic amat"),
-              Optional(ElementsAre(ElementsAre("dooolor"))));
-  EXPECT_EQ(pattern->PartialMatch("lorem ipsum color sic amat"), std::nullopt);
-  EXPECT_EQ(pattern->PartialMatch("lorem ipsum dolet et amat"), std::nullopt);
+  EXPECT_THAT(pattern, PartiallyMatches("lorem ipsum dolor sic amat", {{"dolor"}}));
+  EXPECT_THAT(pattern, PartiallyMatches("lorem ipsum dooolor sic amat", {{"dooolor"}}));
+  EXPECT_THAT(pattern, DoesntPartiallyMatch("lorem ipsum color sic amat"));
+  EXPECT_THAT(pattern, DoesntPartiallyMatch("lorem ipsum dolet et amat"));
 }
 
 TEST_P(RegexpTest, AmbiguousMatch) {
@@ -3027,24 +3058,24 @@ TEST_P(AssertedRegexpTest, StartAnchor) {
   auto const status_or_pattern = Parse("(^lorem)");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_EQ(pattern->PartialMatch("ipsum lorem"), std::nullopt);
-  EXPECT_THAT(pattern->PartialMatch("lorem ipsum"), Optional(ElementsAre(ElementsAre("lorem"))));
+  EXPECT_THAT(pattern, DoesntPartiallyMatch("ipsum lorem"));
+  EXPECT_THAT(pattern, PartiallyMatches("lorem ipsum", {{"lorem"}}));
 }
 
 TEST_P(AssertedRegexpTest, EndAnchor) {
   auto const status_or_pattern = Parse("(lorem$)");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_EQ(pattern->PartialMatch("lorem ipsum"), std::nullopt);
-  EXPECT_THAT(pattern->PartialMatch("ipsum lorem"), Optional(ElementsAre(ElementsAre("lorem"))));
+  EXPECT_THAT(pattern, DoesntPartiallyMatch("lorem ipsum"));
+  EXPECT_THAT(pattern, PartiallyMatches("ipsum lorem", {{"lorem"}}));
 }
 
 TEST_P(AssertedRegexpTest, AnchoredPartialMatch) {
   auto const status_or_pattern = Parse("(^ipsum$)");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_EQ(pattern->PartialMatch("lorem ipsum dolor"), std::nullopt);
-  EXPECT_THAT(pattern->PartialMatch("ipsum"), Optional(ElementsAre(ElementsAre("ipsum"))));
+  EXPECT_THAT(pattern, DoesntPartiallyMatch("lorem ipsum dolor"));
+  EXPECT_THAT(pattern, PartiallyMatches("ipsum", {{"ipsum"}}));
 }
 
 TEST_P(AssertedRegexpTest, WordBoundary) {

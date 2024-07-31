@@ -157,6 +157,11 @@ class AbstractAutomaton : public SimpleRefCounted {
   // vector returned by `Match` for a matching input string.
   virtual size_t GetNumCaptureGroups() const = 0;
 
+  // Returns a boolean indicating whether the automaton asserts the begin of input (`^`). This is
+  // used by `PartialMatch` to determine if it can run `MatchPrefix` on suffixes of the original
+  // input string.
+  virtual bool AssertsBegin() const = 0;
+
   // Creates a stepper for the automaton.
   virtual std::unique_ptr<StepperInterface> MakeStepper() const = 0;
 
@@ -325,11 +330,6 @@ class AbstractAutomaton : public SimpleRefCounted {
 
   // Checks the specified `assertions` on the `input` text at the specified `offset`.
   static bool Assert(Assertions assertions, std::string_view input, size_t offset);
-
-  // Returns a boolean indicating whether the automaton asserts the begin of input (`^`). This is
-  // used by `PartialMatch` to determine if it can run `MatchPrefix` on suffixes of the original
-  // input string.
-  virtual bool AssertsBegin() const = 0;
 
   // Tries to match a substring of `input` starting at `offset` against this regular expression.
   // This is the internal implementation of `PartialTest` and `TestPrefix`.

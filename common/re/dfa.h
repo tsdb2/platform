@@ -92,6 +92,8 @@ class DFA final : public AbstractAutomaton {
 
   bool IsDeterministic() const override;
 
+  bool AssertsBegin() const override;
+
   std::pair<size_t, size_t> GetSize() const override;
 
   size_t GetNumCaptureGroups() const override;
@@ -105,8 +107,6 @@ class DFA final : public AbstractAutomaton {
   bool MatchArgs(std::string_view input, absl::Span<std::string_view *const> args) const override;
 
  protected:
-  bool AssertsBegin() const override;
-
   template <typename CaptureManager>
   bool MatchInternal(std::string_view input, CaptureManager *capture_manager) const;
 
