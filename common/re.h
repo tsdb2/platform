@@ -10,7 +10,6 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
-#include "common/fixed.h"
 #include "common/re/automaton.h"
 #include "common/reffed_ptr.h"
 #include "common/utilities.h"
