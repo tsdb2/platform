@@ -78,7 +78,7 @@ class AbstractAutomaton : public SimpleRefCounted {
   //
   // WARNING: steppers do not support assertions. `^`, `$`, `\b`, and `\B` will be ineffective.
   //
-  // TODO: add support for assertions; will need changes in RawTrie.
+  // TODO: add support for word boundary assertions; will need changes in RawTrie.
   //
   // The caller needs to call `Step` repeatedly for every character or for every chunk of the input
   // string, and then needs to call `Finish`. The stepper keeps the running state (i.e. the current

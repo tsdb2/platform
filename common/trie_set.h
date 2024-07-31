@@ -283,6 +283,9 @@ class trie_set {
   // Provides a view of the trie filtered by a regular expression, allowing the user to enumerate
   // only the elements whose key matches the regular expression.
   //
+  // REQUIRES: `re` MUST have been created with the `no_anchors` option. This filtering algorithm
+  // can only perform full matches, so anchors are not supported.
+  //
   // Example:
   //
   //   trie_set const ts{"lorem", "ipsum", "dolor", "color"};

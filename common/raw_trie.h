@@ -707,6 +707,9 @@ class TrieNode {
   // Creates a view of this trie filtered with the provided regular expression pattern. The returned
   // `FilteredView` allows efficiently enumerating only the elements whose key matches the regular
   // expression.
+  //
+  // REQUIRES: `re` MUST have been created with the `no_anchors` option. This filtering algorithm
+  // can only perform full matches, so anchors are not supported.
   static FilteredView Filter(NodeSet const& roots, RE re) {
     return FilteredView(roots, std::move(re.automaton_));
   }

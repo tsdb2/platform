@@ -40,11 +40,13 @@ class Parser final {
   static inline int constexpr kMaxNumericQuantifier = 1000;
 
   // Constructs a parser to parse the provided regular expression `pattern`.
-  explicit Parser(std::string_view const pattern)
+  explicit Parser(std::string_view const pattern, Options const& options)
       // TODO: when module initializers are available, add one to check if the
       // --re_max_recursion_depth flag is available (we might be running before command line flags
       // have been parsed). If not, manually fall back to the default value.
-      : max_recursion_depth_(absl::GetFlag(FLAGS_re_max_recursion_depth)), pattern_(pattern) {}
+      : options_(options),
+        max_recursion_depth_(absl::GetFlag(FLAGS_re_max_recursion_depth)),
+        pattern_(pattern) {}
 
   // Parses the pattern provided at construction and returns a runnable automaton. The automaton is
   // initially an `NFA` but it's automatically converted to a `DFA` if it's found to be
@@ -105,6 +107,8 @@ class Parser final {
                      "\" at position ", offset_, ": ", message));
   }
 
+  absl::Status NoAnchorsError() const { return SyntaxError("anchors are not allowed here"); }
+
   // Parses a hex digit. Used by `ParseHexCode` to parse hex escape codes.
   absl::StatusOr<uint8_t> ParseHexDigit(char ch);
 
@@ -151,6 +155,7 @@ class Parser final {
   // Parses the pipe operator.
   absl::StatusOr<TempNFA> Parse3(size_t recursion_depth, int capture_group);
 
+  Options const options_;
   size_t const max_recursion_depth_;
 
   std::string_view const pattern_;
@@ -503,11 +508,19 @@ absl::StatusOr<TempNFA> Parser::Parse0(size_t const recursion_depth, int const c
     case '?':
       return SyntaxError("question mark operator in invalid position");
     case '^':
-      Advance();
-      return MakeAssertionState(capture_group, Assertions::kBegin);
+      if (options_.no_anchors) {
+        return NoAnchorsError();
+      } else {
+        Advance();
+        return MakeAssertionState(capture_group, Assertions::kBegin);
+      }
     case '$':
-      Advance();
-      return MakeAssertionState(capture_group, Assertions::kEnd);
+      if (options_.no_anchors) {
+        return NoAnchorsError();
+      } else {
+        Advance();
+        return MakeAssertionState(capture_group, Assertions::kEnd);
+      }
     default:
       Advance();
       return TempNFA(
@@ -651,8 +664,9 @@ absl::StatusOr<TempNFA> Parser::Parse3(size_t const recursion_depth, int const c
 
 }  // namespace
 
-absl::StatusOr<reffed_ptr<AbstractAutomaton>> Parse(std::string_view const pattern) {
-  return Parser(pattern).Parse();
+absl::StatusOr<reffed_ptr<AbstractAutomaton>> Parse(std::string_view const pattern,
+                                                    Options const& options) {
+  return Parser(pattern, options).Parse();
 }
 
 }  // namespace regexp_internal

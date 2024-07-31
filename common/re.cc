@@ -94,9 +94,9 @@ absl::StatusOr<RE::CaptureSet> RE::ConsumePrefix(std::string_view *const input,
   return std::move(matches);
 }
 
-absl::StatusOr<RE> RE::Create(std::string_view const pattern) {
+absl::StatusOr<RE> RE::Create(std::string_view const pattern, Options const &options) {
   ASSIGN_VAR_OR_RETURN(reffed_ptr<regexp_internal::AbstractAutomaton>, automaton,
-                       regexp_internal::Parse(pattern));
+                       regexp_internal::Parse(pattern, options));
   return RE(std::move(automaton));
 }
 

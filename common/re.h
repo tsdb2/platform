@@ -11,6 +11,7 @@
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "common/re/automaton.h"
+#include "common/re/parser.h"
 #include "common/reffed_ptr.h"
 #include "common/utilities.h"
 
@@ -52,6 +53,8 @@ std::string ClipString(std::string_view text);
 //
 class RE {
  public:
+  using Options = regexp_internal::Options;
+
   // Set of captured strings returned by `Match` methods. Each entry corresponds to a capture group
   // and is an array of strings (rather than a single string) because in the presence of a Kleene
   // operator a capture group may capture multiple substrings. For example, the pattern
@@ -153,7 +156,7 @@ class RE {
                                                   std::string_view pattern);
 
   // Compiles the provided `pattern` into a `RE` object that can be run efficiently multiple times.
-  static absl::StatusOr<RE> Create(std::string_view pattern);
+  static absl::StatusOr<RE> Create(std::string_view pattern, Options const &options = {});
 
   // Moves and copies are efficient because the inner automaton is immutable and is managed by means
   // of reference counting, so we never move or copy the whole automaton, just a pointer to it.

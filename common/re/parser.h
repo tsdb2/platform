@@ -13,10 +13,19 @@ namespace tsdb2 {
 namespace common {
 namespace regexp_internal {
 
+// Regular expression options. This is part of the public API in re.h.
+struct Options {
+  // Disallows anchors (^ and $). Typically used in full matches, i.e. if you plan to always call
+  // `Match(Args)` rather than `PartialMatch(Args)`. It's also required if you plan to use steppers
+  // because they don't support anchors.
+  bool no_anchors = false;
+};
+
 // Parses a regular expression and compiles it into a runnable automaton. The automaton is initially
 // an `NFA` but it's automatically converted to a `DFA` if it's found to be deterministic. We do
 // that because DFAs are faster.
-absl::StatusOr<reffed_ptr<AbstractAutomaton>> Parse(std::string_view pattern);
+absl::StatusOr<reffed_ptr<AbstractAutomaton>> Parse(std::string_view pattern,
+                                                    Options const& options = {});
 
 }  // namespace regexp_internal
 }  // namespace common
