@@ -160,7 +160,7 @@ class AbstractAutomaton : public SimpleRefCounted {
   // Returns a boolean indicating whether the automaton asserts the begin of input (`^`). This is
   // used by `PartialMatch` to determine if it can run `MatchPrefix` on suffixes of the original
   // input string.
-  virtual bool AssertsBegin() const = 0;
+  virtual bool AssertsBeginOfInput() const = 0;
 
   // Creates a stepper for the automaton.
   virtual std::unique_ptr<StepperInterface> MakeStepper() const = 0;

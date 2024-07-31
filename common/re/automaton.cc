@@ -17,7 +17,7 @@ bool AbstractAutomaton::PartialTest(std::string_view const input) const {
   if (PartialTest(input, 0)) {
     return true;
   }
-  if (AssertsBegin()) {
+  if (AssertsBeginOfInput()) {
     return false;
   }
   for (size_t offset = 1; offset < input.size(); ++offset) {
@@ -34,7 +34,7 @@ std::optional<AbstractAutomaton::CaptureSet> AbstractAutomaton::PartialMatch(
   if (results) {
     return results;
   }
-  if (AssertsBegin()) {
+  if (AssertsBeginOfInput()) {
     return std::nullopt;
   }
   for (size_t offset = 1; offset < input.size(); ++offset) {
@@ -51,7 +51,7 @@ bool AbstractAutomaton::PartialMatchArgs(std::string_view const input,
   if (PartialMatchArgs(input, 0, args)) {
     return true;
   }
-  if (AssertsBegin()) {
+  if (AssertsBeginOfInput()) {
     return false;
   }
   for (size_t offset = 1; offset < input.size(); ++offset) {

@@ -89,7 +89,7 @@ bool PartialTestWithStepper(reffed_ptr<AbstractAutomaton> const& automaton,
   if (TestPrefixWithStepper(automaton, input)) {
     return true;
   }
-  if (automaton->AssertsBegin()) {
+  if (automaton->AssertsBeginOfInput()) {
     return false;
   }
   for (size_t i = 1; i < input.size(); ++i) {
@@ -366,6 +366,63 @@ TEST_P(RegexpTest, PipeIsNotDeterministic) {
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_TRUE(CheckNotDeterministic(pattern));
+}
+
+TEST_P(RegexpTest, DoesntAssertBeginOfInput) {
+  auto const status_or_pattern = Parse("lorem");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_FALSE(pattern->AssertsBeginOfInput());
+  EXPECT_THAT(pattern, PartiallyMatches("dolor lorem amet", {}));
+}
+
+TEST_P(RegexpTest, AssertsBeginOfInput) {
+  auto const status_or_pattern = Parse("^lorem");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_TRUE(pattern->AssertsBeginOfInput());
+  EXPECT_THAT(pattern, PartiallyMatches("lorem ipsum", {}));
+  EXPECT_THAT(pattern, DoesntPartiallyMatch("dolor lorem amet"));
+}
+
+TEST_P(RegexpTest, NoBranchAssertsBeginOfInput) {
+  auto const status_or_pattern = Parse("lorem|ipsum");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_FALSE(pattern->AssertsBeginOfInput());
+  EXPECT_THAT(pattern, PartiallyMatches("dolor lorem amet", {}));
+  EXPECT_THAT(pattern, PartiallyMatches("dolor ipsum amet", {}));
+}
+
+TEST_P(RegexpTest, FirstBranchAssertsBeginOfInput) {
+  auto const status_or_pattern = Parse("^lorem|ipsum");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_FALSE(pattern->AssertsBeginOfInput());
+  EXPECT_THAT(pattern, PartiallyMatches("lorem dolor amet", {}));
+  EXPECT_THAT(pattern, DoesntPartiallyMatch("dolor lorem amet"));
+  EXPECT_THAT(pattern, PartiallyMatches("dolor ipsum amet", {}));
+}
+
+TEST_P(RegexpTest, SecondBranchAssertsBeginOfInput) {
+  auto const status_or_pattern = Parse("lorem|^ipsum");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_FALSE(pattern->AssertsBeginOfInput());
+  EXPECT_THAT(pattern, PartiallyMatches("ipsum dolor amet", {}));
+  EXPECT_THAT(pattern, DoesntPartiallyMatch("dolor ipsum amet"));
+  EXPECT_THAT(pattern, PartiallyMatches("dolor lorem amet", {}));
+}
+
+TEST_P(RegexpTest, BothBranchesAssertBeginOfInput) {
+  auto const status_or_pattern = Parse("^lorem|^ipsum");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_TRUE(pattern->AssertsBeginOfInput());
+  EXPECT_THAT(pattern, PartiallyMatches("lorem dolor amet", {}));
+  EXPECT_THAT(pattern, DoesntPartiallyMatch("dolor lorem amet"));
+  EXPECT_THAT(pattern, PartiallyMatches("ipsum dolor amet", {}));
+  EXPECT_THAT(pattern, DoesntPartiallyMatch("dolor ipsum amet"));
 }
 
 TEST_P(RegexpTest, Size) {

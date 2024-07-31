@@ -92,7 +92,7 @@ class DFA final : public AbstractAutomaton {
 
   bool IsDeterministic() const override;
 
-  bool AssertsBegin() const override;
+  bool AssertsBeginOfInput() const override;
 
   std::pair<size_t, size_t> GetSize() const override;
 
