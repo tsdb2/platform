@@ -36,10 +36,17 @@ std::string ClipString(std::string_view text);
 //
 //   1. We need an implementation that is guaranteed to be immune to ReDoS attacks. Ours is immune
 //      because it doesn't provide any NP-hard features (most notably we do not support
-//      backreferences).
+//      backreferences). It also never uses backtracking algorithms except for the parser, where the
+//      maximum recursion depth is capped by the `--re_max_recursion_depth` command line flag; this
+//      way we can guard against stack overflows.
 //   2. We need an implementation that can be integrated with our tries so that we can run finite
 //      state automata algorithms on tries, allowing for efficient retrieval of strings based on
 //      regular expression patterns.
+//   3. Most implementations do not return all the information we need when a capturing group is
+//      activated multiple times. This can happen in the presence of a Kleene operator. For example,
+//      matching the string `foo bar fee bar ` against the pattern `(f(..) bar )*` will cause the
+//      second capture group to return both `oo` and `ee` in our implementation, but most other
+//      implementations would only return `ee`.
 //
 // TODO: describe the syntax.
 //
@@ -225,6 +232,35 @@ class RE {
     return automaton_->MatchPrefix(input);
   }
 
+  // Same as `MatchPrefix` above but stores the captured substrings in the provided
+  // `std::string_view` objects rather than returning a `CaptureSet`. Returns an OK status if a
+  // prefix of the `input` matched, or an error if the `pattern` didn't compile or no prefix
+  // matched. The contents of the string views are undefined if false is returned.
+  //
+  // Example:
+  //
+  //   ASSIGN_VAR_OR_RETURN(RE, re, RE::Create("(blah)"));
+  //   std::string_view blah;
+  //   if (re.MatchPrefixArgs("blah blah", &blah)) {
+  //     LOG(INFO) << blah;  // logs "blah"
+  //   } else {
+  //      // didn't match.
+  //   }
+  //
+  // NOTE: only one substring is retrieved for each capture group. If the corresponding capture
+  // group matched more than one substring, only the last one is returned. Example:
+  //
+  //   ASSIGN_VAR_OR_RETURN(RE, re, RE::Create("(?:f(..) bar )*"));
+  //   std::string_view sv;
+  //   if (re.MatchPrefixArgs("foo bar fee bar ", &sv)) {
+  //     LOG(INFO) << sv;  // logs "ee", not "oo".
+  //   } else {
+  //      // didn't match.
+  //   }
+  //
+  // NOTE: normally there would be as many `args` as there are capture groups in the `pattern`, but
+  // it's okay to provide fewer or more: missing substrings won't be retrieved and extra string
+  // views will be ignored.
   template <typename... Args>
   bool MatchPrefixArgs(std::string_view const input, Args *const... args) const {
     return automaton_->MatchPrefixArgs(input, {args...});
@@ -241,6 +277,35 @@ class RE {
     return automaton_->PartialMatch(input);
   }
 
+  // Same as `PartialMatch` above but stores the captured substrings in the provided
+  // `std::string_view` objects rather than returning a `CaptureSet`. Returns an OK status if a
+  // substring of `input` matched, or an error if the `pattern` didn't compile or no substring
+  // matched. The contents of the string views are undefined if false is returned.
+  //
+  // Example:
+  //
+  //   ASSIGN_VAR_OR_RETURN(RE, re, RE::Create("(blah)"));
+  //   std::string_view blah;
+  //   if (re.PartialMatchArgs("blah blah", &blah)) {
+  //     LOG(INFO) << blah;  // logs "blah"
+  //   } else {
+  //      // didn't match.
+  //   }
+  //
+  // NOTE: only one substring is retrieved for each capture group. If the corresponding capture
+  // group matched more than one substring, only the last one is returned. Example:
+  //
+  //   ASSIGN_VAR_OR_RETURN(RE, re, RE::Create("(?:f(..) bar )*"));
+  //   std::string_view sv;
+  //   if (re.PartialMatchArgs("foo bar fee bar ", &sv)) {
+  //     LOG(INFO) << sv;  // logs "ee", not "oo".
+  //   } else {
+  //      // didn't match.
+  //   }
+  //
+  // NOTE: normally there would be as many `args` as there are capture groups in the `pattern`, but
+  // it's okay to provide fewer or more: missing substrings won't be retrieved and extra string
+  // views will be ignored.
   template <typename... Args>
   bool PartialMatchArgs(std::string_view const input, Args *const... args) const {
     return automaton_->PartialMatchArgs(input, {args...});
