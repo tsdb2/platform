@@ -77,6 +77,10 @@ class DFA final : public AbstractAutomaton {
     bool Finish() override;
 
    private:
+    bool HalfAssert(uint32_t const state_num, char const ch) const {
+      return dfa_->HalfAssert(state_num, last_character_, ch);
+    }
+
     DFA const *dfa_;
     uint32_t current_state_;
 
@@ -128,6 +132,16 @@ class DFA final : public AbstractAutomaton {
  private:
   size_t GetTotalEdgeCount() const;
   bool GetAssertsBegin() const;
+
+  // Assertion helpers for Stepper.
+
+  bool HalfAssert(State const &state, char const ch1, char const ch2) const {
+    return AbstractAutomaton::HalfAssert(state.assertions, ch1, ch2);
+  }
+
+  bool HalfAssert(uint32_t const state_num, char const ch1, char const ch2) const {
+    return AbstractAutomaton::HalfAssert(states_[state_num].assertions, ch1, ch2);
+  }
 
   States const states_;
   uint32_t const initial_state_;

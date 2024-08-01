@@ -26,12 +26,18 @@ bool DFA::Stepper::Step(char const ch) {
     auto const& edges = dfa_->states_[current_state_].edges;
     auto it = edges.find(ch);
     if (it != edges.end()) {
+      if (!HalfAssert(it->second, ch)) {
+        return false;
+      }
       current_state_ = it->second;
       last_character_ = ch;
       return true;
     }
     it = edges.find(0);
     if (it == edges.end()) {
+      return false;
+    }
+    if (!HalfAssert(it->second, ch)) {
       return false;
     }
     current_state_ = it->second;
@@ -54,9 +60,12 @@ bool DFA::Stepper::Finish() {
     if (it == edges.end()) {
       return false;
     }
+    if (!HalfAssert(it->second, 0)) {
+      return false;
+    }
     current_state_ = it->second;
   }
-  return true;
+  return HalfAssert(dfa_->final_state_, 0);
 }
 
 bool DFA::IsDeterministic() const { return true; }
@@ -102,10 +111,7 @@ bool DFA::Test(std::string_view const input) const {
     }
     state_num = it->second;
   }
-  if (!Assert(states_[final_state_].assertions, input, offset)) {
-    return false;
-  }
-  return true;
+  return Assert(states_[final_state_].assertions, input, offset);
 }
 
 std::optional<AbstractAutomaton::CaptureSet> DFA::Match(std::string_view const input) const {
