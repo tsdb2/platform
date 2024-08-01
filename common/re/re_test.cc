@@ -151,8 +151,8 @@ class GenericMatcher {
  public:
   using is_gtest_matcher = void;
 
-  explicit GenericMatcher(std::string_view const input, bool const use_stepper)
-      : input_(input), captures_(std::nullopt), use_stepper_(use_stepper) {}
+  explicit GenericMatcher(std::string_view const input, bool const use_stepper, bool const negated)
+      : input_(input), captures_(std::nullopt), use_stepper_(use_stepper), negated_(negated) {}
 
   GenericMatcher(GenericMatcher const&) = default;
   GenericMatcher& operator=(GenericMatcher const&) = default;
@@ -190,7 +190,7 @@ class GenericMatcher {
     if ((match_outcome != Outcome::kNoMatch) != test_result) {
       *listener << ", " << match_method_name << "() results differ from " << test_method_name
                 << "() result";
-      return false;
+      return negated_;
     }
     if (test_result && match_outcome == Outcome::kUnexpected) {
       return false;
@@ -199,7 +199,7 @@ class GenericMatcher {
     if ((match_args_outcome != Outcome::kNoMatch) != test_result) {
       *listener << ", " << match_args_method_name << "() result differs from " << test_method_name
                 << "() result";
-      return false;
+      return negated_;
     }
     if (test_result && match_args_outcome == Outcome::kUnexpected) {
       return false;
@@ -264,6 +264,7 @@ class GenericMatcher {
   std::string input_;
   std::optional<std::vector<std::vector<std::string>>> captures_;
   bool use_stepper_;
+  bool negated_;
 };
 
 char const kTestMethodName[] = "Test";
@@ -306,29 +307,31 @@ class RegexpTest : public ::testing::TestWithParam<RegexpTestParams> {
   bool CheckNotDeterministic(reffed_ptr<AbstractAutomaton> const& automaton);
 
   auto Matches(std::string_view const input, std::vector<std::vector<std::string>> captures) const {
-    return MatchesImpl(input, GetParam().use_stepper).With(std::move(captures));
+    return MatchesImpl(input, GetParam().use_stepper, /*negated=*/false).With(std::move(captures));
   }
 
   auto DoesntMatch(std::string_view const input) const {
-    return Not(MatchesImpl(input, GetParam().use_stepper));
+    return Not(MatchesImpl(input, GetParam().use_stepper, /*negated=*/true));
   }
 
   auto MatchesPrefixOf(std::string_view const input,
                        std::vector<std::vector<std::string>> captures) const {
-    return MatchesPrefixOfImpl(input, GetParam().use_stepper).With(std::move(captures));
+    return MatchesPrefixOfImpl(input, GetParam().use_stepper, /*negated=*/false)
+        .With(std::move(captures));
   }
 
   auto DoesntMatchPrefixOf(std::string_view const input) const {
-    return Not(MatchesPrefixOfImpl(input, GetParam().use_stepper));
+    return Not(MatchesPrefixOfImpl(input, GetParam().use_stepper, /*negated=*/true));
   }
 
   auto PartiallyMatches(std::string_view const input,
                         std::vector<std::vector<std::string>> captures) const {
-    return PartiallyMatchesImpl(input, GetParam().use_stepper).With(std::move(captures));
+    return PartiallyMatchesImpl(input, GetParam().use_stepper, /*negated=*/false)
+        .With(std::move(captures));
   }
 
   auto DoesntPartiallyMatch(std::string_view const input) const {
-    return Not(PartiallyMatchesImpl(input, GetParam().use_stepper));
+    return Not(PartiallyMatchesImpl(input, GetParam().use_stepper, /*negated=*/true));
   }
 };
 
@@ -366,63 +369,6 @@ TEST_P(RegexpTest, PipeIsNotDeterministic) {
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_TRUE(CheckNotDeterministic(pattern));
-}
-
-TEST_P(RegexpTest, DoesntAssertBeginOfInput) {
-  auto const status_or_pattern = Parse("lorem");
-  ASSERT_OK(status_or_pattern);
-  auto const& pattern = status_or_pattern.value();
-  EXPECT_FALSE(pattern->AssertsBeginOfInput());
-  EXPECT_THAT(pattern, PartiallyMatches("dolor lorem amet", {}));
-}
-
-TEST_P(RegexpTest, AssertsBeginOfInput) {
-  auto const status_or_pattern = Parse("^lorem");
-  ASSERT_OK(status_or_pattern);
-  auto const& pattern = status_or_pattern.value();
-  EXPECT_TRUE(pattern->AssertsBeginOfInput());
-  EXPECT_THAT(pattern, PartiallyMatches("lorem ipsum", {}));
-  EXPECT_THAT(pattern, DoesntPartiallyMatch("dolor lorem amet"));
-}
-
-TEST_P(RegexpTest, NoBranchAssertsBeginOfInput) {
-  auto const status_or_pattern = Parse("lorem|ipsum");
-  ASSERT_OK(status_or_pattern);
-  auto const& pattern = status_or_pattern.value();
-  EXPECT_FALSE(pattern->AssertsBeginOfInput());
-  EXPECT_THAT(pattern, PartiallyMatches("dolor lorem amet", {}));
-  EXPECT_THAT(pattern, PartiallyMatches("dolor ipsum amet", {}));
-}
-
-TEST_P(RegexpTest, FirstBranchAssertsBeginOfInput) {
-  auto const status_or_pattern = Parse("^lorem|ipsum");
-  ASSERT_OK(status_or_pattern);
-  auto const& pattern = status_or_pattern.value();
-  EXPECT_FALSE(pattern->AssertsBeginOfInput());
-  EXPECT_THAT(pattern, PartiallyMatches("lorem dolor amet", {}));
-  EXPECT_THAT(pattern, DoesntPartiallyMatch("dolor lorem amet"));
-  EXPECT_THAT(pattern, PartiallyMatches("dolor ipsum amet", {}));
-}
-
-TEST_P(RegexpTest, SecondBranchAssertsBeginOfInput) {
-  auto const status_or_pattern = Parse("lorem|^ipsum");
-  ASSERT_OK(status_or_pattern);
-  auto const& pattern = status_or_pattern.value();
-  EXPECT_FALSE(pattern->AssertsBeginOfInput());
-  EXPECT_THAT(pattern, PartiallyMatches("ipsum dolor amet", {}));
-  EXPECT_THAT(pattern, DoesntPartiallyMatch("dolor ipsum amet"));
-  EXPECT_THAT(pattern, PartiallyMatches("dolor lorem amet", {}));
-}
-
-TEST_P(RegexpTest, BothBranchesAssertBeginOfInput) {
-  auto const status_or_pattern = Parse("^lorem|^ipsum");
-  ASSERT_OK(status_or_pattern);
-  auto const& pattern = status_or_pattern.value();
-  EXPECT_TRUE(pattern->AssertsBeginOfInput());
-  EXPECT_THAT(pattern, PartiallyMatches("lorem dolor amet", {}));
-  EXPECT_THAT(pattern, DoesntPartiallyMatch("dolor lorem amet"));
-  EXPECT_THAT(pattern, PartiallyMatches("ipsum dolor amet", {}));
-  EXPECT_THAT(pattern, DoesntPartiallyMatch("dolor ipsum amet"));
 }
 
 TEST_P(RegexpTest, Size) {
@@ -3158,16 +3104,116 @@ TEST_P(RegexpTest, HeavyPrefixBacktracker) {
                               {{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}));
 }
 
+TEST_P(RegexpTest, WordBoundary) {
+  auto const status_or_pattern = Parse(".\\b.");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern, Matches("A ", {}));
+  EXPECT_THAT(pattern, Matches(" B", {}));
+  EXPECT_THAT(pattern, Matches("c ", {}));
+  EXPECT_THAT(pattern, Matches(" d", {}));
+  EXPECT_THAT(pattern, Matches("0 ", {}));
+  EXPECT_THAT(pattern, Matches(" 1", {}));
+  EXPECT_THAT(pattern, Matches("_ ", {}));
+  EXPECT_THAT(pattern, Matches(" _", {}));
+  EXPECT_THAT(pattern, DoesntMatch("Ab"));
+  EXPECT_THAT(pattern, DoesntMatch("cD"));
+  EXPECT_THAT(pattern, DoesntMatch("2e"));
+  EXPECT_THAT(pattern, DoesntMatch("f3"));
+  EXPECT_THAT(pattern, DoesntMatch("_4"));
+  EXPECT_THAT(pattern, DoesntMatch("5_"));
+  EXPECT_THAT(pattern, DoesntMatch(". "));
+  EXPECT_THAT(pattern, DoesntMatch(" ."));
+}
+
+TEST_P(RegexpTest, NotWordBoundary) {
+  auto const status_or_pattern = Parse(".\\B.");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern, DoesntMatch("A "));
+  EXPECT_THAT(pattern, DoesntMatch(" B"));
+  EXPECT_THAT(pattern, DoesntMatch("c "));
+  EXPECT_THAT(pattern, DoesntMatch(" d"));
+  EXPECT_THAT(pattern, DoesntMatch("0 "));
+  EXPECT_THAT(pattern, DoesntMatch(" 1"));
+  EXPECT_THAT(pattern, DoesntMatch("_ "));
+  EXPECT_THAT(pattern, DoesntMatch(" _"));
+  EXPECT_THAT(pattern, Matches("Ab", {}));
+  EXPECT_THAT(pattern, Matches("cD", {}));
+  EXPECT_THAT(pattern, Matches("2e", {}));
+  EXPECT_THAT(pattern, Matches("f3", {}));
+  EXPECT_THAT(pattern, Matches("_4", {}));
+  EXPECT_THAT(pattern, Matches("5_", {}));
+  EXPECT_THAT(pattern, Matches(". ", {}));
+  EXPECT_THAT(pattern, Matches(" .", {}));
+}
+
+TEST_P(RegexpTest, WordBoundaries) {
+  auto const status_or_pattern = Parse(".*(\\blorem\\b).*");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern, Matches("dolorem ipsum lorem loremipsum", {{"lorem"}}));
+}
+
+TEST_P(RegexpTest, NotWordBoundaries) {
+  auto const status_or_pattern = Parse(".*(..(\\Blorem\\B)..).*");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern, Matches("ipsum lorem doloremdo lorem ipsum", {{"doloremdo"}, {"lorem"}}));
+}
+
+TEST_P(RegexpTest, WordBoundariesInPrefix) {
+  auto const status_or_pattern = Parse(".*(\\blorem\\b)");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern, MatchesPrefixOf("dolorem ipsum lorem loremipsum", {{"lorem"}}));
+}
+
+TEST_P(RegexpTest, NotWordBoundariesInPrefix) {
+  auto const status_or_pattern = Parse(".*(..(\\Blorem\\B)..)");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern,
+              MatchesPrefixOf("ipsum lorem doloremdo lorem ipsum", {{"doloremdo"}, {"lorem"}}));
+}
+
+TEST_P(RegexpTest, WordBoundariesAtStringBoundaries) {
+  auto const status_or_pattern = Parse("(\\blorem\\b)");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern, Matches("lorem", {{"lorem"}}));
+  EXPECT_THAT(pattern, MatchesPrefixOf("lorem", {{"lorem"}}));
+}
+
+TEST_P(RegexpTest, NotWordBoundariesNotAtStringBoundaries) {
+  auto const status_or_pattern = Parse("(\\Blorem\\B)");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern, DoesntMatch("lorem"));
+  EXPECT_THAT(pattern, DoesntMatchPrefixOf("lorem"));
+}
+
+TEST_P(RegexpTest, SearchWordWithBoundaries) {
+  auto const status_or_pattern = Parse("(\\blo?rem\\b)");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern, PartiallyMatches("dolrem lorem lremipsum", {{"lorem"}}));
+}
+
+TEST_P(RegexpTest, SearchWordWithoutBoundaries) {
+  auto const status_or_pattern = Parse("(\\Blo?rem\\B)");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern, PartiallyMatches("ipsum lremdo doloremdo dolrem", {{"lorem"}}));
+}
+
 INSTANTIATE_TEST_SUITE_P(RegexpTest, RegexpTest,
                          Values(RegexpTestParams{.force_nfa = false, .use_stepper = false},
                                 RegexpTestParams{.force_nfa = false, .use_stepper = true},
                                 RegexpTestParams{.force_nfa = true, .use_stepper = false},
                                 RegexpTestParams{.force_nfa = true, .use_stepper = true}));
 
-// Steppers do not currently support assertions, so these tests are executed aside without steppers.
-//
-// TODO: update when steppers support word boundary assertions. Anchor assertions will not be
-// supported.
+// Steppers do not support anchor assertions, so these tests are executed aside without steppers.
 class AssertedRegexpTest : public RegexpTest {};
 
 TEST_P(AssertedRegexpTest, NoAnchors) {
@@ -3201,107 +3247,61 @@ TEST_P(AssertedRegexpTest, AnchoredPartialMatch) {
   EXPECT_THAT(pattern, PartiallyMatches("ipsum", {{"ipsum"}}));
 }
 
-TEST_P(AssertedRegexpTest, WordBoundary) {
-  auto const status_or_pattern = Parse(".\\b.");
+TEST_P(AssertedRegexpTest, DoesntAssertBeginOfInput) {
+  auto const status_or_pattern = Parse("lorem");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern, Matches("A ", {}));
-  EXPECT_THAT(pattern, Matches(" B", {}));
-  EXPECT_THAT(pattern, Matches("c ", {}));
-  EXPECT_THAT(pattern, Matches(" d", {}));
-  EXPECT_THAT(pattern, Matches("0 ", {}));
-  EXPECT_THAT(pattern, Matches(" 1", {}));
-  EXPECT_THAT(pattern, Matches("_ ", {}));
-  EXPECT_THAT(pattern, Matches(" _", {}));
-  EXPECT_THAT(pattern, DoesntMatch("Ab"));
-  EXPECT_THAT(pattern, DoesntMatch("cD"));
-  EXPECT_THAT(pattern, DoesntMatch("2e"));
-  EXPECT_THAT(pattern, DoesntMatch("f3"));
-  EXPECT_THAT(pattern, DoesntMatch("_4"));
-  EXPECT_THAT(pattern, DoesntMatch("5_"));
-  EXPECT_THAT(pattern, DoesntMatch(". "));
-  EXPECT_THAT(pattern, DoesntMatch(" ."));
+  EXPECT_FALSE(pattern->AssertsBeginOfInput());
+  EXPECT_THAT(pattern, PartiallyMatches("dolor lorem amet", {}));
 }
 
-TEST_P(AssertedRegexpTest, NotWordBoundary) {
-  auto const status_or_pattern = Parse(".\\B.");
+TEST_P(AssertedRegexpTest, AssertsBeginOfInput) {
+  auto const status_or_pattern = Parse("^lorem");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern, DoesntMatch("A "));
-  EXPECT_THAT(pattern, DoesntMatch(" B"));
-  EXPECT_THAT(pattern, DoesntMatch("c "));
-  EXPECT_THAT(pattern, DoesntMatch(" d"));
-  EXPECT_THAT(pattern, DoesntMatch("0 "));
-  EXPECT_THAT(pattern, DoesntMatch(" 1"));
-  EXPECT_THAT(pattern, DoesntMatch("_ "));
-  EXPECT_THAT(pattern, DoesntMatch(" _"));
-  EXPECT_THAT(pattern, Matches("Ab", {}));
-  EXPECT_THAT(pattern, Matches("cD", {}));
-  EXPECT_THAT(pattern, Matches("2e", {}));
-  EXPECT_THAT(pattern, Matches("f3", {}));
-  EXPECT_THAT(pattern, Matches("_4", {}));
-  EXPECT_THAT(pattern, Matches("5_", {}));
-  EXPECT_THAT(pattern, Matches(". ", {}));
-  EXPECT_THAT(pattern, Matches(" .", {}));
+  EXPECT_TRUE(pattern->AssertsBeginOfInput());
+  EXPECT_THAT(pattern, PartiallyMatches("lorem ipsum", {}));
+  EXPECT_THAT(pattern, DoesntPartiallyMatch("dolor lorem amet"));
 }
 
-TEST_P(AssertedRegexpTest, WordBoundaries) {
-  auto const status_or_pattern = Parse(".*(\\blorem\\b).*");
+TEST_P(AssertedRegexpTest, NoBranchAssertsBeginOfInput) {
+  auto const status_or_pattern = Parse("lorem|ipsum");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern, Matches("dolorem ipsum lorem loremipsum", {{"lorem"}}));
+  EXPECT_FALSE(pattern->AssertsBeginOfInput());
+  EXPECT_THAT(pattern, PartiallyMatches("dolor lorem amet", {}));
+  EXPECT_THAT(pattern, PartiallyMatches("dolor ipsum amet", {}));
 }
 
-TEST_P(AssertedRegexpTest, NotWordBoundaries) {
-  auto const status_or_pattern = Parse(".*(..(\\Blorem\\B)..).*");
+TEST_P(AssertedRegexpTest, FirstBranchAssertsBeginOfInput) {
+  auto const status_or_pattern = Parse("^lorem|ipsum");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern, Matches("ipsum lorem doloremdo lorem ipsum", {{"doloremdo"}, {"lorem"}}));
+  EXPECT_FALSE(pattern->AssertsBeginOfInput());
+  EXPECT_THAT(pattern, PartiallyMatches("lorem dolor amet", {}));
+  EXPECT_THAT(pattern, DoesntPartiallyMatch("dolor lorem amet"));
+  EXPECT_THAT(pattern, PartiallyMatches("dolor ipsum amet", {}));
 }
 
-TEST_P(AssertedRegexpTest, WordBoundariesInPrefix) {
-  auto const status_or_pattern = Parse(".*(\\blorem\\b)");
+TEST_P(AssertedRegexpTest, SecondBranchAssertsBeginOfInput) {
+  auto const status_or_pattern = Parse("lorem|^ipsum");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern, MatchesPrefixOf("dolorem ipsum lorem loremipsum", {{"lorem"}}));
+  EXPECT_FALSE(pattern->AssertsBeginOfInput());
+  EXPECT_THAT(pattern, PartiallyMatches("ipsum dolor amet", {}));
+  EXPECT_THAT(pattern, DoesntPartiallyMatch("dolor ipsum amet"));
+  EXPECT_THAT(pattern, PartiallyMatches("dolor lorem amet", {}));
 }
 
-TEST_P(AssertedRegexpTest, NotWordBoundariesInPrefix) {
-  auto const status_or_pattern = Parse(".*(..(\\Blorem\\B)..)");
+TEST_P(AssertedRegexpTest, BothBranchesAssertBeginOfInput) {
+  auto const status_or_pattern = Parse("^lorem|^ipsum");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern,
-              MatchesPrefixOf("ipsum lorem doloremdo lorem ipsum", {{"doloremdo"}, {"lorem"}}));
-}
-
-TEST_P(AssertedRegexpTest, WordBoundariesAtStringBoundaries) {
-  auto const status_or_pattern = Parse("(\\blorem\\b)");
-  ASSERT_OK(status_or_pattern);
-  auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern, Matches("lorem", {{"lorem"}}));
-  EXPECT_THAT(pattern, MatchesPrefixOf("lorem", {{"lorem"}}));
-}
-
-TEST_P(AssertedRegexpTest, NotWordBoundariesNotAtStringBoundaries) {
-  auto const status_or_pattern = Parse("(\\Blorem\\B)");
-  ASSERT_OK(status_or_pattern);
-  auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern, DoesntMatch("lorem"));
-  EXPECT_THAT(pattern, DoesntMatchPrefixOf("lorem"));
-}
-
-TEST_P(AssertedRegexpTest, SearchWordWithBoundaries) {
-  auto const status_or_pattern = Parse("(\\blo?rem\\b)");
-  ASSERT_OK(status_or_pattern);
-  auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern, PartiallyMatches("dolrem lorem lremipsum", {{"lorem"}}));
-}
-
-TEST_P(AssertedRegexpTest, SearchWordWithoutBoundaries) {
-  auto const status_or_pattern = Parse("(\\Blo?rem\\B)");
-  ASSERT_OK(status_or_pattern);
-  auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern, PartiallyMatches("ipsum lremdo doloremdo dolrem", {{"lorem"}}));
+  EXPECT_TRUE(pattern->AssertsBeginOfInput());
+  EXPECT_THAT(pattern, PartiallyMatches("lorem dolor amet", {}));
+  EXPECT_THAT(pattern, DoesntPartiallyMatch("dolor lorem amet"));
+  EXPECT_THAT(pattern, PartiallyMatches("ipsum dolor amet", {}));
+  EXPECT_THAT(pattern, DoesntPartiallyMatch("dolor ipsum amet"));
 }
 
 INSTANTIATE_TEST_SUITE_P(AssertedRegexpTest, AssertedRegexpTest,
