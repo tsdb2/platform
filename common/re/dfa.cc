@@ -50,9 +50,9 @@ bool DFA::Stepper::Step(std::string_view const chars) {
   return true;
 }
 
-bool DFA::Stepper::Finish() const {
+bool DFA::Stepper::Finish(char const next_character) const {
   auto state_num = current_state_;
-  if (!HalfAssert(state_num, 0)) {
+  if (!HalfAssert(state_num, next_character)) {
     return false;
   }
   while (state_num != dfa_->final_state_) {
@@ -62,7 +62,7 @@ bool DFA::Stepper::Finish() const {
       return false;
     }
     state_num = it->second;
-    if (!HalfAssert(state_num, 0)) {
+    if (!HalfAssert(state_num, next_character)) {
       return false;
     }
   }

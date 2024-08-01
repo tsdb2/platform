@@ -83,7 +83,7 @@ class NFA final : public AbstractAutomaton {
     std::unique_ptr<StepperInterface> Clone() const override;
     bool Step(char ch) override;
     bool Step(std::string_view chars) override;
-    bool Finish() const override;
+    bool Finish(char next_character) const override;
 
    private:
     struct HalfAsserter {

@@ -72,17 +72,14 @@ bool TestSubstringWithStepper(reffed_ptr<AbstractAutomaton> const& automaton,
                               std::string_view const input, size_t const offset) {
   char const previous_character = offset > 0 ? input[offset - 1] : 0;
   auto const stepper = automaton->MakeStepper(previous_character);
-  if (stepper->Finish()) {
-    return true;
-  }
   for (char const ch : input.substr(offset)) {
-    if (!stepper->Step(ch)) {
-      return false;
-    } else if (stepper->Finish()) {
+    if (stepper->Finish(ch)) {
       return true;
+    } else if (!stepper->Step(ch)) {
+      return false;
     }
   }
-  return false;
+  return stepper->Finish();
 }
 
 bool TestPrefixWithStepper(reffed_ptr<AbstractAutomaton> const& automaton,

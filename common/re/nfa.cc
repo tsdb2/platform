@@ -48,8 +48,8 @@ bool NFA::Stepper::Step(std::string_view const chars) {
   return true;
 }
 
-bool NFA::Stepper::Finish() const {
-  return EpsilonClosure(states_, 0).contains(nfa_->final_state_);
+bool NFA::Stepper::Finish(char const next_character) const {
+  return EpsilonClosure(states_, next_character).contains(nfa_->final_state_);
 }
 
 NFA::StateSet NFA::Stepper::EpsilonClosure(StateSet states, char const ch) const {
