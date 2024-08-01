@@ -133,7 +133,7 @@ void AbstractAutomaton::SingleRangeCaptureManager::Capture(intptr_t const offset
 }
 
 void AbstractAutomaton::SingleRangeCaptureManager::Dump() const {
-  for (size_t i = 0; i < args_.size(); ++i) {
+  for (size_t i = 0; i < ranges_.size(); ++i) {
     *args_[i] = ranges_[i].closed_string;
   }
 }
