@@ -79,8 +79,9 @@ std::pair<size_t, size_t> DFA::GetSize() const {
 
 size_t DFA::GetNumCaptureGroups() const { return capture_groups_.size(); }
 
-std::unique_ptr<AbstractAutomaton::StepperInterface> DFA::MakeStepper() const {
-  return std::make_unique<Stepper>(this);
+std::unique_ptr<AbstractAutomaton::StepperInterface> DFA::MakeStepper(
+    char const previous_character) const {
+  return std::make_unique<Stepper>(this, previous_character);
 }
 
 bool DFA::Test(std::string_view const input) const {

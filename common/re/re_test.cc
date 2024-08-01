@@ -68,13 +68,14 @@ bool TestWithStepper(reffed_ptr<AbstractAutomaton> const& automaton, std::string
   return stepper->Step(input) && stepper->Finish();
 }
 
-bool TestPrefixWithStepper(reffed_ptr<AbstractAutomaton> const& automaton,
-                           std::string_view const input) {
-  auto const stepper = automaton->MakeStepper();
+bool TestSubstringWithStepper(reffed_ptr<AbstractAutomaton> const& automaton,
+                              std::string_view const input, size_t const offset) {
+  char const previous_character = offset > 0 ? input[offset - 1] : 0;
+  auto const stepper = automaton->MakeStepper(previous_character);
   if (stepper->Finish()) {
     return true;
   }
-  for (char const ch : input) {
+  for (char const ch : input.substr(offset)) {
     if (!stepper->Step(ch)) {
       return false;
     } else if (stepper->Finish()) {
@@ -82,6 +83,11 @@ bool TestPrefixWithStepper(reffed_ptr<AbstractAutomaton> const& automaton,
     }
   }
   return false;
+}
+
+bool TestPrefixWithStepper(reffed_ptr<AbstractAutomaton> const& automaton,
+                           std::string_view const input) {
+  return TestSubstringWithStepper(automaton, input, 0);
 }
 
 bool PartialTestWithStepper(reffed_ptr<AbstractAutomaton> const& automaton,
@@ -93,7 +99,7 @@ bool PartialTestWithStepper(reffed_ptr<AbstractAutomaton> const& automaton,
     return false;
   }
   for (size_t i = 1; i < input.size(); ++i) {
-    if (TestPrefixWithStepper(automaton, input.substr(i))) {
+    if (TestSubstringWithStepper(automaton, input, i)) {
       return true;
     }
   }

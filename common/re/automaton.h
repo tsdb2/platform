@@ -161,8 +161,14 @@ class AbstractAutomaton : public SimpleRefCounted {
   // input string.
   virtual bool AssertsBeginOfInput() const = 0;
 
-  // Creates a stepper for the automaton.
-  virtual std::unique_ptr<StepperInterface> MakeStepper() const = 0;
+  // Creates a stepper for the automaton. `previous_character` is the character preceding the
+  // substring that the stepper will scan, or 0 if the stepper will scan a prefix of the original
+  // input or the entire string. This information is needed to check possible assertions in the
+  // initial state of the automaton.
+  virtual std::unique_ptr<StepperInterface> MakeStepper(char previous_character) const = 0;
+
+  // Creates a stepper for the automaton using 0 as the previous character.
+  std::unique_ptr<StepperInterface> MakeStepper() const { return MakeStepper(0); }
 
   // Tests the provided `input` string against the regular expression language decided by this
   // automaton.

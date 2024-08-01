@@ -66,7 +66,8 @@ class DFA final : public AbstractAutomaton {
   // Stepper implementation for DFAs.
   class Stepper final : public StepperInterface {
    public:
-    explicit Stepper(DFA const *const dfa) : dfa_(dfa), current_state_(dfa_->initial_state_) {}
+    explicit Stepper(DFA const *const dfa, char const previous_character)
+        : dfa_(dfa), current_state_(dfa_->initial_state_), last_character_(previous_character) {}
 
     Stepper(Stepper const &) = default;
     Stepper &operator=(Stepper const &) = default;
@@ -86,7 +87,7 @@ class DFA final : public AbstractAutomaton {
 
     // The last character consumed by `Step` is cached here because we may need it to perform word
     // boundary assertion checks. Value 0 means no characters have been consumed yet.
-    char last_character_ = 0;
+    char last_character_;
   };
 
   explicit DFA(States states, uint32_t const initial_state, uint32_t const final_state,
@@ -106,7 +107,7 @@ class DFA final : public AbstractAutomaton {
 
   size_t GetNumCaptureGroups() const override;
 
-  std::unique_ptr<StepperInterface> MakeStepper() const override;
+  std::unique_ptr<StepperInterface> MakeStepper(char previous_character) const override;
 
   bool Test(std::string_view input) const override;
 

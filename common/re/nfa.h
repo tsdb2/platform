@@ -74,7 +74,8 @@ class NFA final : public AbstractAutomaton {
   // Stepper implementation for NFAs.
   class Stepper final : public StepperInterface {
    public:
-    explicit Stepper(NFA const *const nfa) : nfa_(nfa), states_{nfa_->initial_state_} {}
+    explicit Stepper(NFA const *const nfa, char const previous_character)
+        : nfa_(nfa), states_{nfa_->initial_state_}, last_character_(previous_character) {}
 
     Stepper(Stepper const &) = default;
     Stepper &operator=(Stepper const &) = default;
@@ -98,7 +99,7 @@ class NFA final : public AbstractAutomaton {
 
     // The last character consumed by `Step` is cached here because we may need it to perform word
     // boundary assertion checks. Value 0 means no characters have been consumed yet.
-    char last_character_ = 0;
+    char last_character_;
   };
 
   explicit NFA(States states, uint32_t const initial_state, uint32_t const final_state,
@@ -118,7 +119,7 @@ class NFA final : public AbstractAutomaton {
 
   size_t GetNumCaptureGroups() const override;
 
-  std::unique_ptr<StepperInterface> MakeStepper() const override;
+  std::unique_ptr<StepperInterface> MakeStepper(char previous_character) const override;
 
   bool Test(std::string_view input) const override;
 

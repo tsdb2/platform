@@ -66,8 +66,9 @@ std::pair<size_t, size_t> NFA::GetSize() const {
 
 size_t NFA::GetNumCaptureGroups() const { return capture_groups_.size(); }
 
-std::unique_ptr<AbstractAutomaton::StepperInterface> NFA::MakeStepper() const {
-  return std::make_unique<Stepper>(this);
+std::unique_ptr<AbstractAutomaton::StepperInterface> NFA::MakeStepper(
+    char const previous_character) const {
+  return std::make_unique<Stepper>(this, previous_character);
 }
 
 bool NFA::Test(std::string_view const input) const {
