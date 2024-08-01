@@ -74,9 +74,7 @@ class NFA final : public AbstractAutomaton {
   // Stepper implementation for NFAs.
   class Stepper final : public StepperInterface {
    public:
-    explicit Stepper(NFA const *const nfa) : nfa_(nfa), states_{nfa_->initial_state_} {
-      EpsilonClosure();
-    }
+    explicit Stepper(NFA const *const nfa) : nfa_(nfa), states_{nfa_->initial_state_} {}
 
     Stepper(Stepper const &) = default;
     Stepper &operator=(Stepper const &) = default;
@@ -87,7 +85,13 @@ class NFA final : public AbstractAutomaton {
     bool Finish() override;
 
    private:
-    void EpsilonClosure();
+    struct HalfAsserter {
+      bool operator()(Assertions const assertions, char const ch1, char const ch2) const {
+        return AbstractAutomaton::HalfAssert(assertions, ch1, ch2);
+      }
+    };
+
+    StateSet EpsilonClosure(StateSet states, char ch);
 
     NFA const *nfa_;
     StateSet states_;
@@ -139,6 +143,13 @@ class NFA final : public AbstractAutomaton {
                                                      CaptureManager capture_manager) const;
 
  private:
+  struct Asserter {
+    bool operator()(Assertions const assertions, std::string_view const input,
+                    size_t const offset) const {
+      return AbstractAutomaton::Assert(assertions, input, offset);
+    }
+  };
+
   // Like `StateSet`, but it also maps capture managers to their states. This is used by `Match`
   // algorithms.
   template <typename CaptureManager>
@@ -155,10 +166,12 @@ class NFA final : public AbstractAutomaton {
   // `AssertedEpsilonClosure` algorithms are like `EpsilonClosure` but they also remove all states
   // that fail one or more assertions. They may return empty state sets.
 
-  StateSet AssertedEpsilonClosure(StateSet states, std::string_view input, size_t offset) const;
+  template <typename AsserterType, typename... Args>
+  StateSet AssertedEpsilonClosure(StateSet states, AsserterType const &asserter,
+                                  Args &&...args) const;
 
   template <typename CaptureManager>
-  StateCaptureMap<CaptureManager> AssertedEpsilonClosure(
+  StateCaptureMap<CaptureManager> AssertedEpsilonClosureWithCaptures(
       StateCaptureMap<CaptureManager> capture_map, std::string_view input, size_t offset) const;
 
   States const states_;
@@ -173,7 +186,7 @@ class NFA final : public AbstractAutomaton {
 template <typename CaptureManager>
 std::optional<CaptureManager> NFA::MatchInternal(std::string_view const input,
                                                  CaptureManager capture_manager) const {
-  StateCaptureMap<CaptureManager> states = AssertedEpsilonClosure<CaptureManager>(
+  StateCaptureMap<CaptureManager> states = AssertedEpsilonClosureWithCaptures<CaptureManager>(
       {{initial_state_, std::move(capture_manager)}}, input, 0);
   for (size_t offset = 0; offset < input.size() && !states.empty(); ++offset) {
     StateCaptureMap<CaptureManager> next_states;
@@ -193,7 +206,7 @@ std::optional<CaptureManager> NFA::MatchInternal(std::string_view const input,
         }
       }
     }
-    states = AssertedEpsilonClosure(std::move(next_states), input, offset + 1);
+    states = AssertedEpsilonClosureWithCaptures(std::move(next_states), input, offset + 1);
   }
   if (auto const it = states.find(final_state_); it != states.end()) {
     return std::move(it->second);
@@ -206,7 +219,7 @@ template <typename CaptureManager>
 std::optional<CaptureManager> NFA::PartialMatchInternal(std::string_view const input, size_t offset,
                                                         CaptureManager capture_manager) const {
   std::optional<CaptureManager> result = std::nullopt;
-  StateCaptureMap<CaptureManager> states = AssertedEpsilonClosure<CaptureManager>(
+  StateCaptureMap<CaptureManager> states = AssertedEpsilonClosureWithCaptures<CaptureManager>(
       {{initial_state_, std::move(capture_manager)}}, input, offset);
   if (auto const it = states.find(final_state_); it != states.end()) {
     result = it->second;
@@ -229,7 +242,7 @@ std::optional<CaptureManager> NFA::PartialMatchInternal(std::string_view const i
         }
       }
     }
-    states = AssertedEpsilonClosure(std::move(next_states), input, offset + 1);
+    states = AssertedEpsilonClosureWithCaptures(std::move(next_states), input, offset + 1);
     if (auto const it = states.find(final_state_); it != states.end()) {
       result = it->second;
     }
@@ -237,8 +250,32 @@ std::optional<CaptureManager> NFA::PartialMatchInternal(std::string_view const i
   return result;
 }
 
+template <typename AsserterType, typename... Args>
+NFA::StateSet NFA::AssertedEpsilonClosure(StateSet states, AsserterType const &asserter,
+                                          Args &&...args) const {
+  auto stack = std::move(states).rep();
+  states = StateSet();
+  while (!stack.empty()) {
+    uint32_t const state_num = stack.back();
+    stack.pop_back();
+    auto const &state = states_[state_num];
+    if (asserter(state.assertions, std::forward<Args>(args)...)) {
+      states.emplace(state_num);
+      auto const it = state.edges.find(0);
+      if (it != state.edges.end()) {
+        for (auto const transition : it->second) {
+          if (!states.contains(transition)) {
+            stack.emplace_back(transition);
+          }
+        }
+      }
+    }
+  }
+  return states;
+}
+
 template <typename CaptureManager>
-NFA::StateCaptureMap<CaptureManager> NFA::AssertedEpsilonClosure(
+NFA::StateCaptureMap<CaptureManager> NFA::AssertedEpsilonClosureWithCaptures(
     StateCaptureMap<CaptureManager> capture_map, std::string_view const input,
     size_t const offset) const {
   auto stack = std::move(capture_map).rep();

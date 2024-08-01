@@ -20,6 +20,7 @@ std::unique_ptr<AbstractAutomaton::StepperInterface> NFA::Stepper::Clone() const
 }
 
 bool NFA::Stepper::Step(char const ch) {
+  states_ = EpsilonClosure(std::move(states_), ch);
   StateSet next_states;
   for (auto const state : states_) {
     auto const& edges = nfa_->states_[state].edges;
@@ -34,7 +35,6 @@ bool NFA::Stepper::Step(char const ch) {
   if (states_.empty()) {
     return false;
   }
-  EpsilonClosure();
   last_character_ = ch;
   return true;
 }
@@ -48,9 +48,11 @@ bool NFA::Stepper::Step(std::string_view const chars) {
   return true;
 }
 
-bool NFA::Stepper::Finish() { return states_.contains(nfa_->final_state_); }
+bool NFA::Stepper::Finish() { return EpsilonClosure(states_, 0).contains(nfa_->final_state_); }
 
-void NFA::Stepper::EpsilonClosure() { states_ = nfa_->EpsilonClosure(std::move(states_)); }
+NFA::StateSet NFA::Stepper::EpsilonClosure(StateSet states, char const ch) {
+  return nfa_->AssertedEpsilonClosure(std::move(states), HalfAsserter(), last_character_, ch);
+}
 
 bool NFA::IsDeterministic() const { return false; }
 
@@ -67,7 +69,8 @@ std::unique_ptr<AbstractAutomaton::StepperInterface> NFA::MakeStepper() const {
 }
 
 bool NFA::Test(std::string_view const input) const {
-  StateSet states = AssertedEpsilonClosure({initial_state_}, input, 0);
+  Asserter const asserter;
+  StateSet states = AssertedEpsilonClosure({initial_state_}, asserter, input, 0);
   for (size_t offset = 0; offset < input.size() && !states.empty(); ++offset) {
     StateSet next_states;
     for (auto const state : states) {
@@ -79,7 +82,7 @@ bool NFA::Test(std::string_view const input) const {
         }
       }
     }
-    states = AssertedEpsilonClosure(std::move(next_states), input, offset + 1);
+    states = AssertedEpsilonClosure(std::move(next_states), asserter, input, offset + 1);
   }
   return states.contains(final_state_);
 }
@@ -109,7 +112,8 @@ bool NFA::MatchArgs(std::string_view const input,
 }
 
 bool NFA::PartialTest(std::string_view const input, size_t offset) const {
-  StateSet states = AssertedEpsilonClosure({initial_state_}, input, offset);
+  Asserter const asserter;
+  StateSet states = AssertedEpsilonClosure({initial_state_}, asserter, input, offset);
   if (states.contains(final_state_)) {
     return true;
   }
@@ -124,7 +128,7 @@ bool NFA::PartialTest(std::string_view const input, size_t offset) const {
         }
       }
     }
-    states = AssertedEpsilonClosure(std::move(next_states), input, offset + 1);
+    states = AssertedEpsilonClosure(std::move(next_states), asserter, input, offset + 1);
     if (states.contains(final_state_)) {
       return true;
     }
@@ -183,6 +187,7 @@ bool NFA::GetAssertsBegin() const {
   return true;
 }
 
+// TODO: inline this function in `GetAssertsBegin`.
 NFA::StateSet NFA::EpsilonClosure(StateSet states) const {
   std::vector<uint32_t> stack{states.begin(), states.end()};
   while (!stack.empty()) {
@@ -195,29 +200,6 @@ NFA::StateSet NFA::EpsilonClosure(StateSet states) const {
       for (auto const transition : it->second) {
         if (!states.contains(transition)) {
           stack.emplace_back(transition);
-        }
-      }
-    }
-  }
-  return states;
-}
-
-NFA::StateSet NFA::AssertedEpsilonClosure(StateSet states, std::string_view const input,
-                                          size_t const offset) const {
-  auto stack = std::move(states).rep();
-  states = StateSet();
-  while (!stack.empty()) {
-    uint32_t const state_num = stack.back();
-    stack.pop_back();
-    auto const& state = states_[state_num];
-    if (Assert(state.assertions, input, offset)) {
-      states.emplace(state_num);
-      auto const it = state.edges.find(0);
-      if (it != state.edges.end()) {
-        for (auto const transition : it->second) {
-          if (!states.contains(transition)) {
-            stack.emplace_back(transition);
-          }
         }
       }
     }
