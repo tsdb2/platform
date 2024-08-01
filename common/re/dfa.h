@@ -74,7 +74,7 @@ class DFA final : public AbstractAutomaton {
     std::unique_ptr<StepperInterface> Clone() const override;
     bool Step(char ch) override;
     bool Step(std::string_view chars) override;
-    bool Finish() override;
+    bool Finish() const override;
 
    private:
     bool HalfAssert(uint32_t const state_num, char const ch) const {

@@ -126,11 +126,10 @@ class AbstractAutomaton : public SimpleRefCounted {
     // Processes the end of the input string and returns a boolean indicating whether the string
     // matched.
     //
-    // If `Finish` returns false the state of the stepper will either not change or change in a way
-    // that makes it possible to perform further `Step` calls on subsequent pieces of input. This
-    // property makes steppers easily usable to find strings in tries. If, on the other hand,
-    // `Finish` returns true, the stepper is no longer usable and must be discarded.
-    virtual bool Finish() = 0;
+    // Note that this method is `const`, so it doesn't change the state of the stepper and it is
+    // okay to make further `Step` calls to test an alternate suffix even after a successful
+    // `Finish` call. This property makes steppers easily usable to find strings in tries.
+    virtual bool Finish() const = 0;
 
    protected:
     // Copies are performed by `Clone`.

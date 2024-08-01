@@ -82,7 +82,7 @@ class NFA final : public AbstractAutomaton {
     std::unique_ptr<StepperInterface> Clone() const override;
     bool Step(char ch) override;
     bool Step(std::string_view chars) override;
-    bool Finish() override;
+    bool Finish() const override;
 
    private:
     struct HalfAsserter {
@@ -91,7 +91,7 @@ class NFA final : public AbstractAutomaton {
       }
     };
 
-    StateSet EpsilonClosure(StateSet states, char ch);
+    StateSet EpsilonClosure(StateSet states, char ch) const;
 
     NFA const *nfa_;
     StateSet states_;
