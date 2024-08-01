@@ -22,22 +22,19 @@ std::unique_ptr<AbstractAutomaton::StepperInterface> DFA::Stepper::Clone() const
 }
 
 bool DFA::Stepper::Step(char const ch) {
+  if (!HalfAssert(current_state_, ch)) {
+    return false;
+  }
   while (true) {
     auto const& edges = dfa_->states_[current_state_].edges;
     auto it = edges.find(ch);
     if (it != edges.end()) {
-      if (!HalfAssert(it->second, ch)) {
-        return false;
-      }
       current_state_ = it->second;
       last_character_ = ch;
       return true;
     }
     it = edges.find(0);
     if (it == edges.end()) {
-      return false;
-    }
-    if (!HalfAssert(it->second, ch)) {
       return false;
     }
     current_state_ = it->second;
@@ -54,18 +51,22 @@ bool DFA::Stepper::Step(std::string_view const chars) {
 }
 
 bool DFA::Stepper::Finish() {
-  while (current_state_ != dfa_->final_state_) {
-    auto const& edges = dfa_->states_[current_state_].edges;
+  auto state_num = current_state_;
+  if (!HalfAssert(state_num, 0)) {
+    return false;
+  }
+  while (state_num != dfa_->final_state_) {
+    auto const& edges = dfa_->states_[state_num].edges;
     auto const it = edges.find(0);
     if (it == edges.end()) {
       return false;
     }
-    if (!HalfAssert(it->second, 0)) {
+    state_num = it->second;
+    if (!HalfAssert(state_num, 0)) {
       return false;
     }
-    current_state_ = it->second;
   }
-  return HalfAssert(dfa_->final_state_, 0);
+  return true;
 }
 
 bool DFA::IsDeterministic() const { return true; }
