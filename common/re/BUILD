@@ -3,9 +3,6 @@ package(default_visibility = ["//common:__subpackages__"])
 cc_library(
     name = "capture_groups",
     hdrs = ["capture_groups.h"],
-    deps = [
-        "//common:flat_map",
-    ],
 )
 
 cc_library(
