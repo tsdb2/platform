@@ -78,8 +78,8 @@ class DFA final : public AbstractAutomaton {
     bool Finish(char next_character) const override;
 
    private:
-    bool HalfAssert(uint32_t const state_num, char const ch) const {
-      return dfa_->HalfAssert(state_num, last_character_, ch);
+    bool Assert(uint32_t const state_num, char const ch) const {
+      return dfa_->Assert(state_num, last_character_, ch);
     }
 
     DFA const *dfa_;
@@ -136,12 +136,14 @@ class DFA final : public AbstractAutomaton {
 
   // Assertion helpers for Stepper.
 
-  bool HalfAssert(State const &state, char const ch1, char const ch2) const {
-    return AbstractAutomaton::HalfAssert(state.assertions, ch1, ch2);
+  template <typename... Args>
+  bool Assert(State const &state, Args &&...args) const {
+    return AbstractAutomaton::Assert(state.assertions, std::forward<Args>(args)...);
   }
 
-  bool HalfAssert(uint32_t const state_num, char const ch1, char const ch2) const {
-    return AbstractAutomaton::HalfAssert(states_[state_num].assertions, ch1, ch2);
+  template <typename... Args>
+  bool Assert(uint32_t const state_num, Args &&...args) const {
+    return AbstractAutomaton::Assert(states_[state_num].assertions, std::forward<Args>(args)...);
   }
 
   States const states_;
@@ -159,7 +161,7 @@ bool DFA::MatchInternal(std::string_view const input, CaptureManager *const capt
   size_t offset = 0;
   while (offset < input.size()) {
     auto const &state = states_[state_num];
-    if (!Assert(state.assertions, input, offset)) {
+    if (!Assert(state, input, offset)) {
       return false;
     }
     auto it = state.edges.find(0);
@@ -179,7 +181,7 @@ bool DFA::MatchInternal(std::string_view const input, CaptureManager *const capt
   }
   while (state_num != final_state_) {
     auto const &state = states_[state_num];
-    if (!Assert(state.assertions, input, offset)) {
+    if (!Assert(state, input, offset)) {
       return false;
     }
     auto const it = state.edges.find(0);
@@ -191,7 +193,7 @@ bool DFA::MatchInternal(std::string_view const input, CaptureManager *const capt
     }
     state_num = it->second;
   }
-  if (!Assert(states_[final_state_].assertions, input, offset)) {
+  if (!Assert(final_state_, input, offset)) {
     return false;
   }
   return true;
@@ -204,7 +206,7 @@ bool DFA::PartialMatchInternal(std::string_view const input, size_t offset,
   uint32_t state_num = initial_state_;
   while (offset < input.size()) {
     auto const &state = states_[state_num];
-    if (!Assert(state.assertions, input, offset)) {
+    if (!Assert(state, input, offset)) {
       return result;
     }
     if (state_num == final_state_) {
@@ -228,7 +230,7 @@ bool DFA::PartialMatchInternal(std::string_view const input, size_t offset,
   }
   while (state_num != final_state_) {
     auto const &state = states_[state_num];
-    if (!Assert(state.assertions, input, offset)) {
+    if (!Assert(state, input, offset)) {
       return result;
     }
     auto const it = state.edges.find(0);
@@ -240,7 +242,7 @@ bool DFA::PartialMatchInternal(std::string_view const input, size_t offset,
     }
     state_num = it->second;
   }
-  if (!Assert(states_[final_state_].assertions, input, offset)) {
+  if (!Assert(final_state_, input, offset)) {
     return result;
   }
   return true;

@@ -86,12 +86,6 @@ class NFA final : public AbstractAutomaton {
     bool Finish(char next_character) const override;
 
    private:
-    struct HalfAsserter {
-      bool operator()(Assertions const assertions, char const ch1, char const ch2) const {
-        return AbstractAutomaton::HalfAssert(assertions, ch1, ch2);
-      }
-    };
-
     StateSet EpsilonClosure(StateSet states, char ch) const;
 
     NFA const *nfa_;
@@ -144,13 +138,6 @@ class NFA final : public AbstractAutomaton {
                                                      CaptureManager capture_manager) const;
 
  private:
-  struct Asserter {
-    bool operator()(Assertions const assertions, std::string_view const input,
-                    size_t const offset) const {
-      return AbstractAutomaton::Assert(assertions, input, offset);
-    }
-  };
-
   // Like `StateSet`, but it also maps capture managers to their states. This is used by `Match`
   // algorithms.
   template <typename CaptureManager>
@@ -167,9 +154,8 @@ class NFA final : public AbstractAutomaton {
   // `AssertedEpsilonClosure` algorithms are like `EpsilonClosure` but they also remove all states
   // that fail one or more assertions. They may return empty state sets.
 
-  template <typename AsserterType, typename... Args>
-  StateSet AssertedEpsilonClosure(StateSet states, AsserterType const &asserter,
-                                  Args &&...args) const;
+  template <typename... Args>
+  StateSet AssertedEpsilonClosure(StateSet states, Args &&...args) const;
 
   template <typename CaptureManager>
   StateCaptureMap<CaptureManager> AssertedEpsilonClosureWithCaptures(
@@ -251,16 +237,17 @@ std::optional<CaptureManager> NFA::PartialMatchInternal(std::string_view const i
   return result;
 }
 
-template <typename AsserterType, typename... Args>
-NFA::StateSet NFA::AssertedEpsilonClosure(StateSet states, AsserterType const &asserter,
-                                          Args &&...args) const {
+template <typename... AssertionArgs>
+NFA::StateSet NFA::AssertedEpsilonClosure(StateSet states,
+                                          AssertionArgs &&...assertion_args) const {
   auto stack = std::move(states).rep();
   states = StateSet();
   while (!stack.empty()) {
     uint32_t const state_num = stack.back();
     stack.pop_back();
     auto const &state = states_[state_num];
-    if (asserter(state.assertions, std::forward<Args>(args)...)) {
+    if (AbstractAutomaton::Assert(state.assertions,
+                                  std::forward<AssertionArgs>(assertion_args)...)) {
       states.emplace(state_num);
       auto const it = state.edges.find(0);
       if (it != state.edges.end()) {

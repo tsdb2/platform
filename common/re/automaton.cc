@@ -163,7 +163,17 @@ bool AbstractAutomaton::Assert(Assertions const assertions, std::string_view con
   return true;
 }
 
-bool AbstractAutomaton::HalfAssert(Assertions const assertions, char const ch1, char const ch2) {
+bool AbstractAutomaton::Assert(Assertions const assertions, char const ch1, char const ch2) {
+  if ((assertions & Assertions::kBegin) != Assertions::kNone) {
+    if (ch1 != 0) {
+      return false;
+    }
+  }
+  if ((assertions & Assertions::kEnd) != Assertions::kNone) {
+    if (ch2 != 0) {
+      return false;
+    }
+  }
   if ((assertions & Assertions::kWordBoundary) != Assertions::kNone) {
     if (!at_word_boundary(ch1, ch2)) {
       return false;

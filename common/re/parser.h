@@ -16,8 +16,7 @@ namespace regexp_internal {
 // Regular expression options. This is part of the public API in re.h.
 struct Options {
   // Disallows anchors (^ and $). Typically used in full matches, i.e. if you plan to always call
-  // `Match(Args)` rather than `PartialMatch(Args)`. It's also required if you plan to use steppers
-  // because they don't support anchors.
+  // `Match(Args)` rather than `PartialMatch(Args)`.
   bool no_anchors = false;
 };
 

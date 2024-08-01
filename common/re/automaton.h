@@ -76,10 +76,6 @@ class AbstractAutomaton : public SimpleRefCounted {
   // A stepper allows running the automaton in separate steps, processing the input string character
   // by character.
   //
-  // WARNING: steppers do not support assertions. `^`, `$`, `\b`, and `\B` will be ineffective.
-  //
-  // TODO: add support for word boundary assertions; will need changes in RawTrie.
-  //
   // The caller needs to call `Step` repeatedly for every character or for every chunk of the input
   // string, and then needs to call `Finish`. The stepper keeps the running state (i.e. the current
   // state or set of the current states) of the automaton internally and updates it as necessary at
@@ -342,10 +338,8 @@ class AbstractAutomaton : public SimpleRefCounted {
   // Checks the specified `assertions` on the `input` text at the specified `offset`.
   static bool Assert(Assertions assertions, std::string_view input, size_t offset);
 
-  // Checks the `kWordBoundary` and `kNotWordBOundary` assertions as specified `assertions` on the
-  // two input characters. Unlike `Assert`, this function ignores the `kBegin` and `kEnd`
-  // assertions. This version of the asserter is used by steppers, which do not support anchors.
-  static bool HalfAssert(Assertions assertions, char ch1, char ch2);
+  // Checks the specified `assertions` on the two input characters.
+  static bool Assert(Assertions assertions, char ch1, char ch2);
 
   // Tries to match a substring of `input` starting at `offset` against this regular expression.
   // This is the internal implementation of `PartialTest` and `TestPrefix`.

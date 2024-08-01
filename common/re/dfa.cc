@@ -22,7 +22,7 @@ std::unique_ptr<AbstractAutomaton::StepperInterface> DFA::Stepper::Clone() const
 }
 
 bool DFA::Stepper::Step(char const ch) {
-  if (!HalfAssert(current_state_, ch)) {
+  if (!Assert(current_state_, ch)) {
     return false;
   }
   while (true) {
@@ -52,7 +52,7 @@ bool DFA::Stepper::Step(std::string_view const chars) {
 
 bool DFA::Stepper::Finish(char const next_character) const {
   auto state_num = current_state_;
-  if (!HalfAssert(state_num, next_character)) {
+  if (!Assert(state_num, next_character)) {
     return false;
   }
   while (state_num != dfa_->final_state_) {
@@ -62,7 +62,7 @@ bool DFA::Stepper::Finish(char const next_character) const {
       return false;
     }
     state_num = it->second;
-    if (!HalfAssert(state_num, next_character)) {
+    if (!Assert(state_num, next_character)) {
       return false;
     }
   }
@@ -89,7 +89,7 @@ bool DFA::Test(std::string_view const input) const {
   size_t offset = 0;
   while (offset < input.size()) {
     auto const& state = states_[state_num];
-    if (!Assert(state.assertions, input, offset)) {
+    if (!Assert(state, input, offset)) {
       return false;
     }
     auto it = state.edges.find(0);
@@ -104,7 +104,7 @@ bool DFA::Test(std::string_view const input) const {
   }
   while (state_num != final_state_) {
     auto const& state = states_[state_num];
-    if (!Assert(state.assertions, input, offset)) {
+    if (!Assert(state, input, offset)) {
       return false;
     }
     auto const it = state.edges.find(0);
@@ -113,7 +113,7 @@ bool DFA::Test(std::string_view const input) const {
     }
     state_num = it->second;
   }
-  return Assert(states_[final_state_].assertions, input, offset);
+  return Assert(final_state_, input, offset);
 }
 
 std::optional<AbstractAutomaton::CaptureSet> DFA::Match(std::string_view const input) const {
@@ -143,7 +143,7 @@ bool DFA::PartialTest(std::string_view const input, size_t offset) const {
   uint32_t state_num = initial_state_;
   while (state_num != final_state_ && offset < input.size()) {
     auto const& state = states_[state_num];
-    if (!Assert(state.assertions, input, offset)) {
+    if (!Assert(state, input, offset)) {
       return false;
     }
     char const ch = input[offset];
@@ -160,7 +160,7 @@ bool DFA::PartialTest(std::string_view const input, size_t offset) const {
   }
   while (state_num != final_state_) {
     auto const& state = states_[state_num];
-    if (!Assert(state.assertions, input, offset)) {
+    if (!Assert(state, input, offset)) {
       return false;
     }
     auto const it = state.edges.find(0);
@@ -169,7 +169,7 @@ bool DFA::PartialTest(std::string_view const input, size_t offset) const {
     }
     state_num = it->second;
   }
-  return Assert(states_[final_state_].assertions, input, offset);
+  return Assert(final_state_, input, offset);
 }
 
 std::optional<AbstractAutomaton::CaptureSet> DFA::PartialMatch(std::string_view const input,

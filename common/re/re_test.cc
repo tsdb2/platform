@@ -3210,23 +3210,14 @@ TEST_P(RegexpTest, SearchWordWithoutBoundaries) {
   EXPECT_THAT(pattern, PartiallyMatches("ipsum lremdo doloremdo dolrem", {{"lorem"}}));
 }
 
-INSTANTIATE_TEST_SUITE_P(RegexpTest, RegexpTest,
-                         Values(RegexpTestParams{.force_nfa = false, .use_stepper = false},
-                                RegexpTestParams{.force_nfa = false, .use_stepper = true},
-                                RegexpTestParams{.force_nfa = true, .use_stepper = false},
-                                RegexpTestParams{.force_nfa = true, .use_stepper = true}));
-
-// Steppers do not support anchor assertions, so these tests are executed aside without steppers.
-class AssertedRegexpTest : public RegexpTest {};
-
-TEST_P(AssertedRegexpTest, NoAnchors) {
+TEST_P(RegexpTest, NoAnchors) {
   EXPECT_OK(Parse("sator(arepo(tenet)|(?:opera)(rotas)+)", {.no_anchors = true}));
   EXPECT_THAT(Parse("^lorem", {.no_anchors = true}), StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(Parse("ipsum$", {.no_anchors = true}), StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(Parse("^dolor$", {.no_anchors = true}), StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
-TEST_P(AssertedRegexpTest, StartAnchor) {
+TEST_P(RegexpTest, StartAnchor) {
   auto const status_or_pattern = Parse("(^lorem)");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
@@ -3234,7 +3225,7 @@ TEST_P(AssertedRegexpTest, StartAnchor) {
   EXPECT_THAT(pattern, PartiallyMatches("lorem ipsum", {{"lorem"}}));
 }
 
-TEST_P(AssertedRegexpTest, EndAnchor) {
+TEST_P(RegexpTest, EndAnchor) {
   auto const status_or_pattern = Parse("(lorem$)");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
@@ -3242,7 +3233,7 @@ TEST_P(AssertedRegexpTest, EndAnchor) {
   EXPECT_THAT(pattern, PartiallyMatches("ipsum lorem", {{"lorem"}}));
 }
 
-TEST_P(AssertedRegexpTest, AnchoredPartialMatch) {
+TEST_P(RegexpTest, AnchoredPartialMatch) {
   auto const status_or_pattern = Parse("(^ipsum$)");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
@@ -3250,7 +3241,7 @@ TEST_P(AssertedRegexpTest, AnchoredPartialMatch) {
   EXPECT_THAT(pattern, PartiallyMatches("ipsum", {{"ipsum"}}));
 }
 
-TEST_P(AssertedRegexpTest, DoesntAssertBeginOfInput) {
+TEST_P(RegexpTest, DoesntAssertBeginOfInput) {
   auto const status_or_pattern = Parse("lorem");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
@@ -3258,7 +3249,7 @@ TEST_P(AssertedRegexpTest, DoesntAssertBeginOfInput) {
   EXPECT_THAT(pattern, PartiallyMatches("dolor lorem amet", {}));
 }
 
-TEST_P(AssertedRegexpTest, AssertsBeginOfInput) {
+TEST_P(RegexpTest, AssertsBeginOfInput) {
   auto const status_or_pattern = Parse("^lorem");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
@@ -3267,7 +3258,7 @@ TEST_P(AssertedRegexpTest, AssertsBeginOfInput) {
   EXPECT_THAT(pattern, DoesntPartiallyMatch("dolor lorem amet"));
 }
 
-TEST_P(AssertedRegexpTest, NoBranchAssertsBeginOfInput) {
+TEST_P(RegexpTest, NoBranchAssertsBeginOfInput) {
   auto const status_or_pattern = Parse("lorem|ipsum");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
@@ -3276,7 +3267,7 @@ TEST_P(AssertedRegexpTest, NoBranchAssertsBeginOfInput) {
   EXPECT_THAT(pattern, PartiallyMatches("dolor ipsum amet", {}));
 }
 
-TEST_P(AssertedRegexpTest, FirstBranchAssertsBeginOfInput) {
+TEST_P(RegexpTest, FirstBranchAssertsBeginOfInput) {
   auto const status_or_pattern = Parse("^lorem|ipsum");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
@@ -3286,7 +3277,7 @@ TEST_P(AssertedRegexpTest, FirstBranchAssertsBeginOfInput) {
   EXPECT_THAT(pattern, PartiallyMatches("dolor ipsum amet", {}));
 }
 
-TEST_P(AssertedRegexpTest, SecondBranchAssertsBeginOfInput) {
+TEST_P(RegexpTest, SecondBranchAssertsBeginOfInput) {
   auto const status_or_pattern = Parse("lorem|^ipsum");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
@@ -3296,7 +3287,7 @@ TEST_P(AssertedRegexpTest, SecondBranchAssertsBeginOfInput) {
   EXPECT_THAT(pattern, PartiallyMatches("dolor lorem amet", {}));
 }
 
-TEST_P(AssertedRegexpTest, BothBranchesAssertBeginOfInput) {
+TEST_P(RegexpTest, BothBranchesAssertBeginOfInput) {
   auto const status_or_pattern = Parse("^lorem|^ipsum");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
@@ -3307,8 +3298,10 @@ TEST_P(AssertedRegexpTest, BothBranchesAssertBeginOfInput) {
   EXPECT_THAT(pattern, DoesntPartiallyMatch("dolor ipsum amet"));
 }
 
-INSTANTIATE_TEST_SUITE_P(AssertedRegexpTest, AssertedRegexpTest,
+INSTANTIATE_TEST_SUITE_P(RegexpTest, RegexpTest,
                          Values(RegexpTestParams{.force_nfa = false, .use_stepper = false},
-                                RegexpTestParams{.force_nfa = true, .use_stepper = false}));
+                                RegexpTestParams{.force_nfa = false, .use_stepper = true},
+                                RegexpTestParams{.force_nfa = true, .use_stepper = false},
+                                RegexpTestParams{.force_nfa = true, .use_stepper = true}));
 
 }  // namespace
