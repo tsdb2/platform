@@ -84,7 +84,7 @@ class AbstractAutomaton : public SimpleRefCounted {
   // Example usage:
   //
   //   bool TestString(NFA const& nfa, std::string_view const input) {
-  //     auto const stepper = nfa.CreateStepper();
+  //     auto const stepper = nfa.MakeStepper();
   //     if (!stepper->Step(input)) {
   //       return false; // no match.
   //     }
