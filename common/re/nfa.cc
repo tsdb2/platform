@@ -1,6 +1,7 @@
 #include "common/re/nfa.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -53,7 +54,7 @@ bool NFA::Stepper::Finish(char const next_character) const {
 }
 
 NFA::StateSet NFA::Stepper::EpsilonClosure(StateSet states, char const ch) const {
-  return nfa_->AssertedEpsilonClosure(std::move(states), last_character_, ch);
+  return nfa_->EpsilonClosure(std::move(states), last_character_, ch);
 }
 
 bool NFA::IsDeterministic() const { return false; }
@@ -72,7 +73,7 @@ std::unique_ptr<AbstractAutomaton::StepperInterface> NFA::MakeStepper(
 }
 
 bool NFA::Test(std::string_view const input) const {
-  StateSet states = AssertedEpsilonClosure({initial_state_}, input, 0);
+  StateSet states = EpsilonClosure({initial_state_}, input, 0);
   for (size_t offset = 0; offset < input.size() && !states.empty(); ++offset) {
     StateSet next_states;
     for (auto const state : states) {
@@ -84,7 +85,7 @@ bool NFA::Test(std::string_view const input) const {
         }
       }
     }
-    states = AssertedEpsilonClosure(std::move(next_states), input, offset + 1);
+    states = EpsilonClosure(std::move(next_states), input, offset + 1);
   }
   return states.contains(final_state_);
 }
@@ -114,7 +115,7 @@ bool NFA::MatchArgs(std::string_view const input,
 }
 
 bool NFA::PartialTest(std::string_view const input, size_t offset) const {
-  StateSet states = AssertedEpsilonClosure({initial_state_}, input, offset);
+  StateSet states = EpsilonClosure({initial_state_}, input, offset);
   if (states.contains(final_state_)) {
     return true;
   }
@@ -129,7 +130,7 @@ bool NFA::PartialTest(std::string_view const input, size_t offset) const {
         }
       }
     }
-    states = AssertedEpsilonClosure(std::move(next_states), input, offset + 1);
+    states = EpsilonClosure(std::move(next_states), input, offset + 1);
     if (states.contains(final_state_)) {
       return true;
     }
@@ -174,38 +175,28 @@ size_t NFA::GetTotalEdgeCount() const {
 }
 
 bool NFA::GetAssertsBegin() const {
-  auto const states = EpsilonClosure(StateSet{initial_state_});
-  for (auto const state_num : states) {
+  StateSet visited;
+  std::vector<uint32_t> stack{initial_state_};
+  while (!stack.empty()) {
+    uint32_t const state_num = stack.back();
+    stack.pop_back();
     auto const& state = states_[state_num];
     if ((state.assertions & Assertions::kBegin) == Assertions::kNone) {
       for (auto const& [ch, transitions] : state.edges) {
         if (ch != 0) {
           return false;
+        } else {
+          visited.emplace(state_num);
+          for (auto const transition : transitions) {
+            if (!visited.contains(transition)) {
+              stack.emplace_back(transition);
+            }
+          }
         }
       }
     }
   }
   return true;
-}
-
-// TODO: inline this function in `GetAssertsBegin`.
-NFA::StateSet NFA::EpsilonClosure(StateSet states) const {
-  std::vector<uint32_t> stack{states.begin(), states.end()};
-  while (!stack.empty()) {
-    uint32_t const state_num = stack.back();
-    stack.pop_back();
-    states.emplace(state_num);
-    auto const& edges = states_[state_num].edges;
-    auto const it = edges.find(0);
-    if (it != edges.end()) {
-      for (auto const transition : it->second) {
-        if (!states.contains(transition)) {
-          stack.emplace_back(transition);
-        }
-      }
-    }
-  }
-  return states;
 }
 
 }  // namespace regexp_internal
