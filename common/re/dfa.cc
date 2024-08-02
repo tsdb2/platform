@@ -6,11 +6,9 @@
 #include <optional>
 #include <string_view>
 #include <utility>
-#include <vector>
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/types/span.h"
-#include "common/flat_map.h"
 #include "common/re/automaton.h"
 
 namespace tsdb2 {
@@ -206,18 +204,16 @@ size_t DFA::GetTotalEdgeCount() const {
 
 bool DFA::GetAssertsBegin() const {
   absl::flat_hash_set<uint32_t> visited;
-  std::vector<uint32_t> stack{initial_state_};
-  while (!stack.empty()) {
-    uint32_t const state_num = stack.back();
+  uint32_t state_num = initial_state_;
+  while (!visited.contains(state_num)) {
     auto const& state = states_[state_num];
     if ((state.assertions & Assertions::kBegin) != Assertions::kNone) {
       return true;
     }
-    stack.pop_back();
     visited.emplace(state_num);
     auto const it = state.edges.find(0);
-    if (it != state.edges.end() && !visited.contains(it->second)) {
-      stack.emplace_back(it->second);
+    if (it != state.edges.end()) {
+      state_num = it->second;
     }
   }
   return false;
