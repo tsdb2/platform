@@ -466,7 +466,7 @@ class TrieNode {
 
  private:
   // Bidirectional node iterator.
-  template <typename Value, typename StateFrame>
+  template <typename StateFrame>
   class GenericIterator : public BaseIterator<StateFrame> {
    public:
     GenericIterator(GenericIterator const&) = default;
@@ -474,26 +474,30 @@ class TrieNode {
     GenericIterator(GenericIterator&&) noexcept = default;
     GenericIterator& operator=(GenericIterator&&) noexcept = default;
 
-    template <typename Alias = Value, std::enable_if_t<std::is_void_v<Alias>, bool> = true>
+    template <typename Value = typename Traits::Mapped,
+              std::enable_if_t<std::is_void_v<Value>, bool> = true>
     std::string operator*() const {
       return this->GetKey();
     }
 
-    template <typename Alias = Value, std::enable_if_t<std::is_void_v<Alias>, bool> = true>
+    template <typename Value = typename Traits::Mapped,
+              std::enable_if_t<std::is_void_v<Value>, bool> = true>
     std::unique_ptr<std::string const> operator->() const {
       return std::make_unique<std::string const>(this->GetKey());
     }
 
-    template <typename Alias = Value, std::enable_if_t<!std::is_void_v<Alias>, bool> = true>
-    std::pair<std::string const, Alias&> operator*() const {
+    template <typename Value = typename Traits::Mapped,
+              std::enable_if_t<!std::is_void_v<Value>, bool> = true>
+    std::pair<std::string const, Value&> operator*() const {
       auto& node = this->frames_.back().node();
       return {this->GetKey(), node.label_.value()};
     }
 
-    template <typename Alias = Value, std::enable_if_t<!std::is_void_v<Alias>, bool> = true>
-    std::unique_ptr<std::pair<std::string const, Alias&>> operator->() const {
+    template <typename Value = typename Traits::Mapped,
+              std::enable_if_t<!std::is_void_v<Value>, bool> = true>
+    std::unique_ptr<std::pair<std::string const, Value&>> operator->() const {
       auto& node = this->frames_.back().node();
-      return std::make_unique<std::pair<std::string const, Alias&>>(this->GetKey(),
+      return std::make_unique<std::pair<std::string const, Value&>>(this->GetKey(),
                                                                     node.label_.value());
     }
 
@@ -519,7 +523,7 @@ class TrieNode {
   };
 
   // Bidirectional const iterator.
-  template <typename Value, typename StateFrame>
+  template <typename StateFrame>
   class GenericConstIterator : public BaseIterator<StateFrame> {
    public:
     GenericConstIterator(GenericConstIterator const&) = default;
@@ -527,31 +531,35 @@ class TrieNode {
     GenericConstIterator(GenericConstIterator&&) noexcept = default;
     GenericConstIterator& operator=(GenericConstIterator&&) noexcept = default;
 
-    GenericConstIterator(GenericIterator<Value, StateFrame> const& other)
+    GenericConstIterator(GenericIterator<StateFrame> const& other)
         : BaseIterator<StateFrame>(other.frames_) {}
-    GenericConstIterator(GenericIterator<Value, StateFrame>&& other) noexcept
+    GenericConstIterator(GenericIterator<StateFrame>&& other) noexcept
         : BaseIterator<StateFrame>(std::move(other.frames_)) {}
 
-    template <typename Alias = Value, std::enable_if_t<std::is_void_v<Alias>, bool> = true>
+    template <typename Value = typename Traits::Mapped,
+              std::enable_if_t<std::is_void_v<Value>, bool> = true>
     std::string operator*() const {
       return this->GetKey();
     }
 
-    template <typename Alias = Value, std::enable_if_t<std::is_void_v<Alias>, bool> = true>
+    template <typename Value = typename Traits::Mapped,
+              std::enable_if_t<std::is_void_v<Value>, bool> = true>
     std::unique_ptr<std::string const> operator->() const {
       return std::make_unique<std::string const>(this->GetKey());
     }
 
-    template <typename Alias = Value, std::enable_if_t<!std::is_void_v<Alias>, bool> = true>
-    std::pair<std::string const, Alias const&> operator*() const {
+    template <typename Value = typename Traits::Mapped,
+              std::enable_if_t<!std::is_void_v<Value>, bool> = true>
+    std::pair<std::string const, Value const&> operator*() const {
       auto& node = this->frames_.back().node();
       return {this->GetKey(), node.label_.value()};
     }
 
-    template <typename Alias = Value, std::enable_if_t<!std::is_void_v<Alias>, bool> = true>
-    std::unique_ptr<std::pair<std::string const, Alias const&>> operator->() const {
+    template <typename Value = typename Traits::Mapped,
+              std::enable_if_t<!std::is_void_v<Value>, bool> = true>
+    std::unique_ptr<std::pair<std::string const, Value const&>> operator->() const {
       auto& node = this->frames_.back().node();
-      return std::make_unique<std::pair<std::string const, Alias const&>>(this->GetKey(),
+      return std::make_unique<std::pair<std::string const, Value const&>>(this->GetKey(),
                                                                           node.label_.value());
     }
 
@@ -577,17 +585,14 @@ class TrieNode {
   };
 
  public:
-  using Iterator = GenericIterator<typename Traits::Mapped, StateFrame<false>>;
-  using ConstIterator = GenericConstIterator<typename Traits::Mapped, StateFrame<false>>;
-  using ReverseIterator = GenericIterator<typename Traits::Mapped, StateFrame<true>>;
-  using ConstReverseIterator = GenericConstIterator<typename Traits::Mapped, StateFrame<true>>;
-  using FilteredIterator = GenericIterator<typename Traits::Mapped, FilteredStateFrame<false>>;
-  using ConstFilteredIterator =
-      GenericConstIterator<typename Traits::Mapped, FilteredStateFrame<false>>;
-  using ReverseFilteredIterator =
-      GenericIterator<typename Traits::Mapped, FilteredStateFrame<true>>;
-  using ConstReverseFilteredIterator =
-      GenericConstIterator<typename Traits::Mapped, FilteredStateFrame<true>>;
+  using Iterator = GenericIterator<StateFrame<false>>;
+  using ConstIterator = GenericConstIterator<StateFrame<false>>;
+  using ReverseIterator = GenericIterator<StateFrame<true>>;
+  using ConstReverseIterator = GenericConstIterator<StateFrame<true>>;
+  using FilteredIterator = GenericIterator<FilteredStateFrame<false>>;
+  using ConstFilteredIterator = GenericConstIterator<FilteredStateFrame<false>>;
+  using ReverseFilteredIterator = GenericIterator<FilteredStateFrame<true>>;
+  using ConstReverseFilteredIterator = GenericConstIterator<FilteredStateFrame<true>>;
 
   // Provides a view of the trie filtered by a regular expression, allowing the user to enumerate
   // only the elements whose key matches the regular expression.
