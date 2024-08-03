@@ -1076,10 +1076,27 @@ TEST(TrieMapTest, UnfilteredView) {
                           Pair("loremamet", 56), Pair("loremipsum", 34)));
 }
 
+TEST(TrieMapTest, ContainsEmptyPattern) {
+  auto const status_or_pattern = RE::Create("");
+  ASSERT_OK(status_or_pattern);
+  auto const &pattern = status_or_pattern.value();
+  trie_map const tm{{"", 12}, {"lorem", 34}, {"ipsum", 56}};
+  EXPECT_TRUE(tm.contains(pattern));
+}
+
+TEST(TrieMapTest, DoesntContainEmptyPattern) {
+  auto const status_or_pattern = RE::Create("");
+  ASSERT_OK(status_or_pattern);
+  auto const &pattern = status_or_pattern.value();
+  trie_map const tm{{"lorem", 12}, {"ipsum", 34}};
+  EXPECT_FALSE(tm.contains(pattern));
+}
+
 TEST(TrieMapTest, ContainsDeterministicPattern) {
   auto const status_or_pattern = RE::Create("loremipsum");
   ASSERT_OK(status_or_pattern);
   auto const &pattern = status_or_pattern.value();
+  ASSERT_TRUE(pattern.IsDeterministic());
   trie_map const tm{{"loremipsum", 12}, {"loremamet", 34}, {"consectetur", 56}, {"adipisci", 78}};
   EXPECT_TRUE(tm.contains(pattern));
 }
@@ -1088,6 +1105,7 @@ TEST(TrieMapTest, ContainsNonDeterministicPattern) {
   auto const status_or_pattern = RE::Create("lore(mipsum|mamet)");
   ASSERT_OK(status_or_pattern);
   auto const &pattern = status_or_pattern.value();
+  ASSERT_FALSE(pattern.IsDeterministic());
   trie_map const tm{{"loremipsum", 12}, {"loremamet", 34}, {"consectetur", 56}, {"adipisci", 78}};
   EXPECT_TRUE(tm.contains(pattern));
 }
@@ -1096,6 +1114,7 @@ TEST(TrieMapTest, DoesntContainDeterministicPattern) {
   auto const status_or_pattern = RE::Create("loremipsum");
   ASSERT_OK(status_or_pattern);
   auto const &pattern = status_or_pattern.value();
+  ASSERT_TRUE(pattern.IsDeterministic());
   trie_map const tm{{"consectetur", 12}, {"adipisci", 34}, {"loremlorem", 56}};
   EXPECT_FALSE(tm.contains(pattern));
 }
@@ -1104,8 +1123,81 @@ TEST(TrieMapTest, DoesntContainNonDeterministicPattern) {
   auto const status_or_pattern = RE::Create("lore(mipsum|mamet)");
   ASSERT_OK(status_or_pattern);
   auto const &pattern = status_or_pattern.value();
+  ASSERT_FALSE(pattern.IsDeterministic());
   trie_map const tm{{"consectetur", 12}, {"adipisci", 34}, {"loremlorem", 56}};
   EXPECT_FALSE(tm.contains(pattern));
+}
+
+TEST(TrieMapTest, ContainsEmptyPrefix) {
+  auto const status_or_pattern = RE::Create("");
+  ASSERT_OK(status_or_pattern);
+  auto const &pattern = status_or_pattern.value();
+  trie_map const tm{{"", 12}, {"lorem", 34}, {"ipsum", 56}};
+  EXPECT_TRUE(tm.contains_prefix(pattern));
+}
+
+TEST(TrieMapTest, AlwaysContainsEmptyPrefix) {
+  auto const status_or_pattern = RE::Create("");
+  ASSERT_OK(status_or_pattern);
+  auto const &pattern = status_or_pattern.value();
+  trie_map const tm{{"lorem", 12}, {"ipsum", 34}};
+  EXPECT_TRUE(tm.contains_prefix(pattern));
+}
+
+TEST(TrieMapTest, ContainsDeterministicPrefix) {
+  auto const status_or_pattern = RE::Create("lorem");
+  ASSERT_OK(status_or_pattern);
+  auto const &pattern = status_or_pattern.value();
+  ASSERT_TRUE(pattern.IsDeterministic());
+  trie_map const tm{{"loremamet", 12}, {"loremipsum", 34}, {"consectetur", 56}, {"adipisci", 78}};
+  EXPECT_TRUE(tm.contains_prefix(pattern));
+}
+
+TEST(TrieMapTest, ContainsNonDeterministicPrefix) {
+  auto const status_or_pattern = RE::Create("lorem(ipsum|amet)");
+  ASSERT_OK(status_or_pattern);
+  auto const &pattern = status_or_pattern.value();
+  ASSERT_FALSE(pattern.IsDeterministic());
+  trie_map const tm{
+      {"loremametdolor", 12}, {"loremametsit", 34}, {"loremipsumdolor", 56},
+      {"loremipsumsit", 78},  {"consectetur", 90},
+  };
+  EXPECT_TRUE(tm.contains_prefix(pattern));
+}
+
+TEST(TrieMapTest, ContainsMidKeyPrefix) {
+  auto const status_or_pattern = RE::Create("lor");
+  ASSERT_OK(status_or_pattern);
+  auto const &pattern = status_or_pattern.value();
+  trie_map const tm{{"loremamet", 12}, {"loremipsum", 34}, {"consectetur", 56}, {"adipisci", 78}};
+  EXPECT_TRUE(tm.contains_prefix(pattern));
+}
+
+TEST(TrieMapTest, DoesntContainDeterministicPrefix) {
+  auto const status_or_pattern = RE::Create("lorem");
+  ASSERT_OK(status_or_pattern);
+  auto const &pattern = status_or_pattern.value();
+  ASSERT_TRUE(pattern.IsDeterministic());
+  trie_map const tm{{"ipsum", 12}, {"dolor", 34}, {"consectetur", 56}, {"adipisci", 78}};
+  EXPECT_FALSE(tm.contains_prefix(pattern));
+}
+
+TEST(TrieMapTest, DoesntContainNonDeterministicPrefix) {
+  auto const status_or_pattern = RE::Create("lorem(ipsum|amet)");
+  ASSERT_OK(status_or_pattern);
+  auto const &pattern = status_or_pattern.value();
+  ASSERT_FALSE(pattern.IsDeterministic());
+  trie_map const tm{{"lorem", 12}, {"ipsum", 34}, {"dolor", 56}, {"consectetur", 78}};
+  EXPECT_FALSE(tm.contains_prefix(pattern));
+}
+
+TEST(TrieMapTest, DoesntContainPrefixWithFailingBoundaryAssertion) {
+  auto const status_or_pattern = RE::Create("lorem\\b");
+  ASSERT_OK(status_or_pattern);
+  auto const &pattern = status_or_pattern.value();
+  ASSERT_TRUE(pattern.IsDeterministic());
+  trie_map const tm{{"loremipsum", 12}, {"dolor", 34}, {"consectetur", 56}, {"adipisci", 78}};
+  EXPECT_FALSE(tm.contains_prefix(pattern));
 }
 
 TEST(TrieMapTest, EraseIteratorFromSingleElementMap) {

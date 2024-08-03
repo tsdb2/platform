@@ -890,8 +890,9 @@ TEST(TrieSetTest, ContainsNonDeterministicPrefix) {
   ASSERT_OK(status_or_pattern);
   auto const &pattern = status_or_pattern.value();
   ASSERT_FALSE(pattern.IsDeterministic());
-  trie_set const ts{"loremametdolor", "loremametsit", "loremipsumdolor",
-                    "loremipsumsit",  "consectetur",  "adipisci"};
+  trie_set const ts{
+      "loremametdolor", "loremametsit", "loremipsumdolor", "loremipsumsit", "consectetur",
+  };
   EXPECT_TRUE(ts.contains_prefix(pattern));
 }
 
@@ -901,6 +902,33 @@ TEST(TrieSetTest, ContainsMidKeyPrefix) {
   auto const &pattern = status_or_pattern.value();
   trie_set const ts{"loremamet", "loremipsum", "consectetur", "adipisci"};
   EXPECT_TRUE(ts.contains_prefix(pattern));
+}
+
+TEST(TrieSetTest, DoesntContainDeterministicPrefix) {
+  auto const status_or_pattern = RE::Create("lorem");
+  ASSERT_OK(status_or_pattern);
+  auto const &pattern = status_or_pattern.value();
+  ASSERT_TRUE(pattern.IsDeterministic());
+  trie_set const ts{"ipsum", "dolor", "consectetur", "adipisci"};
+  EXPECT_FALSE(ts.contains_prefix(pattern));
+}
+
+TEST(TrieSetTest, DoesntContainNonDeterministicPrefix) {
+  auto const status_or_pattern = RE::Create("lorem(ipsum|amet)");
+  ASSERT_OK(status_or_pattern);
+  auto const &pattern = status_or_pattern.value();
+  ASSERT_FALSE(pattern.IsDeterministic());
+  trie_set const ts{"lorem", "ipsum", "dolor", "consectetur", "adipisci"};
+  EXPECT_FALSE(ts.contains_prefix(pattern));
+}
+
+TEST(TrieSetTest, DoesntContainPrefixWithFailingBoundaryAssertion) {
+  auto const status_or_pattern = RE::Create("lorem\\b");
+  ASSERT_OK(status_or_pattern);
+  auto const &pattern = status_or_pattern.value();
+  ASSERT_TRUE(pattern.IsDeterministic());
+  trie_set const ts{"loremipsum", "dolor", "consectetur", "adipisci"};
+  EXPECT_FALSE(ts.contains_prefix(pattern));
 }
 
 TEST(TrieSetTest, EraseIteratorFromSingleElementSet) {
