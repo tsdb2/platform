@@ -196,29 +196,31 @@ class TrieNode {
 
   using DirectStateFrame = StateFrame<false>;
 
-  // This type of state frames is used in filtered views (See `FilteredView` below).
+  // Base class of the state frames used in filtered views (See `FilteredView` and
+  // `PrefixFilteredView` below).
   template <bool reverse>
-  class FilteredStateFrame : public StateFrame<reverse> {
+  class BaseFilteredStateFrame : public StateFrame<reverse> {
    public:
     using Base = StateFrame<reverse>;
     using Stepper = std::unique_ptr<regexp_internal::AbstractAutomaton::StepperInterface>;
 
-    explicit FilteredStateFrame(NodeSet& nodes, Stepper const& parent_stepper)
+    explicit BaseFilteredStateFrame(NodeSet& nodes, Stepper const& parent_stepper)
         : Base(nodes), parent_stepper_(parent_stepper.get()), stepper_(parent_stepper->Clone()) {}
 
-    explicit FilteredStateFrame(NodeSet const& nodes, Stepper const& parent_stepper)
+    explicit BaseFilteredStateFrame(NodeSet const& nodes, Stepper const& parent_stepper)
         : Base(nodes), parent_stepper_(parent_stepper.get()), stepper_(parent_stepper->Clone()) {}
 
-    explicit FilteredStateFrame(typename NodeSet::iterator pos_it,
-                                typename NodeSet::iterator end_it, Stepper const& parent_stepper)
+    explicit BaseFilteredStateFrame(typename NodeSet::iterator pos_it,
+                                    typename NodeSet::iterator end_it,
+                                    Stepper const& parent_stepper)
         : Base(pos_it, end_it),
           parent_stepper_(parent_stepper.get()),
           stepper_(parent_stepper->Clone()) {}
 
-    FilteredStateFrame(FilteredStateFrame const&) = default;
-    FilteredStateFrame& operator=(FilteredStateFrame const&) = default;
-    FilteredStateFrame(FilteredStateFrame&&) noexcept = default;
-    FilteredStateFrame& operator=(FilteredStateFrame&&) noexcept = default;
+    BaseFilteredStateFrame(BaseFilteredStateFrame const&) = default;
+    BaseFilteredStateFrame& operator=(BaseFilteredStateFrame const&) = default;
+    BaseFilteredStateFrame(BaseFilteredStateFrame&&) noexcept = default;
+    BaseFilteredStateFrame& operator=(BaseFilteredStateFrame&&) noexcept = default;
 
     Stepper const& stepper() const { return stepper_; }
 
@@ -253,6 +255,30 @@ class TrieNode {
     Stepper stepper_;
   };
 
+  template <bool reverse>
+  class FilteredStateFrame : public BaseFilteredStateFrame<reverse> {
+   public:
+    template <typename... Args>
+    explicit FilteredStateFrame(Args&&... args)
+        : BaseFilteredStateFrame<reverse>(std::forward<Args>(args)...) {}
+    FilteredStateFrame(FilteredStateFrame const&) = default;
+    FilteredStateFrame& operator=(FilteredStateFrame const&) = default;
+    FilteredStateFrame(FilteredStateFrame&&) noexcept = default;
+    FilteredStateFrame& operator=(FilteredStateFrame&&) noexcept = default;
+  };
+
+  template <bool reverse>
+  class PrefixFilteredStateFrame : public BaseFilteredStateFrame<reverse> {
+   public:
+    template <typename... Args>
+    explicit PrefixFilteredStateFrame(Args&&... args)
+        : BaseFilteredStateFrame<reverse>(std::forward<Args>(args)...) {}
+    PrefixFilteredStateFrame(PrefixFilteredStateFrame const&) = default;
+    PrefixFilteredStateFrame& operator=(PrefixFilteredStateFrame const&) = default;
+    PrefixFilteredStateFrame(PrefixFilteredStateFrame&&) noexcept = default;
+    PrefixFilteredStateFrame& operator=(PrefixFilteredStateFrame&&) noexcept = default;
+  };
+
   template <typename StateFrameType>
   static std::string GetElementKey(std::vector<StateFrameType> const& frames);
 
@@ -262,16 +288,20 @@ class TrieNode {
   // `StateFrame` is the type of state frames contained in the iterator, which may vary based on the
   // type of iterators and other variables in the frame.
   //
-  // Four state frame types are supported:
+  // The following state frame types are supported:
   //
   //   - direct unfiltered frames (`StateFrame<false>`);
   //   - reverse unfiltered frames (`StateFrame<true>`);
   //   - direct filtered frames (`FilteredStateFrame<false>`);
-  //   - reverse filtered frames (`FilteredStateFrame<true>`).
+  //   - reverse filtered frames (`FilteredStateFrame<true>`);
+  //   - direct prefix-filtered frames (`PrefixFilteredStateFrame<false>`);
+  //   - reverse prefix-filtered frames (`PrefixFilteredStateFrame<true>`).
   //
   // Direct state frames are used by forward iterators, while reverse ones are used by reverse
   // iterators. Filtered state frames are used by the iterators of filtered views, while unfiltered
-  // ones are for regular iterations.
+  // ones are for regular iterations. Prefix-filtered state frames are used by views that are
+  // filtered via prefix matching of a regular expression, as opposed to filtered views which use
+  // full matching.
   template <typename StateFrame>
   class BaseIterator;
 
@@ -369,7 +399,7 @@ class TrieNode {
 
   using DirectBaseIterator = BaseIterator<StateFrame<false>>;
 
-  // Specializes `BaseIterator` for filtered state frames.
+  // Specializes `BaseIterator` for filtered views.
   template <bool reverse>
   class BaseIterator<FilteredStateFrame<reverse>> {
    public:
