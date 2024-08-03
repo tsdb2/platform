@@ -39,15 +39,6 @@ bool DFA::Stepper::Step(char const ch) {
   }
 }
 
-bool DFA::Stepper::Step(std::string_view const chars) {
-  for (char const ch : chars) {
-    if (!Step(ch)) {
-      return false;
-    }
-  }
-  return true;
-}
-
 bool DFA::Stepper::Finish(char const next_character) const {
   auto state_num = current_state_;
   if (!Assert(state_num, next_character)) {

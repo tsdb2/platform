@@ -40,15 +40,6 @@ bool NFA::Stepper::Step(char const ch) {
   return true;
 }
 
-bool NFA::Stepper::Step(std::string_view const chars) {
-  for (char const ch : chars) {
-    if (!Step(ch)) {
-      return false;
-    }
-  }
-  return true;
-}
-
 bool NFA::Stepper::Finish(char const next_character) const {
   return EpsilonClosure(states_, next_character).contains(nfa_->final_state_);
 }

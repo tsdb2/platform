@@ -309,6 +309,9 @@ class trie_set {
   // Checks the presence of any strings that match the provided regular expression.
   bool contains(RE const& re) const { return root().Contains(re); }
 
+  // Checks the presence of any string with a prefix that matches the provided regular expression.
+  bool contains_prefix(RE const& re) const { return root().ContainsPrefix(re); }
+
   iterator lower_bound(std::string_view const key) { return Node::LowerBoundConst(roots_, key); }
 
   const_iterator lower_bound(std::string_view const key) const {

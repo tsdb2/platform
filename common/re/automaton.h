@@ -117,7 +117,7 @@ class AbstractAutomaton : public SimpleRefCounted {
 
     // Runs the automaton on every character in `chars`, effectively processing a chunk of the input
     // string. Bails out early and returns false iff a character doesn't match.
-    virtual bool Step(std::string_view chars) = 0;
+    bool Step(std::string_view chars);
 
     // Processes the end of the input string and returns a boolean indicating whether the string
     // matched.

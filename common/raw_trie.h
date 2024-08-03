@@ -752,9 +752,15 @@ class TrieNode {
   // Determines whether the trie rooted at this node contains the specified key.
   bool Contains(std::string_view key) const;
 
-  // Determines whether the trie rooted at this node contains any strings matching the provided
-  // regular expression.
+  // Determines whether the trie rooted at this node contains any strings matching the given regular
+  // expression.
   bool Contains(RE const& re) const { return Contains(re.automaton_->MakeStepper()); }
+
+  // Determines whether the trie rooted at this node contains one or more strings with a prefix that
+  // matches the given regular expression.
+  bool ContainsPrefix(RE const& re) const {
+    return ContainsPrefix("", re.automaton_->MakeStepper());
+  }
 
   // Finds the first element whose key is greater than or equal to `key`. Returns the end iterator
   // if no such element exists.
@@ -833,6 +839,10 @@ class TrieNode {
   typename NodeSet::iterator LowerBound(std::string_view needle);
 
   bool Contains(
+      std::unique_ptr<regexp_internal::AbstractAutomaton::StepperInterface> const& stepper) const;
+
+  bool ContainsPrefix(
+      std::string_view key,
       std::unique_ptr<regexp_internal::AbstractAutomaton::StepperInterface> const& stepper) const;
 
   template <typename... Args>
@@ -980,15 +990,35 @@ typename TrieNode<Label, Allocator>::Iterator TrieNode<Label, Allocator>::UpperB
 template <typename Label, typename Allocator>
 bool TrieNode<Label, Allocator>::Contains(
     std::unique_ptr<regexp_internal::AbstractAutomaton::StepperInterface> const& stepper) const {
+  if (TestLabel() && stepper->Finish()) {
+    return true;
+  }
   for (auto const& [key, child] : children_) {
     auto const child_stepper = stepper->Clone();
-    if (child_stepper->Step(key)) {
-      if (child.TestLabel() && child_stepper->Finish()) {
-        return true;
-      }
-      if (child.Contains(child_stepper)) {
-        return true;
-      }
+    if (child_stepper->Step(key) && child.Contains(child_stepper)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+template <typename Label, typename Allocator>
+bool TrieNode<Label, Allocator>::ContainsPrefix(
+    std::string_view const key,
+    std::unique_ptr<regexp_internal::AbstractAutomaton::StepperInterface> const& stepper) const {
+  for (char const ch : key) {
+    if (stepper->Finish(ch)) {
+      return true;
+    } else if (!stepper->Step(ch)) {
+      return false;
+    }
+  }
+  if (TestLabel() && stepper->Finish()) {
+    return true;
+  }
+  for (auto const& [key, child] : children_) {
+    if (child.ContainsPrefix(key, stepper->Clone())) {
+      return true;
     }
   }
   return false;
