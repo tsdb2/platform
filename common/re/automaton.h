@@ -102,13 +102,13 @@ class AbstractAutomaton : public SimpleRefCounted {
   // WARNING: the automaton must always outlive all of its steppers. Steppers refer to their parent
   // automata by raw pointer, not by `reffed_ptr`. It's the caller's responsibility to maintain the
   // automaton's reference count alive as long as one or more steppers exist.
-  class StepperInterface {
+  class AbstractStepper {
    public:
-    explicit StepperInterface() = default;
-    virtual ~StepperInterface() = default;
+    explicit AbstractStepper() = default;
+    virtual ~AbstractStepper() = default;
 
     // Clones the stepper, duplicating its internal state.
-    virtual std::unique_ptr<StepperInterface> Clone() const = 0;
+    virtual std::unique_ptr<AbstractStepper> Clone() const = 0;
 
     // Transitions the automaton into the next state, or returns false if `ch` has no transition
     // (i.e. the string doesn't match). When false is returned the stepper is no longer usable and
@@ -135,13 +135,13 @@ class AbstractAutomaton : public SimpleRefCounted {
 
    protected:
     // Copies are performed by `Clone`.
-    StepperInterface(StepperInterface const &) = default;
-    StepperInterface &operator=(StepperInterface const &) = default;
+    AbstractStepper(AbstractStepper const &) = default;
+    AbstractStepper &operator=(AbstractStepper const &) = default;
 
    private:
     // Moves forbidden: the trie search algorithms require pointer stability.
-    StepperInterface(StepperInterface &&) = delete;
-    StepperInterface &operator=(StepperInterface &&) = delete;
+    AbstractStepper(AbstractStepper &&) = delete;
+    AbstractStepper &operator=(AbstractStepper &&) = delete;
   };
 
   explicit AbstractAutomaton() = default;
@@ -167,10 +167,10 @@ class AbstractAutomaton : public SimpleRefCounted {
   // substring that the stepper will scan, or 0 if the stepper will scan a prefix of the original
   // input or the entire string. This information is needed to check possible assertions in the
   // initial state of the automaton.
-  virtual std::unique_ptr<StepperInterface> MakeStepper(char previous_character) const = 0;
+  virtual std::unique_ptr<AbstractStepper> MakeStepper(char previous_character) const = 0;
 
   // Creates a stepper for the automaton using 0 as the previous character.
-  std::unique_ptr<StepperInterface> MakeStepper() const { return MakeStepper(0); }
+  std::unique_ptr<AbstractStepper> MakeStepper() const { return MakeStepper(0); }
 
   // Tests the provided `input` string against the regular expression language decided by this
   // automaton.

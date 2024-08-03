@@ -64,7 +64,7 @@ class DFA final : public AbstractAutomaton {
   using States = std::vector<State>;
 
   // Stepper implementation for DFAs.
-  class Stepper final : public StepperInterface {
+  class Stepper final : public AbstractStepper {
    public:
     explicit Stepper(DFA const *const dfa, char const previous_character)
         : dfa_(dfa), current_state_(dfa_->initial_state_), last_character_(previous_character) {}
@@ -72,7 +72,7 @@ class DFA final : public AbstractAutomaton {
     Stepper(Stepper const &) = default;
     Stepper &operator=(Stepper const &) = default;
 
-    std::unique_ptr<StepperInterface> Clone() const override;
+    std::unique_ptr<AbstractStepper> Clone() const override;
     bool Step(char ch) override;
     bool Finish(char next_character) const override;
 
@@ -106,7 +106,7 @@ class DFA final : public AbstractAutomaton {
 
   size_t GetNumCaptureGroups() const override;
 
-  std::unique_ptr<StepperInterface> MakeStepper(char previous_character) const override;
+  std::unique_ptr<AbstractStepper> MakeStepper(char previous_character) const override;
 
   bool Test(std::string_view input) const override;
 

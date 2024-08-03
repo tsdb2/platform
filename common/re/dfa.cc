@@ -15,7 +15,7 @@ namespace tsdb2 {
 namespace common {
 namespace regexp_internal {
 
-std::unique_ptr<AbstractAutomaton::StepperInterface> DFA::Stepper::Clone() const {
+std::unique_ptr<AbstractAutomaton::AbstractStepper> DFA::Stepper::Clone() const {
   return std::make_unique<Stepper>(*this);
 }
 
@@ -68,7 +68,7 @@ std::pair<size_t, size_t> DFA::GetSize() const {
 
 size_t DFA::GetNumCaptureGroups() const { return capture_groups_.size(); }
 
-std::unique_ptr<AbstractAutomaton::StepperInterface> DFA::MakeStepper(
+std::unique_ptr<AbstractAutomaton::AbstractStepper> DFA::MakeStepper(
     char const previous_character) const {
   return std::make_unique<Stepper>(this, previous_character);
 }

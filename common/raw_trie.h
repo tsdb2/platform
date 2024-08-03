@@ -202,7 +202,7 @@ class TrieNode {
   class BaseFilteredStateFrame : public StateFrame<reverse> {
    public:
     using Base = StateFrame<reverse>;
-    using Stepper = std::unique_ptr<regexp_internal::AbstractAutomaton::StepperInterface>;
+    using Stepper = std::unique_ptr<regexp_internal::AbstractAutomaton::AbstractStepper>;
 
     explicit BaseFilteredStateFrame(NodeSet& nodes, Stepper const& parent_stepper)
         : Base(nodes), parent_stepper_(parent_stepper.get()), stepper_(parent_stepper->Clone()) {}
@@ -251,7 +251,7 @@ class TrieNode {
     bool FinishStepper() const { return stepper_->Clone()->Finish(); }
 
    private:
-    regexp_internal::AbstractAutomaton::StepperInterface const* parent_stepper_;
+    regexp_internal::AbstractAutomaton::AbstractStepper const* parent_stepper_;
     Stepper stepper_;
   };
 
@@ -456,7 +456,7 @@ class TrieNode {
       }
     }
 
-    std::unique_ptr<regexp_internal::AbstractAutomaton::StepperInterface> stepper_;
+    std::unique_ptr<regexp_internal::AbstractAutomaton::AbstractStepper> stepper_;
     std::vector<FilteredStateFrame<reverse>> frames_;
 
    private:
@@ -839,11 +839,11 @@ class TrieNode {
   typename NodeSet::iterator LowerBound(std::string_view needle);
 
   bool Contains(
-      std::unique_ptr<regexp_internal::AbstractAutomaton::StepperInterface> const& stepper) const;
+      std::unique_ptr<regexp_internal::AbstractAutomaton::AbstractStepper> const& stepper) const;
 
   bool ContainsPrefix(
       std::string_view key,
-      std::unique_ptr<regexp_internal::AbstractAutomaton::StepperInterface> const& stepper) const;
+      std::unique_ptr<regexp_internal::AbstractAutomaton::AbstractStepper> const& stepper) const;
 
   template <typename... Args>
   std::pair<Iterator, bool> InsertChild(std::vector<DirectStateFrame> frames, std::string_view key,
@@ -989,7 +989,7 @@ typename TrieNode<Label, Allocator>::Iterator TrieNode<Label, Allocator>::UpperB
 
 template <typename Label, typename Allocator>
 bool TrieNode<Label, Allocator>::Contains(
-    std::unique_ptr<regexp_internal::AbstractAutomaton::StepperInterface> const& stepper) const {
+    std::unique_ptr<regexp_internal::AbstractAutomaton::AbstractStepper> const& stepper) const {
   if (TestLabel() && stepper->Finish()) {
     return true;
   }
@@ -1005,7 +1005,7 @@ bool TrieNode<Label, Allocator>::Contains(
 template <typename Label, typename Allocator>
 bool TrieNode<Label, Allocator>::ContainsPrefix(
     std::string_view const key,
-    std::unique_ptr<regexp_internal::AbstractAutomaton::StepperInterface> const& stepper) const {
+    std::unique_ptr<regexp_internal::AbstractAutomaton::AbstractStepper> const& stepper) const {
   for (char const ch : key) {
     if (stepper->Finish(ch)) {
       return true;

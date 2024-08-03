@@ -13,7 +13,7 @@ namespace tsdb2 {
 namespace common {
 namespace regexp_internal {
 
-bool AbstractAutomaton::StepperInterface::Step(std::string_view const chars) {
+bool AbstractAutomaton::AbstractStepper::Step(std::string_view const chars) {
   for (char const ch : chars) {
     if (!Step(ch)) {
       return false;
