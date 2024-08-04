@@ -786,6 +786,14 @@ TEST(TrieSetTest, FilteredView1) {
 }
 
 TEST(TrieSetTest, FilteredView2) {
+  auto status_or_pattern = RE::Create("lorem.*");
+  ASSERT_OK(status_or_pattern);
+  trie_set const ts{"lorem", "loremamet", "loremipsum", "consectetur", ""};
+  EXPECT_THAT(ts.filter(std::move(status_or_pattern).value()),
+              ElementsAre("lorem", "loremamet", "loremipsum"));
+}
+
+TEST(TrieSetTest, FilteredView3) {
   auto status_or_pattern = RE::Create("lorem.+");
   ASSERT_OK(status_or_pattern);
   trie_set const ts{"lorem", "loremamet", "loremipsum", "consectetur", "adipisci"};
