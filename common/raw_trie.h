@@ -363,8 +363,6 @@ class TrieNode {
       }
     }
 
-    std::vector<StateFrame<reverse>> frames_;
-
    private:
     // Advances the iterator to the next node. The next node is found by attempting the following,
     // in order:
@@ -397,6 +395,8 @@ class TrieNode {
         }
       }
     }
+
+    std::vector<StateFrame<reverse>> frames_;
   };
 
   using DirectBaseIterator = BaseIterator<StateFrame<false>>;
@@ -458,9 +458,6 @@ class TrieNode {
       }
     }
 
-    std::unique_ptr<regexp_internal::AbstractAutomaton::AbstractStepper> stepper_;
-    std::vector<FilteredStateFrame<reverse>> frames_;
-
    private:
     // Advances the iterator to the next node accepted by the automaton. The next node is found by
     // attempting the following, in order:
@@ -494,6 +491,9 @@ class TrieNode {
         }
       }
     }
+
+    std::unique_ptr<regexp_internal::AbstractAutomaton::AbstractStepper> stepper_;
+    std::vector<FilteredStateFrame<reverse>> frames_;
   };
 
   // Specializes `BaseIterator` for prefix-filtered views.
@@ -518,6 +518,7 @@ class TrieNode {
       // TODO
     }
 
+   private:
     // TODO
   };
 
