@@ -233,18 +233,17 @@ class TrieNode {
       }
     }
 
-    // Runs `Step` on the stepper.
-    //
-    // NOTE: this MUST be called exactly once every time the `pos_` iterator of the frame changes:
-    // once after construction and once after each successful `Advance` call.
-    // `BaseIterator::Advance` achieves that: it calls `AdvanceStepper` every time `NextNode`
-    // returns, which happens either when a new frame is constructed or when its `pos_` iterator is
-    // advanced.
+    // Advances the stepper by a single character.
+    bool AdvanceStepper(char const ch) { return stepper_->Step(ch); }
+
+    // Advances the stepper on the key piece of this frame (as returned by `key()`).
     bool AdvanceStepper() { return stepper_->Step(Base::key()); }
 
-    // Runs `Finish` on the stepper. The frame and its stepper are still usable after this call.
-    //
-    // REQUIRES: `AdvanceStepper` must have run successfully.
+    // Runs `Finish(next_character)` on the stepper. The frame and its stepper are still usable
+    // after this call.
+    bool FinishStepper(char const next_character) const { return stepper_->Finish(next_character); }
+
+    // Runs `Finish()` on the stepper. The frame and its stepper are still usable after this call.
     bool FinishStepper() const { return stepper_->Finish(); }
 
    private:
@@ -479,8 +478,6 @@ class TrieNode {
    protected:
     using Base = BaseFilteredIterator<FilteredStateFrame<reverse>>;
 
-    friend class TrieNode;
-
     // Constructs the "begin" iterator.
     explicit BaseIterator(NodeSet const& roots,
                           reffed_ptr<regexp_internal::AbstractAutomaton> const& automaton)
@@ -538,13 +535,36 @@ class TrieNode {
     BaseIterator& operator=(BaseIterator&&) noexcept = default;
 
    protected:
-    using Base = BaseFilteredIterator<PrefixFilteredStateFrame<reverse>>;
+    using Base = BaseFilteredIterator<FilteredStateFrame<reverse>>;
+
+    // Constructs the "begin" iterator.
+    explicit BaseIterator(NodeSet const& roots,
+                          reffed_ptr<regexp_internal::AbstractAutomaton> const& automaton)
+        : BaseFilteredIterator<FilteredStateFrame<reverse>>(roots, automaton) {
+      if (!roots.empty()) {
+        Base::frames_.emplace_back(roots, Base::stepper_);
+        MaybeAdvance();
+      }
+    }
+
+    // Constructs the "end" iterator.
+    explicit BaseIterator() = default;
 
     void Advance() {
       while (Base::NextNode(), !Base::frames_.empty()) {
         auto& frame = Base::frames_.back();
         // TODO
       }
+    }
+
+   private:
+    // Used by the constructor to advance to the next matching node only if the first node doesn't
+    // match.
+    void MaybeAdvance() {
+      do {
+        auto& frame = Base::frames_.back();
+        // TODO
+      } while (Base::NextNode(), !Base::frames_.empty());
     }
   };
 
