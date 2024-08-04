@@ -30,7 +30,7 @@ bool AbstractAutomaton::PartialTest(std::string_view const input) const {
     return false;
   }
   for (size_t offset = 1; offset < input.size(); ++offset) {
-    if (PartialMatch(input, offset)) {
+    if (PartialTest(input, offset)) {
       return true;
     }
   }
