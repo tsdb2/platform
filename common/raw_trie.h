@@ -243,12 +243,10 @@ class TrieNode {
     // advanced.
     bool AdvanceStepper() { return stepper_->Step(Base::key()); }
 
-    // Runs `Finish` on a temporary clone of the stepper. The frame and its stepper are still usable
-    // after `FinishStepper` even if it returns true, because the original stepper is cloned and not
-    // affected.
+    // Runs `Finish` on the stepper. The frame and its stepper are still usable after this call.
     //
     // REQUIRES: `AdvanceStepper` must have run successfully.
-    bool FinishStepper() const { return stepper_->Clone()->Finish(); }
+    bool FinishStepper() const { return stepper_->Finish(); }
 
    private:
     regexp_internal::AbstractAutomaton::AbstractStepper const* parent_stepper_;
