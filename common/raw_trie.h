@@ -196,31 +196,29 @@ class TrieNode {
 
   using DirectStateFrame = StateFrame<false>;
 
-  // Base class of the state frames used in filtered views (See `FilteredView` and
-  // `PrefixFilteredView` below).
+  // Base class of the state frames used in `FilteredView`s.
   template <bool reverse>
-  class BaseFilteredStateFrame : public StateFrame<reverse> {
+  class FilteredStateFrame : public StateFrame<reverse> {
    public:
     using Base = StateFrame<reverse>;
     using Stepper = std::unique_ptr<regexp_internal::AbstractAutomaton::AbstractStepper>;
 
-    explicit BaseFilteredStateFrame(NodeSet& nodes, Stepper const& parent_stepper)
+    explicit FilteredStateFrame(NodeSet& nodes, Stepper const& parent_stepper)
         : Base(nodes), parent_stepper_(parent_stepper.get()), stepper_(parent_stepper->Clone()) {}
 
-    explicit BaseFilteredStateFrame(NodeSet const& nodes, Stepper const& parent_stepper)
+    explicit FilteredStateFrame(NodeSet const& nodes, Stepper const& parent_stepper)
         : Base(nodes), parent_stepper_(parent_stepper.get()), stepper_(parent_stepper->Clone()) {}
 
-    explicit BaseFilteredStateFrame(typename NodeSet::iterator pos_it,
-                                    typename NodeSet::iterator end_it,
-                                    Stepper const& parent_stepper)
+    explicit FilteredStateFrame(typename NodeSet::iterator pos_it,
+                                typename NodeSet::iterator end_it, Stepper const& parent_stepper)
         : Base(pos_it, end_it),
           parent_stepper_(parent_stepper.get()),
           stepper_(parent_stepper->Clone()) {}
 
-    BaseFilteredStateFrame(BaseFilteredStateFrame const&) = default;
-    BaseFilteredStateFrame& operator=(BaseFilteredStateFrame const&) = default;
-    BaseFilteredStateFrame(BaseFilteredStateFrame&&) noexcept = default;
-    BaseFilteredStateFrame& operator=(BaseFilteredStateFrame&&) noexcept = default;
+    FilteredStateFrame(FilteredStateFrame const&) = default;
+    FilteredStateFrame& operator=(FilteredStateFrame const&) = default;
+    FilteredStateFrame(FilteredStateFrame&&) noexcept = default;
+    FilteredStateFrame& operator=(FilteredStateFrame&&) noexcept = default;
 
     Stepper const& stepper() const { return stepper_; }
 
@@ -253,28 +251,34 @@ class TrieNode {
     Stepper stepper_;
   };
 
+  // Base class of the state frames used in `FilteredView`s.
   template <bool reverse>
-  class FilteredStateFrame : public BaseFilteredStateFrame<reverse> {
+  class PrefixFilteredStateFrame : public StateFrame<reverse> {
    public:
-    template <typename... Args>
-    explicit FilteredStateFrame(Args&&... args)
-        : BaseFilteredStateFrame<reverse>(std::forward<Args>(args)...) {}
-    FilteredStateFrame(FilteredStateFrame const&) = default;
-    FilteredStateFrame& operator=(FilteredStateFrame const&) = default;
-    FilteredStateFrame(FilteredStateFrame&&) noexcept = default;
-    FilteredStateFrame& operator=(FilteredStateFrame&&) noexcept = default;
-  };
+    using Base = StateFrame<reverse>;
+    using Stepper = std::unique_ptr<regexp_internal::AbstractAutomaton::AbstractStepper>;
 
-  template <bool reverse>
-  class PrefixFilteredStateFrame : public BaseFilteredStateFrame<reverse> {
-   public:
-    template <typename... Args>
-    explicit PrefixFilteredStateFrame(Args&&... args)
-        : BaseFilteredStateFrame<reverse>(std::forward<Args>(args)...) {}
+    explicit PrefixFilteredStateFrame(NodeSet& nodes, std::string_view const key,
+                                      Stepper const& stepper)
+        : Base(nodes), key_(key), stepper_(stepper->Clone()) {}
+
+    explicit PrefixFilteredStateFrame(NodeSet const& nodes, std::string_view const key,
+                                      Stepper const& stepper)
+        : Base(nodes), key_(key), stepper_(stepper->Clone()) {}
+
+    explicit PrefixFilteredStateFrame(typename NodeSet::iterator pos_it,
+                                      typename NodeSet::iterator end_it, std::string_view const key,
+                                      Stepper const& stepper)
+        : Base(pos_it, end_it), key_(key), stepper_(stepper->Clone()) {}
+
     PrefixFilteredStateFrame(PrefixFilteredStateFrame const&) = default;
     PrefixFilteredStateFrame& operator=(PrefixFilteredStateFrame const&) = default;
     PrefixFilteredStateFrame(PrefixFilteredStateFrame&&) noexcept = default;
     PrefixFilteredStateFrame& operator=(PrefixFilteredStateFrame&&) noexcept = default;
+
+   private:
+    std::string_view key_;
+    Stepper stepper_;
   };
 
   template <typename StateFrameType>
@@ -492,6 +496,31 @@ class TrieNode {
     }
   };
 
+  // Specializes `BaseIterator` for prefix-filtered views.
+  template <bool reverse>
+  class BaseIterator<PrefixFilteredStateFrame<reverse>> {
+   public:
+    BaseIterator(BaseIterator const&) = default;
+    BaseIterator& operator=(BaseIterator const&) = default;
+    BaseIterator(BaseIterator&&) noexcept = default;
+    BaseIterator& operator=(BaseIterator&&) noexcept = default;
+
+    friend bool operator==(BaseIterator const& lhs, BaseIterator const& rhs) {
+      return lhs.frames_ == rhs.frames_;
+    }
+
+    friend bool operator!=(BaseIterator const& lhs, BaseIterator const& rhs) {
+      return lhs.frames_ != rhs.frames_;
+    }
+
+   protected:
+    void Advance() {
+      // TODO
+    }
+
+    // TODO
+  };
+
  private:
   // Bidirectional node iterator.
   template <typename StateFrame>
@@ -621,6 +650,10 @@ class TrieNode {
   using ConstFilteredIterator = GenericConstIterator<FilteredStateFrame<false>>;
   using ReverseFilteredIterator = GenericIterator<FilteredStateFrame<true>>;
   using ConstReverseFilteredIterator = GenericConstIterator<FilteredStateFrame<true>>;
+  using PrefixFilteredIterator = GenericIterator<PrefixFilteredStateFrame<false>>;
+  using ConstPrefixFilteredIterator = GenericConstIterator<PrefixFilteredStateFrame<false>>;
+  using ReversePrefixFilteredIterator = GenericIterator<PrefixFilteredStateFrame<true>>;
+  using ConstReversePrefixFilteredIterator = GenericConstIterator<PrefixFilteredStateFrame<true>>;
 
   // Provides a view of the trie filtered by a regular expression, allowing the user to enumerate
   // only the elements whose key matches the regular expression.
@@ -668,6 +701,79 @@ class TrieNode {
 
     explicit FilteredView(NodeSet const& roots,
                           reffed_ptr<regexp_internal::AbstractAutomaton> automaton)
+        : roots_(&roots), automaton_(std::move(automaton)) {}
+
+    NodeSet const* roots_;
+    reffed_ptr<regexp_internal::AbstractAutomaton> automaton_;
+  };
+
+  // Provides a view of the trie filtered by a regular expression, allowing the user to enumerate
+  // only the elements whose key has a prefix matching the regular expression.
+  //
+  // Under the hood `PrefixFilteredView` uses efficient algorithms that can entirely skip
+  // mismatching subtrees, so it's much more efficient than just iterating over all elements and
+  // checking each one against the regular expression.
+  //
+  // NOTE: `FilteredView` uses full matching of the keys against the regular expression, while
+  // `PrefixFilteredView` uses prefix matching. `PrefixFilteredView` is particularly useful to
+  // search for arbitrary substrings of a large input text efficiently: you can use a trie to build
+  // a suffix tree (i.e. store all possible suffixes) of the input text and associate the location
+  // of each suffix, then you can search a substring by using it to create a `PrefixFilteredView`,
+  // which will return all suffixes with that prefix and therefore all locations with the substring.
+  //
+  // You can get a `PrefixFilteredView` instance by calling `TrieNode::FilterPrefix`.
+  //
+  // NOTE: the `PrefixFilteredView` refers to the parent trie internally, so the trie must not be
+  // moved or destroyed while one or more `PrefixFilteredView` instances exist. It is okay to move
+  // and copy the `PrefixFilteredView` itself.
+  class PrefixFilteredView {
+   public:
+    PrefixFilteredView(PrefixFilteredView const&) = default;
+    PrefixFilteredView& operator=(PrefixFilteredView const&) = default;
+    PrefixFilteredView(PrefixFilteredView&&) noexcept = default;
+    PrefixFilteredView& operator=(PrefixFilteredView&&) noexcept = default;
+
+    PrefixFilteredIterator begin() { return PrefixFilteredIterator(*roots_, automaton_); }
+
+    ConstPrefixFilteredIterator begin() const {
+      return ConstPrefixFilteredIterator(*roots_, automaton_);
+    }
+
+    ConstPrefixFilteredIterator cbegin() const {
+      return ConstPrefixFilteredIterator(*roots_, automaton_);
+    }
+
+    PrefixFilteredIterator end() { return PrefixFilteredIterator(); }
+
+    ConstPrefixFilteredIterator end() const { return ConstPrefixFilteredIterator(); }
+
+    ConstPrefixFilteredIterator cend() const { return ConstPrefixFilteredIterator(); }
+
+    ReversePrefixFilteredIterator rbegin() {
+      return ReversePrefixFilteredIterator(*roots_, automaton_);
+    }
+
+    ConstReversePrefixFilteredIterator rbegin() const {
+      return ConstReversePrefixFilteredIterator(*roots_, automaton_);
+    }
+
+    ConstReversePrefixFilteredIterator crbegin() const {
+      return ConstReversePrefixFilteredIterator(*roots_, automaton_);
+    }
+
+    ReversePrefixFilteredIterator rend() { return ReversePrefixFilteredIterator(); }
+
+    ConstReversePrefixFilteredIterator rend() const { return ConstReversePrefixFilteredIterator(); }
+
+    ConstReversePrefixFilteredIterator crend() const {
+      return ConstReversePrefixFilteredIterator();
+    }
+
+   private:
+    friend class TrieNode;
+
+    explicit PrefixFilteredView(NodeSet const& roots,
+                                reffed_ptr<regexp_internal::AbstractAutomaton> automaton)
         : roots_(&roots), automaton_(std::move(automaton)) {}
 
     NodeSet const* roots_;
@@ -752,12 +858,14 @@ class TrieNode {
 
   // Determines whether the trie rooted at this node contains any strings matching the given regular
   // expression.
-  bool Contains(RE const& re) const { return Contains("", re.automaton_->MakeStepper()); }
+  bool Contains(std::string_view const prefix, RE const& re) const {
+    return Contains(prefix, re.automaton_->MakeStepper(prefix.empty() ? 0 : prefix.back()));
+  }
 
   // Determines whether the trie rooted at this node contains one or more strings with a prefix that
   // matches the given regular expression.
-  bool ContainsPrefix(RE const& re) const {
-    return ContainsPrefix("", re.automaton_->MakeStepper());
+  bool ContainsPrefix(std::string_view const prefix, RE const& re) const {
+    return ContainsPrefix(prefix, re.automaton_->MakeStepper(prefix.empty() ? 0 : prefix.back()));
   }
 
   // Finds the first element whose key is greater than or equal to `key`. Returns the end iterator

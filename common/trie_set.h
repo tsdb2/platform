@@ -96,6 +96,43 @@ class trie_set {
         : Node::FilteredView(std::move(view)) {}
   };
 
+  class prefix_filtered_view : public Node::PrefixFilteredView {
+   public:
+    using key_type = std::string;
+    using value_type = key_type;
+    using size_type = size_t;
+    using difference_type = ptrdiff_t;
+    using allocator_type = typename Node::EntryAllocator;
+    using allocator_traits = std::allocator_traits<allocator_type>;
+    using reference = value_type&;
+    using const_reference = value_type const&;
+    using pointer = typename std::allocator_traits<Allocator>::pointer;
+    using const_pointer = typename std::allocator_traits<Allocator>::const_pointer;
+    using iterator = typename Node::ConstPrefixFilteredIterator;
+    using const_iterator = typename Node::ConstPrefixFilteredIterator;
+    using reverse_iterator = typename Node::ConstReversePrefixFilteredIterator;
+    using const_reverse_iterator = typename Node::ConstReversePrefixFilteredIterator;
+
+    prefix_filtered_view(prefix_filtered_view const&) = default;
+    prefix_filtered_view& operator=(prefix_filtered_view const&) = default;
+    prefix_filtered_view(prefix_filtered_view&&) noexcept = default;
+    prefix_filtered_view& operator=(prefix_filtered_view&&) noexcept = default;
+
+    using Node::PrefixFilteredView::begin;
+    using Node::PrefixFilteredView::cbegin;
+    using Node::PrefixFilteredView::cend;
+    using Node::PrefixFilteredView::crbegin;
+    using Node::PrefixFilteredView::crend;
+    using Node::PrefixFilteredView::end;
+    using Node::PrefixFilteredView::rbegin;
+    using Node::PrefixFilteredView::rend;
+
+   private:
+    friend class trie_set;
+    explicit prefix_filtered_view(typename Node::PrefixFilteredView&& view)
+        : Node::PrefixFilteredView(std::move(view)) {}
+  };
+
   trie_set() = default;
 
   explicit trie_set(allocator_type const& alloc)
@@ -283,8 +320,8 @@ class trie_set {
   // Provides a view of the trie filtered by a regular expression, allowing the user to enumerate
   // only the elements whose key matches the regular expression.
   //
-  // REQUIRES: `re` MUST have been created with the `no_anchors` option. This filtering algorithm
-  // can only perform full matches, so anchors are not supported.
+  // NOTE: since the filtered view performs full matches it's recommended to create `re` with the
+  // `no_anchors` option enabled.
   //
   // Example:
   //
@@ -304,13 +341,36 @@ class trie_set {
   // `filtered_view` itself.
   filtered_view filter(RE re) const { return filtered_view(Node::Filter(roots_, std::move(re))); }
 
+  // Provides a view of the trie filtered on key prefixes by a regular expression, allowing the user
+  // to enumerate only the elements whose key have a prefix matching the regular expression.
+  //
+  // Example:
+  //
+  //   trie_set const ts{"lorem ipsum", "lorem dolor", "amet", "consectetur"};
+  //   for (auto const& key : ts.filter_prefix(RE::Create("lorem"))) {
+  //     std::cout << key << std::endl;
+  //   }
+  //
+  // The above example will print "lorem ipsum" and "lorem dolor".
+  //
+  // Under the hood `prefix_filtered_view` uses efficient algorithms that can entirely skip
+  // mismatching subtrees, so it's much more efficient than iterating over all elements and checking
+  // each one against the regular expression.
+  //
+  // NOTE: the `prefix_filtered_view` refers to the parent trie internally, so the trie must not be
+  // moved or destroyed while one or more `prefix_filtered_view`s exist. It is okay to move and copy
+  // the `prefix_filtered_view` itself.
+  prefix_filtered_view filter_prefix(RE re) const {
+    return prefix_filtered_view(Node::FilterPrefix(roots_, std::move(re)));
+  }
+
   bool contains(std::string_view const key) const { return root().Contains(key); }
 
   // Checks the presence of any strings that match the provided regular expression.
-  bool contains(RE const& re) const { return root().Contains(re); }
+  bool contains(RE const& re) const { return root().Contains("", re); }
 
   // Checks the presence of any string with a prefix that matches the provided regular expression.
-  bool contains_prefix(RE const& re) const { return root().ContainsPrefix(re); }
+  bool contains_prefix(RE const& re) const { return root().ContainsPrefix("", re); }
 
   iterator lower_bound(std::string_view const key) { return Node::LowerBoundConst(roots_, key); }
 
