@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <locale>
 #include <memory>
 #include <string_view>
 #include <utility>
@@ -115,13 +116,24 @@ class Parser final {
   // Parses the next two characters as a hex byte. Used to parse hex escape codes.
   absl::StatusOr<uint8_t> ParseHexCode();
 
+  // Adds an edge from `state` to `destination` labeled with `ch`, subject to case sensitivity: if
+  // `options_.case_insensitive` is true it adds two edges, one labeled with `std::toupper(ch)` and
+  // one with `std::tolower(ch)` (which may be the same); otherwise it adds only one.
+  void AddEdgeWithCase(State* state, char ch, uint32_t destination);
+
+  // Erases all edges labeled with `ch` (subject to case sensitivity) from `state` to `destination`.
+  // If `options_.case_insensitive` is true it erases both the edges labeled with `std::toupper(ch)`
+  // and the ones with `std::tolower(ch)` (which may be the same); otherwise it erases only those
+  // labeled with `ch`.
+  void EraseEdgeWithCase(State* edges, char ch);
+
   TempNFA MakeSingleCharacterNFA(int capture_group, char ch);
   TempNFA MakeCharacterClassNFA(int capture_group, std::string_view chars);
   TempNFA MakeNegatedCharacterClassNFA(int capture_group, std::string_view chars);
   TempNFA MakeAssertionState(int capture_group, Assertions assertions);
 
-  static absl::Status UpdateCharacterClassEdge(bool negated, State* start_state, char ch,
-                                               uint32_t stop_state_num);
+  static absl::Status UpdateCharacterClassEdgeNoCase(bool negated, State* start_state, char ch,
+                                                     uint32_t stop_state_num);
 
   // Called by `ParseCharacterClass` to parse escape codes. `negated` indicates whether the
   // character class is negated (i.e. it begins with ^). `state` is the NFA state to update with the
@@ -195,12 +207,32 @@ absl::StatusOr<uint8_t> Parser::ParseHexCode() {
   return digit1 * 16 + digit2;
 }
 
+void Parser::AddEdgeWithCase(State* const state, char const ch, uint32_t const destination) {
+  if (options_.case_insensitive) {
+    state->edges[std::toupper(ch)].emplace(destination);
+    state->edges[std::tolower(ch)].emplace(destination);
+  } else {
+    state->edges[ch].emplace(destination);
+  }
+}
+
+void Parser::EraseEdgeWithCase(State* const state, char const ch) {
+  if (options_.case_insensitive) {
+    state->edges.erase(std::toupper(ch));
+    state->edges.erase(std::tolower(ch));
+  } else {
+    state->edges.erase(ch);
+  }
+}
+
 TempNFA Parser::MakeSingleCharacterNFA(int const capture_group, char const ch) {
   uint32_t const start = next_state_++;
   uint32_t const stop = next_state_++;
+  State state{capture_group, {}};
+  AddEdgeWithCase(&state, ch, stop);
   return TempNFA(
       {
-          {start, State(capture_group, {{ch, {stop}}})},
+          {start, std::move(state)},
           {stop, State(capture_group, {})},
       },
       start, stop);
@@ -211,7 +243,7 @@ TempNFA Parser::MakeCharacterClassNFA(int const capture_group, std::string_view 
   uint32_t const stop = next_state_++;
   State state{capture_group, {}};
   for (char const ch : chars) {
-    state.edges[ch].emplace(stop);
+    AddEdgeWithCase(&state, ch, stop);
   }
   return TempNFA(
       {
@@ -230,7 +262,7 @@ TempNFA Parser::MakeNegatedCharacterClassNFA(int const capture_group,
     state.edges[ch].emplace(stop);
   }
   for (char const ch : chars) {
-    state.edges.erase(ch);
+    EraseEdgeWithCase(&state, ch);
   }
   return TempNFA(
       {
@@ -245,8 +277,8 @@ TempNFA Parser::MakeAssertionState(int const capture_group, Assertions const ass
   return TempNFA({{state, State(capture_group, assertions, {})}}, state, state);
 }
 
-absl::Status Parser::UpdateCharacterClassEdge(bool const negated, State* const start_state,
-                                              char const ch, uint32_t const stop_state_num) {
+absl::Status Parser::UpdateCharacterClassEdgeNoCase(bool const negated, State* const start_state,
+                                                    char const ch, uint32_t const stop_state_num) {
   if (negated) {
     start_state->edges.erase(ch);
   } else {
@@ -276,20 +308,20 @@ absl::Status Parser::ParseCharacterClassEscapeCode(bool const negated, State* co
     case '?':
     case '*':
     case '+':
-      return UpdateCharacterClassEdge(negated, start_state, ch, stop_state_num);
+      return UpdateCharacterClassEdgeNoCase(negated, start_state, ch, stop_state_num);
     case 't':
-      return UpdateCharacterClassEdge(negated, start_state, '\t', stop_state_num);
+      return UpdateCharacterClassEdgeNoCase(negated, start_state, '\t', stop_state_num);
     case 'r':
-      return UpdateCharacterClassEdge(negated, start_state, '\r', stop_state_num);
+      return UpdateCharacterClassEdgeNoCase(negated, start_state, '\r', stop_state_num);
     case 'n':
-      return UpdateCharacterClassEdge(negated, start_state, '\n', stop_state_num);
+      return UpdateCharacterClassEdgeNoCase(negated, start_state, '\n', stop_state_num);
     case 'v':
-      return UpdateCharacterClassEdge(negated, start_state, '\v', stop_state_num);
+      return UpdateCharacterClassEdgeNoCase(negated, start_state, '\v', stop_state_num);
     case 'f':
-      return UpdateCharacterClassEdge(negated, start_state, '\f', stop_state_num);
+      return UpdateCharacterClassEdgeNoCase(negated, start_state, '\f', stop_state_num);
     case 'x': {
       ASSIGN_VAR_OR_RETURN(uint8_t, code, ParseHexCode());
-      return UpdateCharacterClassEdge(negated, start_state, code, stop_state_num);
+      return UpdateCharacterClassEdgeNoCase(negated, start_state, code, stop_state_num);
     }
     case '0':
     case '1':
@@ -325,25 +357,25 @@ absl::Status Parser::ParseCharacterOrRange(bool const negated, State* const star
       }
       for (char ch = ch1; ch <= ch2; ++ch) {
         if (negated) {
-          start_state->edges.erase(ch);
+          EraseEdgeWithCase(start_state, ch);
         } else {
-          start_state->edges[ch].emplace(stop_state_num);
+          AddEdgeWithCase(start_state, ch, stop_state_num);
         }
       }
     } else {
       if (negated) {
-        start_state->edges.erase(ch1);
+        EraseEdgeWithCase(start_state, ch1);
         start_state->edges.erase('-');
       } else {
-        start_state->edges[ch1].emplace(stop_state_num);
+        AddEdgeWithCase(start_state, ch1, stop_state_num);
         start_state->edges['-'].emplace(stop_state_num);
       }
     }
   } else {
     if (negated) {
-      start_state->edges.erase(ch1);
+      EraseEdgeWithCase(start_state, ch1);
     } else {
-      start_state->edges[ch1].emplace(stop_state_num);
+      AddEdgeWithCase(start_state, ch1, stop_state_num);
     }
   }
   return absl::OkStatus();
@@ -523,12 +555,7 @@ absl::StatusOr<TempNFA> Parser::Parse0(size_t const recursion_depth, int const c
       }
     default:
       Advance();
-      return TempNFA(
-          {
-              {start, State(capture_group, {{ch, {stop}}})},
-              {stop, State(capture_group, {})},
-          },
-          start, stop);
+      return MakeSingleCharacterNFA(capture_group, ch);
   }
 }
 

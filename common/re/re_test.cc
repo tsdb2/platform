@@ -3298,6 +3298,131 @@ TEST_P(RegexpTest, BothBranchesAssertBeginOfInput) {
   EXPECT_THAT(pattern, DoesntPartiallyMatch("dolor ipsum amet"));
 }
 
+TEST_P(RegexpTest, CaseSensitive) {
+  auto const status_or_pattern = Parse("(lorem)", {.case_insensitive = false});
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern, Matches("lorem", {{"lorem"}}));
+  EXPECT_THAT(pattern, DoesntMatch("ipsum"));
+  EXPECT_THAT(pattern, DoesntMatch("LOREM"));
+  EXPECT_THAT(pattern, DoesntMatch("Lorem"));
+  EXPECT_THAT(pattern, DoesntMatch("LoReM"));
+}
+
+TEST_P(RegexpTest, CaseInsensitive) {
+  auto const status_or_pattern = Parse("(lorem)", {.case_insensitive = true});
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern, Matches("lorem", {{"lorem"}}));
+  EXPECT_THAT(pattern, DoesntMatch("ipsum"));
+  EXPECT_THAT(pattern, Matches("LOREM", {{"LOREM"}}));
+  EXPECT_THAT(pattern, Matches("Lorem", {{"Lorem"}}));
+  EXPECT_THAT(pattern, Matches("LoReM", {{"LoReM"}}));
+}
+
+TEST_P(RegexpTest, CaseSensitiveCharacterClass) {
+  auto const status_or_pattern = Parse("([lorem]+)", {.case_insensitive = false});
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern, Matches("lorem", {{"lorem"}}));
+  EXPECT_THAT(pattern, Matches("merol", {{"merol"}}));
+  EXPECT_THAT(pattern, DoesntMatch("ipsum"));
+  EXPECT_THAT(pattern, DoesntMatch("IPSUM"));
+  EXPECT_THAT(pattern, DoesntMatch("LOREM"));
+  EXPECT_THAT(pattern, DoesntMatch("MEROL"));
+  EXPECT_THAT(pattern, DoesntMatch("Lorem"));
+  EXPECT_THAT(pattern, DoesntMatch("Merol"));
+  EXPECT_THAT(pattern, DoesntMatch("LoReM"));
+  EXPECT_THAT(pattern, DoesntMatch("mErOl"));
+}
+
+TEST_P(RegexpTest, CaseInsensitiveCharacterClass) {
+  auto const status_or_pattern = Parse("([lorem]+)", {.case_insensitive = true});
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern, Matches("lorem", {{"lorem"}}));
+  EXPECT_THAT(pattern, Matches("merol", {{"merol"}}));
+  EXPECT_THAT(pattern, DoesntMatch("ipsum"));
+  EXPECT_THAT(pattern, DoesntMatch("IPSUM"));
+  EXPECT_THAT(pattern, Matches("LOREM", {{"LOREM"}}));
+  EXPECT_THAT(pattern, Matches("MEROL", {{"MEROL"}}));
+  EXPECT_THAT(pattern, Matches("Lorem", {{"Lorem"}}));
+  EXPECT_THAT(pattern, Matches("Merol", {{"Merol"}}));
+  EXPECT_THAT(pattern, Matches("LoReM", {{"LoReM"}}));
+  EXPECT_THAT(pattern, Matches("mErOl", {{"mErOl"}}));
+}
+
+TEST_P(RegexpTest, CaseSensitiveNegatedCharacterClass) {
+  auto const status_or_pattern = Parse("([^lorem]+)", {.case_insensitive = false});
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern, DoesntMatch("lorem"));
+  EXPECT_THAT(pattern, DoesntMatch("merol"));
+  EXPECT_THAT(pattern, Matches("adipisci", {{"adipisci"}}));
+  EXPECT_THAT(pattern, Matches("ADIPISCI", {{"ADIPISCI"}}));
+  EXPECT_THAT(pattern, Matches("LOREM", {{"LOREM"}}));
+  EXPECT_THAT(pattern, Matches("MEROL", {{"MEROL"}}));
+  EXPECT_THAT(pattern, DoesntMatch("Lorem"));
+  EXPECT_THAT(pattern, DoesntMatch("Merol"));
+  EXPECT_THAT(pattern, DoesntMatch("LoReM"));
+  EXPECT_THAT(pattern, DoesntMatch("mErOl"));
+}
+
+TEST_P(RegexpTest, CaseInsensitiveNegatedCharacterClass) {
+  auto const status_or_pattern = Parse("([^lorem]+)", {.case_insensitive = true});
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern, DoesntMatch("lorem"));
+  EXPECT_THAT(pattern, DoesntMatch("merol"));
+  EXPECT_THAT(pattern, Matches("adipisci", {{"adipisci"}}));
+  EXPECT_THAT(pattern, Matches("ADIPISCI", {{"ADIPISCI"}}));
+  EXPECT_THAT(pattern, DoesntMatch("LOREM"));
+  EXPECT_THAT(pattern, DoesntMatch("MEROL"));
+  EXPECT_THAT(pattern, DoesntMatch("Lorem"));
+  EXPECT_THAT(pattern, DoesntMatch("Merol"));
+  EXPECT_THAT(pattern, DoesntMatch("LoReM"));
+  EXPECT_THAT(pattern, DoesntMatch("mErOl"));
+}
+
+TEST_P(RegexpTest, CaseSensitiveCharacterRange) {
+  auto const status_or_pattern = Parse("([T-s]+)", {.case_insensitive = false});
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern, DoesntMatch("ABCDEFGHIJKLMNOPQRS"));
+  EXPECT_THAT(pattern, Matches("TUVWXYZ[\\]^_`abcdefghijklmnopqrs",
+                               {{"TUVWXYZ[\\]^_`abcdefghijklmnopqrs"}}));
+  EXPECT_THAT(pattern, DoesntMatch("tuvwxyz{|}~"));
+}
+
+TEST_P(RegexpTest, CaseInsensitiveCharacterRange) {
+  auto const status_or_pattern = Parse("([T-s]+)", {.case_insensitive = true});
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern, Matches("ABCDEFGHIJKLMNOPQRSTUVWXYZ", {{"ABCDEFGHIJKLMNOPQRSTUVWXYZ"}}));
+  EXPECT_THAT(pattern, Matches("[\\]^_`", {{"[\\]^_`"}}));
+  EXPECT_THAT(pattern, Matches("abcdefghijklmnopqrstuvwxyz", {{"abcdefghijklmnopqrstuvwxyz"}}));
+  EXPECT_THAT(pattern, DoesntMatch("{|}~"));
+}
+
+TEST_P(RegexpTest, CaseSensitiveNegatedCharacterRange) {
+  auto const status_or_pattern = Parse("([^T-s]+)", {.case_insensitive = false});
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern, Matches("ABCDEFGHIJKLMNOPQRS", {{"ABCDEFGHIJKLMNOPQRS"}}));
+  EXPECT_THAT(pattern, DoesntMatch("TUVWXYZ[\\]^_`abcdefghijklmnopqrs"));
+  EXPECT_THAT(pattern, Matches("tuvwxyz{|}~", {{"tuvwxyz{|}~"}}));
+}
+
+TEST_P(RegexpTest, CaseInsensitiveNegatedCharacterRange) {
+  auto const status_or_pattern = Parse("([^T-s]+)", {.case_insensitive = true});
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern, DoesntMatch("ABCDEFGHIJKLMNOPQRSTUVWXYZ"));
+  EXPECT_THAT(pattern, DoesntMatch("[\\]^_`"));
+  EXPECT_THAT(pattern, DoesntMatch("abcdefghijklmnopqrstuvwxyz"));
+  EXPECT_THAT(pattern, Matches("{|}~", {{"{|}~"}}));
+}
+
 INSTANTIATE_TEST_SUITE_P(RegexpTest, RegexpTest,
                          Values(RegexpTestParams{.force_nfa = false, .use_stepper = false},
                                 RegexpTestParams{.force_nfa = false, .use_stepper = true},

@@ -18,6 +18,9 @@ struct Options {
   // Disallows anchors (^ and $). Typically used in full matches, i.e. if you plan to always call
   // `Match(Args)` rather than `PartialMatch(Args)`.
   bool no_anchors = false;
+
+  // Case-insensitive mode, e.g. `hello` matches any of: `hello`, `HELLO`, `Hello`, `HeLlo`, etc.
+  bool case_insensitive = false;
 };
 
 // Parses a regular expression and compiles it into a runnable automaton. The automaton is initially
