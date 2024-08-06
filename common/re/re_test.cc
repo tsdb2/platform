@@ -3299,7 +3299,7 @@ TEST_P(RegexpTest, BothBranchesAssertBeginOfInput) {
 }
 
 TEST_P(RegexpTest, CaseSensitive) {
-  auto const status_or_pattern = Parse("(lorem)", {.case_insensitive = false});
+  auto const status_or_pattern = Parse("(lorem)", {.case_sensitive = true});
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("lorem", {{"lorem"}}));
@@ -3310,7 +3310,7 @@ TEST_P(RegexpTest, CaseSensitive) {
 }
 
 TEST_P(RegexpTest, CaseInsensitive) {
-  auto const status_or_pattern = Parse("(lorem)", {.case_insensitive = true});
+  auto const status_or_pattern = Parse("(lorem)", {.case_sensitive = false});
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("lorem", {{"lorem"}}));
@@ -3321,7 +3321,7 @@ TEST_P(RegexpTest, CaseInsensitive) {
 }
 
 TEST_P(RegexpTest, CaseSensitiveCharacterClass) {
-  auto const status_or_pattern = Parse("([lorem]+)", {.case_insensitive = false});
+  auto const status_or_pattern = Parse("([lorem]+)", {.case_sensitive = true});
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("lorem", {{"lorem"}}));
@@ -3337,7 +3337,7 @@ TEST_P(RegexpTest, CaseSensitiveCharacterClass) {
 }
 
 TEST_P(RegexpTest, CaseInsensitiveCharacterClass) {
-  auto const status_or_pattern = Parse("([lorem]+)", {.case_insensitive = true});
+  auto const status_or_pattern = Parse("([lorem]+)", {.case_sensitive = false});
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("lorem", {{"lorem"}}));
@@ -3353,7 +3353,7 @@ TEST_P(RegexpTest, CaseInsensitiveCharacterClass) {
 }
 
 TEST_P(RegexpTest, CaseSensitiveNegatedCharacterClass) {
-  auto const status_or_pattern = Parse("([^lorem]+)", {.case_insensitive = false});
+  auto const status_or_pattern = Parse("([^lorem]+)", {.case_sensitive = true});
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch("lorem"));
@@ -3369,7 +3369,7 @@ TEST_P(RegexpTest, CaseSensitiveNegatedCharacterClass) {
 }
 
 TEST_P(RegexpTest, CaseInsensitiveNegatedCharacterClass) {
-  auto const status_or_pattern = Parse("([^lorem]+)", {.case_insensitive = true});
+  auto const status_or_pattern = Parse("([^lorem]+)", {.case_sensitive = false});
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch("lorem"));
@@ -3385,7 +3385,7 @@ TEST_P(RegexpTest, CaseInsensitiveNegatedCharacterClass) {
 }
 
 TEST_P(RegexpTest, CaseSensitiveCharacterRange) {
-  auto const status_or_pattern = Parse("([T-s]+)", {.case_insensitive = false});
+  auto const status_or_pattern = Parse("([T-s]+)", {.case_sensitive = true});
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch("ABCDEFGHIJKLMNOPQRS"));
@@ -3395,7 +3395,7 @@ TEST_P(RegexpTest, CaseSensitiveCharacterRange) {
 }
 
 TEST_P(RegexpTest, CaseInsensitiveCharacterRange) {
-  auto const status_or_pattern = Parse("([T-s]+)", {.case_insensitive = true});
+  auto const status_or_pattern = Parse("([T-s]+)", {.case_sensitive = false});
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("ABCDEFGHIJKLMNOPQRSTUVWXYZ", {{"ABCDEFGHIJKLMNOPQRSTUVWXYZ"}}));
@@ -3405,7 +3405,7 @@ TEST_P(RegexpTest, CaseInsensitiveCharacterRange) {
 }
 
 TEST_P(RegexpTest, CaseSensitiveNegatedCharacterRange) {
-  auto const status_or_pattern = Parse("([^T-s]+)", {.case_insensitive = false});
+  auto const status_or_pattern = Parse("([^T-s]+)", {.case_sensitive = true});
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("ABCDEFGHIJKLMNOPQRS", {{"ABCDEFGHIJKLMNOPQRS"}}));
@@ -3414,7 +3414,7 @@ TEST_P(RegexpTest, CaseSensitiveNegatedCharacterRange) {
 }
 
 TEST_P(RegexpTest, CaseInsensitiveNegatedCharacterRange) {
-  auto const status_or_pattern = Parse("([^T-s]+)", {.case_insensitive = true});
+  auto const status_or_pattern = Parse("([^T-s]+)", {.case_sensitive = false});
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch("ABCDEFGHIJKLMNOPQRSTUVWXYZ"));

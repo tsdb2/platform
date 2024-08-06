@@ -19,8 +19,8 @@ struct Options {
   // `Match(Args)` rather than `PartialMatch(Args)`.
   bool no_anchors = false;
 
-  // Case-insensitive mode, e.g. `hello` matches any of: `hello`, `HELLO`, `Hello`, `HeLlo`, etc.
-  bool case_insensitive = false;
+  // Case-sensitive mode, e.g. `hello` only matches `hello` and not `HELLO`, `Hello`, `HeLlO`, etc.
+  bool case_sensitive = true;
 };
 
 // Parses a regular expression and compiles it into a runnable automaton. The automaton is initially
