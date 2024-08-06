@@ -108,8 +108,8 @@ void TempNFA::RenameAllStates(uint32_t* const next_state) {
     new_states.try_emplace(state_map[state_num], std::move(state));
   }
   states_ = std::move(new_states);
-  initial_state_ = state_map[initial_state_];
-  final_state_ = state_map[final_state_];
+  initial_state_ = state_map.at(initial_state_);
+  final_state_ = state_map.at(final_state_);
 }
 
 void TempNFA::AddEdge(char const label, uint32_t const from, uint32_t const to) {
@@ -185,7 +185,7 @@ bool TempNFA::CollapseNextEpsilonMove() {
     if (HasOnlyOneEpsilonMove(state)) {
       auto const it = state.edges.find(0);
       uint32_t const destination = *(it->second.begin());
-      if (state_num == destination || state_num != final_state_) {
+      if (state_num != final_state_ && destination != final_state_) {
         auto node = state.edges.extract(it);
         if (RenameState(destination, state_num)) {
           return true;
@@ -221,11 +221,11 @@ reffed_ptr<DFA> TempNFA::ToDFA(CaptureGroups capture_groups) && {
   state_map.try_emplace(final_state_, next_state++);
   for (auto& state : dfa_states) {
     for (auto& [ch, transition] : state.edges) {
-      transition = state_map[transition];
+      transition = state_map.at(transition);
     }
   }
-  return MakeReffed<DFA>(std::move(dfa_states), state_map[initial_state_], state_map[final_state_],
-                         std::move(capture_groups));
+  return MakeReffed<DFA>(std::move(dfa_states), state_map.at(initial_state_),
+                         state_map.at(final_state_), std::move(capture_groups));
 }
 
 reffed_ptr<NFA> TempNFA::ToNFA(CaptureGroups capture_groups) && {
@@ -244,8 +244,8 @@ reffed_ptr<NFA> TempNFA::ToNFA(CaptureGroups capture_groups) && {
       transitions = RemapTransitions(transitions, state_map);
     }
   }
-  return MakeReffed<NFA>(std::move(nfa_states), state_map[initial_state_], state_map[final_state_],
-                         std::move(capture_groups));
+  return MakeReffed<NFA>(std::move(nfa_states), state_map.at(initial_state_),
+                         state_map.at(final_state_), std::move(capture_groups));
 }
 
 }  // namespace regexp_internal
