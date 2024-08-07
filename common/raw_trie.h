@@ -198,28 +198,27 @@ class TrieNode {
 
   // Base class of the state frames used in `FilteredView`s.
   template <bool reverse>
-  class BaseFilteredStateFrame : public StateFrame<reverse> {
+  class FilteredStateFrame : public StateFrame<reverse> {
    public:
     using Base = StateFrame<reverse>;
     using Stepper = std::unique_ptr<regexp_internal::AbstractAutomaton::AbstractStepper>;
 
-    explicit BaseFilteredStateFrame(NodeSet& nodes, Stepper const& parent_stepper)
+    explicit FilteredStateFrame(NodeSet& nodes, Stepper const& parent_stepper)
         : Base(nodes), parent_stepper_(parent_stepper.get()), stepper_(parent_stepper->Clone()) {}
 
-    explicit BaseFilteredStateFrame(NodeSet const& nodes, Stepper const& parent_stepper)
+    explicit FilteredStateFrame(NodeSet const& nodes, Stepper const& parent_stepper)
         : Base(nodes), parent_stepper_(parent_stepper.get()), stepper_(parent_stepper->Clone()) {}
 
-    explicit BaseFilteredStateFrame(typename NodeSet::iterator pos_it,
-                                    typename NodeSet::iterator end_it,
-                                    Stepper const& parent_stepper)
+    explicit FilteredStateFrame(typename NodeSet::iterator pos_it,
+                                typename NodeSet::iterator end_it, Stepper const& parent_stepper)
         : Base(pos_it, end_it),
           parent_stepper_(parent_stepper.get()),
           stepper_(parent_stepper->Clone()) {}
 
-    BaseFilteredStateFrame(BaseFilteredStateFrame const&) = default;
-    BaseFilteredStateFrame& operator=(BaseFilteredStateFrame const&) = default;
-    BaseFilteredStateFrame(BaseFilteredStateFrame&&) noexcept = default;
-    BaseFilteredStateFrame& operator=(BaseFilteredStateFrame&&) noexcept = default;
+    FilteredStateFrame(FilteredStateFrame const&) = default;
+    FilteredStateFrame& operator=(FilteredStateFrame const&) = default;
+    FilteredStateFrame(FilteredStateFrame&&) noexcept = default;
+    FilteredStateFrame& operator=(FilteredStateFrame&&) noexcept = default;
 
     Stepper const& stepper() const { return stepper_; }
 
@@ -251,30 +250,6 @@ class TrieNode {
     Stepper stepper_;
   };
 
-  template <bool reverse>
-  class FilteredStateFrame : public BaseFilteredStateFrame<reverse> {
-   public:
-    template <typename... Args>
-    explicit FilteredStateFrame(Args&&... args)
-        : BaseFilteredStateFrame<reverse>(std::forward<Args>(args)...) {}
-    FilteredStateFrame(FilteredStateFrame const&) = default;
-    FilteredStateFrame& operator=(FilteredStateFrame const&) = default;
-    FilteredStateFrame(FilteredStateFrame&&) noexcept = default;
-    FilteredStateFrame& operator=(FilteredStateFrame&&) noexcept = default;
-  };
-
-  template <bool reverse>
-  class PrefixFilteredStateFrame : public BaseFilteredStateFrame<reverse> {
-   public:
-    template <typename... Args>
-    explicit PrefixFilteredStateFrame(Args&&... args)
-        : BaseFilteredStateFrame<reverse>(std::forward<Args>(args)...) {}
-    PrefixFilteredStateFrame(PrefixFilteredStateFrame const&) = default;
-    PrefixFilteredStateFrame& operator=(PrefixFilteredStateFrame const&) = default;
-    PrefixFilteredStateFrame(PrefixFilteredStateFrame&&) noexcept = default;
-    PrefixFilteredStateFrame& operator=(PrefixFilteredStateFrame&&) noexcept = default;
-  };
-
   template <typename StateFrameType>
   static std::string GetElementKey(std::vector<StateFrameType> const& frames);
 
@@ -290,8 +265,8 @@ class TrieNode {
   //   - reverse unfiltered frames (`StateFrame<true>`);
   //   - direct filtered frames (`FilteredStateFrame<false>`);
   //   - reverse filtered frames (`FilteredStateFrame<true>`);
-  //   - direct prefix-filtered frames (`PrefixFilteredStateFrame<false>`);
-  //   - reverse prefix-filtered frames (`PrefixFilteredStateFrame<true>`).
+  //
+  // TODO: add prefix-filtered views & state frames.
   //
   // Direct state frames are used by forward iterators, while reverse ones are used by reverse
   // iterators. Filtered state frames are used by the iterators of filtered views, while unfiltered
@@ -341,6 +316,7 @@ class TrieNode {
     bool is_end() const { return frames_.empty(); }
 
     std::string GetKey() const { return GetElementKey(frames_); }
+    TrieNode& node() const { return frames_.back().node(); }
 
     // Advances the iterator to the next node repeatedly until either the next terminal node is
     // found or there are no more nodes. In the latter case the iterator becomes the end iterator of
@@ -395,39 +371,60 @@ class TrieNode {
 
   using DirectBaseIterator = BaseIterator<StateFrame<false>>;
 
-  // Common implementation for all filtered specializations of `BaseIterator`. `StateFrame` must be
-  // either `FilteredStateFrame` or `PrefixFilteredStateFrame`.
-  template <typename StateFrame>
-  class BaseFilteredIterator {
+  // Specializes `BaseIterator` for filtered views.
+  template <bool reverse>
+  class BaseIterator<FilteredStateFrame<reverse>> {
    public:
-    BaseFilteredIterator(BaseFilteredIterator const&) = default;
-    BaseFilteredIterator& operator=(BaseFilteredIterator const&) = default;
-    BaseFilteredIterator(BaseFilteredIterator&&) noexcept = default;
-    BaseFilteredIterator& operator=(BaseFilteredIterator&&) noexcept = default;
+    BaseIterator(BaseIterator const&) = default;
+    BaseIterator& operator=(BaseIterator const&) = default;
+    BaseIterator(BaseIterator&&) noexcept = default;
+    BaseIterator& operator=(BaseIterator&&) noexcept = default;
 
-    friend bool operator==(BaseFilteredIterator const& lhs, BaseFilteredIterator const& rhs) {
+    friend bool operator==(BaseIterator const& lhs, BaseIterator const& rhs) {
       return lhs.frames_ == rhs.frames_;
     }
 
-    friend bool operator!=(BaseFilteredIterator const& lhs, BaseFilteredIterator const& rhs) {
+    friend bool operator!=(BaseIterator const& lhs, BaseIterator const& rhs) {
       return lhs.frames_ != rhs.frames_;
     }
 
    protected:
     // Constructs the "begin" iterator.
-    explicit BaseFilteredIterator(NodeSet const& roots,
-                                  reffed_ptr<regexp_internal::AbstractAutomaton> const& automaton)
-        : stepper_(roots.empty() ? nullptr : automaton->MakeStepper()) {}
+    explicit BaseIterator(NodeSet const& roots,
+                          reffed_ptr<regexp_internal::AbstractAutomaton> const& automaton) {
+      if (!roots.empty()) {
+        frames_.emplace_back(roots, roots.empty() ? nullptr : automaton->MakeStepper());
+        MaybeAdvance();
+      }
+    }
 
     // Constructs the "end" iterator.
-    explicit BaseFilteredIterator() = default;
+    explicit BaseIterator() = default;
 
     // Returns true iff this is the end iterator.
     bool is_end() const { return frames_.empty(); }
 
     std::string GetKey() const { return GetElementKey(frames_); }
+    TrieNode& node() const { return frames_.back().node(); }
 
-   protected:
+    // Advances the iterator to the next node repeatedly until either the next terminal node is
+    // found or there are no more nodes. In the latter case the iterator becomes the end iterator of
+    // the trie.
+    //
+    // This is the main iterator advancement algorithm invoked by `operator++`.
+    void Advance() {
+      while (NextNode(), !frames_.empty()) {
+        auto& frame = frames_.back();
+        if (frame.AdvanceStepper()) {
+          auto const& node = frame.node();
+          if (node.TestLabel() && frame.FinishStepper()) {
+            return;
+          }
+        }
+      }
+    }
+
+   private:
     // Advances the iterator to the next node accepted by the automaton. The next node is found by
     // attempting the following, in order:
     //
@@ -461,111 +458,21 @@ class TrieNode {
       }
     }
 
-    std::unique_ptr<regexp_internal::AbstractAutomaton::AbstractStepper> stepper_;
-    std::vector<StateFrame> frames_;
-  };
-
-  // Specializes `BaseIterator` for filtered views.
-  template <bool reverse>
-  class BaseIterator<FilteredStateFrame<reverse>>
-      : public BaseFilteredIterator<FilteredStateFrame<reverse>> {
-   public:
-    BaseIterator(BaseIterator const&) = default;
-    BaseIterator& operator=(BaseIterator const&) = default;
-    BaseIterator(BaseIterator&&) noexcept = default;
-    BaseIterator& operator=(BaseIterator&&) noexcept = default;
-
-   protected:
-    using Base = BaseFilteredIterator<FilteredStateFrame<reverse>>;
-
-    // Constructs the "begin" iterator.
-    explicit BaseIterator(NodeSet const& roots,
-                          reffed_ptr<regexp_internal::AbstractAutomaton> const& automaton)
-        : BaseFilteredIterator<FilteredStateFrame<reverse>>(roots, automaton) {
-      if (!roots.empty()) {
-        Base::frames_.emplace_back(roots, Base::stepper_);
-        MaybeAdvance();
-      }
-    }
-
-    // Constructs the "end" iterator.
-    explicit BaseIterator() = default;
-
-    // Advances the iterator to the next node repeatedly until either the next terminal node is
-    // found or there are no more nodes. In the latter case the iterator becomes the end iterator of
-    // the trie.
-    //
-    // This is the main iterator advancement algorithm invoked by `operator++`.
-    void Advance() {
-      while (Base::NextNode(), !Base::frames_.empty()) {
-        auto& frame = Base::frames_.back();
+    // Used by the constructor to advance to the next matching node only if the first node doesn't
+    // match.
+    void MaybeAdvance() {
+      do {
+        auto& frame = frames_.back();
         if (frame.AdvanceStepper()) {
           auto const& node = frame.node();
           if (node.TestLabel() && frame.FinishStepper()) {
             return;
           }
         }
-      }
+      } while (NextNode(), !frames_.empty());
     }
 
-   private:
-    // Used by the constructor to advance to the next matching node only if the first node doesn't
-    // match.
-    void MaybeAdvance() {
-      do {
-        auto& frame = Base::frames_.back();
-        if (frame.AdvanceStepper()) {
-          auto const& node = frame.node();
-          if (node.TestLabel() && frame.FinishStepper()) {
-            return;
-          }
-        }
-      } while (Base::NextNode(), !Base::frames_.empty());
-    }
-  };
-
-  // Specializes `BaseIterator` for prefix-filtered views.
-  template <bool reverse>
-  class BaseIterator<PrefixFilteredStateFrame<reverse>>
-      : public BaseFilteredIterator<PrefixFilteredStateFrame<reverse>> {
-   public:
-    BaseIterator(BaseIterator const&) = default;
-    BaseIterator& operator=(BaseIterator const&) = default;
-    BaseIterator(BaseIterator&&) noexcept = default;
-    BaseIterator& operator=(BaseIterator&&) noexcept = default;
-
-   protected:
-    using Base = BaseFilteredIterator<FilteredStateFrame<reverse>>;
-
-    // Constructs the "begin" iterator.
-    explicit BaseIterator(NodeSet const& roots,
-                          reffed_ptr<regexp_internal::AbstractAutomaton> const& automaton)
-        : BaseFilteredIterator<FilteredStateFrame<reverse>>(roots, automaton) {
-      if (!roots.empty()) {
-        Base::frames_.emplace_back(roots, Base::stepper_);
-        MaybeAdvance();
-      }
-    }
-
-    // Constructs the "end" iterator.
-    explicit BaseIterator() = default;
-
-    void Advance() {
-      while (Base::NextNode(), !Base::frames_.empty()) {
-        auto& frame = Base::frames_.back();
-        // TODO
-      }
-    }
-
-   private:
-    // Used by the constructor to advance to the next matching node only if the first node doesn't
-    // match.
-    void MaybeAdvance() {
-      do {
-        auto& frame = Base::frames_.back();
-        // TODO
-      } while (Base::NextNode(), !Base::frames_.empty());
-    }
+    std::vector<FilteredStateFrame<reverse>> frames_;
   };
 
  private:
@@ -593,16 +500,14 @@ class TrieNode {
     template <typename Value = typename Traits::Mapped,
               std::enable_if_t<!std::is_void_v<Value>, bool> = true>
     std::pair<std::string const, Value&> operator*() const {
-      auto& node = this->frames_.back().node();
-      return {this->GetKey(), node.label_.value()};
+      return {this->GetKey(), this->node().label_.value()};
     }
 
     template <typename Value = typename Traits::Mapped,
               std::enable_if_t<!std::is_void_v<Value>, bool> = true>
     std::unique_ptr<std::pair<std::string const, Value&>> operator->() const {
-      auto& node = this->frames_.back().node();
       return std::make_unique<std::pair<std::string const, Value&>>(this->GetKey(),
-                                                                    node.label_.value());
+                                                                    this->node().label_.value());
     }
 
     GenericIterator& operator++() {
@@ -655,16 +560,14 @@ class TrieNode {
     template <typename Value = typename Traits::Mapped,
               std::enable_if_t<!std::is_void_v<Value>, bool> = true>
     std::pair<std::string const, Value const&> operator*() const {
-      auto& node = this->frames_.back().node();
-      return {this->GetKey(), node.label_.value()};
+      return {this->GetKey(), this->node().label_.value()};
     }
 
     template <typename Value = typename Traits::Mapped,
               std::enable_if_t<!std::is_void_v<Value>, bool> = true>
     std::unique_ptr<std::pair<std::string const, Value const&>> operator->() const {
-      auto& node = this->frames_.back().node();
-      return std::make_unique<std::pair<std::string const, Value const&>>(this->GetKey(),
-                                                                          node.label_.value());
+      return std::make_unique<std::pair<std::string const, Value const&>>(
+          this->GetKey(), this->node().label_.value());
     }
 
     GenericConstIterator& operator++() {
@@ -697,10 +600,6 @@ class TrieNode {
   using ConstFilteredIterator = GenericConstIterator<FilteredStateFrame<false>>;
   using ReverseFilteredIterator = GenericIterator<FilteredStateFrame<true>>;
   using ConstReverseFilteredIterator = GenericConstIterator<FilteredStateFrame<true>>;
-  using PrefixFilteredIterator = GenericIterator<PrefixFilteredStateFrame<false>>;
-  using ConstPrefixFilteredIterator = GenericConstIterator<PrefixFilteredStateFrame<false>>;
-  using ReversePrefixFilteredIterator = GenericIterator<PrefixFilteredStateFrame<true>>;
-  using ConstReversePrefixFilteredIterator = GenericConstIterator<PrefixFilteredStateFrame<true>>;
 
   // Provides a view of the trie filtered by a regular expression, allowing the user to enumerate
   // only the elements whose key matches the regular expression.
@@ -748,79 +647,6 @@ class TrieNode {
 
     explicit FilteredView(NodeSet const& roots,
                           reffed_ptr<regexp_internal::AbstractAutomaton> automaton)
-        : roots_(&roots), automaton_(std::move(automaton)) {}
-
-    NodeSet const* roots_;
-    reffed_ptr<regexp_internal::AbstractAutomaton> automaton_;
-  };
-
-  // Provides a view of the trie filtered by a regular expression, allowing the user to enumerate
-  // only the elements whose key has a prefix matching the regular expression.
-  //
-  // Under the hood `PrefixFilteredView` uses efficient algorithms that can entirely skip
-  // mismatching subtrees, so it's much more efficient than just iterating over all elements and
-  // checking each one against the regular expression.
-  //
-  // NOTE: `FilteredView` uses full matching of the keys against the regular expression, while
-  // `PrefixFilteredView` uses prefix matching. `PrefixFilteredView` is particularly useful to
-  // search for arbitrary substrings of a large input text efficiently: you can use a trie to build
-  // a suffix tree (i.e. store all possible suffixes) of the input text and associate the location
-  // of each suffix, then you can search a substring by using it to create a `PrefixFilteredView`,
-  // which will return all suffixes with that prefix and therefore all locations with the substring.
-  //
-  // You can get a `PrefixFilteredView` instance by calling `TrieNode::FilterPrefix`.
-  //
-  // NOTE: the `PrefixFilteredView` refers to the parent trie internally, so the trie must not be
-  // moved or destroyed while one or more `PrefixFilteredView` instances exist. It is okay to move
-  // and copy the `PrefixFilteredView` itself.
-  class PrefixFilteredView {
-   public:
-    PrefixFilteredView(PrefixFilteredView const&) = default;
-    PrefixFilteredView& operator=(PrefixFilteredView const&) = default;
-    PrefixFilteredView(PrefixFilteredView&&) noexcept = default;
-    PrefixFilteredView& operator=(PrefixFilteredView&&) noexcept = default;
-
-    PrefixFilteredIterator begin() { return PrefixFilteredIterator(*roots_, automaton_); }
-
-    ConstPrefixFilteredIterator begin() const {
-      return ConstPrefixFilteredIterator(*roots_, automaton_);
-    }
-
-    ConstPrefixFilteredIterator cbegin() const {
-      return ConstPrefixFilteredIterator(*roots_, automaton_);
-    }
-
-    PrefixFilteredIterator end() { return PrefixFilteredIterator(); }
-
-    ConstPrefixFilteredIterator end() const { return ConstPrefixFilteredIterator(); }
-
-    ConstPrefixFilteredIterator cend() const { return ConstPrefixFilteredIterator(); }
-
-    ReversePrefixFilteredIterator rbegin() {
-      return ReversePrefixFilteredIterator(*roots_, automaton_);
-    }
-
-    ConstReversePrefixFilteredIterator rbegin() const {
-      return ConstReversePrefixFilteredIterator(*roots_, automaton_);
-    }
-
-    ConstReversePrefixFilteredIterator crbegin() const {
-      return ConstReversePrefixFilteredIterator(*roots_, automaton_);
-    }
-
-    ReversePrefixFilteredIterator rend() { return ReversePrefixFilteredIterator(); }
-
-    ConstReversePrefixFilteredIterator rend() const { return ConstReversePrefixFilteredIterator(); }
-
-    ConstReversePrefixFilteredIterator crend() const {
-      return ConstReversePrefixFilteredIterator();
-    }
-
-   private:
-    friend class TrieNode;
-
-    explicit PrefixFilteredView(NodeSet const& roots,
-                                reffed_ptr<regexp_internal::AbstractAutomaton> automaton)
         : roots_(&roots), automaton_(std::move(automaton)) {}
 
     NodeSet const* roots_;
