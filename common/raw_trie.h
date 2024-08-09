@@ -204,16 +204,20 @@ class TrieNode {
     using Stepper = std::unique_ptr<regexp_internal::AbstractAutomaton::AbstractStepper>;
 
     explicit FilteredStateFrame(NodeSet& nodes, Stepper const& parent_stepper)
-        : Base(nodes), parent_stepper_(parent_stepper.get()), stepper_(parent_stepper->Clone()) {}
+        : Base(nodes),
+          parent_stepper_(parent_stepper.get()),
+          stepper_(parent_stepper ? parent_stepper->Clone() : nullptr) {}
 
     explicit FilteredStateFrame(NodeSet const& nodes, Stepper const& parent_stepper)
-        : Base(nodes), parent_stepper_(parent_stepper.get()), stepper_(parent_stepper->Clone()) {}
+        : Base(nodes),
+          parent_stepper_(parent_stepper.get()),
+          stepper_(parent_stepper ? parent_stepper->Clone() : nullptr) {}
 
     explicit FilteredStateFrame(typename NodeSet::iterator pos_it,
                                 typename NodeSet::iterator end_it, Stepper const& parent_stepper)
         : Base(pos_it, end_it),
           parent_stepper_(parent_stepper.get()),
-          stepper_(parent_stepper->Clone()) {}
+          stepper_(parent_stepper ? parent_stepper->Clone() : nullptr) {}
 
     FilteredStateFrame(FilteredStateFrame const&) = default;
     FilteredStateFrame& operator=(FilteredStateFrame const&) = default;
@@ -224,16 +228,19 @@ class TrieNode {
 
     bool Advance() {
       if (Base::Advance()) {
-        stepper_ = parent_stepper_->Clone();
+        if (parent_stepper_) {
+          stepper_ = parent_stepper_->Clone();
+        }
         return true;
       } else {
+        parent_stepper_ = nullptr;
         stepper_.reset();
         return false;
       }
     }
 
    private:
-    regexp_internal::AbstractAutomaton::AbstractStepper const* parent_stepper_;
+    regexp_internal::AbstractAutomaton::AbstractStepper const* parent_stepper_;  // not owned
     Stepper stepper_;
   };
 
