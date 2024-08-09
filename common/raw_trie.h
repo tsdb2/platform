@@ -103,7 +103,7 @@ class TrieNode {
   // Those two iterators correspond to the local variables we'd have in a recursive algorithm. See
   // the `pos` and `end` variables in the following pseudo-code:
   //
-  //   void trie_set::Node::Scan() {
+  //   void TrieNode::Scan() {
   //     auto end = children_.end();
   //     for (auto pos = children_.begin(); pos != end; ++pos) {
   //       DoSomething(*pos);
@@ -231,19 +231,6 @@ class TrieNode {
         return false;
       }
     }
-
-    // Advances the stepper by a single character.
-    bool AdvanceStepper(char const ch) { return stepper_->Step(ch); }
-
-    // Advances the stepper on the key piece of this frame (as returned by `key()`).
-    bool AdvanceStepper() { return stepper_->Step(Base::key()); }
-
-    // Runs `Finish(next_character)` on the stepper. The frame and its stepper are still usable
-    // after this call.
-    bool FinishStepper(char const next_character) const { return stepper_->Finish(next_character); }
-
-    // Runs `Finish()` on the stepper. The frame and its stepper are still usable after this call.
-    bool FinishStepper() const { return stepper_->Finish(); }
 
    private:
     regexp_internal::AbstractAutomaton::AbstractStepper const* parent_stepper_;
@@ -415,9 +402,10 @@ class TrieNode {
     void Advance() {
       while (NextNode(), !frames_.empty()) {
         auto& frame = frames_.back();
-        if (frame.AdvanceStepper()) {
+        auto const& stepper = frame.stepper();
+        if (stepper->Step(frame.key())) {
           auto const& node = frame.node();
-          if (node.TestLabel() && frame.FinishStepper()) {
+          if (node.TestLabel() && stepper->Finish()) {
             return;
           }
         }
@@ -463,9 +451,10 @@ class TrieNode {
     void MaybeAdvance() {
       do {
         auto& frame = frames_.back();
-        if (frame.AdvanceStepper()) {
+        auto const& stepper = frame.stepper();
+        if (stepper->Step(frame.key())) {
           auto const& node = frame.node();
-          if (node.TestLabel() && frame.FinishStepper()) {
+          if (node.TestLabel() && stepper->Finish()) {
             return;
           }
         }
