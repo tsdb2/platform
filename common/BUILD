@@ -504,47 +504,6 @@ cc_test(
 )
 
 cc_library(
-    name = "json",
-    srcs = ["json.cc"],
-    hdrs = ["json.h"],
-    deps = [
-        ":flat_map",
-        ":flat_set",
-        ":to_array",
-        ":type_string",
-        ":utilities",
-        "@com_google_absl//absl/container:btree",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/container:node_hash_map",
-        "@com_google_absl//absl/container:node_hash_set",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-    ],
-)
-
-cc_test(
-    name = "json_test",
-    srcs = ["json_test.cc"],
-    deps = [
-        ":flat_map",
-        ":flat_set",
-        ":json",
-        ":testing",
-        ":type_string",
-        "@com_google_absl//absl/container:btree",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/container:node_hash_map",
-        "@com_google_absl//absl/container:node_hash_set",
-        "@com_google_absl//absl/hash",
-        "@com_google_absl//absl/status:status_matchers",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_library(
     name = "reffed_ptr",
     hdrs = ["reffed_ptr.h"],
 )
