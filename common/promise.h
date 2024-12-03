@@ -158,7 +158,7 @@ class Promise {
   //
   // While `Promise` itself acts as a `std::unique_ptr<Impl>`, this class is allocated on the heap
   // and is never moved. We need pointer stability for it because it will be referred to by two (or
-  // more) concurrent thread: the one providing the promise and the one consuming it.
+  // more) concurrent threads: the one providing the promise and the one consuming it.
   class Impl final {
    public:
     explicit Impl(absl::FunctionRef<void(ThenFn)> const callback) {
@@ -397,7 +397,8 @@ class Promise {
       then_ = std::move(then);
       if (value_.has_value()) {
         typename Traits::Maybe value;
-        std::swap(value, value_);
+        using std::swap;  // ensure ADL
+        swap(value, value_);
         then_(std::move(value).value());
       }
     }

@@ -37,7 +37,7 @@ std::string ClipString(std::string_view text);
 //
 //   1. We need an implementation that is guaranteed to be immune to ReDoS attacks. Ours is immune
 //      because it doesn't provide any NP-hard features (most notably we do not support
-//      backreferences). It also never uses backtracking algorithms except for the parser, where the
+//      backreferences). It also never uses recursive algorithms except for the parser, where the
 //      maximum recursion depth is capped by the `--re_max_recursion_depth` command line flag; this
 //      way we can guard against stack overflows.
 //   2. We need an implementation that can be integrated with our tries so that we can run finite

@@ -340,7 +340,7 @@ std::array<Encoding, kNumLeaves - 1> constexpr codes{
 
 }  // namespace
 
-std::string HuffmanCode::Decode(absl::Span<uint8_t const> data) {
+std::string HuffmanCode::Decode(absl::Span<uint8_t const> const data) {
   std::string result;
   int16_t node = 0;
   for (auto const byte : data) {
