@@ -105,8 +105,8 @@
 //
 //   class Point {
 //    private:
-//     static char constexpr kPointXField[] = "x";
-//     static char constexpr kPointYField[] = "x";
+//     static char constexpr kPointXField[] = "coord_x";
+//     static char constexpr kPointYField[] = "coord_y";
 //
 //     using JsonPoint = tsdb2::json::Object<
 //         tsdb2::json::Field<double, kPointXField>,
@@ -136,6 +136,20 @@
 //     double x_;
 //     double y_;
 //   };
+//
+//
+// You'll then be able to do things like:
+//
+//   auto const status_or_point = tsdb2::json::Parse<Point>(R"json({
+//     "coord_x": 12.34,
+//     "coord_y": 34.56
+//   })json");
+//   assert(status_or_point.ok());
+//   auto const& point = status_or_point.value();
+//   assert(point.x() == 12.34);
+//   assert(point.y() == 34.56);
+//   auto const json = tsdb2::json::Stringify(point);
+//   assert(json == R"({"coord_x":12.34,"coord_y":34.56})");
 //
 #ifndef __TSDB2_JSON_JSON_H__
 #define __TSDB2_JSON_JSON_H__
