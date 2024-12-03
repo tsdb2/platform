@@ -1,10 +1,12 @@
 #include "common/promise.h"
 
 #include <string>
+#include <utility>
 
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/synchronization/notification.h"
 #include "absl/time/time.h"
 #include "common/mock_clock.h"
 #include "common/scheduler.h"
@@ -1409,6 +1411,35 @@ TEST_F(PromiseTest, RejectVoid) {
     done = true;
   });
   EXPECT_TRUE(done);
+}
+
+TEST_F(PromiseTest, MoveConstruct) {
+  auto p1 = Promise<int>::Resolve(42);
+  Promise<int> p2{std::move(p1)};
+  std::move(p2).Then([](absl::StatusOr<int> const value) { EXPECT_THAT(value, IsOkAndHolds(42)); });
+}
+
+TEST_F(PromiseTest, MoveAssign) {
+  auto p1 = Promise<int>::Resolve(42);
+  Promise<int> p2;
+  p2 = std::move(p1);
+  std::move(p2).Then([](absl::StatusOr<int> const value) { EXPECT_THAT(value, IsOkAndHolds(42)); });
+}
+
+TEST_F(PromiseTest, Swap) {
+  auto p1 = Promise<int>::Resolve(42);
+  auto p2 = Promise<int>::Resolve(43);
+  p1.swap(p2);
+  std::move(p1).Then([](absl::StatusOr<int> const value) { EXPECT_THAT(value, IsOkAndHolds(43)); });
+  std::move(p2).Then([](absl::StatusOr<int> const value) { EXPECT_THAT(value, IsOkAndHolds(42)); });
+}
+
+TEST_F(PromiseTest, AdlSwap) {
+  auto p1 = Promise<int>::Resolve(42);
+  auto p2 = Promise<int>::Resolve(43);
+  swap(p1, p2);
+  std::move(p1).Then([](absl::StatusOr<int> const value) { EXPECT_THAT(value, IsOkAndHolds(43)); });
+  std::move(p2).Then([](absl::StatusOr<int> const value) { EXPECT_THAT(value, IsOkAndHolds(42)); });
 }
 
 }  // namespace
