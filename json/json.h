@@ -373,7 +373,7 @@ class Object<> {
 
   void Clear() {}
 
-  std::string Stringify(StringifyOptions const& options) const;
+  inline std::string Stringify(StringifyOptions const& options) const;
   std::string Stringify() const { return Stringify(StringifyOptions{}); }
 
  protected:
@@ -385,7 +385,7 @@ class Object<> {
   ABSL_ATTRIBUTE_ALWAYS_INLINE bool CompareLessInternal(Object const& other) const { return false; }
   ABSL_ATTRIBUTE_ALWAYS_INLINE void ClearInternal() {}
 
-  absl::Status ReadField(Parser* parser, std::string_view key);
+  inline absl::Status ReadField(Parser* parser, std::string_view key);
 
   void WriteFieldsPretty(Stringifier*, bool) const {}
   void WriteFieldsCompressed(Stringifier*, bool) const {}
@@ -476,7 +476,7 @@ class Object<internal::FieldImpl<Type, Name>, OtherFields...> : public Object<Ot
 
   void Clear() { ClearInternal(); }
 
-  std::string Stringify(StringifyOptions const& options) const;
+  inline std::string Stringify(StringifyOptions const& options) const;
   std::string Stringify() const { return Stringify(StringifyOptions{}); }
 
  protected:
@@ -509,10 +509,10 @@ class Object<internal::FieldImpl<Type, Name>, OtherFields...> : public Object<Ot
     value_ = Type();
   }
 
-  absl::Status ReadField(Parser* parser, std::string_view key);
+  inline absl::Status ReadField(Parser* parser, std::string_view key);
 
-  void WriteFieldsPretty(Stringifier* stringifier, bool first_field) const;
-  void WriteFieldsCompressed(Stringifier* stringifier, bool first_field) const;
+  inline void WriteFieldsPretty(Stringifier* stringifier, bool first_field) const;
+  inline void WriteFieldsCompressed(Stringifier* stringifier, bool first_field) const;
 
  private:
   Type value_;
@@ -1899,21 +1899,21 @@ void Tsdb2JsonStringify(tsdb2::json::Stringifier* const stringifier,
 namespace tsdb2 {
 namespace json {
 
-std::string Object<>::Stringify(StringifyOptions const& options) const {
+inline std::string Object<>::Stringify(StringifyOptions const& options) const {
   Stringifier stringifier{options};
   stringifier.WriteObject(*this);
   return std::move(stringifier).Finish();
 }
 
 template <typename Type, typename Name, typename... OtherFields>
-std::string Object<internal::FieldImpl<Type, Name>, OtherFields...>::Stringify(
+inline std::string Object<internal::FieldImpl<Type, Name>, OtherFields...>::Stringify(
     StringifyOptions const& options) const {
   Stringifier stringifier{options};
   stringifier.WriteObject(*this);
   return std::move(stringifier).Finish();
 }
 
-absl::Status Object<>::ReadField(Parser* const parser, std::string_view const key) {
+inline absl::Status Object<>::ReadField(Parser* const parser, std::string_view const key) {
   auto const& options = parser->options();
   if (options.allow_extra_fields) {
     return parser->SkipField(/*fast=*/options.fast_skipping);
@@ -1923,7 +1923,7 @@ absl::Status Object<>::ReadField(Parser* const parser, std::string_view const ke
 }
 
 template <typename Type, typename Name, typename... OtherFields>
-absl::Status Object<internal::FieldImpl<Type, Name>, OtherFields...>::ReadField(
+inline absl::Status Object<internal::FieldImpl<Type, Name>, OtherFields...>::ReadField(
     Parser* const parser, std::string_view const key) {
   if (key != Name::value) {
     return Object<OtherFields...>::ReadField(parser, key);
@@ -1966,7 +1966,7 @@ struct FieldDecider<std::shared_ptr<Inner>> {
 }  // namespace internal
 
 template <typename Type, typename Name, typename... OtherFields>
-void Object<internal::FieldImpl<Type, Name>, OtherFields...>::WriteFieldsPretty(
+inline void Object<internal::FieldImpl<Type, Name>, OtherFields...>::WriteFieldsPretty(
     Stringifier* const stringifier, bool const first_field) const {
   if (!internal::FieldDecider<Type>{}(stringifier, value_)) {
     return Object<OtherFields...>::WriteFieldsPretty(stringifier, first_field);
@@ -1984,7 +1984,7 @@ void Object<internal::FieldImpl<Type, Name>, OtherFields...>::WriteFieldsPretty(
 }
 
 template <typename Type, typename Name, typename... OtherFields>
-void Object<internal::FieldImpl<Type, Name>, OtherFields...>::WriteFieldsCompressed(
+inline void Object<internal::FieldImpl<Type, Name>, OtherFields...>::WriteFieldsCompressed(
     Stringifier* const stringifier, bool const first_field) const {
   if (!internal::FieldDecider<Type>{}(stringifier, value_)) {
     return Object<OtherFields...>::WriteFieldsCompressed(stringifier, first_field);
