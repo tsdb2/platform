@@ -1,5 +1,6 @@
 #include "common/reffed_ptr.h"
 
+#include <memory>
 #include <type_traits>
 #include <utility>
 
@@ -56,6 +57,24 @@ TEST(ReffedPtrTest, PointerConstructor) {
   EXPECT_FALSE(ptr.empty());
   EXPECT_TRUE(ptr.operator bool());
   EXPECT_EQ(rc.ref_count(), 1);
+}
+
+TEST(ReffedPtrTest, UniquePointerConstructor) {
+  auto uptr = std::make_unique<RefCounted>();
+  auto const rc = uptr.get();
+  reffed_ptr<RefCounted> ptr{std::move(uptr)};
+  EXPECT_EQ(ptr.get(), rc);
+  EXPECT_FALSE(ptr.empty());
+  EXPECT_TRUE(ptr.operator bool());
+  EXPECT_EQ(rc->ref_count(), 1);
+}
+
+TEST(ReffedPtrTest, ConstructFromEmptyUniquePointer) {
+  std::unique_ptr<RefCounted> uptr;
+  reffed_ptr<RefCounted> ptr{std::move(uptr)};
+  EXPECT_EQ(ptr.get(), nullptr);
+  EXPECT_TRUE(ptr.empty());
+  EXPECT_FALSE(ptr.operator bool());
 }
 
 TEST(ReffedPtrTest, CopyConstructor) {
@@ -176,6 +195,37 @@ TEST(ReffedPtrTest, PointerAssignmentOperator) {
   EXPECT_TRUE(ptr.operator bool());
   EXPECT_EQ(rc1.ref_count(), 0);
   EXPECT_EQ(rc2.ref_count(), 1);
+}
+
+TEST(ReffedPtrTest, NullptrAssignment) {
+  RefCounted rc;
+  reffed_ptr<RefCounted> ptr{&rc};
+  ASSERT_EQ(rc.ref_count(), 1);
+  ptr = nullptr;
+  EXPECT_EQ(ptr.get(), nullptr);
+  EXPECT_TRUE(ptr.empty());
+  EXPECT_FALSE(ptr.operator bool());
+  EXPECT_EQ(rc.ref_count(), 0);
+}
+
+TEST(ReffedPtrTest, AssignUniquePointer) {
+  auto uptr = std::make_unique<RefCounted>();
+  auto const rc = uptr.get();
+  reffed_ptr<RefCounted> ptr;
+  ptr = std::move(uptr);
+  EXPECT_EQ(ptr.get(), rc);
+  EXPECT_FALSE(ptr.empty());
+  EXPECT_TRUE(ptr.operator bool());
+  EXPECT_EQ(rc->ref_count(), 1);
+}
+
+TEST(ReffedPtrTest, AssignEmptyUniquePointer) {
+  std::unique_ptr<RefCounted> uptr;
+  reffed_ptr<RefCounted> ptr;
+  ptr = std::move(uptr);
+  EXPECT_EQ(ptr.get(), nullptr);
+  EXPECT_TRUE(ptr.empty());
+  EXPECT_FALSE(ptr.operator bool());
 }
 
 TEST(ReffedPtrTest, Release) {

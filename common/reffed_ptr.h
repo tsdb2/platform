@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <memory>
 #include <type_traits>
 #include <utility>
 
@@ -17,8 +18,7 @@ namespace common {
 // This has multiple benefits:
 //
 // * Unlike `std::shared_ptr` there's no risk of keeping multiple separate reference counts because
-//   the target containing the reference count value is managed by the wrapped object rather than by
-//   `reffed_ptr`.
+//   the reference count value is managed by the wrapped object rather than by `reffed_ptr` itself.
 // * `reffed_ptr` doesn't need to allocate a separate memory block for the target / reference count.
 // * `reffed_ptr` allows implementing custom reference counting schemes, e.g. the destructor of the
 //   wrapped object may block until the reference count drops to zero (see `BlockingRefCounted`).
@@ -38,6 +38,11 @@ class reffed_ptr final {
 
   template <typename U>
   reffed_ptr(reffed_ptr<U> const& other) : ptr_(other.get()) {
+    MaybeRef();
+  }
+
+  template <typename U, typename Deleter>
+  reffed_ptr(std::unique_ptr<U, Deleter>&& ptr) : ptr_(ptr.release()) {
     MaybeRef();
   }
 
@@ -73,9 +78,20 @@ class reffed_ptr final {
     return *this;
   }
 
+  reffed_ptr& operator=(std::nullptr_t) {
+    reset();
+    return *this;
+  }
+
   template <typename U>
   reffed_ptr& operator=(U* const ptr) {
     reset(ptr);
+    return *this;
+  }
+
+  template <typename U, typename Deleter>
+  reffed_ptr& operator=(std::unique_ptr<U, Deleter>&& ptr) {
+    reset(ptr.release());
     return *this;
   }
 
