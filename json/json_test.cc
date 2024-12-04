@@ -1,6 +1,7 @@
 #include "json/json.h"
 
 #include <array>
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <optional>
@@ -51,6 +52,7 @@ using ::testing::Not;
 using ::testing::Optional;
 using ::testing::Pair;
 using ::testing::Pointee;
+using ::testing::Pointee2;
 using ::testing::Property;
 using ::testing::UnorderedElementsAre;
 using ::tsdb2::common::TypeStringT;
@@ -1780,6 +1782,9 @@ class Point {
   explicit Point() : x_(0), y_(0) {}
   explicit Point(double const x, double const y) : x_(x), y_(y) {}
 
+  void Ref() const { ++ref_count_; }
+  void Unref() const { --ref_count_; }
+
   double x() const { return x_; }
   double y() const { return y_; }
 
@@ -1796,6 +1801,7 @@ class Point {
   }
 
  private:
+  intptr_t mutable ref_count_ = 0;
   double x_;
   double y_;
 };
@@ -1834,6 +1840,106 @@ TEST(JsonTest, StringifyCustomObject) {
   EXPECT_EQ(json::Stringify(value, kStringifyOptions3), R"({
     "x": 12.34,
     "y": 56.78
+})");
+}
+
+using TestObjectWithReffedPtr =
+    json::Object<json::Field<int, kFieldName1>,
+                 json::Field<tsdb2::common::reffed_ptr<Point>, kFieldName2>,
+                 json::Field<bool, kFieldName3>>;
+
+TEST(JsonTest, ParseReffedPtr) {
+  std::string_view const input = R"json({
+    "lorem": 42,
+    "ipsum": {
+      "x": 123.456,
+      "y": 654.321
+    },
+    "dolor": false
+  })json";
+  EXPECT_THAT(json::Parse<TestObjectWithReffedPtr>(input, kParseOptions1),
+              IsOkAndHolds(AllOf(JsonField<kFieldName1>(42),
+                                 JsonField<kFieldName2>(Pointee2(AllOf(
+                                     Property(&Point::x, 123.456), Property(&Point::y, 654.321)))),
+                                 JsonField<kFieldName3>(false))));
+  EXPECT_THAT(json::Parse<TestObjectWithReffedPtr>(input, kParseOptions2),
+              IsOkAndHolds(AllOf(JsonField<kFieldName1>(42),
+                                 JsonField<kFieldName2>(Pointee2(AllOf(
+                                     Property(&Point::x, 123.456), Property(&Point::y, 654.321)))),
+                                 JsonField<kFieldName3>(false))));
+  EXPECT_THAT(json::Parse<TestObjectWithReffedPtr>(input, kParseOptions3),
+              IsOkAndHolds(AllOf(JsonField<kFieldName1>(42),
+                                 JsonField<kFieldName2>(Pointee2(AllOf(
+                                     Property(&Point::x, 123.456), Property(&Point::y, 654.321)))),
+                                 JsonField<kFieldName3>(false))));
+}
+
+TEST(JsonTest, ParseNullReffedPtr) {
+  std::string_view const input = R"json({
+    "lorem": 42,
+    "ipsum": null,
+    "dolor": false
+  })json";
+  EXPECT_THAT(json::Parse<TestObjectWithReffedPtr>(input, kParseOptions1),
+              IsOkAndHolds(AllOf(JsonField<kFieldName1>(42), JsonField<kFieldName2>(nullptr),
+                                 JsonField<kFieldName3>(false))));
+  EXPECT_THAT(json::Parse<TestObjectWithReffedPtr>(input, kParseOptions2),
+              IsOkAndHolds(AllOf(JsonField<kFieldName1>(42), JsonField<kFieldName2>(nullptr),
+                                 JsonField<kFieldName3>(false))));
+  EXPECT_THAT(json::Parse<TestObjectWithReffedPtr>(input, kParseOptions3),
+              IsOkAndHolds(AllOf(JsonField<kFieldName1>(42), JsonField<kFieldName2>(nullptr),
+                                 JsonField<kFieldName3>(false))));
+}
+
+TEST(JsonTest, ParseMissingReffedPtr) {
+  std::string_view const input = R"json({
+    "lorem": 42,
+    "dolor": false
+  })json";
+  EXPECT_THAT(json::Parse<TestObjectWithReffedPtr>(input, kParseOptions1),
+              IsOkAndHolds(AllOf(JsonField<kFieldName1>(42), JsonField<kFieldName2>(nullptr),
+                                 JsonField<kFieldName3>(false))));
+  EXPECT_THAT(json::Parse<TestObjectWithReffedPtr>(input, kParseOptions2),
+              IsOkAndHolds(AllOf(JsonField<kFieldName1>(42), JsonField<kFieldName2>(nullptr),
+                                 JsonField<kFieldName3>(false))));
+  EXPECT_THAT(json::Parse<TestObjectWithReffedPtr>(input, kParseOptions3),
+              IsOkAndHolds(AllOf(JsonField<kFieldName1>(42), JsonField<kFieldName2>(nullptr),
+                                 JsonField<kFieldName3>(false))));
+}
+
+TEST(JsonTest, StringifyReffedPtr) {
+  Point point{12.12, 34.34};
+  TestObjectWithReffedPtr object{json::kInitialize, 43, tsdb2::common::WrapReffed(&point), true};
+  EXPECT_EQ(json::Stringify(object, kStringifyOptions1),
+            R"({"lorem":43,"ipsum":{"x":12.12,"y":34.34},"dolor":true})");
+  EXPECT_EQ(json::Stringify(object, kStringifyOptions2), R"({
+  "lorem": 43,
+  "ipsum": {
+    "x": 12.12,
+    "y": 34.34
+  },
+  "dolor": true
+})");
+  EXPECT_EQ(json::Stringify(object, kStringifyOptions3), R"({
+    "lorem": 43,
+    "ipsum": {
+        "x": 12.12,
+        "y": 34.34
+    },
+    "dolor": true
+})");
+}
+
+TEST(JsonTest, StringifyMissingReffedPtr) {
+  TestObjectWithReffedPtr object{json::kInitialize, 43, nullptr, true};
+  EXPECT_EQ(json::Stringify(object, kStringifyOptions1), R"({"lorem":43,"dolor":true})");
+  EXPECT_EQ(json::Stringify(object, kStringifyOptions2), R"({
+  "lorem": 43,
+  "dolor": true
+})");
+  EXPECT_EQ(json::Stringify(object, kStringifyOptions3), R"({
+    "lorem": 43,
+    "dolor": true
 })");
 }
 

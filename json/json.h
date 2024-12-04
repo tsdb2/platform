@@ -23,8 +23,8 @@
 //   * std::map / std::unordered_map / tsdb2::common::flat_map / tsdb2::common::trie_map /
 //     absl::btree_map / absl::flat_hash_map / absl::node_hash_map,
 //   * tsdb2::json::Object,
-//   * data types managed by std::unique_ptr or std::shared_ptr (serializing to "null" if the
-//     pointer is null).
+//   * data types managed by std::unique_ptr, std::shared_ptr, or tsdb2::common::reffed_ptr
+//     (serializing to "null" if the pointer is null).
 //
 // Example:
 //
@@ -186,6 +186,7 @@
 #include "absl/strings/strip.h"
 #include "common/flat_map.h"
 #include "common/flat_set.h"
+#include "common/reffed_ptr.h"
 #include "common/trie_map.h"
 #include "common/trie_set.h"
 #include "common/type_string.h"
@@ -455,22 +456,22 @@ class Object<internal::FieldImpl<Type, Name>, OtherFields...> : public Object<Ot
   }
 
   template <char const field_name[]>
-  auto& get() & {
+  auto& get() & noexcept {
     return Getter<tsdb2::common::TypeStringT<field_name>>(*this)();
   }
 
   template <char const field_name[]>
-  auto&& get() && {
+  auto&& get() && noexcept {
     return std::move(Getter<tsdb2::common::TypeStringT<field_name>>(*this)());
   }
 
   template <char const field_name[]>
-  auto const& get() const& {
+  auto const& get() const& noexcept {
     return ConstGetter<tsdb2::common::TypeStringT<field_name>>(*this)();
   }
 
   template <char const field_name[]>
-  auto const& cget() const& {
+  auto const& cget() const& noexcept {
     return ConstGetter<tsdb2::common::TypeStringT<field_name>>(*this)();
   }
 
@@ -535,7 +536,7 @@ template <typename Type, typename Name, typename... OtherFields>
 template <typename Dummy>
 struct Object<internal::FieldImpl<Type, Name>, OtherFields...>::Getter<Name, Dummy> {
   explicit ABSL_ATTRIBUTE_ALWAYS_INLINE Getter(Object& obj) : value(obj.value_) {}
-  ABSL_ATTRIBUTE_ALWAYS_INLINE Type& operator()() const { return value; }
+  ABSL_ATTRIBUTE_ALWAYS_INLINE Type& operator()() const noexcept { return value; }
   Type& value;
 };
 
@@ -554,7 +555,7 @@ template <typename Type, typename Name, typename... OtherFields>
 template <typename Dummy>
 struct Object<internal::FieldImpl<Type, Name>, OtherFields...>::ConstGetter<Name, Dummy> {
   explicit ABSL_ATTRIBUTE_ALWAYS_INLINE ConstGetter(Object const& obj) : value(obj.value_) {}
-  ABSL_ATTRIBUTE_ALWAYS_INLINE Type const& operator()() const { return value; }
+  ABSL_ATTRIBUTE_ALWAYS_INLINE Type const& operator()() const noexcept { return value; }
   Type const& value;
 };
 
@@ -775,6 +776,9 @@ absl::Status Tsdb2JsonParse(tsdb2::json::Parser* parser, std::unique_ptr<Value>*
 template <typename Value>
 absl::Status Tsdb2JsonParse(tsdb2::json::Parser* parser, std::shared_ptr<Value>* result);
 
+template <typename Value>
+absl::Status Tsdb2JsonParse(tsdb2::json::Parser* parser, tsdb2::common::reffed_ptr<Value>* result);
+
 // Forward declarations for all predefined `Tsdb2JsonStringify` overloads.
 
 void Tsdb2JsonStringify(tsdb2::json::Stringifier* stringifier, bool value);
@@ -875,6 +879,10 @@ void Tsdb2JsonStringify(tsdb2::json::Stringifier* stringifier, std::unique_ptr<V
 
 template <typename Value>
 void Tsdb2JsonStringify(tsdb2::json::Stringifier* stringifier, std::shared_ptr<Value> const& value);
+
+template <typename Value>
+void Tsdb2JsonStringify(tsdb2::json::Stringifier* stringifier,
+                        tsdb2::common::reffed_ptr<Value> const& value);
 
 namespace tsdb2 {
 namespace json {
@@ -1046,8 +1054,8 @@ namespace internal {
 // true iff all required fields have been found. The `keys` argument is the set of keys found in the
 // JSON input.
 //
-// Optional fields are defined as those with type `std::optional`, `std::unique_ptr`, or
-// `std::shared_ptr`.
+// Optional fields are defined as those with type `std::optional`, `std::unique_ptr`,
+// `std::shared_ptr`, or `tsdb2::common::reffed_ptr`.
 template <typename... Fields>
 struct CheckFieldPresence;
 
@@ -1084,6 +1092,15 @@ struct CheckFieldPresence<FieldImpl<std::unique_ptr<OptionalType>, Name>, OtherF
 
 template <typename OptionalType, typename Name, typename... OtherFields>
 struct CheckFieldPresence<FieldImpl<std::shared_ptr<OptionalType>, Name>, OtherFields...> {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool operator()(
+      tsdb2::common::flat_set<std::string> const& keys) const {
+    return CheckFieldPresence<OtherFields...>()(keys);
+  }
+};
+
+template <typename OptionalType, typename Name, typename... OtherFields>
+struct CheckFieldPresence<FieldImpl<tsdb2::common::reffed_ptr<OptionalType>, Name>,
+                          OtherFields...> {
   ABSL_ATTRIBUTE_ALWAYS_INLINE bool operator()(
       tsdb2::common::flat_set<std::string> const& keys) const {
     return CheckFieldPresence<OtherFields...>()(keys);
@@ -1736,6 +1753,15 @@ absl::Status Tsdb2JsonParse(tsdb2::json::Parser* const parser,
   return absl::OkStatus();
 }
 
+template <typename Value>
+absl::Status Tsdb2JsonParse(tsdb2::json::Parser* const parser,
+                            tsdb2::common::reffed_ptr<Value>* const result) {
+  std::unique_ptr<Value> ptr;
+  RETURN_IF_ERROR(parser->ReadPointeeOrNull(&ptr));
+  *result = std::move(ptr);
+  return absl::OkStatus();
+}
+
 // Predefined implementations of `Tsdb2JsonStringify`.
 
 template <typename Integer, std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>, bool>>
@@ -1896,6 +1922,16 @@ void Tsdb2JsonStringify(tsdb2::json::Stringifier* const stringifier,
   }
 }
 
+template <typename Value>
+void Tsdb2JsonStringify(tsdb2::json::Stringifier* const stringifier,
+                        tsdb2::common::reffed_ptr<Value> const& value) {
+  if (value) {
+    Tsdb2JsonStringify(stringifier, *value);
+  } else {
+    stringifier->WriteNull();
+  }
+}
+
 namespace tsdb2 {
 namespace json {
 
@@ -1959,6 +1995,14 @@ struct FieldDecider<std::unique_ptr<Inner>> {
 template <typename Inner>
 struct FieldDecider<std::shared_ptr<Inner>> {
   bool operator()(Stringifier* const stringifier, std::shared_ptr<Inner> const& value) const {
+    return value != nullptr || stringifier->options().output_empty_fields;
+  }
+};
+
+template <typename Inner>
+struct FieldDecider<tsdb2::common::reffed_ptr<Inner>> {
+  bool operator()(Stringifier* const stringifier,
+                  tsdb2::common::reffed_ptr<Inner> const& value) const {
     return value != nullptr || stringifier->options().output_empty_fields;
   }
 };
