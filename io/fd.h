@@ -1,10 +1,14 @@
 #ifndef __TSDB2_IO_FD_H__
 #define __TSDB2_IO_FD_H__
 
+#include <errno.h>
 #include <unistd.h>
 
 #include <algorithm>
 #include <utility>
+
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 
 namespace tsdb2 {
 namespace io {
@@ -74,6 +78,17 @@ class FD {
     int const fd = fd_;
     fd_ = -1;
     return fd;
+  }
+
+  absl::StatusOr<FD> Clone() const {
+    if (fd_ < 0) {
+      return absl::FailedPreconditionError("cannot clone an empty file descriptor");
+    }
+    int const fd2 = ::dup(fd_);
+    if (fd2 < 0) {
+      return absl::ErrnoToStatus(errno, "dup");
+    }
+    return FD(fd2);
   }
 
  private:
