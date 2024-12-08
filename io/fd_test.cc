@@ -1,12 +1,21 @@
 #include "io/fd.h"
 
+#include <errno.h>
+#include <unistd.h>
+
+#include <cstddef>
+#include <cstring>
+#include <string_view>
 #include <utility>
 
 #include "absl/hash/hash.h"
+#include "absl/status/status.h"
+#include "common/testing.h"
 #include "gtest/gtest.h"
 
 namespace {
 
+using ::testing::TestTempFile;
 using ::tsdb2::io::FD;
 
 TEST(FDTest, Empty) {
@@ -86,6 +95,23 @@ TEST(FDTest, Comparable) {
   EXPECT_TRUE(fd1 <= fd2);
   EXPECT_FALSE(fd1 > fd2);
   EXPECT_FALSE(fd1 >= fd2);
+}
+
+TEST(FDTest, Clone) {
+  static char const kData[] = "sator arepo tenet opera rotas";
+  auto const status_or_file = TestTempFile::Create("fd_test");
+  ASSERT_OK(status_or_file);
+  auto const& file = status_or_file.value();
+  auto const& fd1 = file.fd();
+  ASSERT_GE(::write(*fd1, kData, sizeof(kData) - 1), 0) << absl::ErrnoToStatus(errno, "write");
+  ASSERT_GE(::lseek(*fd1, 0, SEEK_SET), 0) << absl::ErrnoToStatus(errno, "lseek");
+  auto const status_or_clone = fd1.Clone();
+  EXPECT_OK(status_or_clone);
+  auto const& fd2 = status_or_clone.value();
+  char buffer[sizeof(kData)];
+  std::memset(buffer, 0, sizeof(kData));
+  ASSERT_GE(::read(*fd2, buffer, sizeof(kData) - 1), 0) << absl::ErrnoToStatus(errno, "read");
+  EXPECT_EQ(std::string_view(kData), std::string_view(buffer));
 }
 
 }  // namespace

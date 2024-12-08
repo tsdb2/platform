@@ -67,6 +67,7 @@ cc_test(
         ":fd",
         "//common:testing",
         "@com_google_absl//absl/hash",
+        "@com_google_absl//absl/status",
         "@com_google_googletest//:gtest_main",
     ],
 )
