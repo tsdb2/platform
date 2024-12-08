@@ -30,10 +30,9 @@ ExclusiveFileLock::InternalLock::LockSet ExclusiveFileLock::InternalLock::locks_
 
 absl::StatusOr<tsdb2::common::reffed_ptr<ExclusiveFileLock::InternalLock>>
 ExclusiveFileLock::InternalLock::Acquire(FD const &fd, off_t const start, off_t const length) {
-  DEFINE_VAR_OR_RETURN(fd2, fd.Clone());
   struct stat statbuf;
   std::memset(&statbuf, 0, sizeof(struct stat));
-  if (::fstat(*fd2, &statbuf) < 0) {
+  if (::fstat(*fd, &statbuf) < 0) {
     return absl::ErrnoToStatus(errno, "fstat");
   }
   absl::MutexLock lock{&mutex_};
@@ -45,13 +44,14 @@ ExclusiveFileLock::InternalLock::Acquire(FD const &fd, off_t const start, off_t 
   if (it != locks_.end()) {
     return tsdb2::common::WrapReffed(const_cast<InternalLock *>(&*it));
   }
+  DEFINE_VAR_OR_RETURN(fd2, fd.Clone());
   struct flock args;
   std::memset(&args, 0, sizeof(struct flock));
   args.l_type = F_WRLCK;
   args.l_whence = SEEK_SET;
   args.l_start = start;
   args.l_len = length;
-  if (::fcntl(fd.get(), F_SETLKW, &args) < 0) {
+  if (::fcntl(fd2.get(), F_SETLKW, &args) < 0) {
     return absl::ErrnoToStatus(errno, "fcntl(F_SETLKW, F_WRLCK)");
   }
   bool inserted;
