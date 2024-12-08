@@ -59,7 +59,7 @@ ExclusiveFileLock::InternalLock::Acquire(FD const &fd, off_t const start, off_t 
   return tsdb2::common::WrapReffed(const_cast<InternalLock *>(&*it));
 }
 
-ExclusiveFileLock::InternalLock::~InternalLock() {
+void ExclusiveFileLock::InternalLock::OnLastUnref() {
   absl::MutexLock lock{&mutex_};
   Release();
   locks_.erase(*this);

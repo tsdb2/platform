@@ -24,6 +24,13 @@ using LockInfo = struct flock;
 
 std::string_view constexpr kTestFileName = "advisory_file_lock_test";
 
+TEST(AdvisoryFileLockTest, Acquire) {
+  auto const status_or_file = TestTempFile::Create(kTestFileName);
+  ASSERT_OK(status_or_file);
+  auto const& file = status_or_file.value();
+  EXPECT_OK(ExclusiveFileLock::Acquire(file.fd()));
+}
+
 TEST(AdvisoryFileLockTest, FullRange) {
   auto const status_or_file = TestTempFile::Create(kTestFileName);
   ASSERT_OK(status_or_file);

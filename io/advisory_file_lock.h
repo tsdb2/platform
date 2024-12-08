@@ -114,7 +114,7 @@ class ExclusiveFileLock final {
     off_t length;
   };
 
-  class InternalLock final : public tsdb2::common::SimpleRefCounted {
+  class InternalLock final : public tsdb2::common::RefCounted {
    public:
     static absl::StatusOr<tsdb2::common::reffed_ptr<InternalLock>> Acquire(FD const &fd,
                                                                            off_t start,
@@ -123,8 +123,6 @@ class ExclusiveFileLock final {
 
     explicit InternalLock(ino_t const inode_number, off_t const start, off_t const length, FD fd)
         : inode_number_(inode_number), start_(start), length_(length), fd_(std::move(fd)) {}
-
-    ~InternalLock() ABSL_LOCKS_EXCLUDED(mutex_);
 
     template <typename H>
     friend H AbslHashValue(H h, InternalLock const &lock) {
@@ -177,6 +175,8 @@ class ExclusiveFileLock final {
     InternalLock &operator=(InternalLock const &) = delete;
     InternalLock(InternalLock &&) = delete;
     InternalLock &operator=(InternalLock &&) = delete;
+
+    void OnLastUnref() ABSL_LOCKS_EXCLUDED(mutex_);
 
     void Release();
 
