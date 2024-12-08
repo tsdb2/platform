@@ -46,4 +46,21 @@ TEST(SigUsr1Test, NotifyThread) {
   }
 }
 
+TEST(SigUsr1Test, NotifyChild) {
+  SigUsr1 sigusr1;
+  EXPECT_FALSE(sigusr1.is_notified());
+  auto const tid = ::gettid();
+  auto const pid = ::fork();
+  ASSERT_GE(pid, 0) << absl::ErrnoToStatus(errno, "fork");
+  if (pid) {  // parent
+    EXPECT_OK(SigUsr1::Notify(pid));
+    EXPECT_FALSE(sigusr1.is_notified());
+    ASSERT_GE(::waitpid(pid, nullptr, 0), 0);
+  } else {  // child
+    EXPECT_OK(sigusr1.WaitForNotification());
+    EXPECT_TRUE(sigusr1.is_notified());
+    ::_exit(0);
+  }
+}
+
 }  // namespace
