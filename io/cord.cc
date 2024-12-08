@@ -27,9 +27,8 @@ void Cord::Append(Buffer buffer) {
 
 void Cord::Append(Cord other) {
   size_t offset = size();
-  size_t piece_size;
   for (auto& [unused_offset, buffer] : other.pieces_) {
-    piece_size = buffer.size();
+    auto const piece_size = buffer.size();
     pieces_.emplace_back(offset, std::move(buffer));
     offset += piece_size;
   }
