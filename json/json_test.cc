@@ -1789,8 +1789,7 @@ class Point {
   double y() const { return y_; }
 
   friend absl::Status Tsdb2JsonParse(json::Parser* const parser, Point* const point) {
-    DEFINE_CONST_OR_RETURN(obj, (parser->ReadObject<json::Field<double, kPointXField>,
-                                                    json::Field<double, kPointYField>>()));
+    DEFINE_CONST_OR_RETURN(obj, (parser->ReadObject<JsonPoint>()));
     point->x_ = obj.get<kPointXField>();
     point->y_ = obj.get<kPointYField>();
     return absl::OkStatus();

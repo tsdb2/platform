@@ -120,8 +120,7 @@
 //     double y() const { return y_; }
 //
 //     friend absl::Status Tsdb2JsonParse(tsdb2::json::Parser* const parser, Point* const point) {
-//       DEFINE_CONST_OR_RETURN(obj, (parser->ReadObject<json::Field<double, kPointXField>,
-//                                                       json::Field<double, kPointYField>>()));
+//       DEFINE_CONST_OR_RETURN(obj, (parser->ReadObject<JsonPoint>()));
 //       point->x_ = obj.get<kPointXField>();
 //       point->y_ = obj.get<kPointYField>();
 //       return absl::OkStatus();
@@ -597,7 +596,12 @@ class Parser final {
   absl::StatusOr<std::string> ReadString();
 
   template <typename... Fields>
-  absl::StatusOr<Object<Fields...>> ReadObject();
+  absl::StatusOr<Object<Fields...>> ReadObjectFields();
+
+  template <typename Object>
+  absl::StatusOr<Object> ReadObject() {
+    return ObjectReader<Object>{}(this);
+  }
 
   template <typename Value, typename Representation>
   absl::StatusOr<Representation> ReadDictionary();
@@ -628,6 +632,16 @@ class Parser final {
 
  private:
   friend class Object<>;
+
+  template <typename Object>
+  struct ObjectReader;
+
+  template <typename... Fields>
+  struct ObjectReader<Object<Fields...>> {
+    absl::StatusOr<Object<Fields...>> operator()(Parser* const parser) const {
+      return parser->ReadObjectFields<Fields...>();
+    }
+  };
 
   absl::Status InvalidSyntaxError() const {
     // TODO: include row and column numbers in the error message.
@@ -1110,7 +1124,7 @@ struct CheckFieldPresence<FieldImpl<tsdb2::common::reffed_ptr<OptionalType>, Nam
 }  // namespace internal
 
 template <typename... Fields>
-absl::StatusOr<Object<Fields...>> Parser::ReadObject() {
+absl::StatusOr<Object<Fields...>> Parser::ReadObjectFields() {
   ConsumeWhitespace();
   RETURN_IF_ERROR(ExpectPrefix("{"));
   ConsumeWhitespace();
@@ -1577,7 +1591,7 @@ template <typename... Fields>
 absl::Status Tsdb2JsonParse(tsdb2::json::Parser* const parser,
                             tsdb2::json::Object<Fields...>* const result) {
   result->Clear();
-  auto status_or_object = parser->ReadObject<Fields...>();
+  auto status_or_object = parser->ReadObjectFields<Fields...>();
   if (!status_or_object.ok()) {
     return std::move(status_or_object).status();
   }
