@@ -1,12 +1,12 @@
 #ifndef __TSDB2_COMMON_RE_TEMP_H__
 #define __TSDB2_COMMON_RE_TEMP_H__
 
-#include <cstddef>
 #include <cstdint>
-#include <memory>
+#include <utility>
 
 #include "absl/container/btree_map.h"
 #include "common/re/automaton.h"
+#include "common/re/capture_groups.h"
 #include "common/re/dfa.h"
 #include "common/re/nfa.h"
 #include "common/reffed_ptr.h"

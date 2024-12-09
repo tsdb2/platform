@@ -25,6 +25,7 @@ cc_library(
         ":capture_groups",
         "//common:flat_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/hash",
     ],
 )
 
@@ -47,11 +48,14 @@ cc_library(
     hdrs = ["temp.h"],
     deps = [
         ":automaton",
+        ":capture_groups",
         ":dfa",
         ":nfa",
+        "//common:flat_set",
         "//common:reffed_ptr",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/hash",
     ],
 )
 
@@ -63,9 +67,9 @@ cc_library(
         ":automaton",
         ":capture_groups",
         ":temp",
+        "//common:flat_set",
         "//common:reffed_ptr",
         "//common:utilities",
-        "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -85,9 +89,10 @@ cc_test(
         "//common:flag_override",
         "//common:reffed_ptr",
         "//common:testing",
-        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest_main",

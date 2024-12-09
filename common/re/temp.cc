@@ -1,12 +1,16 @@
 #include "common/re/temp.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <memory>
+#include <type_traits>
 #include <utility>
+#include <vector>
 
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/hash/hash.h"
+#include "common/flat_set.h"
 #include "common/re/automaton.h"
 #include "common/re/dfa.h"
 #include "common/re/nfa.h"

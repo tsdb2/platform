@@ -1,20 +1,22 @@
 #include "common/re/parser.h"
 
+#include <cctype>
 #include <cstddef>
 #include <cstdint>
-#include <locale>
-#include <memory>
+#include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 
-#include "absl/container/inlined_vector.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/escaping.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/strip.h"
+#include "absl/strings/string_view.h"
+#include "common/flat_set.h"
 #include "common/re/automaton.h"
 #include "common/re/capture_groups.h"
 #include "common/re/temp.h"
