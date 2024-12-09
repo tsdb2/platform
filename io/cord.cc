@@ -1,6 +1,5 @@
 #include "io/cord.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <utility>
 

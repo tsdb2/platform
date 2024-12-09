@@ -1,10 +1,11 @@
 #include "io/buffer.h"
 
-#include <arpa/inet.h>
+#include <netinet/in.h>
 
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <string>
 #include <string_view>
 #include <tuple>
 

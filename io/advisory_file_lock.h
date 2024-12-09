@@ -1,13 +1,13 @@
 #ifndef __TSDB2_IO_ADVISORY_FILE_LOCK_H__
 #define __TSDB2_IO_ADVISORY_FILE_LOCK_H__
 
-#include <fcntl.h>
 #include <sys/stat.h>
 
 #include <cstddef>
 #include <tuple>
 #include <utility>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/container/node_hash_set.h"
 #include "absl/hash/hash.h"
 #include "absl/status/statusor.h"

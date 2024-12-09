@@ -1,5 +1,6 @@
 #include "io/cord.h"
 
+#include <memory>
 #include <string_view>
 #include <utility>
 

@@ -1,11 +1,11 @@
 #ifndef __TSDB2_IO_BUFFER_H__
 #define __TSDB2_IO_BUFFER_H__
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <type_traits>
+#include <utility>
 
 #include "absl/log/check.h"
 #include "absl/types/span.h"

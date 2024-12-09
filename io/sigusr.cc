@@ -8,6 +8,7 @@
 #include <cstring>
 
 #include "absl/base/attributes.h"
+#include "absl/base/const_init.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"

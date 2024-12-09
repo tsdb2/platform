@@ -4,9 +4,10 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <string>
+
 #include "absl/status/status.h"
 #include "common/testing.h"
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace {
@@ -49,7 +50,6 @@ TEST(SigUsr1Test, NotifyThread) {
 TEST(SigUsr1Test, NotifyChild) {
   SigUsr1 sigusr1;
   EXPECT_FALSE(sigusr1.is_notified());
-  auto const tid = ::gettid();
   auto const pid = ::fork();
   ASSERT_GE(pid, 0) << absl::ErrnoToStatus(errno, "fork");
   if (pid) {  // parent

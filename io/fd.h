@@ -4,7 +4,6 @@
 #include <errno.h>
 #include <unistd.h>
 
-#include <algorithm>
 #include <utility>
 
 #include "absl/status/status.h"

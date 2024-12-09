@@ -2,9 +2,13 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include <cstring>
+#include <memory>
+#include <string_view>
 
 #include "absl/status/status.h"
 #include "common/testing.h"
