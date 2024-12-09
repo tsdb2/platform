@@ -3,6 +3,8 @@
 #include <cstdint>
 
 #include "absl/flags/flag.h"
+#include "absl/functional/any_invocable.h"
+#include "absl/strings/string_view.h"
 #include "common/scheduler.h"
 #include "common/singleton.h"
 

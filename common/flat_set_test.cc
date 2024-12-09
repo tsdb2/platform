@@ -1,9 +1,10 @@
 #include "common/flat_set.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <deque>
 #include <functional>
+#include <iosfwd>
+#include <string>
 #include <string_view>
 #include <tuple>
 #include <utility>

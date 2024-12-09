@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 #include <deque>
+#include <initializer_list>
 #include <map>
 #include <memory>
 #include <optional>
@@ -12,7 +13,6 @@
 #include <tuple>
 #include <unordered_map>
 #include <unordered_set>
-#include <utility>
 #include <variant>
 #include <vector>
 
@@ -24,13 +24,13 @@
 #include "absl/container/node_hash_map.h"
 #include "absl/container/node_hash_set.h"
 #include "absl/numeric/int128.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "common/flat_map.h"
 #include "common/flat_set.h"
 #include "common/ref_count.h"
 #include "common/reffed_ptr.h"
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace foo {

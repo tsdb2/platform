@@ -707,7 +707,6 @@ cc_library(
         ":simple_condition",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
@@ -720,7 +719,6 @@ cc_test(
     deps = [
         ":mock_clock",
         ":testing",
-        "@com_google_absl//absl/base",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest_main",
@@ -770,6 +768,8 @@ cc_library(
         ":scheduler",
         ":singleton",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/functional:any_invocable",
+        "@com_google_absl//absl/strings",
     ],
 )
 

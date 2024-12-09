@@ -1,5 +1,7 @@
 #include "common/lazy.h"
 
+#include <string>
+#include <string_view>
 #include <utility>
 
 #include "gmock/gmock.h"

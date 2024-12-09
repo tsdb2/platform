@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <utility>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
 #include "common/reffed_ptr.h"

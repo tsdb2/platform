@@ -20,13 +20,12 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
-#include <cstdint>
 #include <cstdlib>
 #include <functional>
 #include <initializer_list>
+#include <iterator>
 #include <memory>
 #include <optional>
-#include <stdexcept>
 #include <tuple>
 #include <type_traits>
 #include <utility>

@@ -45,6 +45,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <iterator>
 #include <map>
 #include <memory>
 #include <optional>
@@ -433,9 +434,6 @@ State Tsdb2FingerprintValue(State state,
 namespace tsdb2 {
 namespace common {
 
-template <typename Value>
-struct Fingerprint;
-
 namespace internal {
 
 // A 64-bit Murmur3 hasher implemented using the 128-bit version and XOR'ing the high and low 64-bit
@@ -497,6 +495,9 @@ class FingerprintState {
 };
 
 }  // namespace internal
+
+template <typename Value>
+struct Fingerprint;
 
 template <typename Value>
 struct Fingerprint {

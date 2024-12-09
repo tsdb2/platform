@@ -1,8 +1,6 @@
 #include "common/lock_free_hash_set.h"
 
-#include <algorithm>
 #include <cstddef>
-#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>

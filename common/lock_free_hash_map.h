@@ -2,12 +2,10 @@
 #define __TSDB2_COMMON_LOCK_FREE_HASH_MAP_H__
 
 #include <cstddef>
-#include <cstdint>
 #include <initializer_list>
-#include <memory>
-#include <stdexcept>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include "common/lock_free_container_internal.h"
 #include "common/raw_lock_free_hash.h"

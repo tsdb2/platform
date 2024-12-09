@@ -1,6 +1,7 @@
 #ifndef __TSDB2_COMMON_CLOCK_H__
 #define __TSDB2_COMMON_CLOCK_H__
 
+#include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 

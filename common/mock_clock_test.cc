@@ -1,8 +1,9 @@
 #include "common/mock_clock.h"
 
+#include <memory>
+#include <string>
 #include <thread>
 
-#include "absl/base/attributes.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/synchronization/notification.h"
 #include "absl/time/time.h"

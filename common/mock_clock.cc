@@ -1,6 +1,6 @@
 #include "common/mock_clock.h"
 
-#include <memory>
+#include <algorithm>
 #include <utility>
 #include <vector>
 

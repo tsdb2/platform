@@ -2,14 +2,14 @@
 #define __TSDB2_COMMON_LAZY_H__
 
 #include <atomic>
-#include <optional>
+#include <new>
 #include <tuple>
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/base/thread_annotations.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/synchronization/mutex.h"
-#include "common/utilities.h"
 
 namespace tsdb2 {
 namespace common {

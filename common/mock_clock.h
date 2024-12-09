@@ -1,14 +1,10 @@
 #ifndef __TSDB2_COMMON_MOCK_CLOCK_H__
 #define __TSDB2_COMMON_MOCK_CLOCK_H__
 
-#include <algorithm>
-#include <memory>
 #include <vector>
 
-#include "absl/base/attributes.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/functional/function_ref.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "common/clock.h"

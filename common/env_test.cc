@@ -1,5 +1,6 @@
 #include "common/env.h"
 
+#include <cstdlib>
 #include <optional>
 #include <string>
 
