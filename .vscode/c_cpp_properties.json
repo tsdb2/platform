@@ -4,9 +4,9 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}",
-                "${workspaceFolder}/bazel-platform/external/com_google_absl",
-                "${workspaceFolder}/bazel-platform/external/com_google_googletest/googlemock/include",
-                "${workspaceFolder}/bazel-platform/external/com_google_googletest/googletest/include"
+                "${workspaceFolder}/bazel-platform/external/abseil-cpp+",
+                "${workspaceFolder}/bazel-platform/external/googletest+/googlemock/include",
+                "${workspaceFolder}/bazel-platform/external/googletest+/googletest/include"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/clang",
