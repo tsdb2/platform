@@ -1,6 +1,25 @@
-###############################################################################
-# Bazel now uses Bzlmod by default to manage external dependencies.
-# Please consider migrating your external dependencies from WORKSPACE to MODULE.bazel.
-#
-# For more details, please check https://github.com/bazelbuild/bazel/issues/18958
-###############################################################################
+"""TSDB2 platform for scalable distributed computing."""
+
+module(
+    name = "tsdb2_platform",
+    version = "0.1.0",
+    repo_name = "com_tsdb2_platform",
+)
+
+bazel_dep(
+    name = "googletest",
+    version = "1.15.2",
+    repo_name = "com_google_googletest",
+)
+
+bazel_dep(
+    name = "google_benchmark",
+    version = "1.8.5",
+    repo_name = "com_google_benchmark",
+)
+
+bazel_dep(
+    name = "abseil-cpp",
+    version = "20240722.0.bcr.2",
+    repo_name = "com_google_absl",
+)
