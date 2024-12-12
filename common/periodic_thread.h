@@ -54,6 +54,8 @@ class PeriodicThread {
                                    absl::ZeroDuration(), options.period);
   }
 
+  virtual ~PeriodicThread() = default;
+
   // Returns the state of the background thread / underlying `Scheduler`.
   State state() const { return scheduler_.state(); }
 

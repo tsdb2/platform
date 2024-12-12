@@ -94,7 +94,7 @@ class FD {
   FD(FD const&) = delete;
   FD& operator=(FD const&) = delete;
 
-  void MaybeClose() {
+  void MaybeClose() const {
     if (fd_ >= 0) {
       ::close(fd_);
     }

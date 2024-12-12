@@ -32,6 +32,8 @@ class ThrowAwayMetricContext final {
     metric_->Pin();
   }
 
+  ~ThrowAwayMetricContext() = default;
+
   absl::Time time() const { return time_; }
 
  private:
@@ -41,7 +43,7 @@ class ThrowAwayMetricContext final {
   ThrowAwayMetricContext &operator=(ThrowAwayMetricContext &&other) = delete;
 
   void Close() ABSL_NO_THREAD_SAFETY_ANALYSIS {
-    auto const metric = metric_;
+    auto *const metric = metric_;
     metric_ = nullptr;
     metric->UnpinLocked();
   }

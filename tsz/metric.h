@@ -113,7 +113,6 @@
 #define __TSDB2_TSZ_METRIC_H__
 
 #include <utility>
-#include <variant>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"

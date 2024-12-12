@@ -44,6 +44,7 @@ cc_test(
         "//common:fingerprint",
         "//common:flat_map",
         "//common:flat_set",
+        "//common:reffed_ptr",
         "//common:testing",
         "//common:trie_map",
         "//common:trie_set",

@@ -1,7 +1,7 @@
 #ifndef __TSDB2_SERVER_TESTING_H__
 #define __TSDB2_SERVER_TESTING_H__
 
-#include "common/testing.h"
+#include "common/testing.h"  // IWYU pragma: export
 #include "gtest/gtest.h"
 #include "server/init_tsdb2.h"
 

@@ -18,7 +18,7 @@ void FingerprintState::Add(uint64_t const k) {
 }
 
 void FingerprintState::Add(uint64_t const* const ks, size_t const count) {
-  if (!count) {
+  if (count == 0) {
     return;
   }
   size_t i = 0;

@@ -109,7 +109,7 @@ void ChannelProcessor::ProcessContinuationFrame(uint32_t const stream_id, FrameH
   }
   stream.field_block.reserve(stream.field_block.size() + span.size());
   stream.field_block.insert(stream.field_block.end(), span.begin(), span.end());
-  if (header.flags() & kFlagEndHeaders) {
+  if ((header.flags() & kFlagEndHeaders) != 0) {
     switch (stream.state) {
       case StreamState::kIdle:
         stream.state = StreamState::kOpen;
@@ -229,7 +229,7 @@ Buffer ChannelProcessor::MakePingFrame(bool const ack, Buffer const& payload) {
   return buffer;
 }
 
-Buffer ChannelProcessor::MakeGoAwayFrame(ConnectionError const error) {
+Buffer ChannelProcessor::MakeGoAwayFrame(ConnectionError const error) const {
   auto const header = FrameHeader()
                           .set_length(sizeof(GoAwayPayload))
                           .set_frame_type(FrameType::kGoAway)
@@ -263,25 +263,25 @@ ChannelProcessor::Stream& ChannelProcessor::GetOrCreateStreamLocked(uint32_t con
 }
 
 ConnectionError ChannelProcessor::ValidateDataHeader(FrameHeader const& header) {
-  if (!header.stream_id()) {
+  if (header.stream_id() == 0) {
     return ConnectionError::kProtocolError;
   }
-  if ((header.flags() & kFlagPadded) && (header.length() < 1)) {
+  if (((header.flags() & kFlagPadded) != 0) && (header.length() < 1)) {
     return ConnectionError::kFrameSizeError;
   }
   return ConnectionError::kNoError;
 }
 
 ConnectionError ChannelProcessor::ValidateHeadersHeader(FrameHeader const& header) {
-  if (!header.stream_id()) {
+  if (header.stream_id() == 0) {
     return ConnectionError::kProtocolError;
   }
   size_t min_size = 0;
   auto const flags = header.flags();
-  if (flags & kFlagPriority) {
+  if ((flags & kFlagPriority) != 0) {
     min_size += 5;
   }
-  if (flags & kFlagPadded) {
+  if ((flags & kFlagPadded) != 0) {
     min_size += 1;
   }
   if (header.length() < min_size) {
@@ -291,7 +291,7 @@ ConnectionError ChannelProcessor::ValidateHeadersHeader(FrameHeader const& heade
 }
 
 ConnectionError ChannelProcessor::ValidatePriorityHeader(FrameHeader const& header) {
-  if (!header.stream_id()) {
+  if (header.stream_id() == 0) {
     return ConnectionError::kProtocolError;
   }
   if (header.length() != sizeof(PriorityPayload)) {
@@ -301,7 +301,7 @@ ConnectionError ChannelProcessor::ValidatePriorityHeader(FrameHeader const& head
 }
 
 ConnectionError ChannelProcessor::ValidateResetStreamHeader(FrameHeader const& header) {
-  if (!header.stream_id()) {
+  if (header.stream_id() == 0) {
     return ConnectionError::kProtocolError;
   }
   if (header.length() != sizeof(ResetStreamPayload)) {
@@ -315,7 +315,7 @@ ConnectionError ChannelProcessor::ValidateSettingsHeader(FrameHeader const& head
     return ConnectionError::kProtocolError;
   }
   auto const length = header.length();
-  if (header.flags() & kFlagAck) {
+  if ((header.flags() & kFlagAck) != 0) {
     if (length != 0) {
       return ConnectionError::kFrameSizeError;
     }
@@ -337,7 +337,7 @@ ConnectionError ChannelProcessor::ValidatePingHeader(FrameHeader const& header) 
   if (header.length() != kPingPayloadSize) {
     return ConnectionError::kFrameSizeError;
   }
-  if (header.flags() & kFlagAck) {
+  if ((header.flags() & kFlagAck) != 0) {
     return ConnectionError::kProtocolError;
   }
   return ConnectionError::kNoError;
@@ -409,7 +409,7 @@ void ChannelProcessor::ProcessDataFrame(FrameHeader const& header, Buffer const 
   size_t offset = 0;
   size_t pad_length = 0;
   auto const flags = header.flags();
-  if (flags & kFlagPadded) {
+  if ((flags & kFlagPadded) != 0) {
     offset += 1;
     pad_length += payload.at<uint8_t>(0);
   }
@@ -425,7 +425,7 @@ void ChannelProcessor::ProcessDataFrame(FrameHeader const& header, Buffer const 
     stream.state = StreamState::kClosed;
     return ResetStreamLocked(stream_id, ConnectionError::kStreamClosed);
   }
-  if (flags & kFlagEndStream) {
+  if ((flags & kFlagEndStream) != 0) {
     switch (stream.state) {
       case StreamState::kOpen:
         stream.state = StreamState::kHalfClosedRemote;
@@ -445,11 +445,11 @@ void ChannelProcessor::ProcessHeadersFrame(FrameHeader const& header, Buffer con
   size_t offset = 0;
   size_t pad_length = 0;
   auto const flags = header.flags();
-  if (flags & kFlagPadded) {
+  if ((flags & kFlagPadded) != 0) {
     offset += 1;
     pad_length += payload.at<uint8_t>(0);
   }
-  if (flags & kFlagPriority) {
+  if ((flags & kFlagPriority) != 0) {
     offset += 5;
   }
   auto const length = header.length();
@@ -477,7 +477,7 @@ void ChannelProcessor::ProcessHeadersFrame(FrameHeader const& header, Buffer con
     return parent_->ReadNextFrame();
   }
   stream.receiving_fields = true;
-  if (flags & kFlagEndHeaders) {
+  if ((flags & kFlagEndHeaders) != 0) {
     switch (stream.state) {
       case StreamState::kIdle:
         stream.state = StreamState::kOpen;
@@ -515,7 +515,7 @@ void ChannelProcessor::ProcessResetStreamFrame(FrameHeader const& header) {
 }
 
 void ChannelProcessor::ProcessSettingsFrame(FrameHeader const& header, Buffer const payload) {
-  if (!(header.flags() & kFlagAck)) {
+  if ((header.flags() & kFlagAck) == 0) {
     AckSettings();
   }
 }
@@ -531,7 +531,7 @@ void ChannelProcessor::ProcessPushPromiseFrame(FrameHeader const& header) {
 }
 
 void ChannelProcessor::ProcessPingFrame(FrameHeader const& header, Buffer const payload) {
-  if (header.flags() & kFlagAck) {
+  if ((header.flags() & kFlagAck) != 0) {
     GoAway(ConnectionError::kProtocolError);
   } else {
     write_queue_.WriteFrameSkippingQueue(MakePingFrame(/*ack=*/true, std::move(payload)));
@@ -550,7 +550,7 @@ void ChannelProcessor::ProcessGoAwayFrame(FrameHeader const& header, Buffer cons
 void ChannelProcessor::ProcessWindowUpdateFrame(FrameHeader const& header, Buffer const buffer) {
   auto const& payload = buffer.as<WindowUpdatePayload>();
   absl::MutexLock lock{&mutex_};
-  if (!payload.window_size_increment()) {
+  if (payload.window_size_increment() == 0) {
     return GoAwayLocked(ConnectionError::kProtocolError);
   }
   // TODO

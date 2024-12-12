@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
@@ -58,6 +59,8 @@ class ModuleManager {
    public:
     explicit DependencyChecker(DependencyMap const& dependencies) : dependencies_(dependencies) {}
 
+    ~DependencyChecker() = default;
+
     absl::Status Run();
 
     // For internal use by the checking algorithm.
@@ -91,7 +94,7 @@ class ModuleManager {
     }
 
     ~ModuleFrame() {
-      if (parent_) {
+      if (parent_ != nullptr) {
         parent_->PopModule(module_);
       }
     }
@@ -134,9 +137,10 @@ class ModuleManager {
     absl::flat_hash_set<BaseModule*> initialized_;
   };
 
-  static ModuleManager* CreateInstance();
+  static gsl::owner<ModuleManager*> CreateInstance();
   static tsdb2::common::Singleton<ModuleManager>* GetSingleton();
   explicit ModuleManager() = default;
+  ~ModuleManager() = default;
 
   ModuleManager(ModuleManager const&) = delete;
   ModuleManager& operator=(ModuleManager const&) = delete;

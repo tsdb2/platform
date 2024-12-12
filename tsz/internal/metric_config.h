@@ -30,8 +30,8 @@ struct MetricConfig {
   std::optional<absl::Duration> max_entity_staleness = std::nullopt;
   std::optional<absl::Duration> max_value_staleness = std::nullopt;
 
-  Options::BackendSettings default_backend_settings;
-  absl::flat_hash_map<Options::BackendKey, Options::BackendSettings> backend_settings;
+  Options::BackendSettings default_backend_settings{};
+  absl::flat_hash_map<Options::BackendKey, Options::BackendSettings> backend_settings{};
 };
 
 }  // namespace internal

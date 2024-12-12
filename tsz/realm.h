@@ -1,15 +1,16 @@
 #ifndef __TSDB2_TSZ_REALM_H__
 #define __TSDB2_TSZ_REALM_H__
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <string_view>
 #include <utility>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/hash/hash.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/escaping.h"
 #include "absl/synchronization/mutex.h"
 #include "common/reffed_ptr.h"
 #include "gtest/gtest_prod.h"
@@ -63,7 +64,7 @@ class Realm {
   // Realm for metrics with very large cardinality that pose a risk of dropping write RPCs.
   static tsdb2::common::reffed_ptr<Realm const> Huge();
 
-  explicit Realm(std::string_view const name) ABSL_LOCKS_EXCLUDED(mutex_);
+  explicit Realm(std::string_view name) ABSL_LOCKS_EXCLUDED(mutex_);
   ~Realm() ABSL_LOCKS_EXCLUDED(mutex_);
 
   intptr_t ref_count() const ABSL_LOCKS_EXCLUDED(mutex_);
@@ -111,8 +112,7 @@ class Realm {
   //
   // This function is only used internally by friend classes to implement features like specifying
   // realm names in command line flags.
-  static absl::StatusOr<tsdb2::common::reffed_ptr<Realm const>> GetByName(
-      std::string_view const name);
+  static absl::StatusOr<tsdb2::common::reffed_ptr<Realm const>> GetByName(std::string_view name);
 
   static absl::Mutex set_mutex_;
   static absl::flat_hash_set<Realm const *, Hash, Eq> realms_ ABSL_GUARDED_BY(set_mutex_);

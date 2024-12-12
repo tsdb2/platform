@@ -6,6 +6,7 @@
 #include <optional>
 #include <vector>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/container/btree_map.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
@@ -42,6 +43,7 @@ class ChannelProcessor {
   // Holds per-stream state.
   struct Stream {
     explicit Stream(size_t const window_size) : window_size(window_size) {}
+    ~Stream() = default;
 
     Stream(Stream const&) = delete;
     Stream& operator=(Stream const&) = delete;
@@ -73,7 +75,8 @@ class ChannelProcessor {
   tsdb2::net::Buffer MakeSettingsFrame() const ABSL_SHARED_LOCKS_REQUIRED(mutex_);
   static tsdb2::net::Buffer MakeSettingsAckFrame();
   static tsdb2::net::Buffer MakePingFrame(bool ack, tsdb2::net::Buffer const& payload);
-  tsdb2::net::Buffer MakeGoAwayFrame(ConnectionError error) ABSL_SHARED_LOCKS_REQUIRED(mutex_);
+  tsdb2::net::Buffer MakeGoAwayFrame(ConnectionError error) const
+      ABSL_SHARED_LOCKS_REQUIRED(mutex_);
 
   void ResetStreamLocked(uint32_t stream_id, ConnectionError error)
       ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);

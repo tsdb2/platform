@@ -1,10 +1,10 @@
 #include "common/clock.h"
 
-#include <string>
 #include <thread>
 
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "gtest/gtest.h"
 
 namespace {

@@ -2,6 +2,7 @@
 #define __TSDB2_COMMON_REF_COUNT_H__
 
 #include <atomic>
+#include <cstdint>
 
 #include "absl/log/check.h"
 
@@ -40,6 +41,7 @@ class RefCount {
 // Note that the reference count is initialized to 0.
 class RefCounted {
  public:
+  explicit RefCounted() = default;
   virtual ~RefCounted() { DCHECK_EQ(is_referenced(), false); }
 
   // Returns true iff the reference count is > 0.
@@ -68,6 +70,11 @@ class RefCounted {
   virtual void OnLastUnref() = 0;
 
  private:
+  RefCounted(RefCounted const &) = delete;
+  RefCounted &operator=(RefCounted const &) = delete;
+  RefCounted(RefCounted &&) = delete;
+  RefCounted &operator=(RefCounted &&) = delete;
+
   std::atomic<intptr_t> ref_count_ = 0;
 };
 

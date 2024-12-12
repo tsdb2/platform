@@ -5,7 +5,6 @@
 
 #include "absl/status/statusor.h"
 #include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "tsz/internal/entity.h"
 #include "tsz/internal/metric_config.h"
 #include "tsz/types.h"
@@ -16,12 +15,19 @@ namespace testing {
 
 class MockEntityManager : public tsz::internal::EntityManager {
  public:
+  explicit MockEntityManager() = default;
   ~MockEntityManager() override = default;
 
-  MOCK_METHOD(absl::StatusOr<MetricConfig const*>, GetConfigForMetric,
+  MOCK_METHOD(absl::StatusOr<MetricConfig const *>, GetConfigForMetric,
               (std::string_view metric_name), (const, override));
 
-  MOCK_METHOD(bool, DeleteEntityInternal, (FieldMap const& entity_labels), (override));
+  MOCK_METHOD(bool, DeleteEntityInternal, (FieldMap const &entity_labels), (override));
+
+ private:
+  MockEntityManager(MockEntityManager const &) = delete;
+  MockEntityManager &operator=(MockEntityManager const &) = delete;
+  MockEntityManager(MockEntityManager &&) = delete;
+  MockEntityManager &operator=(MockEntityManager &&) = delete;
 };
 
 }  // namespace testing

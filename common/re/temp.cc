@@ -1,15 +1,13 @@
 #include "common/re/temp.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
 #include <utility>
-#include <vector>
 
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/hash/hash.h"
+#include "capture_groups.h"
 #include "common/flat_set.h"
 #include "common/re/automaton.h"
 #include "common/re/dfa.h"
@@ -77,7 +75,7 @@ bool TempNFA::RenameState(uint32_t const old_name, uint32_t const new_name) {
   }
   for (auto& [state_num, state] : states_) {
     for (auto& [ch, transitions] : state.edges) {
-      if (transitions.erase(old_name)) {
+      if (transitions.erase(old_name) > 0) {
         if (ch != 0 || new_name != state_num) {
           transitions.emplace(new_name);
         }

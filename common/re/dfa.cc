@@ -8,7 +8,6 @@
 #include <utility>
 
 #include "absl/container/flat_hash_set.h"
-#include "absl/hash/hash.h"
 #include "absl/types/span.h"
 #include "common/re/automaton.h"
 

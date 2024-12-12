@@ -23,6 +23,8 @@ class Cord {
     ((size = pieces.size(), pieces_.emplace_back(offset, std::move(pieces)), offset += size), ...);
   }
 
+  ~Cord() = default;
+
   Cord(Cord &&) noexcept = default;
   Cord &operator=(Cord &&) noexcept = default;
 
@@ -54,6 +56,8 @@ class Cord {
   struct Piece {
     explicit Piece(size_t const offset, Buffer buffer)
         : offset(offset), buffer(std::move(buffer)) {}
+
+    ~Piece() = default;
 
     Piece(Piece const &) = delete;
     Piece &operator=(Piece const &) = delete;

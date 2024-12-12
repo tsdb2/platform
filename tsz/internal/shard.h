@@ -1,15 +1,18 @@
 #ifndef __TSDB2_TSZ_INTERNAL_SHARD_H__
 #define __TSDB2_TSZ_INTERNAL_SHARD_H__
 
+#include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <tuple>
 #include <utility>
 #include <vector>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/hash/hash.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
@@ -93,6 +96,8 @@ class Shard : private EntityManager {
   class MetricConfigHolder {
    public:
     explicit MetricConfigHolder(MetricConfig value) : value_(std::move(value)) {}
+    ~MetricConfigHolder() = default;
+
     MetricConfig const &value() const { return value_; }
 
    private:
@@ -153,10 +158,15 @@ class Shard : private EntityManager {
     explicit EntityCell(Args &&...args)
         : entity_(std::make_shared<Entity>(std::forward<Args>(args)...)) {}
 
+    ~EntityCell() = default;
+
     EntityCell(EntityCell const &) = default;
     EntityCell &operator=(EntityCell const &) = default;
     EntityCell(EntityCell &&) noexcept = default;
     EntityCell &operator=(EntityCell &&) noexcept = default;
+
+    void swap(EntityCell &other) noexcept { std::swap(entity_, other.entity_); }
+    friend void swap(EntityCell &lhs, EntityCell &rhs) noexcept { lhs.swap(rhs); }
 
     std::shared_ptr<Entity> const &ptr() const { return entity_; }
     size_t hash() const { return entity_->hash(); }

@@ -35,14 +35,15 @@ Bucketer const& Bucketer::Custom(double const width, double const growth_factor,
 
 double Bucketer::lower_bound(int const i) const {
   double result = width_ * i;
-  if (growth_factor_) {
+  if (growth_factor_ != 0) {
     result += scale_factor_ * std::pow(growth_factor_, i - 1);
   }
   return result;
 }
 
 int Bucketer::GetBucketFor(double const sample) const {
-  int i = 0, j = num_finite_buckets_ + 1;
+  int i = 0;
+  int j = num_finite_buckets_ + 1;
   while (j > i) {
     int k = i + ((j - i) >> 1);
     double const l = lower_bound(k);

@@ -8,23 +8,19 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <cstdint>
 #include <optional>
-#include <string>
 #include <string_view>
 #include <tuple>
 #include <utility>
-#include <vector>
 
 #include "absl/base/attributes.h"
 #include "absl/base/const_init.h"
+#include "absl/base/thread_annotations.h"
 #include "absl/flags/flag.h"
 #include "absl/functional/bind_front.h"
 #include "absl/log/check.h"
-#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
@@ -32,7 +28,6 @@
 #include "common/no_destructor.h"
 #include "common/reffed_ptr.h"
 #include "common/scheduler.h"
-#include "common/utilities.h"
 #include "net/base_sockets.h"
 #include "net/epoll_server.h"
 #include "net/ssl.h"
@@ -70,15 +65,16 @@ SSLSocket::~SSLSocket() {
   }
 }
 
-SSLSocket::SSLSocket(EpollServer* const parent, AcceptTag, FD fd, internal::SSL ssl,
+SSLSocket::SSLSocket(EpollServer* const parent, AcceptTag /*accept_tag*/, FD fd, internal::SSL ssl,
                      absl::Duration const handshake_timeout, InternalConnectCallback callback)
     : BaseSocket(parent, std::move(fd)),
       ssl_(std::move(ssl)),
       connect_state_(std::in_place, ConnectState::Mode::kAccepting, std::move(callback),
                      handshake_timeout) {}
 
-SSLSocket::SSLSocket(EpollServer* const parent, ConnectTag, FD fd, internal::SSL ssl,
-                     absl::Duration const handshake_timeout, InternalConnectCallback callback)
+SSLSocket::SSLSocket(EpollServer* const parent, ConnectTag /*connect_tag*/, FD fd,
+                     internal::SSL ssl, absl::Duration const handshake_timeout,
+                     InternalConnectCallback callback)
     : BaseSocket(parent, std::move(fd)),
       ssl_(std::move(ssl)),
       connect_state_(std::in_place, ConnectState::Mode::kConnecting, std::move(callback),
@@ -166,14 +162,14 @@ absl::StatusOr<bool> SSLSocket::Handshake() {
   } else if (result < 0) {
     auto const saved_errno = errno;
     int const error = SSL_get_error(ssl_.get(), result);
-    auto const handshake_function_name =
+    char const* const handshake_function_name =
         mode != ConnectState::Mode::kAccepting ? "SSL_connect" : "SSL_accept";
     switch (error) {
       case SSL_ERROR_WANT_READ:
       case SSL_ERROR_WANT_WRITE:
         return false;
       case SSL_ERROR_SYSCALL:
-        if (saved_errno) {
+        if (saved_errno != 0) {
           return absl::ErrnoToStatus(saved_errno, handshake_function_name);
         } else {
           return absl::UnknownError(handshake_function_name);
@@ -294,7 +290,7 @@ void SSLSocket::OnInput() {
           return AbortCallbacks(std::move(state), absl::InternalError("SSL_read wants write"))
               .IgnoreError();
         case SSL_ERROR_SYSCALL:
-          if (saved_errno) {
+          if (saved_errno != 0) {
             return AbortCallbacks(std::move(state), absl::ErrnoToStatus(saved_errno, "SSL_read"))
                 .IgnoreError();
           } else {
@@ -336,7 +332,7 @@ void SSLSocket::OnOutput() {
     if (result > 0) {
       CHECK_LE(result, remaining);
       remaining -= result;
-      if (!remaining) {
+      if (remaining == 0) {
         auto state = ExpungeWriteState();
         lock.Release();
         return state.callback(absl::OkStatus());
@@ -359,7 +355,7 @@ void SSLSocket::OnOutput() {
           return AbortCallbacks(std::move(state), absl::InternalError("SSL_write wants read"))
               .IgnoreError();
         case SSL_ERROR_SYSCALL:
-          if (saved_errno) {
+          if (saved_errno != 0) {
             return AbortCallbacks(std::move(state), absl::ErrnoToStatus(saved_errno, "SSL_write"))
                 .IgnoreError();
           } else {
@@ -413,7 +409,7 @@ void SSLSocket::Timeout(std::string_view const status_message) {
 
 absl::Status SSLSocket::ReadInternal(size_t length, ReadCallback callback,
                                      std::optional<absl::Duration> const timeout) {
-  if (!length) {
+  if (length == 0) {
     return absl::InvalidArgumentError("the number of bytes to read must be at least 1");
   }
   if (!callback) {
@@ -460,7 +456,7 @@ absl::Status SSLSocket::ReadInternal(size_t length, ReadCallback callback,
         case SSL_ERROR_ZERO_RETURN:
           return AbortCallbacks(std::move(state), absl::CancelledError("SSL socket peer hung up"));
         case SSL_ERROR_SYSCALL:
-          if (saved_errno) {
+          if (saved_errno != 0) {
             return AbortCallbacks(std::move(state), absl::ErrnoToStatus(saved_errno, "SSL_read"));
           } else {
             return AbortCallbacks(std::move(state), absl::UnknownError("SSL_read"));
@@ -522,7 +518,7 @@ absl::Status SSLSocket::WriteInternal(Buffer buffer, WriteCallback callback,
         case SSL_ERROR_ZERO_RETURN:
           return AbortCallbacks(std::move(state), absl::CancelledError("SSL socket peer hung up"));
         case SSL_ERROR_SYSCALL:
-          if (saved_errno) {
+          if (saved_errno != 0) {
             return AbortCallbacks(std::move(state), absl::ErrnoToStatus(saved_errno, "SSL_write"));
           } else {
             return AbortCallbacks(std::move(state), absl::UnknownError("SSL_write"));

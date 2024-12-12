@@ -4,7 +4,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <iterator>
 #include <memory>
 #include <optional>
 #include <string_view>
@@ -43,6 +42,8 @@ class NFA final : public AbstractAutomaton {
     explicit State(int const capture_group, Edges edges)
         : State(capture_group, Assertions::kNone, std::move(edges)) {}
 
+    ~State() = default;
+
     State(State const &) = default;
     State &operator=(State const &) = default;
     State(State &&) noexcept = default;
@@ -79,6 +80,8 @@ class NFA final : public AbstractAutomaton {
     explicit Stepper(NFA const *const nfa, char const previous_character)
         : nfa_(nfa), states_{nfa_->initial_state_}, last_character_(previous_character) {}
 
+    ~Stepper() override = default;
+
     Stepper(Stepper const &) = default;
     Stepper &operator=(Stepper const &) = default;
 
@@ -87,6 +90,9 @@ class NFA final : public AbstractAutomaton {
     bool Finish(char next_character) const override;
 
    private:
+    Stepper(Stepper &&) = delete;
+    Stepper &operator=(Stepper &&) = delete;
+
     StateSet EpsilonClosure(StateSet states, char ch) const;
 
     NFA const *nfa_;

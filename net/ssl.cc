@@ -1,7 +1,9 @@
 #include "net/ssl.h"
 
 #include <openssl/conf.h>
+#include <openssl/crypto.h>
 #include <openssl/err.h>
+#include <openssl/prov_ssl.h>
 #include <openssl/ssl.h>
 
 #include <algorithm>
@@ -35,13 +37,13 @@ std::string_view constexpr kPassphraseEnvVarKey = "SSL_PASSPHRASE";
 
 int PassphraseCallback(char* const buffer, int const size, int const rwflag,
                        void* const user_data) {
-  auto const passphrase = reinterpret_cast<char const*>(user_data);
-  if (!passphrase) {
+  char const* const passphrase = reinterpret_cast<char const*>(user_data);
+  if (passphrase == nullptr) {
     return 0;
   }
   int length = std::strlen(passphrase);
   length = std::min(length, size);
-  std::memcpy(buffer, passphrase, length);
+  std::memcpy(buffer, passphrase, length + 1);
   return length;
 }
 
@@ -70,18 +72,18 @@ tsdb2::common::Singleton<SSLContext const> SSLContext::client_context_{
 
 absl::StatusOr<SSL> SSLContext::MakeSSL(tsdb2::io::FD const& fd) const {
   ::SSL* const native_ssl = SSL_new(context_);
-  if (!native_ssl) {
+  if (native_ssl == nullptr) {
     return absl::UnknownError("SSL_new");
   }
-  SSL ssl(native_ssl);
+  SSL ssl{native_ssl};
   RETURN_IF_ERROR(ssl.SetFD(fd));
   SSL_set_options(ssl.get(), SSL_OP_NO_RENEGOTIATION);
   SSL_set_options(ssl.get(), SSL_OP_NO_TICKET);
   return std::move(ssl);
 }
 
-SSLContext* SSLContext::CreateServerContext() {
-  auto const method = TLS_server_method();
+gsl::owner<SSLContext*> SSLContext::CreateServerContext() {
+  auto const* const method = TLS_server_method();
   CHECK(method != nullptr) << "TLS_server_method";
 
   ::SSL_CTX* const context = SSL_CTX_new(method);
@@ -96,8 +98,8 @@ SSLContext* SSLContext::CreateServerContext() {
   CHECK(maybe_certificate_path.has_value())
       << kCertificateEnvVarKey
       << " environment variable not set, cannot find the SSL certificate file.";
-  std::string const certificate_path{maybe_certificate_path.value()};
-  CHECK_GT(SSL_CTX_use_certificate_file(context, certificate_path.c_str(), SSL_FILETYPE_PEM), 0)
+  CHECK_GT(SSL_CTX_use_certificate_file(context, maybe_certificate_path->c_str(), SSL_FILETYPE_PEM),
+           0)
       << "SSL_CTX_use_certificate_file";
 
   auto const maybe_passphrase = tsdb2::common::GetEnv(std::string(kPassphraseEnvVarKey));
@@ -115,8 +117,8 @@ SSLContext* SSLContext::CreateServerContext() {
   CHECK(maybe_private_key_path.has_value())
       << kPrivateKeyEnvVarKey
       << " environment variable not set, cannot find the SSL private key file.";
-  std::string const private_key_path{maybe_private_key_path.value()};
-  CHECK_GT(SSL_CTX_use_PrivateKey_file(context, private_key_path.c_str(), SSL_FILETYPE_PEM), 0)
+  CHECK_GT(SSL_CTX_use_PrivateKey_file(context, maybe_private_key_path->c_str(), SSL_FILETYPE_PEM),
+           0)
       << "SSL_CTX_use_PrivateKey_file";
 
   SSL_CTX_set_session_cache_mode(context, SSL_SESS_CACHE_OFF);
@@ -128,8 +130,8 @@ SSLContext* SSLContext::CreateServerContext() {
   return new SSLContext(context);
 }
 
-SSLContext* SSLContext::CreateClientContext() {
-  auto const method = TLS_client_method();
+gsl::owner<SSLContext*> SSLContext::CreateClientContext() {
+  auto const* const method = TLS_client_method();
   CHECK(method != nullptr) << "TLS_client_method";
 
   ::SSL_CTX* const context = SSL_CTX_new(method);
@@ -160,7 +162,7 @@ absl::Status SSLModule::Initialize() {
 }
 
 absl::Status SSLModule::InitializeForTesting() {
-  if (OPENSSL_init_ssl(OPENSSL_INIT_LOAD_SSL_STRINGS, nullptr)) {
+  if (OPENSSL_init_ssl(OPENSSL_INIT_LOAD_SSL_STRINGS, nullptr) != 0) {
     return absl::OkStatus();
   } else {
     return absl::FailedPreconditionError("OpenSSL initialization failed");
@@ -168,7 +170,7 @@ absl::Status SSLModule::InitializeForTesting() {
 }
 
 absl::Status SSLModule::InitializeInternal() {
-  if (!OPENSSL_init_ssl(OPENSSL_INIT_LOAD_SSL_STRINGS, nullptr)) {
+  if (OPENSSL_init_ssl(OPENSSL_INIT_LOAD_SSL_STRINGS, nullptr) == 0) {
     return absl::FailedPreconditionError("OpenSSL initialization failed");
   }
   SSLContext::GetServerContext();

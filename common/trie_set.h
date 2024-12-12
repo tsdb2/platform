@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <cstddef>
 #include <initializer_list>
-#include <iterator>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -76,6 +75,8 @@ class trie_set {
     using reverse_iterator = typename Node::ConstReverseFilteredIterator;
     using const_reverse_iterator = typename Node::ConstReverseFilteredIterator;
 
+    ~filtered_view() = default;
+
     filtered_view(filtered_view const&) = default;
     filtered_view& operator=(filtered_view const&) = default;
     filtered_view(filtered_view&&) noexcept = default;
@@ -113,6 +114,8 @@ class trie_set {
     using const_iterator = typename Node::ConstPrefixFilteredIterator;
     using reverse_iterator = typename Node::ConstReversePrefixFilteredIterator;
     using const_reverse_iterator = typename Node::ConstReversePrefixFilteredIterator;
+
+    ~prefix_filtered_view() = default;
 
     prefix_filtered_view(prefix_filtered_view const&) = default;
     prefix_filtered_view& operator=(prefix_filtered_view const&) = default;
@@ -172,17 +175,23 @@ class trie_set {
     insert(init);
   }
 
+  ~trie_set() = default;
+
   trie_set& operator=(trie_set const& other) {
-    alloc_ = allocator_traits::select_on_container_copy_construction(other.alloc_);
-    roots_ = other.roots_;
-    size_ = other.size_;
+    if (this != &other) {
+      alloc_ = allocator_traits::select_on_container_copy_construction(other.alloc_);
+      roots_ = other.roots_;
+      size_ = other.size_;
+    }
     return *this;
   }
 
   trie_set& operator=(trie_set&& other) noexcept {
-    alloc_ = std::move(other.alloc_);
-    roots_ = std::move(other.roots_);
-    size_ = other.size_;
+    if (this != &other) {
+      alloc_ = std::move(other.alloc_);
+      roots_ = std::move(other.roots_);
+      size_ = other.size_;
+    }
     return *this;
   }
 
@@ -313,6 +322,9 @@ class trie_set {
   }
 
   void swap(trie_set& other) {
+    if (this == &other) {
+      return;
+    }
     using std::swap;  // ensure ADL
     if (allocator_traits::propagate_on_container_swap::value) {
       swap(alloc_, other.alloc_);

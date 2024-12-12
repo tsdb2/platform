@@ -1,10 +1,8 @@
 #include "common/env.h"
 
 #include <errno.h>
+#include <stdlib.h>
 
-#include <algorithm>
-#include <cstdlib>
-#include <initializer_list>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -14,7 +12,6 @@
 #include "absl/base/const_init.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/hash_container_defaults.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/escaping.h"
@@ -24,7 +21,7 @@
 #include "common/re.h"
 
 // See 'man 7 environ'.
-extern char** environ;
+extern char** environ;  // NOLINT(readability-redundant-declaration)
 
 namespace tsdb2 {
 namespace common {
@@ -39,8 +36,8 @@ ABSL_CONST_INIT absl::Mutex global_env_mutex{absl::kConstInit};
 
 std::optional<std::string> GetEnv(std::string const& name) ABSL_LOCKS_EXCLUDED(global_env_mutex) {
   absl::MutexLock lock{&global_env_mutex};
-  auto const value = ::getenv(std::string(name).c_str());
-  return value ? std::make_optional<std::string>(value) : std::nullopt;
+  auto* const value = ::getenv(std::string(name).c_str());
+  return value != nullptr ? std::make_optional<std::string>(value) : std::nullopt;
 }
 
 absl::Status SetEnv(std::string const& name, std::string const& value)
@@ -81,7 +78,7 @@ absl::flat_hash_map<std::string, std::string> Environ() ABSL_LOCKS_EXCLUDED(glob
   std::vector<std::string> entries;
   {
     absl::MutexLock lock{&global_env_mutex};
-    for (size_t i = 0; environ[i]; ++i) {
+    for (size_t i = 0; environ[i] != nullptr; ++i) {
       entries.emplace_back(environ[i]);
     }
   }

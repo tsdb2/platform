@@ -8,6 +8,7 @@
 #include <string>
 #include <string_view>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/hash/hash.h"
 #include "absl/status/status.h"
@@ -26,8 +27,15 @@ namespace http {
 
 class Handler {
  public:
+  explicit Handler() = default;
   virtual ~Handler() = default;
   virtual absl::Status operator()(Request const& request, Response* response) = 0;
+
+ private:
+  Handler(Handler const&) = delete;
+  Handler& operator=(Handler const&) = delete;
+  Handler(Handler&&) = delete;
+  Handler& operator=(Handler&&) = delete;
 };
 
 // An HTTP/2 server.

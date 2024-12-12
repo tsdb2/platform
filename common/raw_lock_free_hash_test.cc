@@ -1,7 +1,7 @@
 #include <atomic>
 #include <type_traits>
 
-#include "gmock/gmock.h"
+#include "common/utilities.h"
 #include "gtest/gtest.h"
 
 namespace {
@@ -16,15 +16,20 @@ class NonTriviallyDestructible {
   ~NonTriviallyDestructible() { delete foo_; }
 
  private:
-  int* foo_;
+  NonTriviallyDestructible(NonTriviallyDestructible const &) = delete;
+  NonTriviallyDestructible &operator=(NonTriviallyDestructible const &) = delete;
+  NonTriviallyDestructible(NonTriviallyDestructible &&) = delete;
+  NonTriviallyDestructible &operator=(NonTriviallyDestructible &&) = delete;
+
+  gsl::owner<int *> foo_;
 };
 
 TEST(LockFreeHashSetTest, Assumptions) {
-  EXPECT_TRUE(std::is_trivially_destructible_v<std::atomic<int*>>);
+  EXPECT_TRUE(std::is_trivially_destructible_v<std::atomic<int *>>);
   EXPECT_TRUE(std::is_trivially_destructible_v<TriviallyDestructible>);
-  EXPECT_TRUE(std::is_trivially_destructible_v<std::atomic<TriviallyDestructible*>>);
+  EXPECT_TRUE(std::is_trivially_destructible_v<std::atomic<TriviallyDestructible *>>);
   EXPECT_FALSE(std::is_trivially_destructible_v<NonTriviallyDestructible>);
-  EXPECT_TRUE(std::is_trivially_destructible_v<std::atomic<NonTriviallyDestructible*>>);
+  EXPECT_TRUE(std::is_trivially_destructible_v<std::atomic<NonTriviallyDestructible *>>);
 }
 
 }  // namespace

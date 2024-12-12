@@ -7,6 +7,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/functional/bind_front.h"
 #include "absl/functional/function_ref.h"
@@ -165,8 +166,10 @@ class Promise {
       callback(absl::bind_front(&Impl::Resolve, this));
     }
 
+    ~Impl() = default;
+
     template <typename NextValue, typename Callback>
-    Promise<NextValue> ThenNext(Callback&& callback) {
+    Promise<NextValue> ThenNext(Callback callback) {
       return Promise<NextValue>([this, &callback](auto resolve) {
         Then([self = absl::WrapUnique(this), resolve = std::move(resolve),
               callback =
@@ -178,7 +181,7 @@ class Promise {
 
     template <typename NextValue, typename Callback, typename ValueAlias = Value,
               std::enable_if_t<!std::is_void_v<ValueAlias>, bool> = true>
-    Promise<NextValue> ThenNextSkipError(Callback&& callback) {
+    Promise<NextValue> ThenNextSkipError(Callback callback) {
       return Promise<NextValue>([this, &callback](auto resolve) {
         Then([self = absl::WrapUnique(this), resolve = std::move(resolve),
               callback =
@@ -194,7 +197,7 @@ class Promise {
 
     template <typename NextValue, typename Callback, typename ValueAlias = Value,
               std::enable_if_t<std::is_void_v<ValueAlias>, bool> = true>
-    Promise<NextValue> ThenNextSkipError(Callback&& callback) {
+    Promise<NextValue> ThenNextSkipError(Callback callback) {
       return Promise<NextValue>([this, &callback](auto resolve) {
         Then([self = absl::WrapUnique(this), resolve = std::move(resolve),
               callback = std::move(callback)](absl::Status status) mutable {
@@ -208,7 +211,7 @@ class Promise {
     }
 
     template <typename Callback>
-    Promise<void> ThenVoid(Callback&& callback) {
+    Promise<void> ThenVoid(Callback callback) {
       return Promise<void>([this, &callback](auto resolve) {
         Then([self = absl::WrapUnique(this), resolve = std::move(resolve),
               callback =
@@ -221,7 +224,7 @@ class Promise {
 
     template <typename Callback, typename ValueAlias = Value,
               std::enable_if_t<!std::is_void_v<ValueAlias>, bool> = true>
-    Promise<void> ThenVoidSkipError(Callback&& callback) {
+    Promise<void> ThenVoidSkipError(Callback callback) {
       return Promise<void>([this, &callback](auto resolve) {
         Then([self = absl::WrapUnique(this), resolve = std::move(resolve),
               callback =
@@ -238,7 +241,7 @@ class Promise {
 
     template <typename Callback, typename ValueAlias = Value,
               std::enable_if_t<std::is_void_v<ValueAlias>, bool> = true>
-    Promise<void> ThenVoidSkipError(Callback&& callback) {
+    Promise<void> ThenVoidSkipError(Callback callback) {
       return Promise<void>([this, &callback](auto resolve) {
         Then([self = absl::WrapUnique(this), resolve = std::move(resolve),
               callback = std::move(callback)](absl::Status status) mutable {
@@ -251,7 +254,7 @@ class Promise {
     }
 
     template <typename Callback>
-    Promise<void> ThenStatus(Callback&& callback) {
+    Promise<void> ThenStatus(Callback callback) {
       return Promise<void>([this, &callback](auto resolve) {
         Then([self = absl::WrapUnique(this), resolve = std::move(resolve),
               callback =
@@ -263,7 +266,7 @@ class Promise {
 
     template <typename Callback, typename ValueAlias = Value,
               std::enable_if_t<!std::is_void_v<ValueAlias>, bool> = true>
-    Promise<void> ThenStatusSkipError(Callback&& callback) {
+    Promise<void> ThenStatusSkipError(Callback callback) {
       return Promise<void>([this, &callback](auto resolve) {
         Then([self = absl::WrapUnique(this), resolve = std::move(resolve),
               callback =
@@ -279,7 +282,7 @@ class Promise {
 
     template <typename Callback, typename ValueAlias = Value,
               std::enable_if_t<std::is_void_v<ValueAlias>, bool> = true>
-    Promise<void> ThenStatusSkipError(Callback&& callback) {
+    Promise<void> ThenStatusSkipError(Callback callback) {
       return Promise<void>([this, &callback](auto resolve) {
         Then([self = absl::WrapUnique(this), resolve = std::move(resolve),
               callback = std::move(callback)](absl::Status status) mutable {
@@ -293,7 +296,7 @@ class Promise {
     }
 
     template <typename NextValue, typename Callback>
-    Promise<NextValue> ThenStatusOrNext(Callback&& callback) {
+    Promise<NextValue> ThenStatusOrNext(Callback callback) {
       return Promise<NextValue>([this, &callback](auto resolve) {
         Then([self = absl::WrapUnique(this), resolve = std::move(resolve),
               callback =
@@ -305,7 +308,7 @@ class Promise {
 
     template <typename NextValue, typename Callback, typename ValueAlias = Value,
               std::enable_if_t<!std::is_void_v<ValueAlias>, bool> = true>
-    Promise<NextValue> ThenStatusOrNextSkipError(Callback&& callback) {
+    Promise<NextValue> ThenStatusOrNextSkipError(Callback callback) {
       return Promise<NextValue>([this, &callback](auto resolve) {
         Then([self = absl::WrapUnique(this), resolve = std::move(resolve),
               callback =
@@ -321,7 +324,7 @@ class Promise {
 
     template <typename NextValue, typename Callback, typename ValueAlias = Value,
               std::enable_if_t<std::is_void_v<ValueAlias>, bool> = true>
-    Promise<NextValue> ThenStatusOrNextSkipError(Callback&& callback) {
+    Promise<NextValue> ThenStatusOrNextSkipError(Callback callback) {
       return Promise<NextValue>([this, &callback](auto resolve) {
         Then([self = absl::WrapUnique(this), resolve = std::move(resolve),
               callback = std::move(callback)](absl::Status status) mutable {
@@ -335,7 +338,7 @@ class Promise {
     }
 
     template <typename NextValue, typename Callback>
-    Promise<NextValue> ThenPromiseNext(Callback&& callback) {
+    Promise<NextValue> ThenPromiseNext(Callback callback) {
       return Promise<NextValue>([this, &callback](auto resolve) {
         Then([self = absl::WrapUnique(this), resolve = std::move(resolve),
               callback = std::move(callback),
@@ -347,7 +350,7 @@ class Promise {
 
     template <typename NextValue, typename Callback, typename ValueAlias = Value,
               std::enable_if_t<!std::is_void_v<ValueAlias>, bool> = true>
-    Promise<NextValue> ThenPromiseNextSkipError(Callback&& callback) {
+    Promise<NextValue> ThenPromiseNextSkipError(Callback callback) {
       return Promise<NextValue>([this, &callback](auto resolve) {
         Then([self = absl::WrapUnique(this), resolve = std::move(resolve),
               callback = std::move(callback),
@@ -363,7 +366,7 @@ class Promise {
 
     template <typename NextValue, typename Callback, typename ValueAlias = Value,
               std::enable_if_t<std::is_void_v<ValueAlias>, bool> = true>
-    Promise<NextValue> ThenPromiseNextSkipError(Callback&& callback) {
+    Promise<NextValue> ThenPromiseNextSkipError(Callback callback) {
       return Promise<NextValue>([this, &callback](auto resolve) {
         Then([self = absl::WrapUnique(this), resolve = std::move(resolve),
               callback = std::move(callback),
@@ -503,6 +506,8 @@ class Promise {
   explicit Promise(absl::FunctionRef<void(ResolveFn)> const callback)
       : impl_(std::make_unique<Impl>(callback)) {}
 
+  ~Promise() = default;
+
   Promise(Promise&&) noexcept = default;
   Promise& operator=(Promise&&) noexcept = default;
 
@@ -532,7 +537,7 @@ class Promise {
   Promise& operator=(Promise const&) = delete;
 
   template <typename ValueAlias = Value, std::enable_if_t<!std::is_void_v<ValueAlias>, bool> = true>
-  static Promise<ValueAlias> ResolveHelper(ValueAlias&& value) {
+  static Promise<ValueAlias> ResolveHelper(ValueAlias value) {
     return Promise<ValueAlias>([&](auto resolve) { resolve(std::move(value)); });
   }
 

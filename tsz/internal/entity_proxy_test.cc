@@ -6,7 +6,7 @@
 #include <utility>
 
 #include "absl/status/status_matchers.h"
-#include "absl/time/time.h"
+#include "absl/time/clock.h"
 #include "common/testing.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

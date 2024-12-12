@@ -7,6 +7,7 @@
 #include "absl/status/statusor.h"
 #include "common/lock_free_hash_map.h"
 #include "common/singleton.h"
+#include "tsz/internal/metric_config.h"
 #include "tsz/internal/shard.h"
 #include "tsz/types.h"
 
@@ -26,6 +27,7 @@ class Exporter {
   friend class tsdb2::common::Singleton<Exporter>;
 
   explicit Exporter() = default;
+  ~Exporter() = default;
 
   Exporter(Exporter const &) = delete;
   Exporter &operator=(Exporter const &) = delete;

@@ -8,7 +8,6 @@
 #include "absl/base/call_once.h"
 #include "absl/base/optimization.h"
 #include "absl/functional/any_invocable.h"
-#include "absl/functional/bind_front.h"
 #include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
 #include "common/no_destructor.h"
@@ -41,7 +40,7 @@ namespace common {
 template <typename T>
 class Singleton {
  public:
-  explicit Singleton(absl::AnyInvocable<T*()> factory)
+  explicit Singleton(absl::AnyInvocable<gsl::owner<T*>()> factory)
       : construct_([this, factory = std::move(factory)]() mutable { value_ = factory(); }) {}
 
   template <typename... Args>
@@ -51,6 +50,8 @@ class Singleton {
               [this](auto&&... args) { this->Construct(std::forward<decltype(args)>(args)...); },
               std::move(args));
         }) {}
+
+  ~Singleton() = default;
 
   // TEST ONLY: replace the wrapped value with a different one.
   void Override(T* const value) {
@@ -107,7 +108,7 @@ class Singleton {
     return value_;
   }
 
-  T* value_ = nullptr;
+  gsl::owner<T*> value_ = nullptr;
 
   absl::once_flag mutable once_;
   NoDestructor<absl::AnyInvocable<void()>> mutable construct_;

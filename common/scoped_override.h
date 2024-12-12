@@ -1,6 +1,8 @@
 #ifndef __TSDB2_COMMON_SCOPED_OVERRIDE_H__
 #define __TSDB2_COMMON_SCOPED_OVERRIDE_H__
 
+#include "common/utilities.h"
+
 namespace tsdb2 {
 namespace common {
 
@@ -34,7 +36,7 @@ template <typename Overridable>
 class ScopedOverride {
  public:
   template <typename T>
-  explicit ScopedOverride(Overridable* const overridable, T* const value)
+  explicit ScopedOverride(Overridable* const overridable, gsl::owner<T*> const value)
       : overridable_(overridable) {
     overridable_->OverrideOrDie(value);
   }

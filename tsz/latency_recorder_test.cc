@@ -1,8 +1,10 @@
 #include "tsz/latency_recorder.h"
 
+#include <string>
 #include <string_view>
 
 #include "absl/status/status_matchers.h"
+#include "absl/time/time.h"
 #include "common/mock_clock.h"
 #include "common/no_destructor.h"
 #include "common/scoped_override.h"

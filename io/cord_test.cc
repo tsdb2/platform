@@ -1,11 +1,11 @@
 #include "io/cord.h"
 
-#include <memory>
 #include <string_view>
 #include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "io/buffer.h"
 #include "io/buffer_testing.h"
 
 namespace {

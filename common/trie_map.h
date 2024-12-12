@@ -2,12 +2,11 @@
 #define __TSDB2_COMMON_TRIE_MAP_H__
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdlib>
 #include <initializer_list>
-#include <iterator>
 #include <memory>
 #include <optional>
-#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -83,6 +82,8 @@ class trie_map {
     using reverse_iterator = typename Node::ReverseFilteredIterator;
     using const_reverse_iterator = typename Node::ConstReverseFilteredIterator;
 
+    ~filtered_view() = default;
+
     filtered_view(filtered_view const&) = default;
     filtered_view& operator=(filtered_view const&) = default;
     filtered_view(filtered_view&&) noexcept = default;
@@ -121,6 +122,8 @@ class trie_map {
     using const_iterator = typename Node::ConstPrefixFilteredIterator;
     using reverse_iterator = typename Node::ReversePrefixFilteredIterator;
     using const_reverse_iterator = typename Node::ConstReversePrefixFilteredIterator;
+
+    ~prefix_filtered_view() = default;
 
     prefix_filtered_view(prefix_filtered_view const&) = default;
     prefix_filtered_view& operator=(prefix_filtered_view const&) = default;
@@ -180,17 +183,23 @@ class trie_map {
     insert(init);
   }
 
+  ~trie_map() = default;
+
   trie_map& operator=(trie_map const& other) {
-    alloc_ = allocator_traits::select_on_container_copy_construction(other.alloc_);
-    roots_ = other.roots_;
-    size_ = other.size_;
+    if (this != &other) {
+      alloc_ = allocator_traits::select_on_container_copy_construction(other.alloc_);
+      roots_ = other.roots_;
+      size_ = other.size_;
+    }
     return *this;
   }
 
   trie_map& operator=(trie_map&& other) noexcept {
-    alloc_ = std::move(other.alloc_);
-    roots_ = std::move(other.roots_);
-    size_ = other.size_;
+    if (this != &other) {
+      alloc_ = std::move(other.alloc_);
+      roots_ = std::move(other.roots_);
+      size_ = other.size_;
+    }
     return *this;
   }
 
@@ -319,7 +328,7 @@ class trie_map {
 
   template <typename V>
   std::pair<iterator, bool> insert_or_assign(std::string_view const key, V&& value) {
-    auto const [it, inserted] = Node::Insert(&roots_, key, std::move(value));
+    auto const [it, inserted] = Node::Insert(&roots_, key, std::forward<V>(value));
     if (inserted) {
       ++size_;
     } else {
@@ -385,6 +394,9 @@ class trie_map {
   }
 
   void swap(trie_map& other) noexcept {
+    if (this == &other) {
+      return;
+    }
     using std::swap;  // ensure ADL
     if (allocator_traits::propagate_on_container_swap::value) {
       swap(alloc_, other.alloc_);

@@ -11,6 +11,7 @@
 #include "absl/synchronization/mutex.h"
 #include "common/ref_count.h"
 #include "common/reffed_ptr.h"
+#include "common/utilities.h"
 
 namespace tsdb2 {
 namespace io {
@@ -40,6 +41,8 @@ class SigUsr1 {
   // handler is reference-counted by `SigUsr1` instances, so it will be uninstalled when the last
   // `SigUsr1` is destroyed. Everything is thread-safe.
   explicit SigUsr1() : handler_(SignalHandler::GetOrCreate()) {}
+
+  ~SigUsr1() = default;
 
   SigUsr1(SigUsr1&&) noexcept = default;
   SigUsr1& operator=(SigUsr1&&) noexcept = default;
@@ -74,11 +77,11 @@ class SigUsr1 {
     static tsdb2::common::reffed_ptr<SignalHandler> GetOrCreate()
         ABSL_LOCKS_EXCLUDED(instance_mutex_);
 
-    ~SignalHandler() ABSL_LOCKS_EXCLUDED(instance_mutex_);
+    ~SignalHandler() override ABSL_LOCKS_EXCLUDED(instance_mutex_);
 
-    bool is_notified() const { return notified_; }
+    static bool is_notified() { return notified_ != 0; }
 
-    absl::Status Notify();
+    absl::Status Notify() const;
 
     absl::Status WaitForNotification() ABSL_LOCKS_EXCLUDED(mutex_);
 
@@ -89,6 +92,11 @@ class SigUsr1 {
       ~WaitScope() { parent_->EndWait(); }
 
      private:
+      WaitScope(WaitScope const&) = delete;
+      WaitScope& operator=(WaitScope const&) = delete;
+      WaitScope(WaitScope&&) = delete;
+      WaitScope& operator=(WaitScope&&) = delete;
+
       SignalHandler* const parent_;
     };
 
@@ -97,7 +105,7 @@ class SigUsr1 {
     static void HandlerFn(int);
 
     static absl::Mutex instance_mutex_;
-    static SignalHandler* instance_ ABSL_GUARDED_BY(instance_mutex_);
+    static gsl::owner<SignalHandler*> instance_ ABSL_GUARDED_BY(instance_mutex_);
 
     static sig_atomic_t volatile notified_;
 

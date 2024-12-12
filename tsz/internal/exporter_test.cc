@@ -8,7 +8,6 @@
 #include "gtest/gtest.h"
 #include "tsz/base.h"
 #include "tsz/distribution_testing.h"
-#include "tsz/internal/exporter.h"
 
 namespace {
 
@@ -44,8 +43,8 @@ TEST_F(ExporterTest, DefineMetricRedundant) {
   EXPECT_OK(status_or_shard1);
   auto const status_or_shard2 = exporter->DefineMetricRedundant(kMetricName2, /*options=*/{});
   EXPECT_OK(status_or_shard2);
-  auto const shard1 = status_or_shard1.value();
-  auto const shard2 = status_or_shard2.value();
+  auto *const shard1 = status_or_shard1.value();
+  auto *const shard2 = status_or_shard2.value();
   EXPECT_EQ(shard1, shard2);
 }
 
@@ -54,8 +53,8 @@ TEST_F(ExporterTest, DefineMetricAndGetShard) {
   ASSERT_OK(status_or_shard1);
   auto const status_or_shard2 = exporter->GetShardForMetric(kMetricName3);
   EXPECT_OK(status_or_shard2);
-  auto const shard1 = status_or_shard1.value();
-  auto const shard2 = status_or_shard2.value();
+  auto *const shard1 = status_or_shard1.value();
+  auto *const shard2 = status_or_shard2.value();
   EXPECT_EQ(shard1, shard2);
   FieldMap const entity_labels{{"lorem", StringValue("ipsum")}};
   FieldMap const metric_fields{{"foo", StringValue("bar")}};
@@ -71,8 +70,8 @@ TEST_F(ExporterTest, DefineMetricRedundantAndGetShard) {
   ASSERT_OK(status_or_shard1);
   auto const status_or_shard2 = exporter->GetShardForMetric(kMetricName4);
   EXPECT_OK(status_or_shard2);
-  auto const shard1 = status_or_shard1.value();
-  auto const shard2 = status_or_shard2.value();
+  auto *const shard1 = status_or_shard1.value();
+  auto *const shard2 = status_or_shard2.value();
   EXPECT_EQ(shard1, shard2);
   FieldMap const entity_labels{{"lorem", StringValue("ipsum")}};
   FieldMap const metric_fields{{"foo", StringValue("bar")}};

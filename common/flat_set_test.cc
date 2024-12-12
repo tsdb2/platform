@@ -4,9 +4,9 @@
 #include <deque>
 #include <functional>
 #include <iosfwd>
-#include <string>
 #include <string_view>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -51,6 +51,11 @@ class TestKeysMatcher<flat_set<Key, Compare, Representation>, Inner...>
 
   explicit TestKeysMatcher(Inner&&... inner) : inner_{std::forward<Inner>(inner)...} {}
   ~TestKeysMatcher() override = default;
+
+  TestKeysMatcher(TestKeysMatcher const&) = default;
+  TestKeysMatcher& operator=(TestKeysMatcher const&) = default;
+  TestKeysMatcher(TestKeysMatcher&&) noexcept = default;
+  TestKeysMatcher& operator=(TestKeysMatcher&&) noexcept = default;
 
   bool MatchAndExplain(FlatSet const& value,
                        ::testing::MatchResultListener* const listener) const override {
@@ -324,7 +329,7 @@ TYPED_TEST_P(FlatSetWithRepresentationTest, Insert) {
 TYPED_TEST_P(FlatSetWithRepresentationTest, MoveInsert) {
   flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
   TestKey value{6};
-  auto const [it, inserted] = fs.insert(std::move(value));
+  auto const [it, inserted] = fs.insert(std::move(value));  // NOLINT(performance-move-const-arg)
   EXPECT_EQ(it->field, 6);
   EXPECT_TRUE(inserted);
   EXPECT_THAT(fs, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5, 6));
@@ -342,7 +347,7 @@ TYPED_TEST_P(FlatSetWithRepresentationTest, InsertCollision) {
 TYPED_TEST_P(FlatSetWithRepresentationTest, MoveInsertCollision) {
   flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
   TestKey value{5};
-  auto const [it, inserted] = fs.insert(std::move(value));
+  auto const [it, inserted] = fs.insert(std::move(value));  // NOLINT(performance-move-const-arg)
   EXPECT_EQ(it->field, 5);
   EXPECT_FALSE(inserted);
   EXPECT_THAT(fs, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
@@ -687,7 +692,7 @@ TEST(FlatSetWithAllocatorTest, InitializerListAndAllocator) {
 TEST(FlatSetWithAllocatorTest, CopyAllocator) {
   TestAllocator<int> alloc{42};
   flat_set<int, std::less<int>, std::vector<int, TestAllocator<int>>> fs1{alloc};
-  auto fs2 = fs1;
+  auto fs2 = fs1;  // NOLINT(performance-unnecessary-copy-initialization)
   EXPECT_THAT(fs2.get_allocator(), Property(&TestAllocator<int>::tag, 42));
 }
 

@@ -11,23 +11,23 @@
 #include <string_view>
 #include <utility>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "common/no_destructor.h"
-#include "common/scheduler.h"
-#include "io/buffer.h"
-#include "io/fd.h"
+#include "io/buffer.h"  // IWYU pragma: export
+#include "io/fd.h"      // IWYU pragma: export
 #include "net/epoll_server.h"
+#include "server/base_module.h"
 #include "server/init_tsdb2.h"
 
 namespace tsdb2 {
 namespace net {
 
-using ::tsdb2::io::Buffer;
-using ::tsdb2::io::FD;
+using ::tsdb2::io::Buffer;  // IWYU pragma: export
+using ::tsdb2::io::FD;      // IWYU pragma: export
 
 inline std::string_view constexpr kLocalHost = "::1";
 
@@ -256,6 +256,11 @@ class BaseSocket : public EpollTarget {
   static SkipCallback MakeSkipSuccessCallback(SkipSuccessCallback callback);
   static WriteCallback MakeWriteSuccessCallback(WriteSuccessCallback callback);
 
+  BaseSocket(BaseSocket const&) = delete;
+  BaseSocket& operator=(BaseSocket const&) = delete;
+  BaseSocket(BaseSocket&&) = delete;
+  BaseSocket& operator=(BaseSocket&&) = delete;
+
   absl::StatusOr<int64_t> GetIntSockOpt(int level, std::string_view level_name, int option,
                                         std::string_view option_name) const
       ABSL_SHARED_LOCKS_REQUIRED(mutex_);
@@ -287,6 +292,11 @@ class BaseListenerSocket : public EpollTarget {
       : EpollTarget(parent, std::move(fd)), address_(address), port_(port) {}
 
  private:
+  BaseListenerSocket(BaseListenerSocket const&) = delete;
+  BaseListenerSocket& operator=(BaseListenerSocket const&) = delete;
+  BaseListenerSocket(BaseListenerSocket&&) = delete;
+  BaseListenerSocket& operator=(BaseListenerSocket&&) = delete;
+
   void OnOutput() override;
 
   std::string const address_;

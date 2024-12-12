@@ -8,16 +8,16 @@
 #include <cstdint>
 #include <memory>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/functional/bind_front.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
-#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"
-#include "common/reffed_ptr.h"
+#include "common/utilities.h"
 
 namespace {
 #ifdef NDEBUG
@@ -58,8 +58,8 @@ void EpollTarget::OnLastUnref() {
 }
 
 EpollServer* EpollServer::GetInstance() {
-  static EpollServer* const kInstance = new EpollServer();
-  return kInstance;
+  static gsl::owner<EpollServer*> const kInstance = new EpollServer();
+  return kInstance;  // NOLINT(cppcoreguidelines-owning-memory)
 }
 
 void EpollServer::KillSocket(int const fd) {
@@ -124,22 +124,24 @@ void EpollServer::WorkerLoop() {
       CHECK_EQ(errno, EINTR) << absl::ErrnoToStatus(errno, "epoll_wait()");
       continue;
     }
+    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index)
     for (int i = 0; i < num_events; ++i) {
       auto const target = LookupTarget(events[i].data.fd);
       if (!target) {
         continue;
       }
-      if (events[i].events & (EPOLLERR | EPOLLHUP)) {
+      if ((events[i].events & (EPOLLERR | EPOLLHUP)) != 0) {
         target->OnError();
       } else {
-        if (events[i].events & EPOLLIN) {
+        if ((events[i].events & EPOLLIN) != 0) {
           target->OnInput();
         }
-        if (events[i].events & EPOLLOUT) {
+        if ((events[i].events & EPOLLOUT) != 0) {
           target->OnOutput();
         }
       }
     }
+    // NOLINTEND(cppcoreguidelines-pro-bounds-constant-array-index)
   }
 }
 

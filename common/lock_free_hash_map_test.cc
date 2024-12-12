@@ -1,5 +1,6 @@
 #include "common/lock_free_hash_map.h"
 
+#include <cstddef>
 #include <functional>
 #include <memory>
 #include <string>

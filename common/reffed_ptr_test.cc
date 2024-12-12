@@ -1,11 +1,11 @@
 #include "common/reffed_ptr.h"
 
+#include <cstdint>
 #include <memory>
 #include <type_traits>
 #include <utility>
 
 #include "absl/hash/hash.h"
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace {
@@ -61,7 +61,7 @@ TEST(ReffedPtrTest, PointerConstructor) {
 
 TEST(ReffedPtrTest, UniquePointerConstructor) {
   auto uptr = std::make_unique<RefCounted>();
-  auto const rc = uptr.get();
+  auto *const rc = uptr.get();
   reffed_ptr<RefCounted> ptr{std::move(uptr)};
   EXPECT_EQ(ptr.get(), rc);
   EXPECT_FALSE(ptr.empty());
@@ -80,7 +80,7 @@ TEST(ReffedPtrTest, ConstructFromEmptyUniquePointer) {
 TEST(ReffedPtrTest, CopyConstructor) {
   RefCounted rc;
   reffed_ptr<RefCounted> ptr1{&rc};
-  reffed_ptr<RefCounted> ptr2{ptr1};
+  reffed_ptr<RefCounted> ptr2{ptr1};  // NOLINT(performance-unnecessary-copy-initialization)
   EXPECT_EQ(rc.ref_count(), 2);
 }
 
@@ -132,7 +132,7 @@ TEST(ReffedPtrTest, Destructors) {
     ASSERT_TRUE(ptr1.operator bool());
     ASSERT_EQ(rc.ref_count(), 1);
     {
-      reffed_ptr<RefCounted> ptr2{ptr1};
+      reffed_ptr<RefCounted> ptr2{ptr1};  // NOLINT(performance-unnecessary-copy-initialization)
       ASSERT_EQ(ptr2.get(), &rc);
       ASSERT_TRUE(ptr2.operator bool());
       EXPECT_EQ(rc.ref_count(), 2);
@@ -150,6 +150,15 @@ TEST(ReffedPtrTest, CopyAssignmentOperator) {
   EXPECT_EQ(ptr2.get(), &rc);
   EXPECT_TRUE(ptr2.operator bool());
   EXPECT_EQ(rc.ref_count(), 2);
+}
+
+TEST(ReffedPtrTest, SelfCopyAssignmentOperator) {
+  RefCounted rc;
+  reffed_ptr<RefCounted> ptr{&rc};
+  ptr = ptr;  // NOLINT
+  EXPECT_EQ(ptr.get(), &rc);
+  EXPECT_TRUE(ptr.operator bool());
+  EXPECT_EQ(rc.ref_count(), 1);
 }
 
 TEST(ReffedPtrTest, AssignableCopyAssignmentOperator) {
@@ -172,6 +181,15 @@ TEST(ReffedPtrTest, MoveOperator) {
   EXPECT_EQ(rc.ref_count(), 1);
   EXPECT_EQ(ptr1.get(), nullptr);
   EXPECT_FALSE(ptr1.operator bool());
+}
+
+TEST(ReffedPtrTest, SelfMoveOperator) {
+  RefCounted rc;
+  reffed_ptr<RefCounted> ptr{&rc};
+  ptr = std::move(ptr);  // NOLINT
+  EXPECT_EQ(ptr.get(), &rc);
+  EXPECT_TRUE(ptr.operator bool());
+  EXPECT_EQ(rc.ref_count(), 1);
 }
 
 TEST(ReffedPtrTest, AssignableMoveOperator) {
@@ -210,7 +228,7 @@ TEST(ReffedPtrTest, NullptrAssignment) {
 
 TEST(ReffedPtrTest, AssignUniquePointer) {
   auto uptr = std::make_unique<RefCounted>();
-  auto const rc = uptr.get();
+  auto *const rc = uptr.get();
   reffed_ptr<RefCounted> ptr;
   ptr = std::move(uptr);
   EXPECT_EQ(ptr.get(), rc);
@@ -231,7 +249,7 @@ TEST(ReffedPtrTest, AssignEmptyUniquePointer) {
 TEST(ReffedPtrTest, Release) {
   RefCounted rc;
   reffed_ptr<RefCounted> ptr{&rc};
-  auto const released = ptr.release();
+  auto *const released = ptr.release();
   EXPECT_EQ(released, &rc);
   EXPECT_EQ(rc.ref_count(), 1);
   EXPECT_EQ(ptr.get(), nullptr);
@@ -270,6 +288,15 @@ TEST(ReffedPtrTest, Swap) {
   EXPECT_TRUE(ptr2.operator bool());
   EXPECT_EQ(rc1.ref_count(), 1);
   EXPECT_EQ(rc2.ref_count(), 1);
+}
+
+TEST(ReffedPtrTest, SelfSwap) {
+  RefCounted rc;
+  reffed_ptr<RefCounted> ptr{&rc};
+  ptr.swap(ptr);
+  EXPECT_EQ(ptr.get(), &rc);
+  EXPECT_TRUE(ptr.operator bool());
+  EXPECT_EQ(rc.ref_count(), 1);
 }
 
 TEST(ReffedPtrTest, AdlSwap) {
@@ -328,7 +355,8 @@ TEST(ReffedPtrTest, EqualityOperators) {
 }
 
 TEST(ReffedPtrTest, ComparisonOperators) {
-  RefCounted rc1, rc2;
+  RefCounted rc1;
+  RefCounted rc2;
   reffed_ptr<RefCounted> ptr1{&rc1};
   reffed_ptr<RefCounted> ptr2{&rc2};
   reffed_ptr<RefCounted> ptr3;

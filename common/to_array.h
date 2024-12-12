@@ -14,24 +14,26 @@ namespace common {
 namespace detail {
 
 template <typename T, size_t N, size_t... I>
-constexpr std::array<std::remove_cv_t<T>, N> to_array_impl(T (&a)[N], std::index_sequence<I...>) {
+constexpr std::array<std::remove_cv_t<T>, N> to_array_impl(
+    T (&a)[N], std::index_sequence<I...> /*index_sequence*/) {
   return {{a[I]...}};
 }
 
 template <typename T, size_t N, size_t... I>
-constexpr std::array<std::remove_cv_t<T>, N> to_array_impl(T (&&a)[N], std::index_sequence<I...>) {
+constexpr std::array<std::remove_cv_t<T>, N> to_array_impl(
+    T (&&a)[N], std::index_sequence<I...> /*index_sequence*/) {
   return {{std::move(a[I])...}};
 }
 
 }  // namespace detail
 
 template <typename T, size_t N>
-constexpr auto to_array(T (&a)[N]) {  // NOLINT(*-avoid-c-arrays)
+constexpr auto to_array(T (&a)[N]) {
   return detail::to_array_impl(a, std::make_index_sequence<N>{});
 }
 
 template <typename T, size_t N>
-constexpr auto to_array(T (&&a)[N]) {  // NOLINT(*-avoid-c-arrays)
+constexpr auto to_array(T (&&a)[N]) {
   return detail::to_array_impl(std::move(a), std::make_index_sequence<N>{});
 }
 

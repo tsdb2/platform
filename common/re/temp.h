@@ -35,6 +35,8 @@ class TempNFA final {
   explicit TempNFA(States states, uint32_t const initial_state, uint32_t const final_state)
       : states_(std::move(states)), initial_state_(initial_state), final_state_(final_state) {}
 
+  ~TempNFA() = default;
+
   TempNFA(TempNFA const &) = default;
   TempNFA &operator=(TempNFA const &) = default;
   TempNFA(TempNFA &&) noexcept = default;

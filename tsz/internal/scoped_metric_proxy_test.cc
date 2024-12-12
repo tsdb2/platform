@@ -1,18 +1,20 @@
 #include "tsz/internal/scoped_metric_proxy.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <string_view>
+#include <utility>
 
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
-#include "absl/time/time.h"
+#include "absl/time/clock.h"
 #include "common/testing.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "tsz/distribution_testing.h"
+#include "tsz/internal/metric.h"
 #include "tsz/internal/metric_config.h"
+#include "tsz/internal/metric_proxy.h"
 #include "tsz/internal/mock_metric_manager.h"
 #include "tsz/types.h"
 
@@ -133,6 +135,22 @@ TEST_F(ScopedMetricProxyTest, MoveAssign) {
   EXPECT_FALSE(metric->is_pinned());
 }
 
+TEST_F(ScopedMetricProxyTest, SelfMove) {
+  auto const metric = std::make_shared<Metric>(manager_.get(), kMetricName, metric_config_);
+  ASSERT_FALSE(metric->is_pinned());
+  {
+    ScopedMetricProxy proxy{manager_, metric, absl::Now()};
+    ASSERT_TRUE(metric->is_pinned());
+    EXPECT_CALL(*manager_, DeleteMetricInternal(kMetricName)).Times(0);
+    proxy = std::move(proxy);  // NOLINT
+    EXPECT_FALSE(proxy.empty());
+    EXPECT_TRUE(metric->is_pinned());
+    EXPECT_CALL(*manager_, DeleteMetricInternal(kMetricName)).Times(1);
+  }
+  EXPECT_CALL(*manager_, DeleteMetricInternal(kMetricName)).Times(0);
+  EXPECT_FALSE(metric->is_pinned());
+}
+
 TEST_F(ScopedMetricProxyTest, Swap) {
   auto const metric1 = std::make_shared<Metric>(manager_.get(), kMetricName1, metric_config_);
   ASSERT_FALSE(metric1->is_pinned());
@@ -153,6 +171,21 @@ TEST_F(ScopedMetricProxyTest, Swap) {
   }
   EXPECT_CALL(*manager_, DeleteMetricInternal(kMetricName2)).Times(0);
   EXPECT_FALSE(metric2->is_pinned());
+}
+
+TEST_F(ScopedMetricProxyTest, SelfSwap) {
+  auto const metric = std::make_shared<Metric>(manager_.get(), kMetricName, metric_config_);
+  ASSERT_FALSE(metric->is_pinned());
+  {
+    ScopedMetricProxy proxy{manager_, metric, absl::Now()};
+    ASSERT_TRUE(metric->is_pinned());
+    EXPECT_CALL(*manager_, DeleteMetricInternal(kMetricName)).Times(0);
+    proxy.swap(proxy);
+    EXPECT_TRUE(metric->is_pinned());
+    EXPECT_CALL(*manager_, DeleteMetricInternal(kMetricName)).Times(1);
+  }
+  EXPECT_CALL(*manager_, DeleteMetricInternal(kMetricName)).Times(0);
+  EXPECT_FALSE(metric->is_pinned());
 }
 
 TEST_F(ScopedMetricProxyTest, AdlSwap) {

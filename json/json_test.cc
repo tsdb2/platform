@@ -11,6 +11,7 @@
 #include <tuple>
 #include <type_traits>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -26,6 +27,7 @@
 #include "common/fingerprint.h"
 #include "common/flat_map.h"
 #include "common/flat_set.h"
+#include "common/reffed_ptr.h"
 #include "common/testing.h"
 #include "common/trie_map.h"
 #include "common/trie_set.h"
@@ -464,7 +466,9 @@ TEST(JsonTest, EmptyObjectComparisons) {
 }
 
 TEST(JsonTest, CompareOneField) {
-  json::Object<json::Field<int, kFieldName1>> obj1, obj2;
+  using TestObject = json::Object<json::Field<int, kFieldName1>>;
+  TestObject obj1;
+  TestObject obj2;
   obj1.get<kFieldName1>() = 42;
   obj2.get<kFieldName1>() = 43;
   EXPECT_TRUE(obj1 == obj1);
@@ -482,10 +486,11 @@ TEST(JsonTest, CompareOneField) {
 }
 
 TEST(JsonTest, CompareTwoFieldsFirstEqual) {
-  json::Object<                       //
+  using TestObject = json::Object<    //
       json::Field<int, kFieldName1>,  //
-      json::Field<int, kFieldName2>>
-      obj1, obj2;
+      json::Field<int, kFieldName2>>;
+  TestObject obj1;
+  TestObject obj2;
   obj1.get<kFieldName1>() = 42;
   obj1.get<kFieldName2>() = 123;
   obj2.get<kFieldName1>() = 42;
@@ -505,10 +510,11 @@ TEST(JsonTest, CompareTwoFieldsFirstEqual) {
 }
 
 TEST(JsonTest, CompareTwoFieldsSecondEqual) {
-  json::Object<                       //
+  using TestObject = json::Object<    //
       json::Field<int, kFieldName1>,  //
-      json::Field<int, kFieldName2>>
-      obj1, obj2;
+      json::Field<int, kFieldName2>>;
+  TestObject obj1;
+  TestObject obj2;
   obj1.get<kFieldName1>() = 42;
   obj1.get<kFieldName2>() = 123;
   obj2.get<kFieldName1>() = 43;
@@ -528,10 +534,11 @@ TEST(JsonTest, CompareTwoFieldsSecondEqual) {
 }
 
 TEST(JsonTest, CompareTwoFieldsAllDifferent) {
-  json::Object<                       //
+  using TestObject = json::Object<    //
       json::Field<int, kFieldName1>,  //
-      json::Field<int, kFieldName2>>
-      obj1, obj2;
+      json::Field<int, kFieldName2>>;
+  TestObject obj1;
+  TestObject obj2;
   obj1.get<kFieldName1>() = 42;
   obj1.get<kFieldName2>() = 123;
   obj2.get<kFieldName1>() = 43;
@@ -551,13 +558,16 @@ TEST(JsonTest, CompareTwoFieldsAllDifferent) {
 }
 
 TEST(JsonTest, HashEmptyObject) {
-  json::Object<> obj1, obj2;
+  json::Object<> obj1;
+  json::Object<> obj2;
   EXPECT_EQ(absl::HashOf(obj1), absl::HashOf(obj1));
   EXPECT_EQ(absl::HashOf(obj1), absl::HashOf(obj2));
 }
 
 TEST(JsonTest, HashOneField) {
-  json::Object<json::Field<int, kFieldName1>> obj1, obj2;
+  using TestObject = json::Object<json::Field<int, kFieldName1>>;
+  TestObject obj1;
+  TestObject obj2;
   obj1.get<kFieldName1>() = 42;
   obj2.get<kFieldName1>() = 43;
   EXPECT_EQ(absl::HashOf(obj1), absl::HashOf(obj1));
@@ -565,10 +575,11 @@ TEST(JsonTest, HashOneField) {
 }
 
 TEST(JsonTest, HashTwoFieldsAllEqual) {
-  json::Object<                       //
+  using TestObject = json::Object<    //
       json::Field<int, kFieldName1>,  //
-      json::Field<int, kFieldName2>>
-      obj1, obj2;
+      json::Field<int, kFieldName2>>;
+  TestObject obj1;
+  TestObject obj2;
   obj1.get<kFieldName1>() = 42;
   obj1.get<kFieldName2>() = 43;
   obj2.get<kFieldName1>() = 42;
@@ -578,10 +589,11 @@ TEST(JsonTest, HashTwoFieldsAllEqual) {
 }
 
 TEST(JsonTest, HashTwoFieldsFirstEqual) {
-  json::Object<                       //
+  using TestObject = json::Object<    //
       json::Field<int, kFieldName1>,  //
-      json::Field<int, kFieldName2>>
-      obj1, obj2;
+      json::Field<int, kFieldName2>>;
+  TestObject obj1;
+  TestObject obj2;
   obj1.get<kFieldName1>() = 42;
   obj1.get<kFieldName2>() = 43;
   obj2.get<kFieldName1>() = 42;
@@ -591,10 +603,11 @@ TEST(JsonTest, HashTwoFieldsFirstEqual) {
 }
 
 TEST(JsonTest, HashTwoFieldsAllDifferent) {
-  json::Object<                       //
+  using TestObject = json::Object<    //
       json::Field<int, kFieldName1>,  //
-      json::Field<int, kFieldName2>>
-      obj1, obj2;
+      json::Field<int, kFieldName2>>;
+  TestObject obj1;
+  TestObject obj2;
   obj1.get<kFieldName1>() = 42;
   obj1.get<kFieldName2>() = 43;
   obj2.get<kFieldName1>() = 44;
@@ -604,13 +617,16 @@ TEST(JsonTest, HashTwoFieldsAllDifferent) {
 }
 
 TEST(JsonTest, FingerprintEmptyObject) {
-  json::Object<> obj1, obj2;
+  json::Object<> obj1;
+  json::Object<> obj2;
   EXPECT_EQ(tsdb2::common::FingerprintOf(obj1), tsdb2::common::FingerprintOf(obj1));
   EXPECT_EQ(tsdb2::common::FingerprintOf(obj1), tsdb2::common::FingerprintOf(obj2));
 }
 
 TEST(JsonTest, FingerprintOneField) {
-  json::Object<json::Field<int, kFieldName1>> obj1, obj2;
+  using TestObject = json::Object<json::Field<int, kFieldName1>>;
+  TestObject obj1;
+  TestObject obj2;
   obj1.get<kFieldName1>() = 42;
   obj2.get<kFieldName1>() = 43;
   EXPECT_EQ(tsdb2::common::FingerprintOf(obj1), tsdb2::common::FingerprintOf(obj1));
@@ -618,10 +634,11 @@ TEST(JsonTest, FingerprintOneField) {
 }
 
 TEST(JsonTest, FingerprintTwoFieldsAllEqual) {
-  json::Object<                       //
+  using TestObject = json::Object<    //
       json::Field<int, kFieldName1>,  //
-      json::Field<int, kFieldName2>>
-      obj1, obj2;
+      json::Field<int, kFieldName2>>;
+  TestObject obj1;
+  TestObject obj2;
   obj1.get<kFieldName1>() = 42;
   obj1.get<kFieldName2>() = 43;
   obj2.get<kFieldName1>() = 42;
@@ -631,10 +648,11 @@ TEST(JsonTest, FingerprintTwoFieldsAllEqual) {
 }
 
 TEST(JsonTest, FingerprintTwoFieldsFirstEqual) {
-  json::Object<                       //
+  using TestObject = json::Object<    //
       json::Field<int, kFieldName1>,  //
-      json::Field<int, kFieldName2>>
-      obj1, obj2;
+      json::Field<int, kFieldName2>>;
+  TestObject obj1;
+  TestObject obj2;
   obj1.get<kFieldName1>() = 42;
   obj1.get<kFieldName2>() = 43;
   obj2.get<kFieldName1>() = 42;
@@ -644,10 +662,11 @@ TEST(JsonTest, FingerprintTwoFieldsFirstEqual) {
 }
 
 TEST(JsonTest, FingerprintTwoFieldsAllDifferent) {
-  json::Object<                       //
+  using TestObject = json::Object<    //
       json::Field<int, kFieldName1>,  //
-      json::Field<int, kFieldName2>>
-      obj1, obj2;
+      json::Field<int, kFieldName2>>;
+  TestObject obj1;
+  TestObject obj2;
   obj1.get<kFieldName1>() = 42;
   obj1.get<kFieldName2>() = 43;
   obj2.get<kFieldName1>() = 44;

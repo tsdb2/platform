@@ -11,6 +11,7 @@
 #include <utility>
 
 #include "common/fixed.h"
+#include "common/flat_map.h"
 #include "common/type_string.h"
 #include "tsz/coercion.h"
 #include "tsz/types.h"
@@ -275,6 +276,8 @@ class FieldDescriptor {
     InitIndices();
   }
 
+  ~FieldDescriptor() = default;
+
   FieldDescriptor(FieldDescriptor const&) = default;
   FieldDescriptor& operator=(FieldDescriptor const&) = default;
   FieldDescriptor(FieldDescriptor&&) noexcept = default;
@@ -326,6 +329,7 @@ class EntityLabels : public FieldDescriptor<Fields...> {
  public:
   template <typename... Args>
   explicit EntityLabels(Args&&... args) : FieldDescriptor<Fields...>(std::forward<Args>(args)...) {}
+  ~EntityLabels() = default;
 
   EntityLabels(EntityLabels const&) = default;
   EntityLabels& operator=(EntityLabels const&) = default;
@@ -342,6 +346,7 @@ class MetricFields : public FieldDescriptor<Fields...> {
  public:
   template <typename... Args>
   explicit MetricFields(Args&&... args) : FieldDescriptor<Fields...>(std::forward<Args>(args)...) {}
+  ~MetricFields() = default;
 
   MetricFields(MetricFields const&) = default;
   MetricFields& operator=(MetricFields const&) = default;

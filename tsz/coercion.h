@@ -1,6 +1,7 @@
 #ifndef __TSDB2_TSZ_COERCION_H__
 #define __TSDB2_TSZ_COERCION_H__
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <tuple>

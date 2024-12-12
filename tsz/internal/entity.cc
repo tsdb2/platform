@@ -9,6 +9,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/synchronization/mutex.h"
 #include "tsz/internal/metric.h"
 #include "tsz/internal/scoped_metric_proxy.h"
 #include "tsz/internal/throw_away_metric_proxy.h"

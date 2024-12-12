@@ -89,6 +89,8 @@ class Bucketer {
         scale_factor_(scale_factor),
         num_finite_buckets_(num_finite_buckets) {}
 
+  ~Bucketer() = default;
+
  private:
   // Moves and copies not allowed because bucketers are canonical.
   Bucketer(Bucketer const &) = delete;

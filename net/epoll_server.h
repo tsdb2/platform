@@ -8,11 +8,11 @@
 #include <cstring>
 #include <memory>
 #include <thread>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/hash/hash.h"
 #include "absl/log/check.h"
@@ -252,7 +252,7 @@ absl::Status EpollServer::AddTarget(tsdb2::common::reffed_ptr<SocketType> const&
     auto const [unused_it, inserted] = targets_.emplace(target);
     CHECK_EQ(inserted, true) << "internal error: duplicate file descriptor in epoll server!";
   }
-  struct epoll_event event;
+  struct epoll_event event {};
   std::memset(&event, 0, sizeof(event));
   event.events = EPOLLIN | EPOLLET | EPOLLEXCLUSIVE;
   if constexpr (!SocketType::kIsListener) {

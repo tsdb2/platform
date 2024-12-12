@@ -188,11 +188,8 @@ class DistributionSumAndCountAre : public ::testing::MatcherInterface<Distributi
       return false;
     }
     *listener << " and whose count ";
-    if (!::testing::SafeMatcherCast<size_t>(count_matcher_)
-             .MatchAndExplain(value.count(), listener)) {
-      return false;
-    }
-    return true;
+    return ::testing::SafeMatcherCast<size_t>(count_matcher_)
+        .MatchAndExplain(value.count(), listener);
   }
 
  private:

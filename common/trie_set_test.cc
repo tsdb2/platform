@@ -188,7 +188,7 @@ TEST(TrieSetTest, ConstructFromIterators) {
 
 TEST(TrieSetTest, CopyConstruct) {
   trie_set const ts1{"", "lorem", "ipsum"};
-  trie_set const ts2{ts1};
+  trie_set const ts2{ts1};  // NOLINT(performance-unnecessary-copy-initialization)
   EXPECT_THAT(ts1, ElementsAre("", "ipsum", "lorem"));
   EXPECT_EQ(ts1.size(), 3);
   EXPECT_THAT(ts2, ElementsAre("", "ipsum", "lorem"));
@@ -205,6 +205,13 @@ TEST(TrieSetTest, CopyAssign) {
   EXPECT_EQ(ts2.size(), 3);
 }
 
+TEST(TrieSetTest, SelfCopy) {
+  trie_set ts{"", "lorem", "ipsum"};
+  ts = ts;  // NOLINT
+  EXPECT_THAT(ts, ElementsAre("", "ipsum", "lorem"));
+  EXPECT_EQ(ts.size(), 3);
+}
+
 TEST(TrieSetTest, MoveConstruct) {
   trie_set ts1{"", "lorem", "ipsum"};
   trie_set const ts2{std::move(ts1)};
@@ -218,6 +225,13 @@ TEST(TrieSetTest, MoveAssign) {
   ts2 = std::move(ts1);
   EXPECT_THAT(ts2, ElementsAre("", "ipsum", "lorem"));
   EXPECT_EQ(ts2.size(), 3);
+}
+
+TEST(TrieSetTest, SelfMove) {
+  trie_set ts{"", "lorem", "ipsum"};
+  ts = std::move(ts);  // NOLINT
+  EXPECT_THAT(ts, ElementsAre("", "ipsum", "lorem"));
+  EXPECT_EQ(ts.size(), 3);
 }
 
 TEST(TrieSetTest, AssignInitializerList) {
@@ -1431,6 +1445,13 @@ TEST(TrieSetTest, Swap) {
   EXPECT_EQ(ts1.size(), 4);
   EXPECT_THAT(ts2, ElementsAre("dolor", "ipsum", "lorem"));
   EXPECT_EQ(ts2.size(), 3);
+}
+
+TEST(TrieSetTest, SelfSwap) {
+  trie_set ts{"lorem", "ipsum", "dolor"};
+  ts.swap(ts);
+  EXPECT_THAT(ts, ElementsAre("dolor", "ipsum", "lorem"));
+  EXPECT_EQ(ts.size(), 3);
 }
 
 TEST(TrieSetTest, AdlSwap) {

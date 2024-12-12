@@ -26,6 +26,8 @@ class MockClock : public Clock {
   explicit MockClock(absl::Time const current_time = absl::UnixEpoch())
       : current_time_{current_time} {}
 
+  ~MockClock() override = default;
+
   absl::Time TimeNow() const override ABSL_LOCKS_EXCLUDED(mutex_);
 
   void SleepFor(absl::Duration duration) const override ABSL_LOCKS_EXCLUDED(mutex_);
@@ -49,6 +51,7 @@ class MockClock : public Clock {
   class TimeListener {
    public:
     explicit TimeListener(absl::Mutex* const mutex) : mutex_(mutex) {}
+    ~TimeListener() = default;
 
     bool is_notified() const { return notified_; }
     void set_notified(bool const value) { notified_ = value; }

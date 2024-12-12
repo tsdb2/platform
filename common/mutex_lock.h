@@ -1,6 +1,7 @@
 #ifndef __TSDB2_COMMON_MUTEX_LOCK_H__
 #define __TSDB2_COMMON_MUTEX_LOCK_H__
 
+#include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
 
 namespace tsdb2 {
@@ -40,13 +41,13 @@ class WriterMutexLock final {
   }
 
   absl::Mutex *Release() {
-    auto const mutex = mutex_;
+    auto *const mutex = mutex_;
     mutex_ = nullptr;
     return mutex;
   }
 
   void Unlock() ABSL_NO_THREAD_SAFETY_ANALYSIS {
-    if (mutex_) {
+    if (mutex_ != nullptr) {
       mutex_->WriterUnlock();
       mutex_ = nullptr;
     }
@@ -90,13 +91,13 @@ class ReaderMutexLock final {
   }
 
   absl::Mutex *Release() {
-    auto const mutex = mutex_;
+    auto *const mutex = mutex_;
     mutex_ = nullptr;
     return mutex;
   }
 
   void Unlock() ABSL_NO_THREAD_SAFETY_ANALYSIS {
-    if (mutex_) {
+    if (mutex_ != nullptr) {
       mutex_->ReaderUnlock();
       mutex_ = nullptr;
     }

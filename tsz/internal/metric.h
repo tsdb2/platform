@@ -3,14 +3,15 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <memory>
+#include <string>
 #include <string_view>
 #include <tuple>
 #include <utility>
-#include <variant>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/hash/hash.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
@@ -24,8 +25,15 @@ namespace internal {
 
 class MetricManager {
  public:
+  explicit MetricManager() = default;
   virtual ~MetricManager() = default;
   virtual void DeleteMetricInternal(std::string_view name) = 0;
+
+ private:
+  MetricManager(MetricManager const &) = delete;
+  MetricManager &operator=(MetricManager const &) = delete;
+  MetricManager(MetricManager &&) = delete;
+  MetricManager &operator=(MetricManager &&) = delete;
 };
 
 class Metric {
@@ -33,6 +41,8 @@ class Metric {
   explicit Metric(MetricManager *const manager, std::string_view const name,
                   MetricConfig const &metric_config)
       : manager_(manager), name_(name), hash_(absl::HashOf(name_)), config_(metric_config) {}
+
+  ~Metric() = default;
 
   std::string_view name() const { return name_; }
   size_t hash() const { return hash_; }

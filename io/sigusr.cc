@@ -13,6 +13,7 @@
 #include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"
 #include "common/reffed_ptr.h"
+#include "common/utilities.h"
 
 namespace tsdb2 {
 namespace io {
@@ -34,13 +35,13 @@ absl::Status SigUsr1::Notify(pid_t const process_id) {
 }
 
 ABSL_CONST_INIT absl::Mutex SigUsr1::SignalHandler::instance_mutex_{absl::kConstInit};
-SigUsr1::SignalHandler* SigUsr1::SignalHandler::instance_ = nullptr;
+gsl::owner<SigUsr1::SignalHandler*> SigUsr1::SignalHandler::instance_ = nullptr;
 
 sig_atomic_t volatile SigUsr1::SignalHandler::notified_ = 0;
 
 tsdb2::common::reffed_ptr<SigUsr1::SignalHandler> SigUsr1::SignalHandler::GetOrCreate() {
   absl::MutexLock lock{&instance_mutex_};
-  if (!instance_) {
+  if (instance_ == nullptr) {
     instance_ = new SignalHandler();
   }
   return tsdb2::common::WrapReffed(instance_);
@@ -54,11 +55,13 @@ SigUsr1::SignalHandler::~SignalHandler() {
   sigset_t mask;
   ::sigemptyset(&mask);
   ::sigaddset(&mask, SIGUSR1);
-  if (::pthread_sigmask(SIG_UNBLOCK, &mask, nullptr) < 0) {
-    LOG(ERROR) << absl::ErrnoToStatus(errno, "pthread_sigmask(SIG_UNBLOCK, SIGUSR1)");
+  int const result = ::pthread_sigmask(SIG_UNBLOCK, &mask, nullptr);
+  if (result > 0) {
+    // Yes, on failure `pthread_sigmask` returns the (positive) error number, unlike all other
+    // functions. *Sigh*.
+    LOG(ERROR) << absl::ErrnoToStatus(result, "pthread_sigmask(SIG_UNBLOCK, SIGUSR1)");
   }
-  struct sigaction sa;
-  std::memset(&sa, 0, sizeof(struct sigaction));
+  struct sigaction sa {};
   sa.sa_handler = SIG_DFL;
   if (::sigaction(SIGUSR1, &sa, nullptr) < 0) {
     LOG(ERROR) << absl::ErrnoToStatus(errno, "sigaction(SIGUSR1, ...)");
@@ -66,7 +69,7 @@ SigUsr1::SignalHandler::~SignalHandler() {
   notified_ = 0;
 }
 
-absl::Status SigUsr1::SignalHandler::Notify() {
+absl::Status SigUsr1::SignalHandler::Notify() const {
   if (::tgkill(process_id_, thread_id_, SIGUSR1) < 0) {
     return absl::ErrnoToStatus(errno, "tgkill");
   } else {
@@ -75,11 +78,11 @@ absl::Status SigUsr1::SignalHandler::Notify() {
 }
 
 absl::Status SigUsr1::SignalHandler::WaitForNotification() {
-  if (notified_) {
+  if (notified_ != 0) {
     return absl::OkStatus();
   }
   WaitScope ws{this};
-  while (!notified_) {
+  while (notified_ == 0) {
     if (::sigsuspend(&mask_) < 0 && errno != EINTR) {
       return absl::ErrnoToStatus(errno, "sigsuspend");
     }
@@ -93,8 +96,10 @@ sigset_t SigUsr1::SignalHandler::BlockSigUsr1() {
   ::sigaddset(&mask, SIGUSR1);
   sigset_t old_mask;
   ::sigemptyset(&old_mask);
-  if (::pthread_sigmask(SIG_BLOCK, &mask, &old_mask) < 0) {
-    LOG(ERROR) << absl::ErrnoToStatus(errno, "pthread_sigmask(SIG_BLOCK, SIGUSR1)");
+  int const result = ::pthread_sigmask(SIG_BLOCK, &mask, &old_mask);
+  if (result > 0) {
+    // Ditto.
+    LOG(ERROR) << absl::ErrnoToStatus(result, "pthread_sigmask(SIG_BLOCK, SIGUSR1)");
   }
   return old_mask;
 }
@@ -103,8 +108,7 @@ void SigUsr1::SignalHandler::HandlerFn(int) { notified_ = 1; }
 
 SigUsr1::SignalHandler::SignalHandler()
     : process_id_(::getpid()), thread_id_(::gettid()), mask_(BlockSigUsr1()) {
-  struct sigaction sa;
-  std::memset(&sa, 0, sizeof(struct sigaction));
+  struct sigaction sa {};
   sa.sa_handler = &SignalHandler::HandlerFn;
   if (::sigaction(SIGUSR1, &sa, nullptr) < 0) {
     LOG(ERROR) << absl::ErrnoToStatus(errno, "sigaction(SIGUSR1, ...)");

@@ -25,6 +25,11 @@ class TestSingleton final {
   void set_field(int const value) { field_ = value; }
 
  private:
+  TestSingleton(TestSingleton const &) = delete;
+  TestSingleton &operator=(TestSingleton const &) = delete;
+  TestSingleton(TestSingleton &&) = delete;
+  TestSingleton &operator=(TestSingleton &&) = delete;
+
   bool *const flag_;
   int field_;
 };

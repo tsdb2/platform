@@ -11,16 +11,17 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/flags/declare.h"
 #include "absl/flags/flag.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/hash/hash.h"
-#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
@@ -118,7 +119,7 @@ class SSLSocket : public BaseSocket {
   template <typename SocketClass,
             std::enable_if_t<std::is_base_of_v<SSLSocket, SocketClass>, bool> = true>
   static absl::StatusOr<tsdb2::common::reffed_ptr<SocketClass>> CreateClass(
-      EpollServer* const parent, FD fd, ConnectCallback<SocketClass> callback);
+      EpollServer* parent, FD fd, ConnectCallback<SocketClass> callback);
 
   // Constructs an `SSLSocket` connected to the specified host and port. This function uses
   // `getaddrinfo` to perform address resolution, so the `address` can be a numeric IPv4 address
@@ -190,6 +191,8 @@ class SSLSocket : public BaseSocket {
                           absl::Duration const timeout)
         : callback(std::move(callback)), mode(mode), timeout(timeout) {}
 
+    ~ConnectState() = default;
+
     ConnectState(ConnectState const&) = delete;
     ConnectState& operator=(ConnectState const&) = delete;
 
@@ -212,6 +215,8 @@ class SSLSocket : public BaseSocket {
           callback(std::move(callback)),
           timeout(timeout),
           timeout_handle(timeout_handle) {}
+
+    ~ReadState() = default;
 
     ReadState(ReadState const&) = delete;
     ReadState& operator=(ReadState const&) = delete;
@@ -236,6 +241,8 @@ class SSLSocket : public BaseSocket {
           callback(std::move(callback)),
           timeout(timeout),
           timeout_handle(timeout_handle) {}
+
+    ~WriteState() = default;
 
     WriteState(WriteState const&) = delete;
     WriteState& operator=(WriteState const&) = delete;
@@ -291,6 +298,11 @@ class SSLSocket : public BaseSocket {
     return SSLSocket::template CreateClassPair<FirstSocket, SecondSocket>(
         parent, std::forward<Args>(args)...);
   }
+
+  SSLSocket(SSLSocket const&) = delete;
+  SSLSocket& operator=(SSLSocket const&) = delete;
+  SSLSocket(SSLSocket&&) = delete;
+  SSLSocket& operator=(SSLSocket&&) = delete;
 
   ConnectState ExpungeConnectState() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
     ConnectState state = std::move(connect_state_).value();
@@ -401,15 +413,15 @@ class SSLListenerSocket : public BaseListenerSocket {
       return absl::InvalidArgumentError("the accept callback must not be empty");
     }
     DEFINE_VAR_OR_RETURN(fd, CreateInetListener(address, port));
-    return tsdb2::common::WrapReffed(new SSLListenerSocket(
-        parent, address, port, std::move(fd), std::move(options), callback, callback_arg));
+    return tsdb2::common::WrapReffed(new SSLListenerSocket(parent, address, port, std::move(fd),
+                                                           options, callback, callback_arg));
   }
 
   explicit SSLListenerSocket(EpollServer* const parent, std::string_view const address,
                              uint16_t const port, FD fd, SocketOptions options,
                              AcceptCallback const callback, void* const callback_arg)
       : BaseListenerSocket(parent, address, port, std::move(fd)),
-        options_(std::move(options)),
+        options_(options),
         callback_arg_(callback_arg),
         callback_(callback) {}
 

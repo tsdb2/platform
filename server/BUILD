@@ -17,6 +17,7 @@ cc_library(
         ":base_module",
         "//common:singleton",
         "//common:utilities",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log:check",

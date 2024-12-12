@@ -2,7 +2,6 @@
 #define __TSDB2_JSON_JSON_TESTING_H__
 
 #include <ostream>
-#include <type_traits>
 #include <utility>
 
 #include "gmock/gmock.h"
@@ -36,8 +35,8 @@ class JsonFieldMatcher {
 
   // We can't provide meaningful implementations for our Describe methods because we won't know the
   // type of the field until `MatchAndExplain` is called.
-  void DescribeTo(std::ostream* const) const {}
-  void DescribeNegationTo(std::ostream* const) const {}
+  void DescribeTo(std::ostream* const /*os*/) const {}
+  void DescribeNegationTo(std::ostream* const /*os*/) const {}
 
   template <typename... Fields>
   bool MatchAndExplain(tsdb2::json::Object<Fields...> const& value,

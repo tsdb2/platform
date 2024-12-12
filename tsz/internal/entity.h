@@ -4,17 +4,16 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <string>
 #include <string_view>
 #include <utility>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/hash/hash.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "common/ref_count.h"
-#include "common/utilities.h"
 #include "tsz/internal/metric.h"
 #include "tsz/internal/metric_config.h"
 #include "tsz/internal/scoped_metric_proxy.h"
@@ -26,12 +25,19 @@ namespace internal {
 
 class EntityManager {
  public:
+  explicit EntityManager() = default;
   virtual ~EntityManager() = default;
 
   virtual absl::StatusOr<MetricConfig const *> GetConfigForMetric(
       std::string_view metric_name) const = 0;
 
   virtual bool DeleteEntityInternal(FieldMap const &labels) = 0;
+
+ private:
+  EntityManager(EntityManager const &) = delete;
+  EntityManager &operator=(EntityManager const &) = delete;
+  EntityManager(EntityManager &&) = delete;
+  EntityManager &operator=(EntityManager &&) = delete;
 };
 
 class EntityContext;
@@ -79,10 +85,15 @@ class Entity : public MetricManager {
     explicit MetricCell(Args &&...args)
         : metric_(std::make_shared<Metric>(std::forward<Args>(args)...)) {}
 
+    ~MetricCell() = default;
+
     MetricCell(MetricCell const &) = default;
     MetricCell &operator=(MetricCell const &) = default;
     MetricCell(MetricCell &&) noexcept = default;
     MetricCell &operator=(MetricCell &&) noexcept = default;
+
+    void swap(MetricCell &other) noexcept { std::swap(metric_, other.metric_); }
+    friend void swap(MetricCell &lhs, MetricCell &rhs) noexcept { lhs.swap(rhs); }
 
     std::shared_ptr<Metric> const &ptr() const { return metric_; }
     Metric *operator->() const { return metric_.get(); }
@@ -174,9 +185,11 @@ class EntityContext final {
   EntityContext(EntityContext &&other) noexcept = default;
 
   EntityContext &operator=(EntityContext &&other) noexcept {
-    MaybeUnpin();
-    entity_ = std::move(other.entity_);
-    time_ = other.time_;
+    if (this != &other) {
+      MaybeUnpin();
+      entity_ = std::move(other.entity_);
+      time_ = other.time_;
+    }
     return *this;
   }
 

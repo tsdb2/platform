@@ -1,9 +1,9 @@
 #ifndef __TSDB2_COMMON_FLAT_CONTAINER_TESTING_H__
 #define __TSDB2_COMMON_FLAT_CONTAINER_TESTING_H__
 
+#include <cstddef>
 #include <cstdlib>
 #include <deque>
-#include <memory>
 #include <ostream>
 #include <string>
 #include <type_traits>
@@ -16,7 +16,7 @@ namespace tsdb2 {
 namespace testing {
 
 struct TestKey {
-  TestKey(int const field_value) : field(field_value) {}
+  TestKey(int const field_value) : field(field_value) {}  // NOLINT(google-explicit-constructor)
 
   friend bool operator==(TestKey const& lhs, TestKey const& rhs) { return lhs.field == rhs.field; }
   friend bool operator!=(TestKey const& lhs, TestKey const& rhs) { return !operator==(lhs, rhs); }
@@ -73,6 +73,7 @@ class TestAllocator {
 
   explicit TestAllocator() = default;
   explicit TestAllocator(int const tag) : tag_(tag) {}
+  ~TestAllocator() = default;
 
   TestAllocator(TestAllocator const&) = default;
   TestAllocator& operator=(TestAllocator const&) = default;
@@ -81,19 +82,23 @@ class TestAllocator {
 
   int tag() const { return tag_; }
 
+  // NOLINTBEGIN(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
+
   [[nodiscard]] value_type* allocate(size_t const n) {
     return static_cast<value_type*>(::malloc(n * sizeof(value_type)));
   }
 
-  void deallocate(value_type* const ptr, size_t const) { ::free(ptr); }
+  void deallocate(value_type* const ptr, size_t /*n*/) { ::free(ptr); }
+
+  // NOLINTEND(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
 
   template <typename T2>
-  bool operator==(TestAllocator<T2> const&) noexcept {
+  bool operator==(TestAllocator<T2> const& /*other*/) noexcept {
     return true;
   }
 
   template <typename T2>
-  bool operator!=(TestAllocator<T2> const&) noexcept {
+  bool operator!=(TestAllocator<T2> const& /*other*/) noexcept {
     return false;
   }
 
@@ -111,6 +116,11 @@ class TestKeyMatcher : public ::testing::MatcherInterface<TestKey const&> {
 
   explicit TestKeyMatcher(Inner inner) : inner_(std::move(inner)) {}
   ~TestKeyMatcher() override = default;
+
+  TestKeyMatcher(TestKeyMatcher const&) = default;
+  TestKeyMatcher& operator=(TestKeyMatcher const&) = default;
+  TestKeyMatcher(TestKeyMatcher&&) noexcept = default;
+  TestKeyMatcher& operator=(TestKeyMatcher&&) noexcept = default;
 
   bool MatchAndExplain(TestKey const& value,
                        ::testing::MatchResultListener* const listener) const override {

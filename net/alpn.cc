@@ -1,6 +1,8 @@
 #include "net/alpn.h"
 
+#include <openssl/crypto.h>
 #include <openssl/ssl.h>
+#include <openssl/tls1.h>
 
 #include "absl/log/check.h"
 
@@ -14,7 +16,7 @@ unsigned char const kAlpnProtocols[] = "\x02h2";
 
 int AlpnCallback(::SSL* const ssl, unsigned char const** const out, unsigned char* const outlen,
                  unsigned char const* const in, unsigned int const inlen, void* const arg) {
-  if (SSL_select_next_proto((unsigned char**)out, outlen, kAlpnProtocols,
+  if (SSL_select_next_proto(const_cast<unsigned char**>(out), outlen, kAlpnProtocols,
                             sizeof(kAlpnProtocols) - 1, in, inlen) != OPENSSL_NPN_NEGOTIATED) {
     return SSL_TLSEXT_ERR_NOACK;
   }

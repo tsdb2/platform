@@ -37,6 +37,8 @@ class DFA final : public AbstractAutomaton {
     explicit State(int const capture_group, Edges edges)
         : State(capture_group, Assertions::kNone, std::move(edges)) {}
 
+    ~State() = default;
+
     State(State const &) = default;
     State &operator=(State const &) = default;
     State(State &&) noexcept = default;
@@ -69,6 +71,8 @@ class DFA final : public AbstractAutomaton {
     explicit Stepper(DFA const *const dfa, char const previous_character)
         : dfa_(dfa), current_state_(dfa_->initial_state_), last_character_(previous_character) {}
 
+    ~Stepper() override = default;
+
     Stepper(Stepper const &) = default;
     Stepper &operator=(Stepper const &) = default;
 
@@ -77,6 +81,9 @@ class DFA final : public AbstractAutomaton {
     bool Finish(char next_character) const override;
 
    private:
+    Stepper(Stepper &&) = delete;
+    Stepper &operator=(Stepper &&) = delete;
+
     bool Assert(uint32_t const state_num, char const ch) const {
       return dfa_->Assert(state_num, last_character_, ch);
     }
@@ -192,10 +199,7 @@ bool DFA::MatchInternal(std::string_view const input, CaptureManager *const capt
     }
     state_num = it->second;
   }
-  if (!Assert(final_state_, input, offset)) {
-    return false;
-  }
-  return true;
+  return Assert(final_state_, input, offset);
 }
 
 template <typename CaptureManager>

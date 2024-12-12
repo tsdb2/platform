@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -9,6 +10,7 @@
 #include "common/testing.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "tsz/field_descriptor.h"
 #include "tsz/internal/exporter.h"
 #include "tsz/internal/shard.h"
 #include "tsz/types.h"
@@ -37,6 +39,15 @@ char constexpr kLoremField[] = "lorem";
 char constexpr kIpsumField[] = "ipsum";
 
 class CellReaderTest : public ::testing::Test {
+ public:
+  explicit CellReaderTest() : shard_(DefineMetric()) {}
+
+  ~CellReaderTest() override {
+    if (shard_ != nullptr) {
+      shard_->DeleteMetric(entity_labels_, kMetricName);
+    }
+  }
+
  protected:
   static Shard* DefineMetric() {
     auto const status_or_shard = exporter->DefineMetricRedundant(kMetricName, /*options=*/{});
@@ -49,20 +60,18 @@ class CellReaderTest : public ::testing::Test {
     }
   }
 
-  explicit CellReaderTest() : shard_(DefineMetric()) {}
-
-  ~CellReaderTest() {
-    if (shard_) {
-      shard_->DeleteMetric(entity_labels_, kMetricName);
-    }
-  }
-
   Shard* const shard_;
 
   FieldMap const entity_labels_{
       {"foo", StringValue("bar")},
       {"baz", IntValue(123)},
   };
+
+ private:
+  CellReaderTest(CellReaderTest const&) = delete;
+  CellReaderTest& operator=(CellReaderTest const&) = delete;
+  CellReaderTest(CellReaderTest&&) = delete;
+  CellReaderTest& operator=(CellReaderTest&&) = delete;
 };
 
 TEST_F(CellReaderTest, Read) {

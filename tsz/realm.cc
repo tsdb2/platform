@@ -54,7 +54,8 @@ Realm::Realm(std::string_view const name) : name_(name) {
 }
 
 Realm::~Realm() {
-  absl::MutexLock(&mutex_, absl::Condition(this, &Realm::is_not_referenced));
+  absl::MutexLock(  // NOLINT(bugprone-unused-raii)
+      &mutex_, absl::Condition(this, &Realm::is_not_referenced));
   absl::MutexLock lock{&set_mutex_};
   realms_.erase(this);
 }

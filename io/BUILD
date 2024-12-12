@@ -4,6 +4,7 @@ cc_library(
     name = "buffer",
     hdrs = ["buffer.h"],
     deps = [
+        "//common:utilities",
         "@com_google_absl//absl/log:check",
     ],
 )
@@ -14,6 +15,7 @@ cc_test(
     deps = [
         ":buffer",
         "//common:testing",
+        "//common:utilities",
         "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest_main",
     ],
@@ -79,6 +81,7 @@ cc_library(
     deps = [
         "//common:ref_count",
         "//common:reffed_ptr",
+        "//common:utilities",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",

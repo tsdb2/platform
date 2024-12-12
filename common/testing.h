@@ -5,12 +5,11 @@
 #include <ostream>
 #include <string>
 #include <string_view>
-#include <type_traits>
 #include <utility>
 
-#include "absl/status/status.h"
-#include "absl/status/status_matchers.h"
-#include "absl/status/statusor.h"
+#include "absl/status/status.h"           // IWYU pragma: export
+#include "absl/status/status_matchers.h"  // IWYU pragma: export
+#include "absl/status/statusor.h"         // IWYU pragma: export
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "io/fd.h"
@@ -69,8 +68,8 @@ class Pointee2 {
   // Unfortunately GoogleTest's architecture doesn't allow for a meaningful implementation of the
   // Describe methods for this matcher because we wouldn't be able to infer the value type, unlike
   // in `MatchAndExplain`.
-  void DescribeTo(std::ostream* const) const {}
-  void DescribeNegationTo(std::ostream* const) const {}
+  void DescribeTo(std::ostream* const /*os*/) const {}
+  void DescribeNegationTo(std::ostream* const /*os*/) const {}
 
   template <typename Value>
   bool MatchAndExplain(Value&& value, ::testing::MatchResultListener* const listener) const {

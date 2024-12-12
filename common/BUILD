@@ -34,7 +34,6 @@ cc_library(
     deps = [
         "@com_google_absl//absl/debugging:stacktrace",
         "@com_google_absl//absl/debugging:symbolize",
-        "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -73,6 +72,7 @@ cc_library(
     name = "promise",
     hdrs = ["promise.h"],
     deps = [
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/functional:bind_front",
         "@com_google_absl//absl/functional:function_ref",
@@ -92,10 +92,10 @@ cc_test(
         ":promise",
         ":scheduler",
         ":testing",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest_main",
     ],
@@ -164,6 +164,7 @@ cc_library(
     name = "mutex_lock",
     hdrs = ["mutex_lock.h"],
     deps = [
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/synchronization",
     ],
 )
@@ -194,6 +195,7 @@ cc_test(
     deps = [
         ":multi_mutex_lock",
         ":testing",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/synchronization",
         "@com_google_googletest//:gtest_main",
     ],
@@ -312,6 +314,7 @@ cc_test(
     srcs = ["raw_lock_free_hash_test.cc"],
     deps = [
         ":testing",
+        ":utilities",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -412,9 +415,8 @@ cc_library(
     deps = [
         ":flat_map",
         ":re",
+        ":reffed_ptr",
         "//common/re:automaton",
-        "//common/re:dfa",
-        "//common/re:nfa",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -503,7 +505,6 @@ cc_test(
         "@com_google_absl//absl/container:node_hash_set",
         "@com_google_absl//absl/numeric:int128",
         "@com_google_absl//absl/time",
-        "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -662,6 +663,7 @@ cc_library(
     name = "scoped_override",
     testonly = True,
     hdrs = ["scoped_override.h"],
+    deps = [":utilities"],
 )
 
 cc_test(
@@ -680,6 +682,7 @@ cc_library(
     srcs = ["clock.cc"],
     hdrs = ["clock.h"],
     deps = [
+        ":utilities",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
     ],
@@ -734,6 +737,7 @@ cc_library(
         ":sequence_number",
         ":simple_condition",
         "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:node_hash_set",
         "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/functional:bind_front",

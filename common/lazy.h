@@ -2,7 +2,6 @@
 #define __TSDB2_COMMON_LAZY_H__
 
 #include <atomic>
-#include <new>
 #include <tuple>
 #include <utility>
 
@@ -45,13 +44,21 @@ class Lazy {
  public:
   using Factory = absl::AnyInvocable<Value()>;
 
+  // NOLINTBEGIN(cppcoreguidelines-pro-type-member-init)
+  //
+  // Silence complaints about `storage_` not being initialized in the constructors. That doesn't
+  // matter in our case because it will be initialized before the first access, and for performance
+  // reasons we'd rather not bother setting all storage bytes to 0 on construction.
+
   explicit Lazy(Factory factory) : factory_(std::move(factory)) {}
 
   template <typename... Args>
-  explicit Lazy(std::in_place_t, Args&&... args)
+  explicit Lazy(std::in_place_t /*in_place*/, Args&&... args)
       : factory_([args = std::make_tuple(std::forward<Args>(args)...)]() mutable {
           return std::make_from_tuple<Value>(std::move(args));
         }) {}
+
+  // NOLINTEND(cppcoreguidelines-pro-type-member-init)
 
   // Destroys the wrapped value.
   //
@@ -87,7 +94,7 @@ class Lazy {
   Lazy(Lazy&&) = delete;
   Lazy& operator=(Lazy&&) = delete;
 
-  void Construct() const {
+  void Construct() const ABSL_LOCKS_EXCLUDED(mutex_) {
     Factory discarded;
     absl::MutexLock lock{&mutex_};
     if (!constructed_.load(std::memory_order_relaxed)) {

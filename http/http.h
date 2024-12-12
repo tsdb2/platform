@@ -2,6 +2,7 @@
 #define __TSDB2_HTTP_HTTP_H__
 
 #include <arpa/inet.h>
+#include <netinet/in.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -59,10 +60,13 @@ inline unsigned int constexpr kFlagPriority = 32;
 
 class ABSL_ATTRIBUTE_PACKED FrameHeader {
  public:
-  explicit FrameHeader() : reserved_(0) {}
+  explicit FrameHeader() = default;
+  ~FrameHeader() = default;
 
   FrameHeader(FrameHeader const&) = default;
   FrameHeader& operator=(FrameHeader const&) = default;
+  FrameHeader(FrameHeader&&) noexcept = default;
+  FrameHeader& operator=(FrameHeader&&) noexcept = default;
 
   size_t length() const { return ::ntohl(length_ << 8); }
 
@@ -122,9 +126,12 @@ enum class ConnectionError {
 struct ABSL_ATTRIBUTE_PACKED PriorityPayload {
  public:
   explicit PriorityPayload() = default;
+  ~PriorityPayload() = default;
 
   PriorityPayload(PriorityPayload const&) = default;
   PriorityPayload& operator=(PriorityPayload const&) = default;
+  PriorityPayload(PriorityPayload&&) noexcept = default;
+  PriorityPayload& operator=(PriorityPayload&&) noexcept = default;
 
   bool exclusive() const { return exclusive_ != 0; }
 
@@ -158,9 +165,12 @@ static_assert(sizeof(PriorityPayload) == 5, "incorrect PRIORITY payload size");
 struct ABSL_ATTRIBUTE_PACKED ResetStreamPayload {
  public:
   explicit ResetStreamPayload() = default;
+  ~ResetStreamPayload() = default;
 
   ResetStreamPayload(ResetStreamPayload const&) = default;
   ResetStreamPayload& operator=(ResetStreamPayload const&) = default;
+  ResetStreamPayload(ResetStreamPayload&&) noexcept = default;
+  ResetStreamPayload& operator=(ResetStreamPayload&&) noexcept = default;
 
   ConnectionError error_code() const { return static_cast<ConnectionError>(::ntohl(error_code_)); }
 
@@ -189,9 +199,12 @@ inline size_t constexpr kNumSettings = 6;
 struct ABSL_ATTRIBUTE_PACKED SettingsEntry {
  public:
   explicit SettingsEntry() = default;
+  ~SettingsEntry() = default;
 
   SettingsEntry(SettingsEntry const&) = default;
   SettingsEntry& operator=(SettingsEntry const&) = default;
+  SettingsEntry(SettingsEntry&&) noexcept = default;
+  SettingsEntry& operator=(SettingsEntry&&) noexcept = default;
 
   SettingsIdentifier identifier() const {
     return static_cast<SettingsIdentifier>(::ntohs(identifier_));
@@ -220,10 +233,13 @@ inline size_t constexpr kPingPayloadSize = 8;
 
 struct ABSL_ATTRIBUTE_PACKED GoAwayPayload {
  public:
-  explicit GoAwayPayload() : reserved_(0) {}
+  explicit GoAwayPayload() = default;
+  ~GoAwayPayload() = default;
 
   GoAwayPayload(GoAwayPayload const&) = default;
   GoAwayPayload& operator=(GoAwayPayload const&) = default;
+  GoAwayPayload(GoAwayPayload&&) noexcept = default;
+  GoAwayPayload& operator=(GoAwayPayload&&) noexcept = default;
 
   uint32_t last_stream_id() const { return ::ntohl(last_stream_id_); }
 
@@ -249,10 +265,13 @@ static_assert(sizeof(GoAwayPayload) == 8, "incorrect GOAWAY payload size");
 
 struct ABSL_ATTRIBUTE_PACKED WindowUpdatePayload {
  public:
-  explicit WindowUpdatePayload() : reserved_(0) {}
+  explicit WindowUpdatePayload() = default;
+  ~WindowUpdatePayload() = default;
 
   WindowUpdatePayload(WindowUpdatePayload const&) = default;
   WindowUpdatePayload& operator=(WindowUpdatePayload const&) = default;
+  WindowUpdatePayload(WindowUpdatePayload&&) noexcept = default;
+  WindowUpdatePayload& operator=(WindowUpdatePayload&&) noexcept = default;
 
   size_t window_size_increment() const { return ::ntohl(window_size_increment_); }
 

@@ -2,7 +2,6 @@
 
 #include <type_traits>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace {
@@ -21,6 +20,11 @@ class TestClass final {
   void set_field(int const value) { field_ = value; }
 
  private:
+  TestClass(TestClass const &) = delete;
+  TestClass &operator=(TestClass const &) = delete;
+  TestClass(TestClass &&) = delete;
+  TestClass &operator=(TestClass &&) = delete;
+
   bool *const flag_;
   int field_;
 };

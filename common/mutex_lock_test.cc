@@ -1,9 +1,9 @@
 #include "common/mutex_lock.h"
 
 #include <thread>
+#include <utility>
 
 #include "absl/synchronization/mutex.h"
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace {
@@ -36,7 +36,8 @@ TEST(WriterMutexLockTest, ConditionalScopedLock) {
     absl::MutexLock lock{&mutex};
     flag = true;
   }};
-  WriterMutexLock(&mutex, absl::Condition(&flag));
+  WriterMutexLock(  // NOLINT(bugprone-unused-raii)
+      &mutex, absl::Condition(&flag));
   EXPECT_TRUE(flag);
   thread.join();
 }
@@ -100,7 +101,8 @@ TEST(ReaderMutexLockTest, ConditionalScopedLock) {
     absl::MutexLock lock{&mutex};
     flag = true;
   }};
-  ReaderMutexLock(&mutex, absl::Condition(&flag));
+  ReaderMutexLock(  // NOLINT(bugprone-unused-raii)
+      &mutex, absl::Condition(&flag));
   EXPECT_TRUE(flag);
   thread.join();
 }

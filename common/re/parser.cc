@@ -3,7 +3,6 @@
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
-#include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
@@ -121,13 +120,13 @@ class Parser final {
   // Adds an edge from `state` to `destination` labeled with `ch`, subject to case sensitivity: if
   // case-insensitive mode is enabled it adds two edges, one labeled with `std::toupper(ch)` and one
   // with `std::tolower(ch)` (which may be the same); otherwise it adds only one.
-  void AddEdgeWithCase(State* state, char ch, uint32_t destination);
+  void AddEdgeWithCase(State* state, char ch, uint32_t destination) const;
 
   // Erases all edges labeled with `ch` (subject to case sensitivity) from `state` to `destination`.
   // If case-insensitive mode is enabled it erases both the edges labeled with `std::toupper(ch)`
   // and the ones with `std::tolower(ch)` (which may be the same); otherwise it erases only those
   // labeled with `ch`.
-  void EraseEdgeWithCase(State* edges, char ch);
+  void EraseEdgeWithCase(State* state, char ch) const;
 
   TempNFA MakeSingleCharacterNFA(int capture_group, char ch);
   TempNFA MakeCharacterClassNFA(int capture_group, std::string_view chars);
@@ -209,7 +208,7 @@ absl::StatusOr<uint8_t> Parser::ParseHexCode() {
   return digit1 * 16 + digit2;
 }
 
-void Parser::AddEdgeWithCase(State* const state, char const ch, uint32_t const destination) {
+void Parser::AddEdgeWithCase(State* const state, char const ch, uint32_t const destination) const {
   if (options_.case_sensitive) {
     state->edges[ch].emplace(destination);
   } else {
@@ -218,7 +217,7 @@ void Parser::AddEdgeWithCase(State* const state, char const ch, uint32_t const d
   }
 }
 
-void Parser::EraseEdgeWithCase(State* const state, char const ch) {
+void Parser::EraseEdgeWithCase(State* const state, char const ch) const {
   if (options_.case_sensitive) {
     state->edges.erase(ch);
   } else {
@@ -623,7 +622,7 @@ absl::StatusOr<TempNFA> Parser::Parse1(size_t const recursion_depth, int const c
   } else if (ConsumePrefix("?")) {
     nfa.MaybeAddEpsilonEdge(nfa.initial_state(), nfa.final_state());
   } else if (ConsumePrefix("{")) {
-    auto const status_or_quantifier = ParseQuantifier();
+    auto status_or_quantifier = ParseQuantifier();
     if (!status_or_quantifier.ok()) {
       return std::move(status_or_quantifier).status();
     }

@@ -4,7 +4,9 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 
+#include <cstdio>
 #include <cstring>
+#include <tuple>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -31,8 +33,7 @@ ExclusiveFileLock::InternalLock::LockSet ExclusiveFileLock::InternalLock::locks_
 
 absl::StatusOr<tsdb2::common::reffed_ptr<ExclusiveFileLock::InternalLock>>
 ExclusiveFileLock::InternalLock::Acquire(FD const &fd, off_t const start, off_t const length) {
-  struct stat statbuf;
-  std::memset(&statbuf, 0, sizeof(struct stat));
+  struct stat statbuf {};
   if (::fstat(*fd, &statbuf) < 0) {
     return absl::ErrnoToStatus(errno, "fstat");
   }
@@ -46,13 +47,14 @@ ExclusiveFileLock::InternalLock::Acquire(FD const &fd, off_t const start, off_t 
     return tsdb2::common::WrapReffed(const_cast<InternalLock *>(&*it));
   }
   DEFINE_VAR_OR_RETURN(fd2, fd.Clone());
-  struct flock args;
-  std::memset(&args, 0, sizeof(struct flock));
+  struct flock args {};
   args.l_type = F_WRLCK;
   args.l_whence = SEEK_SET;
   args.l_start = start;
   args.l_len = length;
-  if (::fcntl(fd2.get(), F_SETLKW, &args) < 0) {
+  int const result =
+      ::fcntl(fd2.get(), F_SETLKW, &args);  // NOLINT(cppcoreguidelines-pro-type-vararg)
+  if (result < 0) {
     return absl::ErrnoToStatus(errno, "fcntl(F_SETLKW, F_WRLCK)");
   }
   bool inserted;
@@ -67,13 +69,14 @@ void ExclusiveFileLock::InternalLock::OnLastUnref() {
 }
 
 void ExclusiveFileLock::InternalLock::Release() {
-  struct flock args;
-  std::memset(&args, 0, sizeof(struct flock));
+  struct flock args {};
   args.l_type = F_UNLCK;
   args.l_whence = SEEK_SET;
   args.l_start = start_;
   args.l_len = length_;
-  if (::fcntl(fd_.get(), F_SETLK, &args) < 0) {
+  int const result =
+      ::fcntl(fd_.get(), F_SETLK, &args);  // NOLINT(cppcoreguidelines-pro-type-vararg)
+  if (result < 0) {
     LOG(ERROR) << absl::ErrnoToStatus(errno, "fcntl(F_SETLK, F_UNLCK)");
   }
 }

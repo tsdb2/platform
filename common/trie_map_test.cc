@@ -1,6 +1,7 @@
 #include "common/trie_map.h"
 
 #include <cstddef>
+#include <memory>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -198,7 +199,7 @@ TEST(TrieMapTest, ConstructFromIterators) {
 
 TEST(TrieMapTest, CopyConstruct) {
   trie_map const tm1{{"", 12}, {"lorem", 34}, {"ipsum", 56}};
-  trie_map const tm2{tm1};
+  trie_map const tm2{tm1};  // NOLINT(performance-unnecessary-copy-initialization)
   EXPECT_THAT(tm1, ElementsAre(Pair("", 12), Pair("ipsum", 56), Pair("lorem", 34)));
   EXPECT_EQ(tm1.size(), 3);
   EXPECT_THAT(tm2, ElementsAre(Pair("", 12), Pair("ipsum", 56), Pair("lorem", 34)));
@@ -215,6 +216,13 @@ TEST(TrieMapTest, CopyAssign) {
   EXPECT_EQ(tm2.size(), 3);
 }
 
+TEST(TrieMapTest, SelfCopy) {
+  trie_map tm{{"", 12}, {"lorem", 34}, {"ipsum", 56}};
+  tm = tm;  // NOLINT
+  EXPECT_THAT(tm, ElementsAre(Pair("", 12), Pair("ipsum", 56), Pair("lorem", 34)));
+  EXPECT_EQ(tm.size(), 3);
+}
+
 TEST(TrieMapTest, MoveConstruct) {
   trie_map tm1{{"", 12}, {"lorem", 34}, {"ipsum", 56}};
   trie_map const tm2{std::move(tm1)};
@@ -228,6 +236,13 @@ TEST(TrieMapTest, MoveAssign) {
   tm2 = std::move(tm1);
   EXPECT_THAT(tm2, ElementsAre(Pair("", 12), Pair("ipsum", 56), Pair("lorem", 34)));
   EXPECT_EQ(tm2.size(), 3);
+}
+
+TEST(TrieMapTest, SelfMove) {
+  trie_map tm{{"", 12}, {"lorem", 34}, {"ipsum", 56}};
+  tm = std::move(tm);  // NOLINT
+  EXPECT_THAT(tm, ElementsAre(Pair("", 12), Pair("ipsum", 56), Pair("lorem", 34)));
+  EXPECT_EQ(tm.size(), 3);
 }
 
 TEST(TrieMapTest, AssignInitializerList) {
@@ -1729,6 +1744,13 @@ TEST(TrieMapTest, Swap) {
   EXPECT_EQ(tm1.size(), 4);
   EXPECT_THAT(tm2, ElementsAre(Pair("dolor", 34), Pair("ipsum", 23), Pair("lorem", 12)));
   EXPECT_EQ(tm2.size(), 3);
+}
+
+TEST(TrieMapTest, SelfSwap) {
+  trie_map tm{{"lorem", 12}, {"ipsum", 23}, {"dolor", 34}};
+  tm.swap(tm);
+  EXPECT_THAT(tm, ElementsAre(Pair("dolor", 34), Pair("ipsum", 23), Pair("lorem", 12)));
+  EXPECT_EQ(tm.size(), 3);
 }
 
 TEST(TrieMapTest, AdlSwap) {

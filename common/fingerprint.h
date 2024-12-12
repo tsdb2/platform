@@ -45,7 +45,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
-#include <iterator>
 #include <map>
 #include <memory>
 #include <optional>
@@ -131,7 +130,7 @@ template <typename State, typename Optional>
 State Tsdb2FingerprintValue(State state, std::optional<Optional> const& value);
 
 template <typename State>
-State Tsdb2FingerprintValue(State state, std::nullopt_t const&);
+State Tsdb2FingerprintValue(State state, std::nullopt_t const& value);
 
 template <typename State, typename... Values>
 State Tsdb2FingerprintValue(State state, std::variant<Values...> const& value);
@@ -331,7 +330,7 @@ State Tsdb2FingerprintValue(State state, std::optional<Optional> const& value) {
 }
 
 template <typename State>
-State Tsdb2FingerprintValue(State state, std::nullopt_t const&) {
+State Tsdb2FingerprintValue(State state, std::nullopt_t const& /*value*/) {
   state.Add(0);
   return state;
 }
@@ -450,6 +449,7 @@ namespace internal {
 class FingerprintState {
  public:
   explicit FingerprintState() = default;
+  ~FingerprintState() = default;
 
   FingerprintState(FingerprintState const&) = default;
   FingerprintState& operator=(FingerprintState const&) = default;
@@ -461,7 +461,7 @@ class FingerprintState {
   // words manually.
   template <typename... Values>
   static FingerprintState Combine(FingerprintState state, Values const&... values) {
-    return Tsdb2FingerprintValue(std::move(state), std::tie(values...));
+    return Tsdb2FingerprintValue(state, std::tie(values...));
   }
 
   // Adds a 64-bit word to the calculation.
@@ -518,7 +518,7 @@ struct Fingerprint<Element[N]> {
 
 template <size_t N>
 struct Fingerprint<char const[N]> {
-  static size_t GetLength(char const* const value) { return value[N - 1] ? N : N - 1; }
+  static size_t GetLength(char const* const value) { return value[N - 1] != 0 ? N : N - 1; }
 
   uint64_t operator()(char const (&value)[N]) const {
     return Tsdb2FingerprintValue(internal::FingerprintState(),
@@ -535,7 +535,7 @@ struct Fingerprint<char const[N]> {
 
 template <size_t N>
 struct Fingerprint<char[N]> {
-  static size_t GetLength(char const* const value) { return value[N - 1] ? N : N - 1; }
+  static size_t GetLength(char const* const value) { return value[N - 1] != 0 ? N : N - 1; }
 
   uint64_t operator()(char (&value)[N]) const {
     return Tsdb2FingerprintValue(internal::FingerprintState(),

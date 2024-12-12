@@ -5,6 +5,14 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "(lldb) Launch",
+      "type": "lldb-dap",
+      "request": "launch",
+      "program": "${fileWorkspaceFolder}/bazel-bin/${relativeFileDirname}/${fileBasenameNoExtension}",
+      "args": [],
+      "cwd": "${fileWorkspaceFolder}",
+    },
+    {
       "name": "(gdb) Launch",
       "type": "cppdbg",
       "request": "launch",

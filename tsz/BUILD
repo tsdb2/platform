@@ -159,6 +159,7 @@ cc_library(
         ":base",
         "//common:fixed",
         "//tsz/internal:exporter",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -171,9 +172,9 @@ cc_test(
     name = "cell_reader_test",
     srcs = ["cell_reader_test.cc"],
     deps = [
+        ":base",
         ":cell_reader",
         "//common:testing",
-        "//tsz:types",
         "//tsz/internal:exporter",
         "//tsz/internal:shard",
         "@com_google_absl//absl/log",
@@ -191,6 +192,7 @@ cc_library(
     deps = [
         ":base",
         "//common:no_destructor",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/synchronization",
     ],
 )
@@ -304,6 +306,7 @@ cc_test(
         "//common:scoped_override",
         "//common:testing",
         "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest_main",
     ],
 )

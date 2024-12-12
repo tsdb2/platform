@@ -54,7 +54,7 @@ struct ABSL_ATTRIBUTE_PACKED Encoding {
 };
 
 // Number of leaves in this Huffman tree, as per the specs.
-static inline size_t constexpr kNumLeaves = 257;
+inline size_t constexpr kNumLeaves = 257;
 
 // The nodes of the Huffman tree, used for decoding.
 //
@@ -345,7 +345,7 @@ std::string HuffmanCode::Decode(absl::Span<uint8_t const> const data) {
   int16_t node = 0;
   for (auto const byte : data) {
     for (int j = 0; j < 8; ++j) {
-      if ((byte >> (7 - j)) & 1) {
+      if (((byte >> (7 - j)) & 1) != 0) {
         node = nodes[node].right;
       } else {
         node = nodes[node].left;
@@ -370,22 +370,30 @@ Buffer HuffmanCode::Encode(std::string_view const text) {
   size_t num_bits = 0;
   for (uint8_t const ch : text) {
     auto const& encoding = codes[ch];
-    auto const length = encoding.length;
-    auto const tail = num_bits & 7;
+    size_t const length = encoding.length;
+    size_t const tail = num_bits & 7;
     uint64_t const bits = static_cast<uint64_t>(encoding.bits) << (40 - length - tail);
-    if (tail) {
+    if (tail != 0) {
       bytes.back() |= static_cast<uint8_t>(bits >> 32);
     } else {
       bytes.push_back(bits >> 32);
     }
-    if (length > 8 - tail) bytes.push_back((bits >> 24) & 0xFF);
-    if (length > 16 - tail) bytes.push_back((bits >> 16) & 0xFF);
-    if (length > 24 - tail) bytes.push_back((bits >> 8) & 0xFF);
-    if (length > 32 - tail) bytes.push_back(bits & 0xFF);
+    if (length > 8 - tail) {
+      bytes.push_back((bits >> 24) & 0xFF);
+    }
+    if (length > 16 - tail) {
+      bytes.push_back((bits >> 16) & 0xFF);
+    }
+    if (length > 24 - tail) {
+      bytes.push_back((bits >> 8) & 0xFF);
+    }
+    if (length > 32 - tail) {
+      bytes.push_back(bits & 0xFF);
+    }
     num_bits += length;
   }
-  auto const tail = num_bits & 7;
-  if (tail) {
+  size_t const tail = num_bits & 7;
+  if (tail != 0) {
     bytes.back() |= (uint8_t{1} << (8 - tail)) - 1;
   }
   Buffer buffer{bytes.size()};

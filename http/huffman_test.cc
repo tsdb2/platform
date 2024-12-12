@@ -1,5 +1,6 @@
 #include "http/huffman.h"
 
+#include <cstdint>
 #include <string_view>
 
 #include "gmock/gmock.h"

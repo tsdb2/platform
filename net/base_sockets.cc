@@ -2,6 +2,7 @@
 
 #include <arpa/inet.h>
 #include <errno.h>
+#include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
 #include <signal.h>
@@ -11,6 +12,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -24,13 +26,13 @@
 #include "absl/time/time.h"
 #include "common/no_destructor.h"
 #include "common/utilities.h"
+#include "net/epoll_server.h"
 
 namespace tsdb2 {
 namespace net {
 
 absl::StatusOr<FD> CreateInetListener(std::string_view const address, uint16_t const port) {
-  struct sockaddr_in6 sa;
-  std::memset(&sa, 0, sizeof(sa));
+  struct sockaddr_in6 sa {};
   sa.sin6_family = AF_INET6;
   sa.sin6_port = ::htons(port);
   if (address.empty()) {
@@ -51,7 +53,7 @@ absl::StatusOr<FD> CreateInetListener(std::string_view const address, uint16_t c
   if (::setsockopt(*fd, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt)) < 0) {
     return absl::ErrnoToStatus(errno, "setsockopt(IPPROTO_IPV6, IPV6_V6ONLY, 0) failed");
   }
-  if (::bind(*fd, (struct sockaddr*)&sa, sizeof(sa)) < 0) {
+  if (::bind(*fd, reinterpret_cast<struct sockaddr*>(&sa), sizeof(sa)) < 0) {
     return absl::ErrnoToStatus(errno, "bind() failed");
   }
   if (::listen(*fd, SOMAXCONN) < 0) {
@@ -101,8 +103,8 @@ absl::StatusOr<bool> BaseSocket::is_keep_alive() const {
     }
     int optval = 0;
     socklen_t optsize = sizeof(optval);
-    if (!::getsockopt(*fd_, SOL_SOCKET, SO_KEEPALIVE, &optval, &optsize)) {
-      return !!optval;
+    if (::getsockopt(*fd_, SOL_SOCKET, SO_KEEPALIVE, &optval, &optsize) == 0) {
+      return optval != 0;
     }
   }
   return absl::ErrnoToStatus(errno, "getsockopt(SOL_SOCKET, SO_KEEPALIVE) failed");
@@ -115,7 +117,7 @@ absl::StatusOr<KeepAliveParams> BaseSocket::keep_alive_params() const {
   }
   int64_t optval = 0;
   ASSIGN_OR_RETURN(optval, GetIntSockOpt(SOL_SOCKET, "SOL_SOCKET", SO_KEEPALIVE, "SO_KEEPALIVE"));
-  if (!optval) {
+  if (optval == 0) {
     return absl::FailedPreconditionError("TCP keep-alives are disabled for this socket");
   }
   KeepAliveParams kap;
@@ -137,7 +139,7 @@ absl::StatusOr<uint8_t> BaseSocket::ip_tos() const {
     }
     uint8_t optval = 0;
     socklen_t optsize = sizeof(optval);
-    if (!::getsockopt(*fd_, IPPROTO_IP, IP_TOS, &optval, &optsize)) {
+    if (::getsockopt(*fd_, IPPROTO_IP, IP_TOS, &optval, &optsize) == 0) {
       return optval;
     }
   }

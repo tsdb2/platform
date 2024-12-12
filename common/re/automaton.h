@@ -259,6 +259,8 @@ class AbstractAutomaton : public SimpleRefCounted {
           ranges_(capture_groups.size(),
                   absl::InlinedVector<std::pair<intptr_t, intptr_t>, 2>{{-1, -1}}) {}
 
+    ~RangeSetCaptureManager() = default;
+
     RangeSetCaptureManager(RangeSetCaptureManager const &) = default;
     RangeSetCaptureManager &operator=(RangeSetCaptureManager const &) = default;
     RangeSetCaptureManager(RangeSetCaptureManager &&) noexcept = default;
@@ -302,6 +304,8 @@ class AbstractAutomaton : public SimpleRefCounted {
           source_(source),
           args_(args),
           ranges_(std::min(capture_groups.size(), args.size()), Range()) {}
+
+    ~SingleRangeCaptureManager() = default;
 
     SingleRangeCaptureManager(SingleRangeCaptureManager const &) = default;
     SingleRangeCaptureManager &operator=(SingleRangeCaptureManager const &) = default;

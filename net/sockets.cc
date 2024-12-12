@@ -7,27 +7,20 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <cstdint>
 #include <cstring>
 #include <optional>
-#include <string>
 #include <string_view>
 #include <tuple>
 #include <utility>
-#include <vector>
 
 #include "absl/functional/bind_front.h"
 #include "absl/log/check.h"
-#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/escaping.h"
-#include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "common/default_scheduler.h"
 #include "common/scheduler.h"
-#include "common/utilities.h"
 #include "net/base_sockets.h"
 
 namespace tsdb2 {
@@ -119,7 +112,7 @@ void Socket::MaybeFinalizeConnect() {
   socklen_t size = sizeof(error);
   if (::getsockopt(*fd_, SOL_SOCKET, SO_ERROR, &error, &size) < 0) {
     connect_state_->callback(this, absl::UnknownError("connect() failed"));
-  } else if (error) {
+  } else if (error != 0) {
     connect_state_->callback(this, absl::ErrnoToStatus(error, "connect()"));
   } else {
     connect_state_->callback(this, absl::OkStatus());
@@ -223,7 +216,7 @@ void Socket::OnOutput() {
     } else if (result > 0) {
       CHECK_LE(result, remaining);
       remaining -= result;
-      if (!remaining) {
+      if (remaining == 0) {
         auto state = ExpungeWriteState();
         lock.Release();
         return state.callback(absl::OkStatus());
@@ -274,7 +267,7 @@ void Socket::Timeout(std::string_view const status_message) {
 
 absl::Status Socket::ReadInternal(size_t const length, ReadCallback callback,
                                   std::optional<absl::Duration> const timeout) {
-  if (!length) {
+  if (length == 0) {
     return absl::InvalidArgumentError("the number of bytes to read must be at least 1");
   }
   if (!callback) {

@@ -5,6 +5,7 @@
 #include <netdb.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/un.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -17,9 +18,9 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/functional/any_invocable.h"
-#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
@@ -114,8 +115,8 @@ class Socket : public BaseSocket {
   template <typename SocketClass,
             std::enable_if_t<std::is_base_of_v<Socket, SocketClass>, bool> = true>
   static absl::StatusOr<tsdb2::common::reffed_ptr<SocketClass>> CreateClass(
-      EpollServer* parent, InetSocketTag, std::string_view address, uint16_t port,
-      SocketOptions const& options, ConnectCallback<SocketClass> callback);
+      EpollServer* parent, InetSocketTag /*inet_socket_tag*/, std::string_view address,
+      uint16_t port, SocketOptions const& options, ConnectCallback<SocketClass> callback);
 
   // Constructs a stream `Socket` connected to the specified Unix domain socket path. The path is
   // specified in the `socket_name` argument and must not be longer than
@@ -123,8 +124,8 @@ class Socket : public BaseSocket {
   template <typename SocketClass,
             std::enable_if_t<std::is_base_of_v<Socket, SocketClass>, bool> = true>
   static absl::StatusOr<tsdb2::common::reffed_ptr<SocketClass>> CreateClass(
-      EpollServer* parent, UnixDomainSocketTag, std::string_view socket_name,
-      ConnectCallback<SocketClass> callback);
+      EpollServer* parent, UnixDomainSocketTag /*unix_domain_socket_tag*/,
+      std::string_view socket_name, ConnectCallback<SocketClass> callback);
 
   // Creates a pair of connected sockets using the `socketpair` syscall.
   template <typename FirstSocket, typename SecondSocket,
@@ -135,10 +136,11 @@ class Socket : public BaseSocket {
       std::pair<tsdb2::common::reffed_ptr<FirstSocket>, tsdb2::common::reffed_ptr<SecondSocket>>>
   CreateClassPair(EpollServer* parent);
 
-  explicit Socket(EpollServer* const parent, ConnectedTag, FD fd)
+  explicit Socket(EpollServer* const parent, ConnectedTag /*connect_tag*/, FD fd)
       : BaseSocket(parent, std::move(fd)) {}
 
-  explicit Socket(EpollServer* const parent, ConnectingTag, FD fd, InternalConnectCallback callback)
+  explicit Socket(EpollServer* const parent, ConnectingTag /*connect_tag*/, FD fd,
+                  InternalConnectCallback callback)
       : BaseSocket(parent, std::move(fd)), connect_state_(std::move(callback)) {}
 
  private:
@@ -148,6 +150,7 @@ class Socket : public BaseSocket {
 
   struct ConnectState final {
     explicit ConnectState(InternalConnectCallback callback) : callback(std::move(callback)) {}
+    ~ConnectState() = default;
 
     ConnectState(ConnectState const&) = delete;
     ConnectState& operator=(ConnectState const&) = delete;
@@ -168,6 +171,8 @@ class Socket : public BaseSocket {
           callback(std::move(callback)),
           timeout(timeout),
           timeout_handle(timeout_handle) {}
+
+    ~ReadState() = default;
 
     ReadState(ReadState const&) = delete;
     ReadState& operator=(ReadState const&) = delete;
@@ -192,6 +197,8 @@ class Socket : public BaseSocket {
           callback(std::move(callback)),
           timeout(timeout),
           timeout_handle(timeout_handle) {}
+
+    ~WriteState() = default;
 
     WriteState(WriteState const&) = delete;
     WriteState& operator=(WriteState const&) = delete;
@@ -234,6 +241,11 @@ class Socket : public BaseSocket {
   CreatePairInternal(EpollServer* const parent) {
     return Socket::template CreateClassPair<FirstSocket, SecondSocket>(parent);
   }
+
+  Socket(Socket const&) = delete;
+  Socket& operator=(Socket const&) = delete;
+  Socket(Socket&&) = delete;
+  Socket& operator=(Socket&&) = delete;
 
   ReadState ExpungeReadState() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
     ReadState state = std::move(read_state_).value();
@@ -343,8 +355,8 @@ class ListenerSocket : public BaseListenerSocket {
       return absl::InvalidArgumentError("the accept callback must not be empty");
     }
     DEFINE_VAR_OR_RETURN(fd, CreateInetListener(address, port));
-    return tsdb2::common::WrapReffed(new ListenerSocket(
-        parent, tag, address, port, std::move(fd), std::move(options), callback, callback_arg));
+    return tsdb2::common::WrapReffed(new ListenerSocket(parent, tag, address, port, std::move(fd),
+                                                        options, callback, callback_arg));
   }
 
   static absl::StatusOr<tsdb2::common::reffed_ptr<ListenerSocket>> CreateInternal(
@@ -363,11 +375,10 @@ class ListenerSocket : public BaseListenerSocket {
       return absl::ErrnoToStatus(errno, "socket(AF_UNIX, SOCK_STREAM)");
     }
     FD fd{result};
-    struct sockaddr_un sa;
-    std::memset(&sa, 0, sizeof(sa));
+    struct sockaddr_un sa {};
     sa.sun_family = AF_UNIX;
     std::strncpy(sa.sun_path, socket_name.data(), kMaxUnixDomainSocketPathLength);
-    if (::bind(*fd, (struct sockaddr*)&sa, sizeof(sa)) < 0) {
+    if (::bind(*fd, reinterpret_cast<struct sockaddr*>(&sa), sizeof(sa)) < 0) {
       return absl::ErrnoToStatus(errno, "bind()");
     }
     if (::listen(*fd, SOMAXCONN) < 0) {
@@ -377,15 +388,16 @@ class ListenerSocket : public BaseListenerSocket {
         new ListenerSocket(parent, tag, socket_name, std::move(fd), callback, callback_arg));
   }
 
-  explicit ListenerSocket(EpollServer* const parent, InetSocketTag, std::string_view const address,
-                          uint16_t const port, FD fd, SocketOptions options,
-                          AcceptCallback const callback, void* const callback_arg)
+  explicit ListenerSocket(EpollServer* const parent, InetSocketTag /*inet_socket_tag*/,
+                          std::string_view const address, uint16_t const port, FD fd,
+                          SocketOptions options, AcceptCallback const callback,
+                          void* const callback_arg)
       : BaseListenerSocket(parent, address, port, std::move(fd)),
-        options_(std::move(options)),
+        options_(options),
         callback_arg_(callback_arg),
         callback_(callback) {}
 
-  explicit ListenerSocket(EpollServer* const parent, UnixDomainSocketTag,
+  explicit ListenerSocket(EpollServer* const parent, UnixDomainSocketTag /*unix_domain_socket_tag*/,
                           std::string_view const socket_name, FD fd, AcceptCallback const callback,
                           void* const callback_arg)
       : BaseListenerSocket(parent, socket_name, 0, std::move(fd)),
@@ -447,8 +459,8 @@ class ListenerSocket : public BaseListenerSocket {
 
 template <typename SocketClass, std::enable_if_t<std::is_base_of_v<Socket, SocketClass>, bool>>
 absl::StatusOr<tsdb2::common::reffed_ptr<SocketClass>> Socket::CreateClass(
-    EpollServer* const parent, InetSocketTag, std::string_view const address, uint16_t const port,
-    SocketOptions const& options, ConnectCallback<SocketClass> callback) {
+    EpollServer* const parent, InetSocketTag /*inet_socket_tag*/, std::string_view const address,
+    uint16_t const port, SocketOptions const& options, ConnectCallback<SocketClass> callback) {
   if (!callback) {
     return absl::InvalidArgumentError("The connect callback must not be empty");
   }
@@ -499,8 +511,8 @@ absl::StatusOr<tsdb2::common::reffed_ptr<SocketClass>> Socket::CreateClass(
 
 template <typename SocketClass, std::enable_if_t<std::is_base_of_v<Socket, SocketClass>, bool>>
 absl::StatusOr<tsdb2::common::reffed_ptr<SocketClass>> Socket::CreateClass(
-    EpollServer* const parent, UnixDomainSocketTag, std::string_view const socket_name,
-    ConnectCallback<SocketClass> callback) {
+    EpollServer* const parent, UnixDomainSocketTag /*unix_domain_socket_tag*/,
+    std::string_view const socket_name, ConnectCallback<SocketClass> callback) {
   if (!callback) {
     return absl::InvalidArgumentError("The connect callback must not be empty");
   }
@@ -514,11 +526,10 @@ absl::StatusOr<tsdb2::common::reffed_ptr<SocketClass>> Socket::CreateClass(
     return absl::ErrnoToStatus(errno, "socket(AF_UNIX, SOCK_STREAM)");
   }
   FD fd{result};
-  struct sockaddr_un sa;
-  std::memset(&sa, 0, sizeof(sa));
+  struct sockaddr_un sa {};
   sa.sun_family = AF_UNIX;
   std::strncpy(sa.sun_path, socket_name.data(), kMaxUnixDomainSocketPathLength);
-  if (::connect(*fd, (struct sockaddr*)&sa, sizeof(sa)) < 0) {
+  if (::connect(*fd, reinterpret_cast<struct sockaddr*>(&sa), sizeof(sa)) < 0) {
     if (errno != EINPROGRESS) {
       return absl::ErrnoToStatus(errno, "connect()");
     } else {

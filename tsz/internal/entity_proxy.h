@@ -2,10 +2,12 @@
 #define __TSDB2_TSZ_INTERNAL_ENTITY_PROXY_H__
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string_view>
 #include <utility>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
 #include "tsz/internal/entity.h"
@@ -21,6 +23,8 @@ class EntityProxy {
 
   explicit EntityProxy(std::shared_ptr<Entity> entity, absl::Time const time)
       : context_(std::move(entity), time) {}
+
+  ~EntityProxy() = default;
 
   EntityProxy(EntityProxy &&) noexcept = default;
   EntityProxy &operator=(EntityProxy &&) noexcept = default;

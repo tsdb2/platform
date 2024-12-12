@@ -2,6 +2,8 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
+#include <type_traits>
 #include <utility>
 
 #include "gmock/gmock.h"
@@ -117,20 +119,20 @@ TEST(EmptyMetricFieldsTest, Copyable) {
 
 TEST(EmptyEntityLabelsTest, Movable) {
   EntityLabels<> fd1;
-  EntityLabels<> fd2{std::move(fd1)};
+  EntityLabels<> fd2{std::move(fd1)};  // NOLINT(performance-move-const-arg)
   EntityLabels<> fd3;
   EntityLabels<> fd4;
-  fd4 = std::move(fd3);
+  fd4 = std::move(fd3);  // NOLINT(performance-move-const-arg)
   EXPECT_THAT(fd2.names(), ElementsAre());
   EXPECT_THAT(fd4.names(), ElementsAre());
 }
 
 TEST(EmptyMetricFieldsTest, Movable) {
   MetricFields<> fd1;
-  MetricFields<> fd2{std::move(fd1)};
+  MetricFields<> fd2{std::move(fd1)};  // NOLINT(performance-move-const-arg)
   MetricFields<> fd3;
   MetricFields<> fd4;
-  fd4 = std::move(fd3);
+  fd4 = std::move(fd3);  // NOLINT(performance-move-const-arg)
   EXPECT_THAT(fd2.names(), ElementsAre());
   EXPECT_THAT(fd4.names(), ElementsAre());
 }

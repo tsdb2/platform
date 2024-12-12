@@ -4,8 +4,6 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include <string>
-
 #include "absl/status/status.h"
 #include "common/testing.h"
 #include "gtest/gtest.h"
@@ -19,7 +17,7 @@ TEST(SigUsr1Test, Notify) {
   EXPECT_FALSE(sigusr1.is_notified());
   auto const pid = ::fork();
   ASSERT_GE(pid, 0) << absl::ErrnoToStatus(errno, "fork");
-  if (pid) {  // parent
+  if (pid != 0) {  // parent
     EXPECT_OK(sigusr1.WaitForNotification());
     EXPECT_TRUE(sigusr1.is_notified());
     ASSERT_GE(::waitpid(pid, nullptr, 0), 0);
@@ -36,7 +34,7 @@ TEST(SigUsr1Test, NotifyThread) {
   auto const tid = ::gettid();
   auto const pid = ::fork();
   ASSERT_GE(pid, 0) << absl::ErrnoToStatus(errno, "fork");
-  if (pid) {  // parent
+  if (pid != 0) {  // parent
     EXPECT_OK(sigusr1.WaitForNotification());
     EXPECT_TRUE(sigusr1.is_notified());
     ASSERT_GE(::waitpid(pid, nullptr, 0), 0);
@@ -52,7 +50,7 @@ TEST(SigUsr1Test, NotifyChild) {
   EXPECT_FALSE(sigusr1.is_notified());
   auto const pid = ::fork();
   ASSERT_GE(pid, 0) << absl::ErrnoToStatus(errno, "fork");
-  if (pid) {  // parent
+  if (pid != 0) {  // parent
     EXPECT_OK(SigUsr1::Notify(pid));
     EXPECT_FALSE(sigusr1.is_notified());
     ASSERT_GE(::waitpid(pid, nullptr, 0), 0);

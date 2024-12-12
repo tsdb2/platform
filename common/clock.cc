@@ -1,14 +1,16 @@
 #include "common/clock.h"
 
+#include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "common/utilities.h"
 
 namespace tsdb2 {
 namespace common {
 
 RealClock const* RealClock::GetInstance() {
-  static RealClock* const kInstance = new RealClock();
-  return kInstance;
+  static gsl::owner<RealClock*> const kInstance = new RealClock();
+  return kInstance;  // NOLINT(cppcoreguidelines-owning-memory)
 }
 
 absl::Time RealClock::TimeNow() const { return absl::Now(); }

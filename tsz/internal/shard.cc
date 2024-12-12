@@ -11,6 +11,7 @@
 #include "absl/time/time.h"
 #include "common/re.h"
 #include "tsz/internal/entity.h"
+#include "tsz/internal/entity_proxy.h"
 #include "tsz/internal/metric_config.h"
 #include "tsz/types.h"
 

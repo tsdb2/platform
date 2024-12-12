@@ -3,8 +3,8 @@
 #include <thread>
 
 #include "absl/base/attributes.h"
+#include "absl/base/const_init.h"
 #include "absl/synchronization/mutex.h"
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace {

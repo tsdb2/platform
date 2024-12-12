@@ -17,6 +17,7 @@
 #include "tsz/internal/exporter.h"
 #include "tsz/internal/scoped_metric_proxy.h"
 #include "tsz/internal/shard.h"
+#include "tsz/types.h"
 
 namespace tsz {
 
@@ -58,6 +59,8 @@ class BaseMetric {
             std::enable_if_t<MetricFieldsAlias::kHasTypeNames, bool> = true>
   explicit BaseMetric(std::string_view const name, Options options = {})
       : BaseMetric(GetDefaultEntity(), name, std::move(options)) {}
+
+  ~BaseMetric() = default;
 
   std::string_view name() const { return name_; }
   Options const &options() const { return options_; }
@@ -118,6 +121,8 @@ class BaseMetric<Value, EntityLabels<EntityLabelArgs...>, MetricFields<MetricFie
         entity_labels_(entity_label_names...),
         metric_fields_(metric_field_names...),
         shard_(absl::bind_front(&BaseMetric::DefineMetric, this)) {}
+
+  ~BaseMetric() = default;
 
   std::string_view name() const { return name_; }
   Options const &options() const { return options_; }

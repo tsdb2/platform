@@ -31,6 +31,8 @@ class SimpleCondition : public absl::Condition {
   explicit SimpleCondition(absl::AnyInvocable<bool() const> callback)
       : absl::Condition(this, &SimpleCondition::Run), callback_(std::move(callback)) {}
 
+  ~SimpleCondition() = default;
+
  private:
   SimpleCondition(SimpleCondition const &) = delete;
   SimpleCondition &operator=(SimpleCondition const &) = delete;

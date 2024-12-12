@@ -33,6 +33,7 @@ using HeaderSet = std::vector<Header>;
 class DynamicHeaderTable final {
  public:
   explicit DynamicHeaderTable(size_t const max_size) : max_size_(max_size) {}
+  ~DynamicHeaderTable() = default;
 
   DynamicHeaderTable(DynamicHeaderTable const &) = default;
   DynamicHeaderTable &operator=(DynamicHeaderTable const &) = default;
@@ -96,6 +97,7 @@ class DynamicHeaderTable final {
 class Decoder final {
  public:
   explicit Decoder() = default;
+  ~Decoder() = default;
 
   Decoder(Decoder const &) = default;
   Decoder &operator=(Decoder const &) = default;
@@ -147,6 +149,7 @@ class Decoder final {
 class Encoder final {
  public:
   explicit Encoder() = default;
+  ~Encoder() = default;
 
   Encoder(Encoder const &) = default;
   Encoder &operator=(Encoder const &) = default;

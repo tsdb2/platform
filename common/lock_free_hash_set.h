@@ -3,8 +3,8 @@
 
 #include <cstddef>
 #include <initializer_list>
+#include <memory>
 #include <utility>
-#include <vector>
 
 #include "common/lock_free_container_internal.h"
 #include "common/raw_lock_free_hash.h"

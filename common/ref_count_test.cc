@@ -3,7 +3,6 @@
 #include <memory>
 
 #include "common/reffed_ptr.h"
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace {
@@ -114,9 +113,14 @@ TEST_F(RefCountedTest, RefRefUnrefUnref) {
 class TestSimpleRefCounted : public SimpleRefCounted {
  public:
   explicit TestSimpleRefCounted(bool *const flag) : flag_(flag) {}
-  ~TestSimpleRefCounted() { *flag_ = true; }
+  ~TestSimpleRefCounted() override { *flag_ = true; }
 
  private:
+  TestSimpleRefCounted(TestSimpleRefCounted const &) = delete;
+  TestSimpleRefCounted &operator=(TestSimpleRefCounted const &) = delete;
+  TestSimpleRefCounted(TestSimpleRefCounted &&) = delete;
+  TestSimpleRefCounted &operator=(TestSimpleRefCounted &&) = delete;
+
   bool *const flag_;
 };
 
@@ -145,7 +149,7 @@ TEST_F(SimpleRefCountedTest, RefRefUnrefUnref) {
   {
     auto rc1 = MakeReffed<TestSimpleRefCounted>(&flag_);
     {
-      auto rc2 = rc1;
+      auto rc2 = rc1;  // NOLINT(performance-unnecessary-copy-initialization)
       EXPECT_FALSE(flag_);
     }
     EXPECT_FALSE(flag_);

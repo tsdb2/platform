@@ -17,10 +17,14 @@ namespace common {
 template <typename T>
 class NoDestructor {
  public:
+  // NOLINTBEGIN(cppcoreguidelines-pro-type-member-init)
   template <typename... Args>
   explicit constexpr NoDestructor(Args&&... args) {
     new (storage_) T(std::forward<Args>(args)...);
   }
+  // NOLINTEND(cppcoreguidelines-pro-type-member-init)
+
+  ~NoDestructor() = default;
 
   T* Get() { return reinterpret_cast<T*>(storage_); }
   T const* Get() const { return reinterpret_cast<T const*>(storage_); }

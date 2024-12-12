@@ -17,6 +17,7 @@ namespace common {
 // `RealClock::GetInstance`.
 class Clock {
  public:
+  explicit Clock() = default;
   virtual ~Clock() = default;
 
   // Returns the current time.
@@ -45,6 +46,12 @@ class Clock {
   // while the implementation from `MockClock` uses the simulated time.
   virtual bool AwaitWithDeadline(absl::Mutex* mutex, absl::Condition const& condition,
                                  absl::Time deadline) const ABSL_SHARED_LOCKS_REQUIRED(mutex) = 0;
+
+ private:
+  Clock(Clock const&) = delete;
+  Clock& operator=(Clock const&) = delete;
+  Clock(Clock&&) = delete;
+  Clock& operator=(Clock&&) = delete;
 };
 
 // Default `Clock` implementation.

@@ -4,7 +4,6 @@
 #include <utility>
 
 #include "common/testing.h"
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "tsz/bucketer.h"
 
@@ -77,7 +76,8 @@ TEST(DistributionTest, RecordOneSampleManyTimes) {
 }
 
 TEST(DistributionTest, AddEmptyToEmpty) {
-  Distribution distribution1, distribution2;
+  Distribution distribution1;
+  Distribution distribution2;
   EXPECT_OK(distribution1.Add(distribution2));
   EXPECT_EQ(distribution1.num_finite_buckets(), Bucketer::Default().num_finite_buckets());
   for (size_t i = 0; i < distribution1.num_finite_buckets(); ++i) {
@@ -216,6 +216,20 @@ TEST(DistributionTest, Copy) {
   EXPECT_EQ(distribution2.mean(), 3);
 }
 
+TEST(DistributionTest, SelfCopy) {
+  Distribution distribution;
+  distribution.Record(1);
+  distribution.Record(5);
+  distribution = distribution;  // NOLINT
+  EXPECT_EQ(distribution.bucket(1), 1);
+  EXPECT_EQ(distribution.bucket(2), 1);
+  EXPECT_EQ(distribution.sum(), 6);
+  EXPECT_EQ(distribution.sum_of_squared_deviations(), 8);
+  EXPECT_EQ(distribution.count(), 2);
+  EXPECT_FALSE(distribution.empty());
+  EXPECT_EQ(distribution.mean(), 3);
+}
+
 TEST(DistributionTest, CopyConstruct) {
   Distribution distribution1;
   distribution1.Record(42);
@@ -248,6 +262,20 @@ TEST(DistributionTest, Move) {
   EXPECT_EQ(distribution1.count(), 2);
   EXPECT_FALSE(distribution1.empty());
   EXPECT_EQ(distribution1.mean(), 3);
+}
+
+TEST(DistributionTest, SelfMove) {
+  Distribution distribution;
+  distribution.Record(1);
+  distribution.Record(5);
+  distribution = std::move(distribution);  // NOLINT
+  EXPECT_EQ(distribution.bucket(1), 1);
+  EXPECT_EQ(distribution.bucket(2), 1);
+  EXPECT_EQ(distribution.sum(), 6);
+  EXPECT_EQ(distribution.sum_of_squared_deviations(), 8);
+  EXPECT_EQ(distribution.count(), 2);
+  EXPECT_FALSE(distribution.empty());
+  EXPECT_EQ(distribution.mean(), 3);
 }
 
 TEST(DistributionTest, MoveConstruct) {
@@ -304,6 +332,20 @@ TEST(DistributionTest, AdlSwap) {
   EXPECT_EQ(distribution2.count(), 1);
   EXPECT_FALSE(distribution2.empty());
   EXPECT_EQ(distribution2.mean(), 42);
+}
+
+TEST(DistributionTest, SelfSwap) {
+  Distribution distribution;
+  distribution.Record(1);
+  distribution.Record(5);
+  swap(distribution, distribution);
+  EXPECT_EQ(distribution.bucket(1), 1);
+  EXPECT_EQ(distribution.bucket(2), 1);
+  EXPECT_EQ(distribution.sum(), 6);
+  EXPECT_EQ(distribution.sum_of_squared_deviations(), 8);
+  EXPECT_EQ(distribution.count(), 2);
+  EXPECT_FALSE(distribution.empty());
+  EXPECT_EQ(distribution.mean(), 3);
 }
 
 }  // namespace

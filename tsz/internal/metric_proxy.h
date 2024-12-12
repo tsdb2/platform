@@ -9,6 +9,7 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/time/time.h"
 #include "tsz/internal/metric.h"
 #include "tsz/types.h"
 
@@ -25,6 +26,8 @@ class MetricProxy {
   explicit MetricProxy(std::shared_ptr<MetricManager> manager, std::shared_ptr<Metric> metric,
                        absl::Time const time)
       : manager_(std::move(manager)), metric_(std::move(metric)), context_(metric_, time) {}
+
+  ~MetricProxy() = default;
 
   MetricProxy(MetricProxy&&) noexcept = default;
   MetricProxy& operator=(MetricProxy&&) noexcept = default;

@@ -1,7 +1,5 @@
 #include "common/mock_clock.h"
 
-#include <memory>
-#include <string>
 #include <thread>
 
 #include "absl/synchronization/mutex.h"

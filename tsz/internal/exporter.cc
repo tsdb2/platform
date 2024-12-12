@@ -3,9 +3,12 @@
 #include <string_view>
 #include <utility>
 
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "common/singleton.h"
 #include "common/utilities.h"
 #include "tsz/internal/metric_config.h"
+#include "tsz/internal/shard.h"
 #include "tsz/types.h"
 
 namespace tsz {

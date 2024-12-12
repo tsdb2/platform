@@ -1,9 +1,9 @@
 #include "common/mock_clock.h"
 
-#include <algorithm>
 #include <utility>
 #include <vector>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
@@ -51,7 +51,7 @@ void MockClock::SetTime(absl::Time const time) {
     current_time_ = time;
     listeners = GetDeadlinedListeners();
   }
-  for (auto const listener : listeners) {
+  for (auto* const listener : listeners) {
     listener->Notify();
   }
 }
@@ -63,7 +63,7 @@ void MockClock::AdvanceTime(absl::Duration const delta) {
     current_time_ += delta;
     listeners = GetDeadlinedListeners();
   }
-  for (auto const listener : listeners) {
+  for (auto* const listener : listeners) {
     listener->Notify();
   }
 }

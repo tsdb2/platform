@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/base/thread_annotations.h"
 #include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
 
@@ -24,6 +25,8 @@ class Overridable {
  public:
   template <typename... Args>
   explicit Overridable(Args&&... args) : value_(std::forward<Args>(args)...) {}
+
+  ~Overridable() = default;
 
   // TEST ONLY: replace the wrapped value with a different one.
   void Override(T* const value) ABSL_LOCKS_EXCLUDED(mutex_) {

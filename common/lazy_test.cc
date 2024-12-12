@@ -23,6 +23,11 @@ class TestConstructible {
 
   ~TestConstructible() { *destroyed_ = true; }
 
+  TestConstructible(TestConstructible const &) = default;
+  TestConstructible &operator=(TestConstructible const &) = default;
+  TestConstructible(TestConstructible &&) noexcept = default;
+  TestConstructible &operator=(TestConstructible &&) noexcept = default;
+
   std::string_view get_str() const { return str_; }
   int get_int() const { return int_; }
 

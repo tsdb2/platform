@@ -65,12 +65,19 @@ namespace internal {
 // Internal interface used by `ChannelProcessor` to perform I/O on the channel.
 class ChannelInterface {
  public:
+  explicit ChannelInterface() = default;
   virtual ~ChannelInterface() = default;
   virtual tsdb2::net::BaseSocket* socket() = 0;
   virtual tsdb2::net::BaseSocket const* socket() const = 0;
   virtual void ReadContinuationFrame(uint32_t stream_id) = 0;
   virtual void ReadNextFrame() = 0;
   virtual void CloseConnection() = 0;
+
+ private:
+  ChannelInterface(ChannelInterface const&) = delete;
+  ChannelInterface& operator=(ChannelInterface const&) = delete;
+  ChannelInterface(ChannelInterface&&) = delete;
+  ChannelInterface& operator=(ChannelInterface&&) = delete;
 };
 
 }  // namespace internal
@@ -107,7 +114,7 @@ class Channel final : private Socket, public BaseChannel, private internal::Chan
   void Ref() override { Socket::Ref(); }
   bool Unref() override { return Socket::Unref(); }
 
-  ~Channel() { Close(); }
+  ~Channel() override { Close(); }
 
   // Starts an HTTP/2 server by reading the client preface and then starting exchanging frames.
   void StartServer() override {

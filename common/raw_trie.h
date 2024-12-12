@@ -19,8 +19,7 @@
 #include "common/flat_map.h"
 #include "common/re.h"
 #include "common/re/automaton.h"
-#include "common/re/dfa.h"
-#include "common/re/nfa.h"
+#include "common/reffed_ptr.h"
 
 namespace tsdb2 {
 namespace common {
@@ -130,6 +129,8 @@ class TrieNode {
     explicit StateFrame(typename NodeSet::iterator pos_it, typename NodeSet::iterator end_it)
         : pos_(std::move(pos_it)), end_(std::move(end_it)) {}
 
+    ~StateFrame() = default;
+
     StateFrame(StateFrame const&) = default;
     StateFrame& operator=(StateFrame const&) = default;
     StateFrame(StateFrame&&) noexcept = default;
@@ -179,6 +180,7 @@ class TrieNode {
    public:
     explicit StateFrame(NodeSet& nodes) : pos_(nodes.rbegin()), end_(nodes.rend()) {}
     explicit StateFrame(NodeSet const& nodes) : StateFrame(const_cast<NodeSet&>(nodes)) {}
+    ~StateFrame() = default;
 
     StateFrame(StateFrame const&) = default;
     StateFrame& operator=(StateFrame const&) = default;
@@ -239,6 +241,8 @@ class TrieNode {
           parent_stepper_(parent_stepper.get()),
           stepper_(parent_stepper ? parent_stepper->Clone() : Stepper()) {}
 
+    ~BaseFilteredStateFrame() = default;
+
     BaseFilteredStateFrame(BaseFilteredStateFrame const&) = default;
     BaseFilteredStateFrame& operator=(BaseFilteredStateFrame const&) = default;
     BaseFilteredStateFrame(BaseFilteredStateFrame&&) noexcept = default;
@@ -259,7 +263,7 @@ class TrieNode {
 
     bool Advance() {
       if (Base::Advance()) {
-        if (parent_stepper_) {
+        if (parent_stepper_ != nullptr) {
           stepper_ = parent_stepper_->Clone();
         }
         return true;
@@ -303,6 +307,7 @@ class TrieNode {
     template <typename... Args>
     explicit FilteredStateFrame(Args&&... args)
         : BaseFilteredStateFrame<reverse>(std::forward<Args>(args)...) {}
+    ~FilteredStateFrame() = default;
     FilteredStateFrame(FilteredStateFrame const&) = default;
     FilteredStateFrame& operator=(FilteredStateFrame const&) = default;
     FilteredStateFrame(FilteredStateFrame&&) noexcept = default;
@@ -316,6 +321,7 @@ class TrieNode {
     template <typename... Args>
     explicit PrefixFilteredStateFrame(Args&&... args)
         : BaseFilteredStateFrame<reverse>(std::forward<Args>(args)...) {}
+    ~PrefixFilteredStateFrame() = default;
     PrefixFilteredStateFrame(PrefixFilteredStateFrame const&) = default;
     PrefixFilteredStateFrame& operator=(PrefixFilteredStateFrame const&) = default;
     PrefixFilteredStateFrame(PrefixFilteredStateFrame&&) noexcept = default;
@@ -386,6 +392,8 @@ class TrieNode {
 
     // Constructs an iterator with the given state frames.
     explicit BaseIterator(std::vector<StateFrame<reverse>> frames) : frames_(std::move(frames)) {}
+
+    ~BaseIterator() = default;
 
     // Returns true iff this is the end iterator.
     bool is_end() const { return frames_.empty(); }
@@ -473,6 +481,8 @@ class TrieNode {
     explicit BaseFilteredIterator() = default;
     explicit BaseFilteredIterator(std::vector<StateFrame> frames) : frames_(std::move(frames)) {}
 
+    ~BaseFilteredIterator() = default;
+
     // Returns true iff this is the end iterator.
     bool is_end() const { return frames_.empty(); }
 
@@ -539,6 +549,8 @@ class TrieNode {
     // Constructs the "end" iterator.
     explicit BaseIterator() = default;
 
+    ~BaseIterator() = default;
+
     // Advances the iterator to the next node repeatedly until either the next matching terminal
     // node is found or there are no more nodes. In the latter case the iterator becomes the end
     // iterator of the trie.
@@ -594,6 +606,8 @@ class TrieNode {
     // Constructs the "end" iterator.
     explicit BaseIterator() = default;
 
+    ~BaseIterator() = default;
+
     // Advances the iterator to the next node repeatedly until either the next matching terminal
     // node is found or there are no more nodes. In the latter case the iterator becomes the end
     // iterator of the trie.
@@ -639,6 +653,8 @@ class TrieNode {
   class GenericIterator : public BaseIterator<StateFrame> {
    public:
     using BaseIterator<StateFrame>::swap;
+
+    ~GenericIterator() = default;
 
     GenericIterator(GenericIterator const&) = default;
     GenericIterator& operator=(GenericIterator const&) = default;
@@ -695,15 +711,19 @@ class TrieNode {
    public:
     using BaseIterator<StateFrame>::swap;
 
+    ~GenericConstIterator() = default;
+
     GenericConstIterator(GenericConstIterator const&) = default;
     GenericConstIterator& operator=(GenericConstIterator const&) = default;
     GenericConstIterator(GenericConstIterator&&) noexcept = default;
     GenericConstIterator& operator=(GenericConstIterator&&) noexcept = default;
 
+    // NOLINTBEGIN(google-explicit-constructor)
     GenericConstIterator(GenericIterator<StateFrame> const& other)
         : BaseIterator<StateFrame>(other.frames_) {}
     GenericConstIterator(GenericIterator<StateFrame>&& other) noexcept
         : BaseIterator<StateFrame>(std::move(other.frames_)) {}
+    // NOLINTEND(google-explicit-constructor)
 
     template <typename Value = typename Traits::Mapped,
               std::enable_if_t<std::is_void_v<Value>, bool> = true>
@@ -777,6 +797,7 @@ class TrieNode {
   // `FilteredView` itself.
   class FilteredView {
    public:
+    ~FilteredView() = default;
     FilteredView(FilteredView const&) = default;
     FilteredView& operator=(FilteredView const&) = default;
     FilteredView(FilteredView&&) noexcept = default;
@@ -844,6 +865,7 @@ class TrieNode {
   // and copy the `PrefixFilteredView` itself.
   class PrefixFilteredView {
    public:
+    ~PrefixFilteredView() = default;
     PrefixFilteredView(PrefixFilteredView const&) = default;
     PrefixFilteredView& operator=(PrefixFilteredView const&) = default;
     PrefixFilteredView(PrefixFilteredView&&) noexcept = default;
@@ -907,6 +929,8 @@ class TrieNode {
   template <typename... Args>
   explicit TrieNode(EntryAllocator const& alloc, Args&&... args)
       : label_(std::forward<Args>(args)...), children_(alloc) {}
+
+  ~TrieNode() = default;
 
   TrieNode(TrieNode const& other) = default;
   TrieNode& operator=(TrieNode const& other) = default;
@@ -1275,9 +1299,9 @@ template <typename Label, typename Allocator>
 template <typename... Args>
 std::pair<typename TrieNode<Label, Allocator>::Iterator, bool>
 TrieNode<Label, Allocator>::InsertChild(std::vector<DirectStateFrame> frames,
-                                        std::string_view const value, Args&&... args) {
+                                        std::string_view const key, Args&&... args) {
   auto const [it, unused_inserted] = children_.try_emplace(
-      std::string(value), children_.get_allocator(), std::forward<Args>(args)...);
+      std::string(key), children_.get_allocator(), std::forward<Args>(args)...);
   frames.emplace_back(it, children_.end());
   return std::make_pair(Iterator(std::move(frames)), true);
 }

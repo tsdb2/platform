@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <utility>
 
@@ -114,7 +115,7 @@ class RE {
   // it's okay to provide fewer or more: missing substrings won't be retrieved and extra string
   // views will be ignored.
   template <typename... Args>
-  static absl::Status MatchArgs(std::string_view const input, std::string_view const pattern,
+  static absl::Status MatchArgs(std::string_view input, std::string_view pattern,
                                 Args *const... args);
 
   // Checks if `input` contains a substring matching `pattern` and returns an array of the strings
@@ -147,7 +148,7 @@ class RE {
   // it's okay to provide fewer or more: missing substrings won't be retrieved and extra string
   // views will be ignored.
   template <typename... Args>
-  static absl::Status PartialMatchArgs(std::string_view const input, std::string_view const pattern,
+  static absl::Status PartialMatchArgs(std::string_view input, std::string_view pattern,
                                        Args *const... args);
 
   // Strips the longest possible prefix matching `pattern` from the provided `input` string. Returns
@@ -190,6 +191,8 @@ class RE {
   // must be absolutely sure that it compiles correctly. You should only pass hard-coded regular
   // expression patterns and never use user-provided ones.
   static RE CreateOrDie(std::string_view pattern, Options const &options = {});
+
+  ~RE() = default;
 
   // Moves and copies are efficient because the inner automaton is immutable and is managed by means
   // of reference counting, so we never move or copy the whole automaton, just a pointer to it.

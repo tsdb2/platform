@@ -2,13 +2,14 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <cstdint>
 #include <memory>
 #include <optional>
 #include <utility>
+#include <vector>
 
 #include "absl/algorithm/container.h"
-#include "absl/base/const_init.h"
+#include "absl/base/attributes.h"
+#include "absl/base/thread_annotations.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
@@ -98,6 +99,8 @@ class TaskScope final {
  private:
   TaskScope(TaskScope const &) = delete;
   TaskScope &operator=(TaskScope const &) = delete;
+  TaskScope(TaskScope &&) = delete;
+  TaskScope &operator=(TaskScope &&) = delete;
 };
 
 }  // namespace
@@ -134,8 +137,8 @@ bool Scheduler::CancelInternal(Handle const handle, bool const blocking) {
   }
   auto &task = const_cast<Task &>(*it);
   task.set_cancelled(true);
-  auto *const ref = task.ref();
-  if (ref) {
+  auto const *const ref = task.ref();
+  if (ref != nullptr) {
     size_t const i = ref - queue_.data();
     task.set_due_time(absl::InfinitePast());
     CompareTasks compare;
@@ -157,7 +160,7 @@ bool Scheduler::CancelInternal(Handle const handle, bool const blocking) {
 absl::StatusOr<Scheduler::Task *> Scheduler::FetchTask(Worker *const worker, Task *const previous) {
   absl::MutexLock lock{&mutex_};
   Worker::SleepScope worker_sleep_scope{worker};
-  if (previous) {
+  if (previous != nullptr) {
     if (!previous->cancelled() && previous->is_periodic()) {
       auto const period = previous->period();
       auto const due_time = previous->due_time();
@@ -186,7 +189,7 @@ absl::StatusOr<Scheduler::Task *> Scheduler::FetchTask(Worker *const worker, Tas
     }
     if (!queue_.empty() && queue_.front()->due_time() <= clock_->TimeNow()) {
       std::pop_heap(queue_.begin(), queue_.end(), CompareTasks());
-      auto const task = queue_.back().Get();
+      auto *const task = queue_.back().Get();
       queue_.pop_back();
       if (task->cancelled()) {
         tasks_.erase(task->handle());

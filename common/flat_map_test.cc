@@ -8,6 +8,7 @@
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -52,6 +53,11 @@ class TestValuesMatcher<flat_map<Key, Value, Compare, Representation>>
   explicit TestValuesMatcher() = default;
   ~TestValuesMatcher() override = default;
 
+  TestValuesMatcher(TestValuesMatcher const&) = default;
+  TestValuesMatcher& operator=(TestValuesMatcher const&) = default;
+  TestValuesMatcher(TestValuesMatcher&&) noexcept = default;
+  TestValuesMatcher& operator=(TestValuesMatcher&&) noexcept = default;
+
   bool MatchAndExplain(FlatMap const& value,
                        ::testing::MatchResultListener* const listener) const override {
     return MatchAndExplainInternal(value, value.begin(), listener);
@@ -86,6 +92,11 @@ class TestValuesMatcher<flat_map<Key, Value, Compare, Representation>, KeyMatche
         value_matcher_(std::move(value)) {}
 
   ~TestValuesMatcher() override = default;
+
+  TestValuesMatcher(TestValuesMatcher const&) = default;
+  TestValuesMatcher& operator=(TestValuesMatcher const&) = default;
+  TestValuesMatcher(TestValuesMatcher&&) noexcept = default;
+  TestValuesMatcher& operator=(TestValuesMatcher&&) noexcept = default;
 
   void DescribeTo(std::ostream* const os) const override {
     *os << "is a flat_map with:";
@@ -1168,7 +1179,7 @@ TEST(FlatMapWithAllocatorTest, InitializerListAndAllocator) {
 TEST(FlatMapWithAllocatorTest, CopyAllocator) {
   TestAllocator alloc{42};
   flat_map<int, int, std::less<int>, std::vector<std::pair<int, int>, TestAllocator>> fm1{alloc};
-  auto fm2 = fm1;
+  auto fm2 = fm1;  // NOLINT(performance-unnecessary-copy-initialization)
   EXPECT_THAT(fm2.get_allocator(), Property(&TestAllocator::tag, 42));
 }
 

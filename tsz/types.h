@@ -14,15 +14,16 @@
 #include "absl/hash/hash.h"
 #include "absl/time/time.h"
 #include "common/flat_map.h"
-#include "common/no_destructor.h"
-#include "common/reffed_ptr.h"
-#include "tsz/bucketer.h"
-#include "tsz/distribution.h"
-#include "tsz/realm.h"
+#include "common/no_destructor.h"  // IWYU pragma: export
+#include "common/reffed_ptr.h"     // IWYU pragma: export
+#include "tsz/bucketer.h"          // IWYU pragma: export
+#include "tsz/distribution.h"      // IWYU pragma: export
+#include "tsz/realm.h"             // IWYU pragma: export
 
 namespace tsz {
 
-using ::tsdb2::common::NoDestructor;  // re-export for convenience.
+// re-export for convenience.
+using ::tsdb2::common::NoDestructor;  // IWYU pragma: export
 
 enum class TimeUnit { kNanosecond, kMicrosecond, kMillisecond, kSecond };
 

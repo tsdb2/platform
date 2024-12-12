@@ -73,6 +73,7 @@ class ExclusiveFileLock final {
   // Creates an empty `ExclusiveFileLock` object. The `Release` method and the destructor of an
   // empty lock are no-ops unless another `ExclusiveFileLock` object is moved into this one.
   explicit ExclusiveFileLock() = default;
+  ~ExclusiveFileLock() = default;
 
   // Moving moves ownership of the lock.
   ExclusiveFileLock(ExclusiveFileLock &&other) noexcept = default;
@@ -123,6 +124,8 @@ class ExclusiveFileLock final {
 
     explicit InternalLock(ino_t const inode_number, off_t const start, off_t const length, FD fd)
         : inode_number_(inode_number), start_(start), length_(length), fd_(std::move(fd)) {}
+
+    ~InternalLock() override = default;
 
     template <typename H>
     friend H AbslHashValue(H h, InternalLock const &lock) {
@@ -176,7 +179,7 @@ class ExclusiveFileLock final {
     InternalLock(InternalLock &&) = delete;
     InternalLock &operator=(InternalLock &&) = delete;
 
-    void OnLastUnref() ABSL_LOCKS_EXCLUDED(mutex_);
+    void OnLastUnref() override ABSL_LOCKS_EXCLUDED(mutex_);
 
     void Release();
 

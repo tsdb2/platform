@@ -2,6 +2,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/const_init.h"
+#include "absl/base/thread_annotations.h"
 #include "absl/debugging/failure_signal_handler.h"
 #include "absl/flags/parse.h"
 #include "absl/log/check.h"

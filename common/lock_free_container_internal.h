@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <functional>
 #include <string>
+#include <string_view>
 #include <type_traits>
 
 #include "absl/hash/hash.h"
@@ -38,7 +39,7 @@ struct DefaultHashEq<std::string> {
   };
   struct Eq {
     using is_transparent = void;
-    size_t operator()(std::string_view const lhs, std::string_view const rhs) const {
+    bool operator()(std::string_view const lhs, std::string_view const rhs) const {
       return lhs == rhs;
     }
   };

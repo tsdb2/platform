@@ -22,6 +22,11 @@ class TestObject {
   std::string_view label() const { return label_; }
 
  private:
+  TestObject(TestObject const &) = delete;
+  TestObject &operator=(TestObject const &) = delete;
+  TestObject(TestObject &&) = delete;
+  TestObject &operator=(TestObject &&) = delete;
+
   std::string const label_;
 };
 

@@ -23,7 +23,8 @@ template <>
 class MultiMutexLockImpl<> {
  public:
   explicit MultiMutexLockImpl() = default;
-  explicit MultiMutexLockImpl(absl::Condition const&) {}
+  explicit MultiMutexLockImpl(absl::Condition const& /*condition*/) {}
+  ~MultiMutexLockImpl() = default;
 
  private:
   MultiMutexLockImpl(MultiMutexLockImpl const&) = delete;
@@ -111,12 +112,12 @@ class MultiMutexLock {
   }
 
   template <size_t... Is>
-  explicit MultiMutexLock(Array const& array, std::index_sequence<Is...> const&)
+  explicit MultiMutexLock(Array const& array, std::index_sequence<Is...> const& /*index_sequence*/)
       : impl_{array[Is]...} {}
 
   template <size_t... Is>
   explicit MultiMutexLock(absl::Condition const& condition, Array const& array,
-                          std::index_sequence<Is...> const&)
+                          std::index_sequence<Is...> const& /*index_sequence*/)
       : impl_{condition, array[Is]...} {}
 
   internal::MultiMutexLockImpl<Mutex...> impl_;

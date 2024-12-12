@@ -4,7 +4,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <utility>
-#include <variant>
 
 #include "absl/time/time.h"
 #include "tsz/types.h"
@@ -81,13 +80,15 @@ class Cell {
   // REQUIRES: `hash` MUST be the hash of `metric_fields` obtained from `absl::HashOf`. We cannot
   // calculate it ourselves because this constructor is executed in a latency-sensitive context.
   template <typename MetricFields>
-  explicit Cell(DistributionCell, MetricFields &&metric_fields, size_t const hash,
-                Bucketer const *const bucketer, absl::Time const now)
+  explicit Cell(DistributionCell /*distribution_cell*/, MetricFields &&metric_fields,
+                size_t const hash, Bucketer const *const bucketer, absl::Time const now)
       : metric_fields_(std::forward<MetricFields>(metric_fields)),
         hash_(hash),
         value_(Distribution(bucketer ? *bucketer : Bucketer::Default())),
         start_time_(now),
         last_update_time_(now) {}
+
+  ~Cell() = default;
 
   Cell(Cell const &) = default;
   Cell &operator=(Cell const &) = default;

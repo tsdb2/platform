@@ -26,7 +26,6 @@
 #include "absl/numeric/int128.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "absl/types/span.h"
 #include "common/flat_map.h"
 #include "common/flat_set.h"
 #include "common/ref_count.h"

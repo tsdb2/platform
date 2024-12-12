@@ -5,8 +5,8 @@
 #include <string_view>
 #include <type_traits>
 #include <utility>
-#include <variant>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -16,6 +16,7 @@
 #include "common/fixed.h"
 #include "tsz/base.h"
 #include "tsz/internal/exporter.h"
+#include "tsz/internal/shard.h"
 
 namespace tsz {
 namespace testing {
@@ -103,6 +104,9 @@ class CellReader<Value, EntityLabels<EntityLabelArgs...>, MetricFields<MetricFie
 
  private:
   using CellKey = util::CatTupleT<typename EntityLabels::Tuple, typename MetricFields::Tuple>;
+
+  CellReader(CellReader const &) = delete;
+  CellReader &operator=(CellReader const &) = delete;
 
   tsz::internal::Shard *GetShard() const;
 

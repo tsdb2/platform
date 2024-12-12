@@ -6,8 +6,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <cstdio>
 #include <cstring>
-#include <memory>
 #include <string_view>
 
 #include "absl/status/status.h"
@@ -51,15 +51,16 @@ TEST(AdvisoryFileLockTest, FullRange) {
   SigUsr1 sigusr1;
   auto const pid = ::fork();
   ASSERT_GE(pid, 0) << absl::ErrnoToStatus(errno, "fork");
-  if (pid) {  // parent
+  if (pid != 0) {  // parent
     ASSERT_OK(sigusr1.WaitForNotification());
-    LockInfo fl;
-    std::memset(&fl, 0, sizeof(LockInfo));
+    LockInfo fl{};
     fl.l_type = F_WRLCK;
     fl.l_whence = SEEK_SET;
     fl.l_start = 0;
     fl.l_len = 1;
-    ASSERT_LE(::fcntl(file.fd().get(), F_GETLK, &fl), 0) << absl::ErrnoToStatus(errno, "fnctl");
+    int const result =
+        ::fcntl(file.fd().get(), F_GETLK, &fl);  // NOLINT(cppcoreguidelines-pro-type-vararg)
+    ASSERT_LE(result, 0) << absl::ErrnoToStatus(errno, "fnctl");
     EXPECT_THAT(fl, AllOf(Field(&LockInfo::l_type, F_WRLCK), Field(&LockInfo::l_whence, SEEK_SET),
                           Field(&LockInfo::l_start, 0), Field(&LockInfo::l_len, 0),
                           Field(&LockInfo::l_pid, pid)));
@@ -83,15 +84,16 @@ TEST(AdvisoryFileLockTest, NestedLocks) {
   SigUsr1 sigusr1;
   auto const pid = ::fork();
   ASSERT_GE(pid, 0) << absl::ErrnoToStatus(errno, "fork");
-  if (pid) {  // parent
+  if (pid != 0) {  // parent
     ASSERT_OK(sigusr1.WaitForNotification());
-    LockInfo fl;
-    std::memset(&fl, 0, sizeof(LockInfo));
+    LockInfo fl{};
     fl.l_type = F_WRLCK;
     fl.l_whence = SEEK_SET;
     fl.l_start = 0;
     fl.l_len = 1;
-    ASSERT_LE(::fcntl(file.fd().get(), F_GETLK, &fl), 0) << absl::ErrnoToStatus(errno, "fnctl");
+    int const result =
+        ::fcntl(file.fd().get(), F_GETLK, &fl);  // NOLINT(cppcoreguidelines-pro-type-vararg)
+    ASSERT_LE(result, 0) << absl::ErrnoToStatus(errno, "fnctl");
     EXPECT_THAT(fl, AllOf(Field(&LockInfo::l_type, F_WRLCK), Field(&LockInfo::l_whence, SEEK_SET),
                           Field(&LockInfo::l_start, 0), Field(&LockInfo::l_len, 0),
                           Field(&LockInfo::l_pid, pid)));
@@ -117,15 +119,16 @@ TEST(AdvisoryFileLockTest, InnerLockReleased) {
   SigUsr1 sigusr1;
   auto const pid = ::fork();
   ASSERT_GE(pid, 0) << absl::ErrnoToStatus(errno, "fork");
-  if (pid) {  // parent
+  if (pid != 0) {  // parent
     ASSERT_OK(sigusr1.WaitForNotification());
-    LockInfo fl;
-    std::memset(&fl, 0, sizeof(LockInfo));
+    LockInfo fl{};
     fl.l_type = F_WRLCK;
     fl.l_whence = SEEK_SET;
     fl.l_start = 0;
     fl.l_len = 1;
-    ASSERT_LE(::fcntl(file.fd().get(), F_GETLK, &fl), 0) << absl::ErrnoToStatus(errno, "fnctl");
+    auto const result =
+        ::fcntl(file.fd().get(), F_GETLK, &fl);  // NOLINT(cppcoreguidelines-pro-type-vararg)
+    ASSERT_LE(result, 0) << absl::ErrnoToStatus(errno, "fnctl");
     EXPECT_THAT(fl, AllOf(Field(&LockInfo::l_type, F_WRLCK), Field(&LockInfo::l_whence, SEEK_SET),
                           Field(&LockInfo::l_start, 0), Field(&LockInfo::l_len, 0),
                           Field(&LockInfo::l_pid, pid)));

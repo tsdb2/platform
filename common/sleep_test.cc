@@ -9,7 +9,6 @@
 #include "common/scoped_override.h"
 #include "common/singleton.h"
 #include "common/testing.h"
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace {
@@ -49,7 +48,7 @@ TEST_F(SleepTest, Sleep10s) {
 
 TEST_F(SleepTest, Sleep0s) {
   absl::Notification done;
-  auto const p = Sleep(absl::Seconds(0)).Then([&] { done.Notify(); });
+  auto const p = Sleep(absl::ZeroDuration()).Then([&] { done.Notify(); });
   ASSERT_OK(scheduler_.WaitUntilAllWorkersAsleep());
   done.WaitForNotification();
 }

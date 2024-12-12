@@ -23,7 +23,6 @@
 #include <cstdlib>
 #include <functional>
 #include <initializer_list>
-#include <iterator>
 #include <memory>
 #include <optional>
 #include <tuple>
@@ -33,7 +32,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/log/log.h"
-#include "common/flat_container_internal.h"
+#include "common/flat_container_internal.h"  // IWYU pragma: export
 #include "common/to_array.h"
 
 namespace tsdb2 {
@@ -67,6 +66,8 @@ class flat_map {
     constexpr node() noexcept : value_(std::nullopt) {}
     explicit node(value_type&& value) : value_(std::move(value)) {}
 
+    ~node() = default;
+
     node(node&&) noexcept = default;
     node& operator=(node&&) noexcept = default;
 
@@ -93,7 +94,7 @@ class flat_map {
 
   struct insert_return_type {
     iterator position;
-    bool inserted;
+    bool inserted{};
     node_type node;
   };
 
@@ -135,8 +136,8 @@ class flat_map {
 
   constexpr flat_map() : flat_map(Compare()) {}
 
-  explicit constexpr flat_map(SortedDeduplicatedContainer, Representation rep,
-                              Compare const& comp = Compare())
+  explicit constexpr flat_map(SortedDeduplicatedContainer /*sorted_deduplicated_container*/,
+                              Representation rep, Compare const& comp = Compare())
       : comp_(comp), rep_(std::move(rep)) {}
 
   explicit constexpr flat_map(Compare const& comp) : comp_(comp) {}
@@ -166,6 +167,8 @@ class flat_map {
       insert(*first);
     }
   }
+
+  ~flat_map() = default;
 
   flat_map(flat_map const& other) = default;
   flat_map& operator=(flat_map const& other) = default;
@@ -374,7 +377,7 @@ class flat_map {
     if (it == rep_.end() || comp(key, it->first)) {
       return insert(value_type(key, std::forward<Mapped>(mapped)));
     } else {
-      it->second = std::move(mapped);
+      it->second = std::forward<Mapped>(mapped);
       return {it, false};
     }
   }
@@ -386,7 +389,7 @@ class flat_map {
     if (it == rep_.end() || comp(key, it->first)) {
       return insert(value_type(std::move(key), std::forward<Mapped>(mapped)));
     } else {
-      it->second = std::move(mapped);
+      it->second = std::forward<Mapped>(mapped);
       return {it, false};
     }
   }
@@ -584,13 +587,13 @@ constexpr auto fixed_flat_map_of(std::array<std::pair<Key, T>, N> array,
 }
 
 template <typename Key, typename T, typename Compare = std::less<Key>, size_t N>
-constexpr auto fixed_flat_map_of(std::pair<Key, T> const (&values)[N],  // NOLINT(*-avoid-c-arrays)
-                                 Compare&& comp = Compare()) {
+constexpr auto fixed_flat_map_of(std::pair<Key, T> const (&values)[N], Compare&& comp = Compare()) {
   return fixed_flat_map_of<Key, T, Compare, N>(to_array(values), std::forward<Compare>(comp));
 }
 
 template <typename Key, typename T, typename Compare = std::less<Key>>
-constexpr auto fixed_flat_map_of(internal::EmptyInitializerList, Compare&& comp = Compare()) {
+constexpr auto fixed_flat_map_of(internal::EmptyInitializerList /*empty_initializer_list*/,
+                                 Compare&& comp = Compare()) {
   return fixed_flat_map<Key, T, 0, Compare>(std::forward<Compare>(comp));
 }
 

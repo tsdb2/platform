@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <cstddef>
 #include <memory>
 #include <optional>
@@ -9,7 +8,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/container/inlined_vector.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
@@ -163,6 +161,8 @@ class GenericMatcher {
   explicit GenericMatcher(std::string_view const input, bool const use_stepper, bool const negated)
       : input_(input), captures_(std::nullopt), use_stepper_(use_stepper), negated_(negated) {}
 
+  ~GenericMatcher() = default;
+
   GenericMatcher(GenericMatcher const&) = default;
   GenericMatcher& operator=(GenericMatcher const&) = default;
   GenericMatcher(GenericMatcher&&) noexcept = default;
@@ -276,17 +276,17 @@ class GenericMatcher {
   bool negated_;
 };
 
-char const kTestMethodName[] = "Test";
-char const kTestPrefixMethodName[] = "TestPrefix";
-char const kPartialTestMethodName[] = "PartialTest";
+char constexpr kTestMethodName[] = "Test";
+char constexpr kTestPrefixMethodName[] = "TestPrefix";
+char constexpr kPartialTestMethodName[] = "PartialTest";
 
-char const kMatchMethodName[] = "Match";
-char const kMatchPrefixMethodName[] = "MatchPrefix";
-char const kPartialMatchMethodName[] = "PartialMatch";
+char constexpr kMatchMethodName[] = "Match";
+char constexpr kMatchPrefixMethodName[] = "MatchPrefix";
+char constexpr kPartialMatchMethodName[] = "PartialMatch";
 
-char const kMatchArgsMethodName[] = "MatchArgs";
-char const kMatchPrefixArgsMethodName[] = "MatchPrefixArgs";
-char const kPartialMatchArgsMethodName[] = "PartialMatchArgs";
+char constexpr kMatchArgsMethodName[] = "MatchArgs";
+char constexpr kMatchPrefixArgsMethodName[] = "MatchPrefixArgs";
+char constexpr kPartialMatchArgsMethodName[] = "PartialMatchArgs";
 
 using MatchesImpl = GenericMatcher<&AbstractAutomaton::Test, kTestMethodName, TestWithStepper,
                                    &AbstractAutomaton::Match, kMatchMethodName,
@@ -308,40 +308,48 @@ struct RegexpTestParams {
 };
 
 class RegexpTest : public ::testing::TestWithParam<RegexpTestParams> {
- protected:
+ public:
   explicit RegexpTest() { TempNFA::force_nfa_for_testing = GetParam().force_nfa; }
-  ~RegexpTest() { TempNFA::force_nfa_for_testing = false; }
+  ~RegexpTest() override { TempNFA::force_nfa_for_testing = false; }
 
-  bool CheckDeterministic(reffed_ptr<AbstractAutomaton> const& automaton);
-  bool CheckNotDeterministic(reffed_ptr<AbstractAutomaton> const& automaton);
+ protected:
+  static bool CheckDeterministic(reffed_ptr<AbstractAutomaton> const& automaton);
+  static bool CheckNotDeterministic(reffed_ptr<AbstractAutomaton> const& automaton);
 
-  auto Matches(std::string_view const input, std::vector<std::vector<std::string>> captures) const {
+  static auto Matches(std::string_view const input,
+                      std::vector<std::vector<std::string>> captures) {
     return MatchesImpl(input, GetParam().use_stepper, /*negated=*/false).With(std::move(captures));
   }
 
-  auto DoesntMatch(std::string_view const input) const {
+  static auto DoesntMatch(std::string_view const input) {
     return Not(MatchesImpl(input, GetParam().use_stepper, /*negated=*/true));
   }
 
-  auto MatchesPrefixOf(std::string_view const input,
-                       std::vector<std::vector<std::string>> captures) const {
+  static auto MatchesPrefixOf(std::string_view const input,
+                              std::vector<std::vector<std::string>> captures) {
     return MatchesPrefixOfImpl(input, GetParam().use_stepper, /*negated=*/false)
         .With(std::move(captures));
   }
 
-  auto DoesntMatchPrefixOf(std::string_view const input) const {
+  static auto DoesntMatchPrefixOf(std::string_view const input) {
     return Not(MatchesPrefixOfImpl(input, GetParam().use_stepper, /*negated=*/true));
   }
 
-  auto PartiallyMatches(std::string_view const input,
-                        std::vector<std::vector<std::string>> captures) const {
+  static auto PartiallyMatches(std::string_view const input,
+                               std::vector<std::vector<std::string>> captures) {
     return PartiallyMatchesImpl(input, GetParam().use_stepper, /*negated=*/false)
         .With(std::move(captures));
   }
 
-  auto DoesntPartiallyMatch(std::string_view const input) const {
+  static auto DoesntPartiallyMatch(std::string_view const input) {
     return Not(PartiallyMatchesImpl(input, GetParam().use_stepper, /*negated=*/true));
   }
+
+ private:
+  RegexpTest(RegexpTest const&) = delete;
+  RegexpTest& operator=(RegexpTest const&) = delete;
+  RegexpTest(RegexpTest&&) = delete;
+  RegexpTest& operator=(RegexpTest&&) = delete;
 };
 
 bool RegexpTest::CheckDeterministic(reffed_ptr<AbstractAutomaton> const& automaton) {
@@ -2857,7 +2865,7 @@ TEST_P(RegexpTest, MatchArgCount) {
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_TRUE(pattern->MatchArgs("satorarepotenet", {}));
-  std::string_view sv1, sv2, sv3, sv4, sv5, sv6;
+  std::string_view sv1, sv2, sv3, sv4, sv5, sv6;  // NOLINT(readability-isolate-declaration)
   auto const tie = [&] { return std::tie(sv1, sv2, sv3, sv4, sv5, sv6); };
   auto const reset = [&] { tie() = std::tie("sv1", "sv2", "sv3", "sv4", "sv5", "sv6"); };
   reset();
@@ -2885,7 +2893,7 @@ TEST_P(RegexpTest, PartialMatchArgCount) {
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_TRUE(pattern->PartialMatchArgs("satorarepotenet", {}));
-  std::string_view sv1, sv2, sv3, sv4, sv5, sv6;
+  std::string_view sv1, sv2, sv3, sv4, sv5, sv6;  // NOLINT(readability-isolate-declaration)
   auto const tie = [&] { return std::tie(sv1, sv2, sv3, sv4, sv5, sv6); };
   auto const reset = [&] { tie() = std::tie("sv1", "sv2", "sv3", "sv4", "sv5", "sv6"); };
   reset();

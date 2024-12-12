@@ -6,11 +6,11 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <string>
 #include <thread>
 #include <utility>
 #include <vector>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/container/node_hash_set.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/functional/bind_front.h"
@@ -89,7 +89,7 @@ class Scheduler {
     // If the ScopedHandle is not empty, the destructor automatically performs blocking cancellation
     // of the managed task.
     ~ScopedHandle() {
-      if (scheduler_) {
+      if (scheduler_ != nullptr) {
         scheduler_->BlockingCancel(handle_);
       }
     }
@@ -101,7 +101,7 @@ class Scheduler {
     }
 
     ScopedHandle &operator=(ScopedHandle &&other) noexcept {
-      if (scheduler_) {
+      if (scheduler_ != nullptr) {
         scheduler_->BlockingCancel(handle_);
       }
       scheduler_ = other.scheduler_;
@@ -159,8 +159,8 @@ class Scheduler {
   };
 
   explicit Scheduler(Options options)
-      : options_(std::move(options)),
-        clock_(options_.clock ? options_.clock : RealClock::GetInstance()) {
+      : options_(options),
+        clock_(options_.clock != nullptr ? options_.clock : RealClock::GetInstance()) {
     DCHECK_GT(options_.num_workers, 0) << "Scheduler must have at least 1 worker thread";
     if (options_.start_now) {
       Start();
@@ -323,6 +323,8 @@ class Scheduler {
                   std::optional<absl::Duration> const period)
         : callback_(std::move(callback)), due_time_(due_time), period_(period) {}
 
+    ~Task() = default;
+
     Handle handle() const { return handle_; }
 
     TaskRef const *ref() const { return ref_; }
@@ -378,21 +380,21 @@ class Scheduler {
   class TaskRef final {
    public:
     explicit TaskRef(Task *const task = nullptr) : task_(task) {
-      if (task_) {
+      if (task_ != nullptr) {
         task_->CheckRef(nullptr);
         task_->set_ref(this);
       }
     }
 
     ~TaskRef() {
-      if (task_) {
+      if (task_ != nullptr) {
         task_->CheckRef(this);
         task_->set_ref(nullptr);
       }
     }
 
     TaskRef(TaskRef &&other) noexcept : task_(other.task_) {
-      if (task_) {
+      if (task_ != nullptr) {
         task_->CheckRef(&other);
         other.task_ = nullptr;
         task_->set_ref(this);
@@ -400,12 +402,15 @@ class Scheduler {
     }
 
     TaskRef &operator=(TaskRef &&other) noexcept {
-      if (task_) {
+      if (this == &other) {
+        return *this;
+      }
+      if (task_ != nullptr) {
         task_->CheckRef(this);
         task_->set_ref(nullptr);
       }
       task_ = other.task_;
-      if (task_) {
+      if (task_ != nullptr) {
         task_->CheckRef(&other);
         other.task_ = nullptr;
         task_->set_ref(this);
@@ -414,12 +419,14 @@ class Scheduler {
     }
 
     void swap(TaskRef &other) noexcept {
-      std::swap(task_, other.task_);
-      if (task_) {
-        task_->set_ref(this);
-      }
-      if (other.task_) {
-        other.task_->set_ref(&other);
+      if (this != &other) {
+        std::swap(task_, other.task_);
+        if (task_ != nullptr) {
+          task_->set_ref(this);
+        }
+        if (other.task_ != nullptr) {
+          other.task_->set_ref(&other);
+        }
       }
     }
 
@@ -470,6 +477,8 @@ class Scheduler {
 
     explicit Worker(Scheduler *const parent)
         : parent_(parent), thread_(absl::bind_front(&Worker::Run, this)) {}
+
+    ~Worker() = default;
 
     // Indicates whether the worker is waiting for a task.
     bool is_sleeping() const { return sleeping_; }

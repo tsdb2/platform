@@ -3,8 +3,6 @@
 
 #include <string>
 
-#include "absl/log/log.h"
-
 namespace tsdb2 {
 namespace common {
 

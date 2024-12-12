@@ -1,14 +1,17 @@
 #ifndef __TSDB2_NET_SSL_H__
 #define __TSDB2_NET_SSL_H__
 
+#include <openssl/crypto.h>
 #include <openssl/ssl.h>
 
 #include <algorithm>
+#include <string_view>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "common/no_destructor.h"
 #include "common/singleton.h"
+#include "common/utilities.h"
 #include "io/fd.h"
 #include "server/base_module.h"
 #include "server/init_tsdb2.h"
@@ -32,18 +35,22 @@ class SSL final {
   SSL(SSL const& other) : ssl_(other.ssl_) { UpRef(); }
 
   SSL& operator=(SSL const& other) {
-    Free();
-    ssl_ = other.ssl_;
-    UpRef();
+    if (this != &other) {
+      Free();
+      ssl_ = other.ssl_;
+      UpRef();
+    }
     return *this;
   }
 
   SSL(SSL&& other) noexcept : ssl_(other.ssl_) { other.ssl_ = nullptr; }
 
   SSL& operator=(SSL&& other) noexcept {
-    Free();
-    ssl_ = other.ssl_;
-    other.ssl_ = nullptr;
+    if (this != &other) {
+      Free();
+      ssl_ = other.ssl_;
+      other.ssl_ = nullptr;
+    }
     return *this;
   }
 
@@ -69,21 +76,21 @@ class SSL final {
  private:
   friend class SSLContext;
 
-  explicit SSL(::SSL* const ssl) : ssl_(ssl) {}
+  explicit SSL(gsl::owner<::SSL*> const ssl) : ssl_(ssl) {}
 
   void Free() {
-    if (ssl_) {
+    if (ssl_ != nullptr) {
       SSL_free(ssl_);
     }
   }
 
   void UpRef() {
-    if (ssl_) {
+    if (ssl_ != nullptr) {
       SSL_up_ref(ssl_);
     }
   }
 
-  ::SSL* ssl_;
+  gsl::owner<::SSL*> ssl_;
 };
 
 // This singleton manages a `SSL_CTX` object.
@@ -125,17 +132,17 @@ class SSLContext {
  private:
   // Constructs the server-side `SSLContext` instance. Invoked by `GetServerContext` only the first
   // time.
-  static SSLContext* CreateServerContext();
+  static gsl::owner<SSLContext*> CreateServerContext();
 
   // Constructs the client-side `SSLContext` instance. Invoked by `GetClientContext` only the first
   // time.
-  static SSLContext* CreateClientContext();
+  static gsl::owner<SSLContext*> CreateClientContext();
 
   // Creates a server-side `SSLContext` with an unsafe self-signed certificate and an utterly leaked
   // private key.
   //
   // WARNING: this is UNSAFE for production usage, use only in unit tests.
-  static SSLContext* CreateUnsafeServerContextForTesting();
+  static gsl::owner<SSLContext*> CreateUnsafeServerContextForTesting();
 
   // The singleton server-side `SSLContext` instance.
   static tsdb2::common::Singleton<SSLContext const> server_context_;
@@ -143,7 +150,7 @@ class SSLContext {
   // The singleton client-side `SSLContext` instance.
   static tsdb2::common::Singleton<SSLContext const> client_context_;
 
-  explicit SSLContext(::SSL_CTX* const context) : context_(context) {}
+  explicit SSLContext(gsl::owner<::SSL_CTX*> const context) : context_(context) {}
 
   ~SSLContext() { Free(); }
 
@@ -151,12 +158,12 @@ class SSLContext {
   SSLContext& operator=(SSLContext const&) = delete;
 
   void Free() {
-    if (context_) {
+    if (context_ != nullptr) {
       SSL_CTX_free(context_);
     }
   }
 
-  ::SSL_CTX* context_;
+  gsl::owner<::SSL_CTX*> context_;
 };
 
 class SSLModule : public tsdb2::init::BaseModule {
@@ -170,7 +177,7 @@ class SSLModule : public tsdb2::init::BaseModule {
   static tsdb2::common::NoDestructor<SSLModule> instance_;
   explicit SSLModule() : BaseModule("ssl_lib") { tsdb2::init::RegisterModule(this); }
 
-  absl::Status InitializeInternal();
+  static absl::Status InitializeInternal();
 };
 
 }  // namespace internal

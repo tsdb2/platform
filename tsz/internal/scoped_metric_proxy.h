@@ -21,7 +21,7 @@ class ScopedMetricContext final {
 
   explicit ScopedMetricContext(std::shared_ptr<Metric> const& metric, absl::Time const time)
       : metric_(metric.get()), time_(time) {
-    if (metric_) {
+    if (metric_ != nullptr) {
       metric_->Pin();
     }
   }
@@ -34,10 +34,12 @@ class ScopedMetricContext final {
   }
 
   ScopedMetricContext& operator=(ScopedMetricContext&& other) noexcept {
-    MaybeUnpin();
-    metric_ = other.metric_;
-    other.metric_ = nullptr;
-    time_ = other.time_;
+    if (this != &other) {
+      MaybeUnpin();
+      metric_ = other.metric_;
+      other.metric_ = nullptr;
+      time_ = other.time_;
+    }
     return *this;
   }
 
@@ -57,7 +59,7 @@ class ScopedMetricContext final {
   ScopedMetricContext& operator=(ScopedMetricContext const&) = delete;
 
   void MaybeUnpin() {
-    if (metric_) {
+    if (metric_ != nullptr) {
       metric_->Unpin();
     }
   }

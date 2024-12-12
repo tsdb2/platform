@@ -5,6 +5,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
 #include "tsz/base.h"
@@ -14,10 +15,17 @@ namespace tsz {
 // Abstract interface for `tsz::Entity`. Suitable for use with `reffed_ptr`.
 class EntityInterface {
  public:
+  explicit EntityInterface() = default;
   virtual ~EntityInterface() = default;
   virtual FieldMap const &labels() const = 0;
   virtual void Ref() const = 0;
   virtual bool Unref() const = 0;
+
+ private:
+  EntityInterface(EntityInterface const &) = delete;
+  EntityInterface &operator=(EntityInterface const &) = delete;
+  EntityInterface(EntityInterface &&) = delete;
+  EntityInterface &operator=(EntityInterface &&) = delete;
 };
 
 // Represents an entity to which you can bind one or more tsz metrics. This pattern is known as

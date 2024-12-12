@@ -27,7 +27,7 @@ class reffed_ptr final {
  public:
   reffed_ptr() : ptr_(nullptr) {}
 
-  reffed_ptr(std::nullptr_t) : ptr_(nullptr) {}
+  reffed_ptr(std::nullptr_t) : ptr_(nullptr) {}  // NOLINT(google-explicit-constructor)
 
   template <typename U>
   explicit reffed_ptr(U* const ptr) : ptr_(ptr) {
@@ -37,24 +37,32 @@ class reffed_ptr final {
   reffed_ptr(reffed_ptr const& other) : ptr_(other.ptr_) { MaybeRef(); }
 
   template <typename U>
-  reffed_ptr(reffed_ptr<U> const& other) : ptr_(other.get()) {
+  reffed_ptr(  // NOLINT(google-explicit-constructor)
+      reffed_ptr<U> const& other)
+      : ptr_(other.get()) {
     MaybeRef();
   }
 
   template <typename U, typename Deleter>
-  reffed_ptr(std::unique_ptr<U, Deleter>&& ptr) : ptr_(ptr.release()) {
+  reffed_ptr(  // NOLINT(google-explicit-constructor)
+      std::unique_ptr<U, Deleter>&& ptr)
+      : ptr_(ptr.release()) {
     MaybeRef();
   }
 
   reffed_ptr(reffed_ptr&& other) noexcept : ptr_(other.ptr_) { other.ptr_ = nullptr; }
 
   template <typename U>
-  reffed_ptr(reffed_ptr<U>&& other) noexcept : ptr_(other.release()) {}
+  reffed_ptr(  // NOLINT(google-explicit-constructor)
+      reffed_ptr<U>&& other) noexcept
+      : ptr_(other.release()) {}
 
   ~reffed_ptr() { MaybeUnref(); }
 
   reffed_ptr& operator=(reffed_ptr const& other) {
-    reset(other.ptr_);
+    if (this != &other) {
+      reset(other.ptr_);
+    }
     return *this;
   }
 
@@ -65,9 +73,11 @@ class reffed_ptr final {
   }
 
   reffed_ptr& operator=(reffed_ptr&& other) noexcept {
-    MaybeUnref();
-    ptr_ = other.ptr_;
-    other.ptr_ = nullptr;
+    if (this != &other) {
+      MaybeUnref();
+      ptr_ = other.ptr_;
+      other.ptr_ = nullptr;
+    }
     return *this;
   }
 
@@ -241,7 +251,7 @@ class reffed_ptr final {
   struct AdoptPointer {};
   static inline AdoptPointer constexpr kAdoptPointer;
 
-  explicit reffed_ptr(AdoptPointer, T* const ptr) : ptr_(ptr) {}
+  explicit reffed_ptr(AdoptPointer /*adopt_pointer*/, T* const ptr) : ptr_(ptr) {}
 
   void MaybeRef() {
     if (ptr_) {

@@ -1,5 +1,7 @@
 #include <openssl/bio.h>
+#include <openssl/crypto.h>
 #include <openssl/pem.h>
+#include <openssl/prov_ssl.h>
 #include <openssl/ssl.h>
 
 #include "absl/log/check.h"
@@ -7,9 +9,9 @@
 #include "common/no_destructor.h"
 #include "common/scoped_override.h"
 #include "common/singleton.h"
+#include "common/utilities.h"
 #include "net/alpn.h"
 #include "net/ssl.h"
-#include "net/ssl_sockets.h"
 #include "server/base_module.h"
 #include "server/init_tsdb2.h"
 
@@ -78,14 +80,8 @@ TgipNYf1CBN5DQ+vwKTpwnPXUQ==
 
 }  // namespace
 
-void SSLContext::SetUpForTesting() {
-  static tsdb2::common::NoDestructor<
-      tsdb2::common::ScopedOverride<tsdb2::common::Singleton<SSLContext const>>> const
-      override_instance{&SSLContext::server_context_, CreateUnsafeServerContextForTesting()};
-}
-
-SSLContext *SSLContext::CreateUnsafeServerContextForTesting() {
-  auto const method = TLS_server_method();
+gsl::owner<SSLContext *> SSLContext::CreateUnsafeServerContextForTesting() {
+  auto const *const method = TLS_server_method();
   CHECK(method != nullptr) << "TLS_server_method";
 
   ::SSL_CTX *const context = SSL_CTX_new(method);
@@ -122,6 +118,12 @@ SSLContext *SSLContext::CreateUnsafeServerContextForTesting() {
   ConfigureAlpn(context);
 
   return new SSLContext(context);
+}
+
+void SSLContext::SetUpForTesting() {
+  static tsdb2::common::NoDestructor<
+      tsdb2::common::ScopedOverride<tsdb2::common::Singleton<SSLContext const>>> const
+      override_instance{&SSLContext::server_context_, CreateUnsafeServerContextForTesting()};
 }
 
 class SSLTestingModule : public tsdb2::init::BaseModule {

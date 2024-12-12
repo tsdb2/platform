@@ -2,7 +2,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -72,8 +71,9 @@ std::string EscapeAndQuoteString(std::string_view const input) {
     if (ch < 0) {
       // TODO: we should actually implement UTF-8 to UTF-16 transcoding.
       result += "\\u00";
-      result += kHighHexCodes[static_cast<uint8_t>(ch) - 128];
-    } else if (auto it = kEscapeCodeByCharacter.find(ch); it != kEscapeCodeByCharacter.end()) {
+      result += kHighHexCodes[static_cast<uint8_t>(ch) - 128];  // NOLINT
+    } else if (auto const it = kEscapeCodeByCharacter.find(ch);
+               it != kEscapeCodeByCharacter.end()) {
       result += it->second;
     } else {
       result += ch;
@@ -143,7 +143,7 @@ absl::StatusOr<std::string> Parser::ReadString() {
     } else if (input_[++i] != 'u') {
       result += kEscapedCharacterByCode.at(input_[i]);
     } else {
-      result += ParseHexDigit(input_[i + 3]) * 16 + ParseHexDigit(input_[i + 4]);
+      result += static_cast<char>(ParseHexDigit(input_[i + 3]) * 16 + ParseHexDigit(input_[i + 4]));
       i += 4;
     }
   }

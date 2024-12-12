@@ -96,11 +96,10 @@ std::string_view constexpr kStaticHeaders[kNumStaticHeaders][2]{
 };
 
 template <size_t... Is>
-constexpr auto IndexStaticHeaders(std::index_sequence<Is...>) {
+constexpr auto IndexStaticHeaders(std::index_sequence<Is...> /*index_sequence*/) {
   using StaticHeader = std::pair<std::string_view, std::string_view>;
-  return tsdb2::common::fixed_flat_map_of<StaticHeader, size_t>(
-      tsdb2::common::to_array({std::make_pair<StaticHeader, size_t>(
-          std::make_pair(kStaticHeaders[Is][0], kStaticHeaders[Is][1]), Is)...}));
+  return tsdb2::common::fixed_flat_map_of<StaticHeader, size_t>(tsdb2::common::to_array(
+      {std::make_pair(std::make_pair(kStaticHeaders[Is][0], kStaticHeaders[Is][1]), Is)...}));
 }
 
 auto constexpr kIndexedStaticHeaders =
@@ -127,7 +126,7 @@ bool DynamicHeaderTable::Add(Header header) {
 }
 
 intptr_t DynamicHeaderTable::FindHeader(Header const &header) {
-  for (size_t i = 0; i < headers_.size(); ++i) {
+  for (intptr_t i = 0; i < headers_.size(); ++i) {
     if (headers_[i] == header) {
       return i;
     }
@@ -136,7 +135,7 @@ intptr_t DynamicHeaderTable::FindHeader(Header const &header) {
 }
 
 intptr_t DynamicHeaderTable::FindHeaderName(std::string_view const name) {
-  for (size_t i = 0; i < headers_.size(); ++i) {
+  for (intptr_t i = 0; i < headers_.size(); ++i) {
     if (headers_[i].first == name) {
       return i;
     }
@@ -154,7 +153,7 @@ absl::StatusOr<HeaderSet> Decoder::Decode(absl::Span<uint8_t const> const data) 
   size_t offset = 0;
   while (offset < data.size()) {
     auto const first_byte = data[offset];
-    if (first_byte & 0x80) {
+    if ((first_byte & 0x80) != 0) {
       DEFINE_CONST_OR_RETURN(index, DecodeInteger(data, offset, 7));
       if (index < 1) {
         return absl::InvalidArgumentError(
@@ -162,7 +161,7 @@ absl::StatusOr<HeaderSet> Decoder::Decode(absl::Span<uint8_t const> const data) 
       }
       DEFINE_VAR_OR_RETURN(header, GetHeader(index - 1));
       headers.emplace_back(std::move(header));
-    } else if (first_byte & 0x40) {
+    } else if ((first_byte & 0x40) != 0) {
       DEFINE_CONST_OR_RETURN(index, DecodeInteger(data, offset, 6));
       if (index > 0) {
         DEFINE_VAR_OR_RETURN(name, GetHeaderName(index - 1));
@@ -175,7 +174,7 @@ absl::StatusOr<HeaderSet> Decoder::Decode(absl::Span<uint8_t const> const data) 
         dynamic_headers_.Add(std::make_pair(name, value));
         headers.emplace_back(std::move(name), std::move(value));
       }
-    } else if (first_byte & 0x20) {
+    } else if ((first_byte & 0x20) != 0) {
       DEFINE_CONST_OR_RETURN(new_size, DecodeInteger(data, offset, 5));
       if (new_size > max_dynamic_header_table_size_) {
         return absl::InvalidArgumentError(
@@ -184,7 +183,7 @@ absl::StatusOr<HeaderSet> Decoder::Decode(absl::Span<uint8_t const> const data) 
                          max_dynamic_header_table_size_, ")"));
       }
       dynamic_headers_.SetMaxSize(new_size);
-    } else if (first_byte & 0x10) {
+    } else if ((first_byte & 0x10) != 0) {
       DEFINE_CONST_OR_RETURN(index, DecodeInteger(data, offset, 4));
       if (index > 0) {
         DEFINE_VAR_OR_RETURN(name, GetHeaderName(index - 1));
@@ -241,7 +240,7 @@ absl::StatusOr<size_t> Decoder::DecodeInteger(absl::Span<uint8_t const> const da
     byte = data[offset++];
     value += (byte & 0x7F) << m;
     m += 7;
-  } while (byte & 0x80);
+  } while ((byte & 0x80) != 0);
   return value;
 }
 

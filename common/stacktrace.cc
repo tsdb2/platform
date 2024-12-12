@@ -9,6 +9,8 @@
 namespace tsdb2 {
 namespace common {
 
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index)
+
 std::string GetStackTrace() {
   int constexpr kMaxDepth = 64;
   void* stack[kMaxDepth];
@@ -24,6 +26,8 @@ std::string GetStackTrace() {
   }
   return str;
 }
+
+// NOLINTEND(cppcoreguidelines-pro-bounds-constant-array-index)
 
 }  // namespace common
 }  // namespace tsdb2

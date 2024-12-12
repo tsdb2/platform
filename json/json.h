@@ -155,8 +155,10 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <map>
 #include <memory>
 #include <optional>
@@ -327,7 +329,8 @@ template <>
 class Object<> {
  public:
   explicit Object() = default;
-  explicit Object(Initialize) {}
+  explicit Object(Initialize /*initialize*/) {}
+  ~Object() = default;
 
   Object(Object const&) = default;
   Object& operator=(Object const&) = default;
@@ -380,6 +383,8 @@ class Object<> {
   friend class Parser;
   friend class Stringifier;
 
+  // NOLINTBEGIN(readability-convert-member-functions-to-static)
+
   ABSL_ATTRIBUTE_ALWAYS_INLINE void SwapInternal(Object& other) {}
   ABSL_ATTRIBUTE_ALWAYS_INLINE bool CompareEqualInternal(Object const& other) const { return true; }
   ABSL_ATTRIBUTE_ALWAYS_INLINE bool CompareLessInternal(Object const& other) const { return false; }
@@ -387,8 +392,10 @@ class Object<> {
 
   inline absl::Status ReadField(Parser* parser, std::string_view key);
 
-  void WriteFieldsPretty(Stringifier*, bool) const {}
-  void WriteFieldsCompressed(Stringifier*, bool) const {}
+  void WriteFieldsPretty(Stringifier* /*stringifier*/, bool /*first_field*/) const {}
+  void WriteFieldsCompressed(Stringifier* /*stringifier*/, bool /*first_field*/) const {}
+
+  // NOLINTEND(readability-convert-member-functions-to-static)
 };
 
 template <typename Type, typename Name, typename... OtherFields>
@@ -405,9 +412,11 @@ class Object<internal::FieldImpl<Type, Name>, OtherFields...> : public Object<Ot
   explicit Object() = default;
 
   template <typename FirstArg, typename... OtherArgs>
-  explicit Object(Initialize, FirstArg&& value, OtherArgs&&... args)
+  explicit Object(Initialize /*initialize*/, FirstArg&& value, OtherArgs&&... args)
       : Object<OtherFields...>(kInitialize, std::forward<OtherArgs>(args)...),
         value_(std::forward<FirstArg>(value)) {}
+
+  ~Object() = default;
 
   Object(Object const&) = default;
   Object& operator=(Object const&) = default;
@@ -1075,7 +1084,8 @@ struct CheckFieldPresence;
 
 template <>
 struct CheckFieldPresence<> {
-  ABSL_ATTRIBUTE_ALWAYS_INLINE bool operator()(tsdb2::common::flat_set<std::string> const&) const {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE bool operator()(
+      tsdb2::common::flat_set<std::string> const& /*keys*/) const {
     return true;
   }
 };
@@ -1228,7 +1238,7 @@ absl::Status Parser::ReadArray(std::array<Element, N>* const result) {
   ConsumeWhitespace();
   RETURN_IF_ERROR(ExpectPrefix("["));
   if constexpr (N > 0) {
-    RETURN_IF_ERROR(Tsdb2JsonParse(this, &((*result)[0])));
+    RETURN_IF_ERROR(Tsdb2JsonParse(this, result->data()));
   }
   for (size_t i = 1; i < N; ++i) {
     ConsumeWhitespace();
@@ -1963,7 +1973,8 @@ inline std::string Object<internal::FieldImpl<Type, Name>, OtherFields...>::Stri
   return std::move(stringifier).Finish();
 }
 
-inline absl::Status Object<>::ReadField(Parser* const parser, std::string_view const key) {
+inline absl::Status Object<>::ReadField(  // NOLINT(readability-convert-member-functions-to-static)
+    Parser* const parser, std::string_view const key) {
   auto const& options = parser->options();
   if (options.allow_extra_fields) {
     return parser->SkipField(/*fast=*/options.fast_skipping);

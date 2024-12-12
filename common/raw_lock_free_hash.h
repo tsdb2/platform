@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "absl/base/attributes.h"
+#include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
 
 namespace tsdb2 {
@@ -37,12 +38,12 @@ struct Node final {
 
   // Constructs a node with the caller-provided hash.
   template <typename... Args>
-  explicit Node(Hashed const, size_t const node_hash, Args &&...args)
+  explicit Node(Hashed /*hashed*/, size_t const node_hash, Args &&...args)
       : data(std::forward<Args>(args)...), hash(node_hash) {}
 
   // Piecewise-constructs a node with the caller-provided hash.
   template <typename KeyArg, typename... ValueArgs>
-  explicit Node(Hashed const, size_t const node_hash, std::piecewise_construct_t const,
+  explicit Node(Hashed /*hashed*/, size_t const node_hash, std::piecewise_construct_t /*piecewise*/,
                 KeyArg &&key_arg, ValueArgs &&...value_args)
       : data(std::piecewise_construct, std::forward_as_tuple(std::forward<KeyArg>(key_arg)),
              std::forward_as_tuple(std::forward<ValueArgs>(value_args)...)),
@@ -50,16 +51,18 @@ struct Node final {
 
   // Constructs a node, hashing it automatically with the given hasher.
   template <typename Hash, typename... Args>
-  explicit Node(ToHash const, Hash const &hasher, Args &&...args)
+  explicit Node(ToHash /*to_hash*/, Hash const &hasher, Args &&...args)
       : data(std::forward<Args>(args)...), hash(hasher(data.first)) {}
 
   // Piecewise-constructs a node, hashing it automatically with the given hasher.
   template <typename Hash, typename KeyArg, typename... ValueArgs>
-  explicit Node(ToHash const, Hash const &hasher, std::piecewise_construct_t const,
+  explicit Node(ToHash /*to_hash*/, Hash const &hasher, std::piecewise_construct_t /*piecewise*/,
                 KeyArg &&key_arg, ValueArgs &&...value_args)
       : data(std::piecewise_construct, std::forward_as_tuple(std::forward<KeyArg>(key_arg)),
              std::forward_as_tuple(std::forward<ValueArgs>(value_args)...)),
         hash(hasher(data.first)) {}
+
+  ~Node() = default;
 
   Node(Node const &) = delete;
   Node &operator=(Node const &) = delete;
@@ -90,13 +93,15 @@ struct Node<Key, void> final {
 
   // Constructs a node with the caller-provided hash.
   template <typename... Args>
-  explicit Node(Hashed const, size_t const node_hash, Args &&...args)
+  explicit Node(Hashed /*hashed*/, size_t const node_hash, Args &&...args)
       : data(std::forward<Args>(args)...), hash(node_hash) {}
 
   // Constructs a node, hashing it automatically.
   template <typename Hash, typename... Args>
-  explicit Node(ToHash const, Hash const &hasher, Args &&...args)
+  explicit Node(ToHash /*to_hash*/, Hash const &hasher, Args &&...args)
       : data(std::forward<Args>(args)...), hash(hasher(data)) {}
+
+  ~Node() = default;
 
   Node(Node const &) = delete;
   Node &operator=(Node const &) = delete;
@@ -141,6 +146,8 @@ class RawLockFreeHash {
         new (data + i) std::atomic<Node *>(nullptr);
       }
     }
+
+    ~Array() = default;
 
     Array(Array const &) = delete;
     Array &operator=(Array const &) = delete;
@@ -191,6 +198,7 @@ class RawLockFreeHash {
   class BaseIterator {
    public:
     explicit BaseIterator() : parent_(nullptr), index_(0), node_(nullptr) {}
+    ~BaseIterator() = default;
 
     BaseIterator(BaseIterator const &) = default;
     BaseIterator &operator=(BaseIterator const &) = default;
@@ -207,13 +215,13 @@ class RawLockFreeHash {
 
    protected:
     // Constructs the begin iterator.
-    explicit BaseIterator(BeginIterator const, RawLockFreeHash const &parent)
+    explicit BaseIterator(BeginIterator /*begin_iterator*/, RawLockFreeHash const &parent)
         : parent_(&parent), index_(-1), node_(nullptr) {
       Advance();
     }
 
     // Constructs the end iterator.
-    explicit BaseIterator(EndIterator const, RawLockFreeHash const &parent)
+    explicit BaseIterator(EndIterator /*end_iterator*/, RawLockFreeHash const &parent)
         : parent_(&parent), index_(-1), node_(nullptr) {}
 
     // Constructs an iterator for a specific node & position.
@@ -287,6 +295,7 @@ class RawLockFreeHash {
   class Iterator final : public BaseIterator {
    public:
     explicit Iterator() = default;
+    ~Iterator() = default;
 
     Iterator(Iterator const &) = default;
     Iterator &operator=(Iterator const &) = default;
@@ -340,19 +349,29 @@ class RawLockFreeHash {
   class ConstIterator final : public BaseIterator {
    public:
     explicit ConstIterator() = default;
+    ~ConstIterator() = default;
 
     ConstIterator(ConstIterator const &) = default;
     ConstIterator &operator=(ConstIterator const &) = default;
     ConstIterator(ConstIterator &&) noexcept = default;
     ConstIterator &operator=(ConstIterator &&) noexcept = default;
 
+    // NOLINTBEGIN(google-explicit-constructor)
+
     ConstIterator(Iterator const &other) : BaseIterator(other) {}
+    ConstIterator(Iterator &&other) noexcept : BaseIterator(other) {}
+
+    // NOLINTEND(google-explicit-constructor)
+
+    // NOLINTBEGIN(cppcoreguidelines-c-copy-assignment-signature)
+
     ConstIterator &operator=(Iterator const &other) { return BaseIterator::operator=(other); }
 
-    ConstIterator(Iterator &&other) noexcept : BaseIterator(other) {}
     ConstIterator &operator=(Iterator &&other) noexcept {
       return BaseIterator::operator=(std::move(other));
     }
+
+    // NOLINTEND(cppcoreguidelines-c-copy-assignment-signature)
 
     typename Node::DataType const &operator*() const { return this->node()->data; }
     typename Node::DataType const *operator->() const { return &(this->node()->data); }
@@ -383,11 +402,11 @@ class RawLockFreeHash {
     friend class RawLockFreeHash;
 
     // Constructs the begin iterator.
-    explicit ConstIterator(BeginIterator const, RawLockFreeHash const &parent)
+    explicit ConstIterator(BeginIterator /*begin_iterator*/, RawLockFreeHash const &parent)
         : BaseIterator(kBeginIterator, parent) {}
 
     // Constructs the end iterator.
-    explicit ConstIterator(EndIterator const, RawLockFreeHash const &parent)
+    explicit ConstIterator(EndIterator /*end_iterator*/, RawLockFreeHash const &parent)
         : BaseIterator(kEndIterator, parent) {}
 
     // Constructs an iterator for a specific node & position.
@@ -711,29 +730,27 @@ RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::~RawLockFreeHash() {
 
 template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
 void RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Reserve(size_t const num_elements) {
-  if (!num_elements) {
-    return;
-  }
-  auto const min_capacity_log2 = GetMinCapacityLog2(num_elements);
-  absl::MutexLock lock{&mutex_};
-  auto const array = ptr_.load(std::memory_order_relaxed);
-  if (!array || array->capacity_log2 < min_capacity_log2) {
-    ptr_.store(ReserveLocked(array, min_capacity_log2), std::memory_order_release);
+  if (num_elements != 0) {
+    auto const min_capacity_log2 = GetMinCapacityLog2(num_elements);
+    absl::MutexLock lock{&mutex_};
+    auto const array = ptr_.load(std::memory_order_relaxed);
+    if (!array || array->capacity_log2 < min_capacity_log2) {
+      ptr_.store(ReserveLocked(array, min_capacity_log2), std::memory_order_release);
+    }
   }
 }
 
 template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
 void RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::ReserveExtra(
     size_t const num_new_elements) {
-  if (!num_new_elements) {
-    return;
-  }
-  absl::MutexLock lock{&mutex_};
-  auto const array = ptr_.load(std::memory_order_relaxed);
-  auto const current_size = array ? array->size.load(std::memory_order_relaxed) : 0;
-  auto const min_capacity_log2 = GetMinCapacityLog2(current_size + num_new_elements);
-  if (!array || array->capacity_log2 < min_capacity_log2) {
-    ptr_.store(ReserveLocked(array, min_capacity_log2), std::memory_order_release);
+  if (num_new_elements != 0) {
+    absl::MutexLock lock{&mutex_};
+    auto const array = ptr_.load(std::memory_order_relaxed);
+    auto const current_size = array ? array->size.load(std::memory_order_relaxed) : 0;
+    auto const min_capacity_log2 = GetMinCapacityLog2(current_size + num_new_elements);
+    if (!array || array->capacity_log2 < min_capacity_log2) {
+      ptr_.store(ReserveLocked(array, min_capacity_log2), std::memory_order_release);
+    }
   }
 }
 
@@ -928,7 +945,7 @@ void RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::Swap(RawLockFreeHash &
 
 template <typename Key, typename Value, typename Hash, typename Equal, typename Allocator>
 uint64_t RawLockFreeHash<Key, Value, Hash, Equal, Allocator>::NextPowerOf2(uint64_t value) {
-  if (!value) {
+  if (value == 0) {
     return 1;
   }
   --value;

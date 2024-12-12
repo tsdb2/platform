@@ -1,15 +1,22 @@
 #include "tsz/internal/cell.h"
 
 #include <algorithm>
+#include <cstdint>
+#include <string>
 #include <variant>
 
 #include "absl/functional/overload.h"
 #include "absl/time/time.h"
+#include "common/flat_map.h"
+#include "tsz/types.h"
 
 namespace tsz {
 namespace internal {
 
 void Cell::swap(Cell &other) {
+  if (this == &other) {
+    return;
+  }
   using std::swap;  // ensure ADL
   swap(metric_fields_, other.metric_fields_);
   swap(hash_, other.hash_);

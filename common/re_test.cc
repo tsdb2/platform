@@ -87,7 +87,7 @@ TEST(RegexpTest, CopyConstruct) {
   auto const status_or_re = RE::Create("lo+rem?");
   ASSERT_OK(status_or_re);
   auto const& re1 = status_or_re.value();
-  RE const re2{re1};
+  RE const re2{re1};  // NOLINT(performance-unnecessary-copy-initialization)
   EXPECT_TRUE(re1.Test("lore"));
   EXPECT_TRUE(re1.Test("looorem"));
   EXPECT_FALSE(re1.Test("lrem"));
@@ -135,7 +135,7 @@ TEST(RegexpTest, Move) {
   auto const status_or_re2 = RE::Create("ipsu*m");
   ASSERT_OK(status_or_re2);
   auto const& re2 = status_or_re2.value();
-  re1 = std::move(re2);
+  re1 = std::move(re2);  // NOLINT(performance-move-const-arg)
   EXPECT_FALSE(re1.Test("lore"));
   EXPECT_FALSE(re1.Test("lorem"));
   EXPECT_FALSE(re1.Test("looorem"));
@@ -207,7 +207,8 @@ TEST(RegexpTest, Match) {
 }
 
 TEST(RegexpTest, StaticMatchArgs) {
-  std::string_view sv1, sv2;
+  std::string_view sv1;
+  std::string_view sv2;
   EXPECT_OK(RE::MatchArgs("lore", "l(o+r)em?", &sv1));
   EXPECT_EQ(sv1, "or");
   EXPECT_OK(RE::MatchArgs("looorem", "l((o+r)em?)", &sv1, &sv2));
@@ -221,7 +222,8 @@ TEST(RegexpTest, MatchArgs) {
   auto const status_or_re = RE::Create("l((o+r)em?)");
   ASSERT_OK(status_or_re);
   auto const& re = status_or_re.value();
-  std::string_view sv1, sv2;
+  std::string_view sv1;
+  std::string_view sv2;
   EXPECT_TRUE(re.MatchArgs("lore", &sv1, &sv2));
   EXPECT_EQ(sv1, "ore");
   EXPECT_EQ(sv2, "or");

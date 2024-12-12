@@ -4,6 +4,7 @@
 #include <list>
 #include <utility>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/synchronization/mutex.h"
 #include "net/base_sockets.h"
@@ -33,6 +34,11 @@ class WriteQueue final {
   }
 
  private:
+  WriteQueue(WriteQueue const&) = delete;
+  WriteQueue& operator=(WriteQueue const&) = delete;
+  WriteQueue(WriteQueue&&) = delete;
+  WriteQueue& operator=(WriteQueue&&) = delete;
+
   void Write(tsdb2::net::Buffer buffer, WriteCallback callback) ABSL_LOCKS_EXCLUDED(mutex_);
 
   tsdb2::net::BaseSocket* const socket_;

@@ -2,10 +2,16 @@
 #define __TSDB2_COMMON_UTILITIES_H__
 
 #include <type_traits>
-#include <utility>
+#include <utility>  // IWYU pragma: keep
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+
+// See https://clang.llvm.org/extra/clang-tidy/checks/cppcoreguidelines/owning-memory.html.
+namespace gsl {
+template <typename T, std::enable_if_t<std::is_pointer_v<T>, bool> = true>
+using owner = T;
+}  // namespace gsl
 
 namespace tsdb2 {
 namespace util {

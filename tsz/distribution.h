@@ -3,7 +3,6 @@
 
 #include <cmath>
 #include <cstddef>
-#include <cstdint>
 #include <memory>
 
 #include "absl/status/status.h"
@@ -32,6 +31,8 @@ class Distribution {
 
   // Constructs a distribution with the default bucketer.
   explicit Distribution() : Distribution(Bucketer::Default()) {}
+
+  ~Distribution() = default;
 
   Distribution(Distribution const &other);
   Distribution &operator=(Distribution const &other);

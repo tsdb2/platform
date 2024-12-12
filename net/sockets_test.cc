@@ -1,21 +1,26 @@
 #include "net/sockets.h"
 
+#include <errno.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <sys/socket.h>
 
+#include <cstddef>
 #include <cstdint>
+#include <string>
 #include <string_view>
 #include <thread>
 #include <utility>
 
-#include "absl/base/attributes.h"
+#include "absl/base/thread_annotations.h"
 #include "absl/flags/flag.h"
-#include "absl/functional/any_invocable.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/synchronization/notification.h"
 #include "absl/time/time.h"
@@ -26,16 +31,15 @@
 #include "common/reffed_ptr.h"
 #include "common/scheduler.h"
 #include "common/scoped_override.h"
+#include "common/sequence_number.h"
 #include "common/simple_condition.h"
 #include "common/singleton.h"
 #include "common/stats_counter.h"
-#include "common/utilities.h"
+#include "common/testing.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "net/base_sockets.h"
-#include "net/ssl.h"
 #include "net/ssl_sockets.h"
-#include "server/init_tsdb2.h"
 #include "server/testing.h"
 
 ABSL_FLAG(bool, socket_test_use_random_ports, false,
@@ -48,6 +52,7 @@ using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::AllOf;
 using ::testing::Field;
+using ::testing::GetTestTmpDir;
 using ::testing::Not;
 using ::testing::Pointee2;
 using ::testing::Property;
@@ -74,6 +79,16 @@ using ::tsdb2::net::SSLSocket;
 uint16_t GetNewPort() {
   static tsdb2::common::NoDestructor<tsdb2::common::StatsCounter> next_port{1024};
   return next_port->Increment();
+}
+
+std::string MakeTestSocketPath() {
+  static tsdb2::common::SequenceNumber id;
+  auto const directory = GetTestTmpDir();
+  if (absl::EndsWith(directory, "/")) {
+    return absl::StrCat(directory, "sockets_test.", id.GetNext(), ".sock");
+  } else {
+    return absl::StrCat(directory, "/sockets_test.", id.GetNext(), ".sock");
+  }
 }
 
 class SocketTest : public tsdb2::testing::init::Test {
@@ -110,10 +125,9 @@ TEST_F(SocketTest, InvalidAcceptCallback) {
   EXPECT_THAT(ListenerSocket<Socket>::Create(kInetSocketTag, "", GetNewPort(), SocketOptions(),
                                              /*callback=*/nullptr, /*callback_arg=*/nullptr),
               StatusIs(absl::StatusCode::kInvalidArgument));
-  EXPECT_THAT(
-      ListenerSocket<Socket>::Create(kUnixDomainSocketTag, "/tmp/socket", /*callback=*/nullptr,
-                                     /*callback_arg=*/nullptr),
-      StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(ListenerSocket<Socket>::Create(kUnixDomainSocketTag, MakeTestSocketPath(),
+                                             /*callback=*/nullptr, /*callback_arg=*/nullptr),
+              StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(
       SSLListenerSocket<SSLSocket>::Create("", GetNewPort(), SocketOptions(), /*callback=*/nullptr,
                                            /*callback_arg=*/nullptr),
@@ -154,7 +168,7 @@ TEST_F(SocketTest, Listen) {
       IsOkAndHolds(AllOf(Not(nullptr), Pointee2(Property(&BaseListenerSocket::is_open, true)))));
   EXPECT_THAT(
       ListenerSocket<Socket>::Create(
-          kUnixDomainSocketTag, "/tmp/socket",
+          kUnixDomainSocketTag, MakeTestSocketPath(),
           +[](void*, absl::StatusOr<reffed_ptr<Socket>>) { FAIL(); }, nullptr),
       IsOkAndHolds(AllOf(Not(nullptr), Pointee2(Property(&BaseListenerSocket::is_open, true)))));
   EXPECT_THAT(
@@ -184,8 +198,15 @@ class TestConnection {
  public:
   virtual ~TestConnection() = default;
 
-  reffed_ptr<BaseSocket>& server_socket() { return server_socket_; }
-  reffed_ptr<BaseSocket> const& server_socket() const { return server_socket_; }
+  reffed_ptr<BaseSocket> server_socket() const ABSL_LOCKS_EXCLUDED(mutex_) {
+    absl::MutexLock lock{&mutex_};
+    return server_socket_;
+  }
+
+  void reset_server_socket() ABSL_LOCKS_EXCLUDED(mutex_) {
+    absl::MutexLock lock{&mutex_};
+    server_socket_.reset();
+  }
 
   reffed_ptr<BaseSocket>& client_socket() { return client_socket_; }
   reffed_ptr<BaseSocket> const& client_socket() const { return client_socket_; }
@@ -204,6 +225,7 @@ class TestConnection {
         break;
       case ListenerState::kAccepted:
         CHECK(!status_or_socket.ok());
+        LOG(ERROR) << "listener error: " << status_or_socket.status();
         server_socket_ = nullptr;
         break;
       default:
@@ -257,9 +279,10 @@ class TestInetConnection : public TestConnection {
     CHECK_OK(status_or_socket);
     client_socket_ = std::move(status_or_socket).value();
     CHECK(!client_socket_.empty());
-    absl::MutexLock(&mutex_, SimpleCondition([&]() ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
-      return state_ == ListenerState::kAccepted;
-    }));
+    absl::MutexLock(  // NOLINT(bugprone-unused-raii)
+        &mutex_, SimpleCondition([&]() ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
+          return state_ == ListenerState::kAccepted;
+        }));
     connected.WaitForNotification();
   }
 
@@ -306,9 +329,10 @@ class TestSSLConnection : public TestConnection {
     CHECK_OK(status_or_socket);
     client_socket_ = std::move(status_or_socket).value();
     CHECK(!client_socket_.empty());
-    absl::MutexLock(&mutex_, SimpleCondition([&]() ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
-      return state_ == ListenerState::kAccepted;
-    }));
+    absl::MutexLock(  // NOLINT(bugprone-unused-raii)
+        &mutex_, SimpleCondition([&]() ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
+          return state_ == ListenerState::kAccepted;
+        }));
     connected.WaitForNotification();
   }
 
@@ -475,7 +499,7 @@ TYPED_TEST_P(TransferTest, ServerHangUp) {
     EXPECT_THAT(status_or_buffer, Not(IsOk()));
     done.Notify();
   }));
-  connection.server_socket().reset();
+  connection.reset_server_socket();
   done.WaitForNotification();
   EXPECT_FALSE(client_socket->is_open());
 }
@@ -616,7 +640,7 @@ TYPED_TEST_P(TransferTest, SkipEvenChunks) {
   TypeParam connection{absl::GetFlag(FLAGS_socket_test_use_random_ports), SocketOptions()};
   auto const& server_socket = connection.server_socket();
   auto const& client_socket = connection.client_socket();
-  size_t constexpr kDataSize = 4096 * 3;
+  size_t constexpr kDataSize = size_t{4096} * 3;
   Buffer buffer{kDataSize};
   buffer.Advance(kDataSize);
   ASSERT_OK(client_socket->Write(std::move(buffer),

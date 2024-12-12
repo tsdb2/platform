@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <thread>
 #include <utility>
 
 #include "absl/synchronization/mutex.h"
@@ -10,7 +11,6 @@
 #include "common/mock_clock.h"
 #include "common/simple_condition.h"
 #include "common/testing.h"
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace {

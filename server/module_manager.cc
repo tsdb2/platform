@@ -71,14 +71,14 @@ absl::Status ModuleManager::DependencyChecker::CheckCircularDependencies(BaseMod
   auto const it = dependencies_.find(module);
   CHECK(it != dependencies_.end())
       << "module " << GetModuleString(module) << " not found in dependency graph";
-  for (auto const dependency : it->second) {
+  for (auto* const dependency : it->second) {
     RETURN_IF_ERROR(CheckCircularDependencies(dependency));
   }
   return absl::OkStatus();
 }
 
 absl::Status ModuleManager::Initializer::Run() {
-  for (auto const root : GetRoots()) {
+  for (auto* const root : GetRoots()) {
     RETURN_IF_ERROR(InitializeModule(root));
   }
   return absl::OkStatus();
@@ -91,7 +91,7 @@ absl::flat_hash_set<BaseModule*> ModuleManager::Initializer::GetRoots() {
     roots.emplace(module);
   }
   for (auto const& [module, dependencies] : dependencies_) {
-    for (auto const dependency : dependencies) {
+    for (auto* const dependency : dependencies) {
       roots.erase(dependency);
     }
   }
@@ -106,7 +106,7 @@ absl::Status ModuleManager::Initializer::InitializeModule(BaseModule* const modu
   auto const it = dependencies_.find(module);
   CHECK(it != dependencies_.end())
       << "module " << GetModuleString(module) << " not found in dependency graph";
-  for (auto const dependency : it->second) {
+  for (auto* const dependency : it->second) {
     RETURN_IF_ERROR(InitializeModule(dependency));
   }
   if (testing_) {
@@ -116,7 +116,7 @@ absl::Status ModuleManager::Initializer::InitializeModule(BaseModule* const modu
   }
 }
 
-ModuleManager* ModuleManager::CreateInstance() { return new ModuleManager(); }
+gsl::owner<ModuleManager*> ModuleManager::CreateInstance() { return new ModuleManager(); }
 
 tsdb2::common::Singleton<ModuleManager>* ModuleManager::GetSingleton() {
   // NOTE: we need to use both the localized static initialization pattern and `Singleton` for this

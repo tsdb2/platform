@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <memory>
 
 #include "absl/status/status.h"
 
@@ -22,6 +23,9 @@ Distribution::Distribution(Distribution const &other)
 }
 
 Distribution &Distribution::operator=(Distribution const &other) {
+  if (this == &other) {
+    return *this;
+  }
   bucketer_ = other.bucketer_;
   buckets_ = std::make_unique<size_t[]>(bucketer_->num_finite_buckets());
   for (size_t i = 0; i < bucketer_->num_finite_buckets(); ++i) {
@@ -37,6 +41,9 @@ Distribution &Distribution::operator=(Distribution const &other) {
 }
 
 void Distribution::swap(Distribution &other) {
+  if (this == &other) {
+    return;
+  }
   std::swap(buckets_, other.buckets_);
   std::swap(underflow_, other.underflow_);
   std::swap(overflow_, other.overflow_);

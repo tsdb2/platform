@@ -2,9 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 #include <optional>
-#include <ostream>
 #include <utility>
 
 #include "absl/log/check.h"
@@ -20,6 +18,7 @@
 #include "common/scoped_override.h"
 #include "common/simple_condition.h"
 #include "common/singleton.h"
+#include "common/testing.h"
 #include "common/utilities.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -223,8 +222,7 @@ TYPED_TEST(ServerChannelTest, ValidateSettingsAckWithPayload) {
                           .set_flags(kFlagAck)
                           .set_stream_id(0);
   ASSERT_OK(this->PeerWrite(Buffer(&header, sizeof(FrameHeader))));
-  auto const payload =
-      SettingsEntry().set_identifier(SettingsIdentifier::kEnablePush).set_value(false);
+  auto const payload = SettingsEntry().set_identifier(SettingsIdentifier::kEnablePush).set_value(0);
   EXPECT_OK(this->PeerWrite(Buffer(&payload, sizeof(SettingsEntry))));
   EXPECT_THAT(this->PeerRead(sizeof(FrameHeader)),
               IsOkAndHolds(BufferAs<FrameHeader>(
@@ -244,8 +242,7 @@ TYPED_TEST(ServerChannelTest, ValidateSettingsWithStreamId) {
                           .set_flags(0)
                           .set_stream_id(123);
   ASSERT_OK(this->PeerWrite(Buffer(&header, sizeof(FrameHeader))));
-  auto const payload =
-      SettingsEntry().set_identifier(SettingsIdentifier::kEnablePush).set_value(false);
+  auto const payload = SettingsEntry().set_identifier(SettingsIdentifier::kEnablePush).set_value(0);
   EXPECT_OK(this->PeerWrite(Buffer(&payload, sizeof(SettingsEntry))));
   EXPECT_THAT(this->PeerRead(sizeof(FrameHeader)),
               IsOkAndHolds(BufferAs<FrameHeader>(
@@ -265,8 +262,7 @@ TYPED_TEST(ServerChannelTest, AckSettings) {
                           .set_flags(0)
                           .set_stream_id(0);
   ASSERT_OK(this->PeerWrite(Buffer(&header, sizeof(FrameHeader))));
-  auto const payload =
-      SettingsEntry().set_identifier(SettingsIdentifier::kEnablePush).set_value(false);
+  auto const payload = SettingsEntry().set_identifier(SettingsIdentifier::kEnablePush).set_value(0);
   EXPECT_OK(this->PeerWrite(Buffer(&payload, sizeof(SettingsEntry))));
   EXPECT_THAT(this->PeerRead(sizeof(FrameHeader)),
               IsOkAndHolds(BufferAs<FrameHeader>(AllOf(

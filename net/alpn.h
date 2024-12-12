@@ -1,6 +1,7 @@
 #ifndef __TSDB2_NET_ALPN_H__
 #define __TSDB2_NET_ALPN_H__
 
+#include <openssl/crypto.h>
 #include <openssl/ssl.h>
 
 namespace tsdb2 {

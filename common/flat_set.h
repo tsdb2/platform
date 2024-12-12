@@ -21,7 +21,7 @@
 #include <vector>
 
 #include "absl/base/attributes.h"
-#include "common/flat_container_internal.h"
+#include "common/flat_container_internal.h"  // IWYU pragma: export
 #include "common/to_array.h"
 
 namespace tsdb2 {
@@ -37,6 +37,8 @@ class flat_set {
 
     constexpr node() noexcept : value_(std::nullopt) {}
     explicit node(value_type&& value) : value_(std::move(value)) {}
+
+    ~node() = default;
 
     node(node&&) noexcept = default;
     node& operator=(node&&) noexcept = default;
@@ -76,7 +78,7 @@ class flat_set {
 
   struct insert_return_type {
     iterator position;
-    bool inserted;
+    bool inserted{};
     node_type node;
   };
 
@@ -86,8 +88,8 @@ class flat_set {
 
   constexpr flat_set() : flat_set(Compare()) {}
 
-  explicit constexpr flat_set(SortedDeduplicatedContainer, Representation rep,
-                              Compare const& comp = Compare())
+  explicit constexpr flat_set(SortedDeduplicatedContainer /*sorted_deduplicated_container*/,
+                              Representation rep, Compare const& comp = Compare())
       : comp_(comp), rep_(std::move(rep)) {}
 
   explicit constexpr flat_set(Compare const& comp) : comp_(comp) {}
@@ -117,6 +119,8 @@ class flat_set {
       insert(*first);
     }
   }
+
+  ~flat_set() = default;
 
   flat_set(flat_set const& other) = default;
   flat_set& operator=(flat_set const& other) = default;
@@ -409,13 +413,13 @@ constexpr auto fixed_flat_set_of(std::array<T, N> array, Compare&& comp = Compar
 }
 
 template <typename T, typename Compare = std::less<std::decay_t<T>>, size_t N>
-constexpr auto fixed_flat_set_of(T const (&values)[N],  // NOLINT(*-avoid-c-arrays)
-                                 Compare&& comp = Compare()) {
+constexpr auto fixed_flat_set_of(T const (&values)[N], Compare&& comp = Compare()) {
   return fixed_flat_set_of<T, Compare, N>(to_array(values), std::forward<Compare>(comp));
 }
 
 template <typename T, typename Compare = std::less<T>>
-constexpr auto fixed_flat_set_of(internal::EmptyInitializerList, Compare&& comp = Compare()) {
+constexpr auto fixed_flat_set_of(internal::EmptyInitializerList /*empty_initializer_list*/,
+                                 Compare&& comp = Compare()) {
   return fixed_flat_set<T, 0, Compare>(std::forward<Compare>(comp));
 }
 

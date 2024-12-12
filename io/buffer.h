@@ -9,6 +9,7 @@
 
 #include "absl/log/check.h"
 #include "absl/types/span.h"
+#include "common/utilities.h"
 
 namespace tsdb2 {
 namespace io {
@@ -28,7 +29,7 @@ class Buffer {
   // bytes of capacity and at least `length` initialized bytes.
   //
   // REQUIRES: `data` must have been allocated on the heap using `operator new`.
-  explicit Buffer(void* const data, size_t const capacity, size_t const length)
+  explicit Buffer(gsl::owner<void*> const data, size_t const capacity, size_t const length)
       : capacity_(capacity), length_(length), data_(static_cast<uint8_t*>(data)) {}
 
   // Allocates a buffer with `size` capacity and length and copies `data` into it. This constructor
@@ -69,7 +70,7 @@ class Buffer {
   size_t size() const { return length_; }
 
   // True iff `size` equals 0.
-  [[nodiscard]] bool empty() const { return !length_; }
+  [[nodiscard]] bool empty() const { return length_ == 0; }
 
   // Returns a pointer to the buffer.
   void* get() { return data_; }
@@ -289,8 +290,8 @@ class Buffer {
 
   // Releases ownership of the buffer, invalidating this object and returning a pointer to the
   // previously wrapped data.
-  uint8_t* Release() {
-    auto const data = data_;
+  gsl::owner<uint8_t*> Release() {
+    gsl::owner<uint8_t*> const data = data_;
     capacity_ = 0;
     length_ = 0;
     data_ = nullptr;
@@ -304,7 +305,7 @@ class Buffer {
 
   size_t capacity_ = 0;
   size_t length_ = 0;
-  uint8_t* data_ = nullptr;
+  gsl::owner<uint8_t*> data_ = nullptr;
 };
 
 }  // namespace io

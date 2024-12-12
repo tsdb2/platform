@@ -7,7 +7,6 @@
 
 #include "absl/strings/escaping.h"
 #include "common/re.h"
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace tsdb2 {

@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <cstddef>
 #include <tuple>
-#include <utility>
 #include <vector>
 
 namespace tsdb2 {
@@ -26,6 +25,7 @@ class CaptureGroups {
    public:
     // Constructs an empty iterator.
     explicit Iterator() : parent_(nullptr), capture_group_(-1) {}
+    ~Iterator() = default;
 
     Iterator(Iterator const &) = default;
     Iterator &operator=(Iterator const &) = default;
@@ -74,6 +74,7 @@ class CaptureGroups {
   };
 
   explicit CaptureGroups() = default;
+  ~CaptureGroups() = default;
 
   CaptureGroups(CaptureGroups const &) = default;
   CaptureGroups &operator=(CaptureGroups const &) = default;

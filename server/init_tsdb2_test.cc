@@ -1,7 +1,7 @@
 #include "server/init_tsdb2.h"
 
+#include <string_view>
 #include <thread>
-#include <type_traits>
 #include <utility>
 
 #include "absl/status/status.h"
@@ -13,7 +13,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "server/base_module.h"
-#include "server/init_tsdb2.h"
 #include "server/module_manager.h"
 
 namespace tsdb2 {
@@ -39,7 +38,7 @@ class MockModule : public BaseModule {
   explicit MockModule(std::string_view const name) : BaseModule(name) {}
 
   template <typename... Args>
-  explicit MockModule(InlineRegistration, std::string_view const name, Args&&... args)
+  explicit MockModule(InlineRegistration /*inline*/, std::string_view const name, Args&&... args)
       : BaseModule(name) {
     RegisterModule(this, std::forward<Args>(args)...);
   }

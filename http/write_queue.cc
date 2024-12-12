@@ -3,6 +3,7 @@
 #include <tuple>
 #include <utility>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"

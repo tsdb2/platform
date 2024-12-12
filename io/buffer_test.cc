@@ -5,11 +5,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <string>
 #include <string_view>
 #include <tuple>
+#include <utility>
 
 #include "absl/types/span.h"
+#include "common/utilities.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -70,7 +71,7 @@ TEST(BufferTest, Preallocated) {
 TEST(BufferTest, TakeOwnership) {
   size_t constexpr capacity = 10;
   size_t constexpr size = 2;
-  auto const data = new uint8_t[capacity];
+  gsl::owner<uint8_t*> const data = new uint8_t[capacity];
   data[0] = 12;
   data[1] = 34;
   Buffer buffer{data, capacity, size};
@@ -163,7 +164,7 @@ TEST(BufferTest, TypedSpansWithOffset) {
 
 TEST(BufferTest, ConstByteAt) {
   size_t constexpr size = 10;
-  auto const data = new uint8_t[size];
+  gsl::owner<uint8_t*> const data = new uint8_t[size];
   data[0] = 12;
   data[1] = 34;
   Buffer const buffer{data, size, 2};
@@ -173,7 +174,7 @@ TEST(BufferTest, ConstByteAt) {
 
 TEST(BufferTest, ConstShortAt) {
   size_t constexpr size = 10;
-  auto const data = new uint8_t[size];
+  gsl::owner<uint8_t*> const data = new uint8_t[size];
   data[0] = 12;
   data[1] = 34;
   data[2] = 56;
@@ -184,7 +185,7 @@ TEST(BufferTest, ConstShortAt) {
 
 TEST(BufferTest, ByteAt) {
   size_t constexpr size = 10;
-  auto const data = new uint8_t[size];
+  gsl::owner<uint8_t*> const data = new uint8_t[size];
   data[0] = 12;
   data[1] = 34;
   Buffer buffer{data, size, 2};
@@ -194,7 +195,7 @@ TEST(BufferTest, ByteAt) {
 
 TEST(BufferTest, ShortAt) {
   size_t constexpr size = 10;
-  auto const data = new uint8_t[size];
+  gsl::owner<uint8_t*> const data = new uint8_t[size];
   data[0] = 12;
   data[1] = 34;
   data[2] = 56;
@@ -231,7 +232,7 @@ TEST(BufferTest, AsData) {
 
 TEST(BufferTest, MoveConstruct) {
   size_t constexpr size = 10;
-  auto const data = new uint8_t[size];
+  gsl::owner<uint8_t*> const data = new uint8_t[size];
   data[0] = 12;
   data[1] = 34;
   data[2] = 56;
@@ -259,7 +260,7 @@ TEST(BufferTest, MoveConstruct) {
 
 TEST(BufferTest, MoveAssign) {
   size_t constexpr size = 10;
-  auto const data = new uint8_t[size];
+  gsl::owner<uint8_t*> const data = new uint8_t[size];
   data[0] = 12;
   data[1] = 34;
   data[2] = 56;
@@ -289,12 +290,12 @@ TEST(BufferTest, MoveAssign) {
 
 TEST(BufferTest, Swap) {
   size_t constexpr size1 = 10;
-  auto const data1 = new uint8_t[size1];
+  gsl::owner<uint8_t*> const data1 = new uint8_t[size1];
   data1[0] = 12;
   data1[1] = 34;
   data1[2] = 56;
   size_t constexpr size2 = 5;
-  auto const data2 = new uint8_t[size2];
+  gsl::owner<uint8_t*> const data2 = new uint8_t[size2];
   data2[0] = 56;
   data2[1] = 78;
   data2[2] = 90;
@@ -316,12 +317,12 @@ TEST(BufferTest, Swap) {
 
 TEST(BufferTest, AdlSwap) {
   size_t constexpr size1 = 10;
-  auto const data1 = new uint8_t[size1];
+  gsl::owner<uint8_t*> const data1 = new uint8_t[size1];
   data1[0] = 12;
   data1[1] = 34;
   data1[2] = 56;
   size_t constexpr size2 = 5;
-  auto const data2 = new uint8_t[size2];
+  gsl::owner<uint8_t*> const data2 = new uint8_t[size2];
   data2[0] = 56;
   data2[1] = 78;
   data2[2] = 90;
@@ -344,7 +345,7 @@ TEST(BufferTest, AdlSwap) {
 TEST(BufferTest, AppendInt) {
   size_t constexpr capacity = 256;
   size_t constexpr offset = 10;
-  auto const data = new uint8_t[capacity];
+  gsl::owner<uint8_t*> const data = new uint8_t[capacity];
   Buffer b{data, capacity, offset};
   b.Append<int>(123);
   EXPECT_EQ(b.capacity(), capacity);
@@ -357,14 +358,14 @@ TEST(BufferTest, AppendInt) {
 TEST(BufferTest, AppendLongLong) {
   size_t constexpr capacity = 256;
   size_t constexpr offset = 10;
-  auto const data = new uint8_t[capacity];
+  gsl::owner<uint8_t*> const data = new uint8_t[capacity];
   Buffer b{data, capacity, offset};
-  b.Append<long long>(456);
+  b.Append<int64_t>(456);
   EXPECT_EQ(b.capacity(), capacity);
-  EXPECT_EQ(b.size(), offset + sizeof(long long));
+  EXPECT_EQ(b.size(), offset + sizeof(int64_t));
   EXPECT_FALSE(b.empty());
   EXPECT_EQ(b.get(), data);
-  EXPECT_EQ(b.at<long long>(offset), 456);
+  EXPECT_EQ(b.at<int64_t>(offset), 456);
 }
 
 TEST(BufferTest, AppendBuffer) {
@@ -456,7 +457,7 @@ TEST(BufferTest, MemCpy) {
 
 TEST(BufferTest, Release) {
   size_t constexpr size = 10;
-  auto const data = new uint8_t[size];
+  gsl::owner<uint8_t*> const data = new uint8_t[size];
   data[0] = 12;
   data[1] = 34;
   data[2] = 56;

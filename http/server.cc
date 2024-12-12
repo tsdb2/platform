@@ -1,11 +1,13 @@
 #include "http/server.h"
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -69,7 +71,7 @@ absl::StatusOr<std::unique_ptr<Server>> Server::Create(std::string_view const ad
 
 namespace {
 
-Server* CreateDefaultServerOrDie() {
+gsl::owner<Server*> CreateDefaultServerOrDie() {
   SocketOptions options{
       .keep_alive = absl::GetFlag(FLAGS_tcp_keep_alive),
   };
@@ -92,7 +94,7 @@ Server* CreateDefaultServerOrDie() {
                      absl::GetFlag(FLAGS_use_ssl), options);
   CHECK_OK(status_or_server) << "Failed to create default HTTPS server: "
                              << status_or_server.status();
-  auto const server = status_or_server.value().release();
+  auto* const server = status_or_server.value().release();
   auto const [address, port] = server->local_binding();
   LOG(INFO) << "Listening on " << address << ":" << port;
   return server;
@@ -101,8 +103,8 @@ Server* CreateDefaultServerOrDie() {
 }  // namespace
 
 Server* Server::GetDefault() {
-  static Server* const kInstance = CreateDefaultServerOrDie();
-  return kInstance;
+  static gsl::owner<Server*> const kInstance = CreateDefaultServerOrDie();
+  return kInstance;  // NOLINT(cppcoreguidelines-owning-memory)
 }
 
 Server::Binding Server::local_binding() const {

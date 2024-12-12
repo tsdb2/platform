@@ -96,5 +96,6 @@
     "${workspaceFolder}/bazel-platform/external/abseil-cpp+",
     "${workspaceFolder}/bazel-platform/external/googletest+/googlemock/include",
     "${workspaceFolder}/bazel-platform/external/googletest+/googletest/include"
-  ]
+  ],
+  "clangd.path": "/usr/bin/clangd-18"
 }

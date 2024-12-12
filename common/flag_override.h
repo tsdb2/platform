@@ -29,6 +29,11 @@ class FlagOverride {
   ~FlagOverride() { absl::SetFlag(flag_, original_value_); }
 
  private:
+  FlagOverride(FlagOverride const &) = delete;
+  FlagOverride &operator=(FlagOverride const &) = delete;
+  FlagOverride(FlagOverride &&) = delete;
+  FlagOverride &operator=(FlagOverride &&) = delete;
+
   absl::Flag<T> *const flag_;
   T original_value_;
 };
