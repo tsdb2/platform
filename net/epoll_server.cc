@@ -124,7 +124,6 @@ void EpollServer::WorkerLoop() {
       CHECK_EQ(errno, EINTR) << absl::ErrnoToStatus(errno, "epoll_wait()");
       continue;
     }
-    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index)
     for (int i = 0; i < num_events; ++i) {
       auto const target = LookupTarget(events[i].data.fd);
       if (!target) {
@@ -141,7 +140,6 @@ void EpollServer::WorkerLoop() {
         }
       }
     }
-    // NOLINTEND(cppcoreguidelines-pro-bounds-constant-array-index)
   }
 }
 
