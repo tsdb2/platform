@@ -48,10 +48,12 @@ class Buffer {
       : capacity_(other.capacity_), length_(other.length_), data_(other.Release()) {}
 
   Buffer& operator=(Buffer&& other) noexcept {
-    delete[] data_;
-    capacity_ = other.capacity_;
-    length_ = other.length_;
-    data_ = other.Release();
+    if (this != &other) {
+      delete[] data_;
+      capacity_ = other.capacity_;
+      length_ = other.length_;
+      data_ = other.Release();
+    }
     return *this;
   }
 

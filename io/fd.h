@@ -34,8 +34,10 @@ class FD {
   FD(FD&& other) noexcept : fd_(other.Release()) {}
 
   FD& operator=(FD&& other) noexcept {
-    MaybeClose();
-    fd_ = other.Release();
+    if (this != &other) {
+      MaybeClose();
+      fd_ = other.Release();
+    }
     return *this;
   }
 

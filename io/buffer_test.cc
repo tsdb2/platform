@@ -288,6 +288,25 @@ TEST(BufferTest, MoveAssign) {
   EXPECT_THAT(b1.span(), ElementsAre(12, 34, 56));
 }
 
+TEST(BufferTest, SelfMoveAssign) {
+  size_t constexpr size = 10;
+  gsl::owner<uint8_t*> const data = new uint8_t[size];
+  data[0] = 12;
+  data[1] = 34;
+  data[2] = 56;
+  Buffer buffer{data, size, 3};
+  ASSERT_EQ(buffer.capacity(), size);
+  ASSERT_EQ(buffer.size(), 3);
+  ASSERT_FALSE(buffer.empty());
+  ASSERT_EQ(buffer.get(), data);
+  buffer = std::move(buffer);  // NOLINT
+  EXPECT_EQ(buffer.capacity(), size);
+  EXPECT_EQ(buffer.size(), 3);
+  EXPECT_FALSE(buffer.empty());
+  EXPECT_EQ(buffer.get(), data);
+  EXPECT_THAT(buffer.span(), ElementsAre(12, 34, 56));
+}
+
 TEST(BufferTest, Swap) {
   size_t constexpr size1 = 10;
   gsl::owner<uint8_t*> const data1 = new uint8_t[size1];

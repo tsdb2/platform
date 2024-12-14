@@ -61,6 +61,13 @@ TEST(FDTest, MoveAssign) {
   EXPECT_EQ(fd2.get(), 123);
 }
 
+TEST(FDTest, SelfMoveAssign) {
+  FD fd{123};
+  fd = std::move(fd);  // NOLINT
+  EXPECT_FALSE(fd.empty());
+  EXPECT_EQ(fd.get(), 123);
+}
+
 TEST(FDTest, Swap) {
   FD fd1{123};
   FD fd2{345};
