@@ -81,6 +81,7 @@ class FD {
     return fd;
   }
 
+  // Clones the file descriptor using the `dup` syscall.
   absl::StatusOr<FD> Clone() const {
     if (fd_ < 0) {
       return absl::FailedPreconditionError("cannot clone an empty file descriptor");

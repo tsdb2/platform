@@ -19,10 +19,12 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
+#include "common/no_destructor.h"
 #include "common/ref_count.h"
 #include "common/reffed_ptr.h"
 #include "common/utilities.h"
 #include "io/fd.h"
+#include "server/base_module.h"
 
 namespace tsdb2 {
 namespace net {
@@ -264,6 +266,19 @@ absl::Status EpollServer::AddTarget(tsdb2::common::reffed_ptr<SocketType> const&
   }
   return absl::OkStatus();
 }
+
+class EpollServerModule : public tsdb2::init::BaseModule {
+ public:
+  static EpollServerModule* Get() { return instance_.Get(); }
+
+  absl::Status Initialize() override;
+
+ private:
+  friend class tsdb2::common::NoDestructor<EpollServerModule>;
+  static tsdb2::common::NoDestructor<EpollServerModule> instance_;
+
+  explicit EpollServerModule();
+};
 
 }  // namespace net
 }  // namespace tsdb2

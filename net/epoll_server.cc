@@ -17,7 +17,10 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"
+#include "common/no_destructor.h"
 #include "common/utilities.h"
+#include "server/base_module.h"
+#include "server/init_tsdb2.h"
 
 namespace {
 #ifdef NDEBUG
@@ -141,6 +144,17 @@ void EpollServer::WorkerLoop() {
       }
     }
   }
+}
+
+tsdb2::common::NoDestructor<EpollServerModule> EpollServerModule::instance_;
+
+EpollServerModule::EpollServerModule() : tsdb2::init::BaseModule("epoll") {
+  tsdb2::init::RegisterModule(this);
+}
+
+absl::Status EpollServerModule::Initialize() {
+  EpollServer::GetInstance();
+  return absl::OkStatus();
 }
 
 }  // namespace net

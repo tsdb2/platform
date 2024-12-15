@@ -242,7 +242,8 @@ absl::Status SocketModule::Initialize() {
 }
 
 SocketModule::SocketModule() : BaseModule("sockets") {
-  tsdb2::init::RegisterModule(this, tsdb2::common::DefaultSchedulerModule::Get());
+  tsdb2::init::RegisterModule(this, tsdb2::net::EpollServerModule::Get(),
+                              tsdb2::common::DefaultSchedulerModule::Get());
 }
 
 }  // namespace net

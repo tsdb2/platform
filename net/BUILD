@@ -6,10 +6,13 @@ cc_library(
     hdrs = ["epoll_server.h"],
     visibility = ["//http:__subpackages__"],
     deps = [
+        "//common:no_destructor",
         "//common:ref_count",
         "//common:reffed_ptr",
         "//common:utilities",
         "//io:fd",
+        "//server:base_module",
+        "//server:init_tsdb2",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/flags:flag",
