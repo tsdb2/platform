@@ -28,7 +28,7 @@
 //
 // NOTE: unfortunately C++17 doesn't allow passing string literals to template parameters directly,
 // so writing things like `TypeStringT<"Hello!">` results in a syntax error. It's required that the
-// array provided to `TypeString` and `TypeStringT` is an actual linker symbol, so it has to be
+// array provided to `TypeString` and `TypeStringT` be an actual linker symbol, so it has to be
 // declared as a constant in namespace scope. It must also be constexpr, otherwise the compiler
 // won't be able to scan the characters at compile time.
 //

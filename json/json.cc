@@ -378,7 +378,23 @@ void Stringifier::WriteString(std::string_view const value) {
   output_.Append(internal::EscapeAndQuoteString(value));
 }
 
-std::string Stringifier::Finish() && { return std::string(output_.Flatten()); }
+std::string Stringifier::Finish() && {
+  if (options_.trailing_newline) {
+    output_.Append(line_feed_);
+  }
+  return std::string(output_.Flatten());
+}
+
+std::string Stringifier::MakeLineFeed(LineFeedType const type) {
+  switch (type) {
+    case LineFeedType::LF:
+      return "\n";
+    case LineFeedType::CRLF:
+      return "\r\n";
+    case LineFeedType::CR:
+      return "\r";
+  }
+}
 
 void Stringifier::Indent() {
   if (++indentation_level_ > indentation_cords_.size()) {

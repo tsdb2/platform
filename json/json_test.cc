@@ -24,6 +24,7 @@
 #include "absl/hash/hash.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "absl/strings/str_replace.h"
 #include "common/fingerprint.h"
 #include "common/flat_map.h"
 #include "common/flat_set.h"
@@ -102,6 +103,13 @@ json::ParseOptions constexpr kParseOptions3{.allow_extra_fields = true, .fast_sk
 json::StringifyOptions constexpr kStringifyOptions1{.pretty = false};
 json::StringifyOptions constexpr kStringifyOptions2{.pretty = true, .indent_width = 2};
 json::StringifyOptions constexpr kStringifyOptions3{.pretty = true, .indent_width = 4};
+
+json::StringifyOptions constexpr kStringifyOptions4{
+    .pretty = true,
+    .line_feed_type = json::LineFeedType::CRLF,
+};
+
+json::StringifyOptions constexpr kStringifyOptions5{.pretty = true, .trailing_newline = true};
 
 TEST(JsonTest, CheckUniqueName) {
   using json::internal::CheckUniqueNameV;
@@ -858,9 +866,13 @@ TEST(JsonTest, StringifyEmpty) {
   EXPECT_EQ(object.Stringify(kStringifyOptions1), "{}");
   EXPECT_EQ(object.Stringify(kStringifyOptions2), "{}");
   EXPECT_EQ(object.Stringify(kStringifyOptions3), "{}");
+  EXPECT_EQ(object.Stringify(kStringifyOptions4), "{}");
+  EXPECT_EQ(object.Stringify(kStringifyOptions5), "{}\n");
   EXPECT_EQ(json::Stringify(object, kStringifyOptions1), "{}");
   EXPECT_EQ(json::Stringify(object, kStringifyOptions2), "{}");
   EXPECT_EQ(json::Stringify(object, kStringifyOptions3), "{}");
+  EXPECT_EQ(json::Stringify(object, kStringifyOptions4), "{}");
+  EXPECT_EQ(json::Stringify(object, kStringifyOptions5), "{}\n");
 }
 
 TEST(JsonTest, Parse) {
@@ -1183,8 +1195,7 @@ TEST(JsonTest, Stringify) {
   EXPECT_EQ(
       object.Stringify(kStringifyOptions1),
       R"({"lorem":42,"ipsum":true,"dolor":"foobar","sit":3.14,"amet":[1,2,3],"consectetur":[4,5,6,7],"adipisci":[43,false,"barbaz"],"elit":2.71})");
-  EXPECT_EQ(object.Stringify(kStringifyOptions2),
-            R"({
+  EXPECT_EQ(object.Stringify(kStringifyOptions2), R"({
   "lorem": 42,
   "ipsum": true,
   "dolor": "foobar",
@@ -1203,8 +1214,7 @@ TEST(JsonTest, Stringify) {
   "adipisci": [43, false, "barbaz"],
   "elit": 2.71
 })");
-  EXPECT_EQ(object.Stringify(kStringifyOptions3),
-            R"({
+  EXPECT_EQ(object.Stringify(kStringifyOptions3), R"({
     "lorem": 42,
     "ipsum": true,
     "dolor": "foobar",
@@ -1223,9 +1233,51 @@ TEST(JsonTest, Stringify) {
     "adipisci": [43, false, "barbaz"],
     "elit": 2.71
 })");
+  EXPECT_EQ(object.Stringify(kStringifyOptions4), absl::StrReplaceAll(R"({
+  "lorem": 42,
+  "ipsum": true,
+  "dolor": "foobar",
+  "sit": 3.14,
+  "amet": [
+    1,
+    2,
+    3
+  ],
+  "consectetur": [
+    4,
+    5,
+    6,
+    7
+  ],
+  "adipisci": [43, false, "barbaz"],
+  "elit": 2.71
+})",
+                                                                      {{"\n", "\r\n"}}));
+  EXPECT_EQ(object.Stringify(kStringifyOptions5), R"({
+  "lorem": 42,
+  "ipsum": true,
+  "dolor": "foobar",
+  "sit": 3.14,
+  "amet": [
+    1,
+    2,
+    3
+  ],
+  "consectetur": [
+    4,
+    5,
+    6,
+    7
+  ],
+  "adipisci": [43, false, "barbaz"],
+  "elit": 2.71
+}
+)");
   EXPECT_EQ(json::Stringify(object, kStringifyOptions1), object.Stringify(kStringifyOptions1));
   EXPECT_EQ(json::Stringify(object, kStringifyOptions2), object.Stringify(kStringifyOptions2));
   EXPECT_EQ(json::Stringify(object, kStringifyOptions3), object.Stringify(kStringifyOptions3));
+  EXPECT_EQ(json::Stringify(object, kStringifyOptions4), object.Stringify(kStringifyOptions4));
+  EXPECT_EQ(json::Stringify(object, kStringifyOptions5), object.Stringify(kStringifyOptions5));
 }
 
 TEST(JsonTest, StringifyWithOptionalFields) {
@@ -1302,9 +1354,69 @@ TEST(JsonTest, StringifyWithOptionalFields) {
     },
     "amet": [56, 78]
 })");
+  EXPECT_EQ(outer.Stringify(kStringifyOptions4), absl::StrReplaceAll(R"({
+  "lorem": "sator arepo",
+  "ipsum": {
+    "lorem": 42,
+    "ipsum": true,
+    "dolor": "foobar",
+    "sit": 3.14,
+    "amet": [
+      1,
+      2,
+      3
+    ],
+    "consectetur": [
+      4,
+      5,
+      6,
+      7
+    ],
+    "adipisci": [43, false, "barbaz"],
+    "elit": 2.71
+  },
+  "dolor": "arepo tenet",
+  "sit": {
+    "arepo": 34,
+    "sator": 12
+  },
+  "amet": [56, 78]
+})",
+                                                                     {{"\n", "\r\n"}}));
+  EXPECT_EQ(outer.Stringify(kStringifyOptions5), R"({
+  "lorem": "sator arepo",
+  "ipsum": {
+    "lorem": 42,
+    "ipsum": true,
+    "dolor": "foobar",
+    "sit": 3.14,
+    "amet": [
+      1,
+      2,
+      3
+    ],
+    "consectetur": [
+      4,
+      5,
+      6,
+      7
+    ],
+    "adipisci": [43, false, "barbaz"],
+    "elit": 2.71
+  },
+  "dolor": "arepo tenet",
+  "sit": {
+    "arepo": 34,
+    "sator": 12
+  },
+  "amet": [56, 78]
+}
+)");
   EXPECT_EQ(json::Stringify(outer, kStringifyOptions1), outer.Stringify(kStringifyOptions1));
   EXPECT_EQ(json::Stringify(outer, kStringifyOptions2), outer.Stringify(kStringifyOptions2));
   EXPECT_EQ(json::Stringify(outer, kStringifyOptions3), outer.Stringify(kStringifyOptions3));
+  EXPECT_EQ(json::Stringify(outer, kStringifyOptions4), outer.Stringify(kStringifyOptions4));
+  EXPECT_EQ(json::Stringify(outer, kStringifyOptions5), outer.Stringify(kStringifyOptions5));
 }
 
 TEST(JsonTest, StringifyWithMissingOptionalFields) {
@@ -1372,9 +1484,63 @@ TEST(JsonTest, StringifyWithMissingOptionalFields) {
     },
     "amet": [56, 78]
 })");
+  EXPECT_EQ(outer.Stringify(kStringifyOptions4), absl::StrReplaceAll(R"({
+  "ipsum": {
+    "lorem": 42,
+    "ipsum": true,
+    "dolor": "foobar",
+    "sit": 3.14,
+    "amet": [
+      1,
+      2,
+      3
+    ],
+    "consectetur": [
+      4,
+      5,
+      6,
+      7
+    ],
+    "adipisci": [43, false, "barbaz"]
+  },
+  "sit": {
+    "arepo": 34,
+    "sator": 12
+  },
+  "amet": [56, 78]
+})",
+                                                                     {{"\n", "\r\n"}}));
+  EXPECT_EQ(outer.Stringify(kStringifyOptions5), R"({
+  "ipsum": {
+    "lorem": 42,
+    "ipsum": true,
+    "dolor": "foobar",
+    "sit": 3.14,
+    "amet": [
+      1,
+      2,
+      3
+    ],
+    "consectetur": [
+      4,
+      5,
+      6,
+      7
+    ],
+    "adipisci": [43, false, "barbaz"]
+  },
+  "sit": {
+    "arepo": 34,
+    "sator": 12
+  },
+  "amet": [56, 78]
+}
+)");
   EXPECT_EQ(json::Stringify(outer, kStringifyOptions1), outer.Stringify(kStringifyOptions1));
   EXPECT_EQ(json::Stringify(outer, kStringifyOptions2), outer.Stringify(kStringifyOptions2));
   EXPECT_EQ(json::Stringify(outer, kStringifyOptions3), outer.Stringify(kStringifyOptions3));
+  EXPECT_EQ(json::Stringify(outer, kStringifyOptions4), outer.Stringify(kStringifyOptions4));
+  EXPECT_EQ(json::Stringify(outer, kStringifyOptions5), outer.Stringify(kStringifyOptions5));
 }
 
 TEST(JsonTest, ParseBool) {
@@ -1396,9 +1562,13 @@ TEST(JsonTest, StringifyBool) {
   EXPECT_EQ(json::Stringify(true, kStringifyOptions1), "true");
   EXPECT_EQ(json::Stringify(true, kStringifyOptions2), "true");
   EXPECT_EQ(json::Stringify(true, kStringifyOptions3), "true");
+  EXPECT_EQ(json::Stringify(true, kStringifyOptions4), "true");
+  EXPECT_EQ(json::Stringify(true, kStringifyOptions5), "true\n");
   EXPECT_EQ(json::Stringify(false, kStringifyOptions1), "false");
   EXPECT_EQ(json::Stringify(false, kStringifyOptions2), "false");
   EXPECT_EQ(json::Stringify(false, kStringifyOptions3), "false");
+  EXPECT_EQ(json::Stringify(false, kStringifyOptions4), "false");
+  EXPECT_EQ(json::Stringify(false, kStringifyOptions5), "false\n");
 }
 
 TEST(JsonTest, SkipWhitespace) {
@@ -1425,15 +1595,23 @@ TEST(JsonTest, StringifyUnsignedInteger) {
   EXPECT_EQ(json::Stringify<uint8_t>(42, kStringifyOptions1), "42");
   EXPECT_EQ(json::Stringify<uint8_t>(42, kStringifyOptions2), "42");
   EXPECT_EQ(json::Stringify<uint8_t>(42, kStringifyOptions3), "42");
+  EXPECT_EQ(json::Stringify<uint8_t>(42, kStringifyOptions4), "42");
+  EXPECT_EQ(json::Stringify<uint8_t>(42, kStringifyOptions5), "42\n");
   EXPECT_EQ(json::Stringify<uint16_t>(43, kStringifyOptions1), "43");
   EXPECT_EQ(json::Stringify<uint16_t>(43, kStringifyOptions2), "43");
   EXPECT_EQ(json::Stringify<uint16_t>(43, kStringifyOptions3), "43");
+  EXPECT_EQ(json::Stringify<uint16_t>(43, kStringifyOptions4), "43");
+  EXPECT_EQ(json::Stringify<uint16_t>(43, kStringifyOptions5), "43\n");
   EXPECT_EQ(json::Stringify<uint32_t>(44, kStringifyOptions1), "44");
   EXPECT_EQ(json::Stringify<uint32_t>(44, kStringifyOptions2), "44");
   EXPECT_EQ(json::Stringify<uint32_t>(44, kStringifyOptions3), "44");
+  EXPECT_EQ(json::Stringify<uint32_t>(44, kStringifyOptions4), "44");
+  EXPECT_EQ(json::Stringify<uint32_t>(44, kStringifyOptions5), "44\n");
   EXPECT_EQ(json::Stringify<uint64_t>(45, kStringifyOptions1), "45");
   EXPECT_EQ(json::Stringify<uint64_t>(45, kStringifyOptions2), "45");
   EXPECT_EQ(json::Stringify<uint64_t>(45, kStringifyOptions3), "45");
+  EXPECT_EQ(json::Stringify<uint64_t>(45, kStringifyOptions4), "45");
+  EXPECT_EQ(json::Stringify<uint64_t>(45, kStringifyOptions5), "45\n");
 }
 
 TEST(JsonTest, ParseSignedInteger) {
@@ -1461,27 +1639,43 @@ TEST(JsonTest, StringifySignedInteger) {
   EXPECT_EQ(json::Stringify<int8_t>(42, kStringifyOptions1), "42");
   EXPECT_EQ(json::Stringify<int8_t>(42, kStringifyOptions2), "42");
   EXPECT_EQ(json::Stringify<int8_t>(42, kStringifyOptions3), "42");
+  EXPECT_EQ(json::Stringify<int8_t>(42, kStringifyOptions4), "42");
+  EXPECT_EQ(json::Stringify<int8_t>(42, kStringifyOptions5), "42\n");
   EXPECT_EQ(json::Stringify<int16_t>(43, kStringifyOptions1), "43");
   EXPECT_EQ(json::Stringify<int16_t>(43, kStringifyOptions2), "43");
   EXPECT_EQ(json::Stringify<int16_t>(43, kStringifyOptions3), "43");
+  EXPECT_EQ(json::Stringify<int16_t>(43, kStringifyOptions4), "43");
+  EXPECT_EQ(json::Stringify<int16_t>(43, kStringifyOptions5), "43\n");
   EXPECT_EQ(json::Stringify<int32_t>(44, kStringifyOptions1), "44");
   EXPECT_EQ(json::Stringify<int32_t>(44, kStringifyOptions2), "44");
   EXPECT_EQ(json::Stringify<int32_t>(44, kStringifyOptions3), "44");
+  EXPECT_EQ(json::Stringify<int32_t>(44, kStringifyOptions4), "44");
+  EXPECT_EQ(json::Stringify<int32_t>(44, kStringifyOptions5), "44\n");
   EXPECT_EQ(json::Stringify<int64_t>(45, kStringifyOptions1), "45");
   EXPECT_EQ(json::Stringify<int64_t>(45, kStringifyOptions2), "45");
   EXPECT_EQ(json::Stringify<int64_t>(45, kStringifyOptions3), "45");
+  EXPECT_EQ(json::Stringify<int64_t>(45, kStringifyOptions4), "45");
+  EXPECT_EQ(json::Stringify<int64_t>(45, kStringifyOptions5), "45\n");
   EXPECT_EQ(json::Stringify<int8_t>(-46, kStringifyOptions1), "-46");
   EXPECT_EQ(json::Stringify<int8_t>(-46, kStringifyOptions2), "-46");
   EXPECT_EQ(json::Stringify<int8_t>(-46, kStringifyOptions3), "-46");
+  EXPECT_EQ(json::Stringify<int8_t>(-46, kStringifyOptions4), "-46");
+  EXPECT_EQ(json::Stringify<int8_t>(-46, kStringifyOptions5), "-46\n");
   EXPECT_EQ(json::Stringify<int16_t>(-47, kStringifyOptions1), "-47");
   EXPECT_EQ(json::Stringify<int16_t>(-47, kStringifyOptions2), "-47");
   EXPECT_EQ(json::Stringify<int16_t>(-47, kStringifyOptions3), "-47");
+  EXPECT_EQ(json::Stringify<int16_t>(-47, kStringifyOptions4), "-47");
+  EXPECT_EQ(json::Stringify<int16_t>(-47, kStringifyOptions5), "-47\n");
   EXPECT_EQ(json::Stringify<int32_t>(-48, kStringifyOptions1), "-48");
   EXPECT_EQ(json::Stringify<int32_t>(-48, kStringifyOptions2), "-48");
   EXPECT_EQ(json::Stringify<int32_t>(-48, kStringifyOptions3), "-48");
+  EXPECT_EQ(json::Stringify<int32_t>(-48, kStringifyOptions4), "-48");
+  EXPECT_EQ(json::Stringify<int32_t>(-48, kStringifyOptions5), "-48\n");
   EXPECT_EQ(json::Stringify<int64_t>(-49, kStringifyOptions1), "-49");
   EXPECT_EQ(json::Stringify<int64_t>(-49, kStringifyOptions2), "-49");
   EXPECT_EQ(json::Stringify<int64_t>(-49, kStringifyOptions3), "-49");
+  EXPECT_EQ(json::Stringify<int64_t>(-49, kStringifyOptions4), "-49");
+  EXPECT_EQ(json::Stringify<int64_t>(-49, kStringifyOptions5), "-49\n");
 }
 
 TEST(JsonTest, ParseFloat) {
@@ -1523,15 +1717,23 @@ TEST(JsonTest, StringifyFloat) {
   EXPECT_EQ(json::Stringify<float>(3.14, kStringifyOptions1), "3.14");
   EXPECT_EQ(json::Stringify<float>(3.14, kStringifyOptions2), "3.14");
   EXPECT_EQ(json::Stringify<float>(3.14, kStringifyOptions3), "3.14");
+  EXPECT_EQ(json::Stringify<float>(3.14, kStringifyOptions4), "3.14");
+  EXPECT_EQ(json::Stringify<float>(3.14, kStringifyOptions5), "3.14\n");
   EXPECT_EQ(json::Stringify<float>(-3.14, kStringifyOptions1), "-3.14");
   EXPECT_EQ(json::Stringify<float>(-3.14, kStringifyOptions2), "-3.14");
   EXPECT_EQ(json::Stringify<float>(-3.14, kStringifyOptions3), "-3.14");
+  EXPECT_EQ(json::Stringify<float>(-3.14, kStringifyOptions4), "-3.14");
+  EXPECT_EQ(json::Stringify<float>(-3.14, kStringifyOptions5), "-3.14\n");
   EXPECT_EQ(json::Stringify<double>(2.71, kStringifyOptions1), "2.71");
   EXPECT_EQ(json::Stringify<double>(2.71, kStringifyOptions2), "2.71");
   EXPECT_EQ(json::Stringify<double>(2.71, kStringifyOptions3), "2.71");
+  EXPECT_EQ(json::Stringify<double>(2.71, kStringifyOptions4), "2.71");
+  EXPECT_EQ(json::Stringify<double>(2.71, kStringifyOptions5), "2.71\n");
   EXPECT_EQ(json::Stringify<double>(-2.71, kStringifyOptions1), "-2.71");
   EXPECT_EQ(json::Stringify<double>(-2.71, kStringifyOptions2), "-2.71");
   EXPECT_EQ(json::Stringify<double>(-2.71, kStringifyOptions3), "-2.71");
+  EXPECT_EQ(json::Stringify<double>(-2.71, kStringifyOptions4), "-2.71");
+  EXPECT_EQ(json::Stringify<double>(-2.71, kStringifyOptions5), "-2.71\n");
   // TODO: debug these two.
   // EXPECT_EQ(json::Stringify<long double>(1.41), "1.41");
   // EXPECT_EQ(json::Stringify<long double>(-1.41), "-1.41");
@@ -1562,15 +1764,25 @@ TEST(JsonTest, StringifyString) {
             "\"lorem \\\"ipsum\\\"\"");
   EXPECT_EQ(json::Stringify<std::string>("lorem \"ipsum\"", kStringifyOptions3),
             "\"lorem \\\"ipsum\\\"\"");
+  EXPECT_EQ(json::Stringify<std::string>("lorem \"ipsum\"", kStringifyOptions4),
+            "\"lorem \\\"ipsum\\\"\"");
+  EXPECT_EQ(json::Stringify<std::string>("lorem \"ipsum\"", kStringifyOptions5),
+            "\"lorem \\\"ipsum\\\"\"\n");
   EXPECT_EQ(json::Stringify("lorem \"ipsum\"", kStringifyOptions1), "\"lorem \\\"ipsum\\\"\"");
   EXPECT_EQ(json::Stringify("lorem \"ipsum\"", kStringifyOptions2), "\"lorem \\\"ipsum\\\"\"");
   EXPECT_EQ(json::Stringify("lorem \"ipsum\"", kStringifyOptions3), "\"lorem \\\"ipsum\\\"\"");
+  EXPECT_EQ(json::Stringify("lorem \"ipsum\"", kStringifyOptions4), "\"lorem \\\"ipsum\\\"\"");
+  EXPECT_EQ(json::Stringify("lorem \"ipsum\"", kStringifyOptions5), "\"lorem \\\"ipsum\\\"\"\n");
   EXPECT_EQ(json::Stringify("a \" b \\ c / d \b e \f f \n g \r h \t i \x84", kStringifyOptions1),
             "\"a \\\" b \\\\ c / d \\b e \\f f \\n g \\r h \\t i \\u0084\"");
   EXPECT_EQ(json::Stringify("a \" b \\ c / d \b e \f f \n g \r h \t i \x84", kStringifyOptions2),
             "\"a \\\" b \\\\ c / d \\b e \\f f \\n g \\r h \\t i \\u0084\"");
   EXPECT_EQ(json::Stringify("a \" b \\ c / d \b e \f f \n g \r h \t i \x84", kStringifyOptions3),
             "\"a \\\" b \\\\ c / d \\b e \\f f \\n g \\r h \\t i \\u0084\"");
+  EXPECT_EQ(json::Stringify("a \" b \\ c / d \b e \f f \n g \r h \t i \x84", kStringifyOptions4),
+            "\"a \\\" b \\\\ c / d \\b e \\f f \\n g \\r h \\t i \\u0084\"");
+  EXPECT_EQ(json::Stringify("a \" b \\ c / d \b e \f f \n g \r h \t i \x84", kStringifyOptions5),
+            "\"a \\\" b \\\\ c / d \\b e \\f f \\n g \\r h \\t i \\u0084\"\n");
 }
 
 TEST(JsonTest, ParseOptional) {
@@ -1591,15 +1803,25 @@ TEST(JsonTest, StringifyOptional) {
   EXPECT_EQ(json::Stringify<std::optional<int>>(std::nullopt, kStringifyOptions1), "null");
   EXPECT_EQ(json::Stringify<std::optional<int>>(std::nullopt, kStringifyOptions2), "null");
   EXPECT_EQ(json::Stringify<std::optional<int>>(std::nullopt, kStringifyOptions3), "null");
+  EXPECT_EQ(json::Stringify<std::optional<int>>(std::nullopt, kStringifyOptions4), "null");
+  EXPECT_EQ(json::Stringify<std::optional<int>>(std::nullopt, kStringifyOptions5), "null\n");
   EXPECT_EQ(json::Stringify<std::optional<int>>(42, kStringifyOptions1), "42");
   EXPECT_EQ(json::Stringify<std::optional<int>>(42, kStringifyOptions2), "42");
   EXPECT_EQ(json::Stringify<std::optional<int>>(42, kStringifyOptions3), "42");
+  EXPECT_EQ(json::Stringify<std::optional<int>>(42, kStringifyOptions4), "42");
+  EXPECT_EQ(json::Stringify<std::optional<int>>(42, kStringifyOptions5), "42\n");
   EXPECT_EQ(json::Stringify<std::optional<std::string>>(std::nullopt, kStringifyOptions1), "null");
   EXPECT_EQ(json::Stringify<std::optional<std::string>>(std::nullopt, kStringifyOptions2), "null");
   EXPECT_EQ(json::Stringify<std::optional<std::string>>(std::nullopt, kStringifyOptions3), "null");
+  EXPECT_EQ(json::Stringify<std::optional<std::string>>(std::nullopt, kStringifyOptions4), "null");
+  EXPECT_EQ(json::Stringify<std::optional<std::string>>(std::nullopt, kStringifyOptions5),
+            "null\n");
   EXPECT_EQ(json::Stringify<std::optional<std::string>>("lorem", kStringifyOptions1), "\"lorem\"");
   EXPECT_EQ(json::Stringify<std::optional<std::string>>("lorem", kStringifyOptions2), "\"lorem\"");
   EXPECT_EQ(json::Stringify<std::optional<std::string>>("lorem", kStringifyOptions3), "\"lorem\"");
+  EXPECT_EQ(json::Stringify<std::optional<std::string>>("lorem", kStringifyOptions4), "\"lorem\"");
+  EXPECT_EQ(json::Stringify<std::optional<std::string>>("lorem", kStringifyOptions5),
+            "\"lorem\"\n");
 }
 
 TEST(JsonTest, ParsePair) {
@@ -1638,9 +1860,13 @@ TEST(JsonTest, StringifyPair) {
   EXPECT_EQ(json::Stringify(std::make_pair(42, "lorem"), kStringifyOptions1), "[42,\"lorem\"]");
   EXPECT_EQ(json::Stringify(std::make_pair(42, "lorem"), kStringifyOptions2), "[42, \"lorem\"]");
   EXPECT_EQ(json::Stringify(std::make_pair(42, "lorem"), kStringifyOptions3), "[42, \"lorem\"]");
+  EXPECT_EQ(json::Stringify(std::make_pair(42, "lorem"), kStringifyOptions4), "[42, \"lorem\"]");
+  EXPECT_EQ(json::Stringify(std::make_pair(42, "lorem"), kStringifyOptions5), "[42, \"lorem\"]\n");
   EXPECT_EQ(json::Stringify(std::make_pair("ipsum", 43), kStringifyOptions1), "[\"ipsum\",43]");
   EXPECT_EQ(json::Stringify(std::make_pair("ipsum", 43), kStringifyOptions2), "[\"ipsum\", 43]");
   EXPECT_EQ(json::Stringify(std::make_pair("ipsum", 43), kStringifyOptions3), "[\"ipsum\", 43]");
+  EXPECT_EQ(json::Stringify(std::make_pair("ipsum", 43), kStringifyOptions4), "[\"ipsum\", 43]");
+  EXPECT_EQ(json::Stringify(std::make_pair("ipsum", 43), kStringifyOptions5), "[\"ipsum\", 43]\n");
 }
 
 TEST(JsonTest, ParseTuple) {
@@ -1698,30 +1924,48 @@ TEST(JsonTest, StringifyTuple) {
   EXPECT_EQ(json::Stringify(std::make_tuple(), kStringifyOptions1), "[]");
   EXPECT_EQ(json::Stringify(std::make_tuple(), kStringifyOptions2), "[]");
   EXPECT_EQ(json::Stringify(std::make_tuple(), kStringifyOptions3), "[]");
+  EXPECT_EQ(json::Stringify(std::make_tuple(), kStringifyOptions4), "[]");
+  EXPECT_EQ(json::Stringify(std::make_tuple(), kStringifyOptions5), "[]\n");
   EXPECT_EQ(json::Stringify(std::make_tuple(42), kStringifyOptions1), "[42]");
   EXPECT_EQ(json::Stringify(std::make_tuple(42), kStringifyOptions2), "[42]");
   EXPECT_EQ(json::Stringify(std::make_tuple(42), kStringifyOptions3), "[42]");
+  EXPECT_EQ(json::Stringify(std::make_tuple(42), kStringifyOptions4), "[42]");
+  EXPECT_EQ(json::Stringify(std::make_tuple(42), kStringifyOptions5), "[42]\n");
   EXPECT_EQ(json::Stringify(std::make_tuple(true, 42), kStringifyOptions1), "[true,42]");
   EXPECT_EQ(json::Stringify(std::make_tuple(true, 42), kStringifyOptions2), "[true, 42]");
   EXPECT_EQ(json::Stringify(std::make_tuple(true, 42), kStringifyOptions3), "[true, 42]");
+  EXPECT_EQ(json::Stringify(std::make_tuple(true, 42), kStringifyOptions4), "[true, 42]");
+  EXPECT_EQ(json::Stringify(std::make_tuple(true, 42), kStringifyOptions5), "[true, 42]\n");
   EXPECT_EQ(json::Stringify(std::make_tuple(true, "lorem", 42), kStringifyOptions1),
             "[true,\"lorem\",42]");
   EXPECT_EQ(json::Stringify(std::make_tuple(true, "lorem", 42), kStringifyOptions2),
             "[true, \"lorem\", 42]");
   EXPECT_EQ(json::Stringify(std::make_tuple(true, "lorem", 42), kStringifyOptions3),
             "[true, \"lorem\", 42]");
+  EXPECT_EQ(json::Stringify(std::make_tuple(true, "lorem", 42), kStringifyOptions4),
+            "[true, \"lorem\", 42]");
+  EXPECT_EQ(json::Stringify(std::make_tuple(true, "lorem", 42), kStringifyOptions5),
+            "[true, \"lorem\", 42]\n");
   EXPECT_EQ(json::Stringify(std::make_tuple(true, 42, "lorem", 43), kStringifyOptions1),
             "[true,42,\"lorem\",43]");
   EXPECT_EQ(json::Stringify(std::make_tuple(true, 42, "lorem", 43), kStringifyOptions2),
             "[true, 42, \"lorem\", 43]");
   EXPECT_EQ(json::Stringify(std::make_tuple(true, 42, "lorem", 43), kStringifyOptions3),
             "[true, 42, \"lorem\", 43]");
+  EXPECT_EQ(json::Stringify(std::make_tuple(true, 42, "lorem", 43), kStringifyOptions4),
+            "[true, 42, \"lorem\", 43]");
+  EXPECT_EQ(json::Stringify(std::make_tuple(true, 42, "lorem", 43), kStringifyOptions5),
+            "[true, 42, \"lorem\", 43]\n");
   EXPECT_EQ(json::Stringify(std::make_tuple(false, 43, "ipsum", 42), kStringifyOptions1),
             "[false,43,\"ipsum\",42]");
   EXPECT_EQ(json::Stringify(std::make_tuple(false, 43, "ipsum", 42), kStringifyOptions2),
             "[false, 43, \"ipsum\", 42]");
   EXPECT_EQ(json::Stringify(std::make_tuple(false, 43, "ipsum", 42), kStringifyOptions3),
             "[false, 43, \"ipsum\", 42]");
+  EXPECT_EQ(json::Stringify(std::make_tuple(false, 43, "ipsum", 42), kStringifyOptions4),
+            "[false, 43, \"ipsum\", 42]");
+  EXPECT_EQ(json::Stringify(std::make_tuple(false, 43, "ipsum", 42), kStringifyOptions5),
+            "[false, 43, \"ipsum\", 42]\n");
 }
 
 TEST(JsonTest, ParseStdArray) {
@@ -1761,6 +2005,21 @@ TEST(JsonTest, StringifyStdArray) {
     3,
     4
 ])");
+  EXPECT_EQ((json::Stringify<std::array<int, 4>>({1, 2, 3, 4}, kStringifyOptions4)),
+            absl::StrReplaceAll(R"([
+  1,
+  2,
+  3,
+  4
+])",
+                                {{"\n", "\r\n"}}));
+  EXPECT_EQ((json::Stringify<std::array<int, 4>>({1, 2, 3, 4}, kStringifyOptions5)), R"([
+  1,
+  2,
+  3,
+  4
+]
+)");
   EXPECT_EQ((json::Stringify<std::array<int, 4>>({44, -75, 93, 43}, kStringifyOptions1)),
             R"([44,-75,93,43])");
   EXPECT_EQ((json::Stringify<std::array<int, 4>>({44, -75, 93, 43}, kStringifyOptions2)), R"([
@@ -1775,6 +2034,21 @@ TEST(JsonTest, StringifyStdArray) {
     93,
     43
 ])");
+  EXPECT_EQ((json::Stringify<std::array<int, 4>>({44, -75, 93, 43}, kStringifyOptions4)),
+            absl::StrReplaceAll(R"([
+  44,
+  -75,
+  93,
+  43
+])",
+                                {{"\n", "\r\n"}}));
+  EXPECT_EQ((json::Stringify<std::array<int, 4>>({44, -75, 93, 43}, kStringifyOptions5)), R"([
+  44,
+  -75,
+  93,
+  43
+]
+)");
   EXPECT_EQ((json::Stringify<std::array<int, 3>>({75, 44, -93}, kStringifyOptions1)),
             R"([75,44,-93])");
   EXPECT_EQ((json::Stringify<std::array<int, 3>>({75, 44, -93}, kStringifyOptions2)), R"([
@@ -1787,6 +2061,19 @@ TEST(JsonTest, StringifyStdArray) {
     44,
     -93
 ])");
+  EXPECT_EQ((json::Stringify<std::array<int, 3>>({75, 44, -93}, kStringifyOptions4)),
+            absl::StrReplaceAll(R"([
+  75,
+  44,
+  -93
+])",
+                                {{"\n", "\r\n"}}));
+  EXPECT_EQ((json::Stringify<std::array<int, 3>>({75, 44, -93}, kStringifyOptions5)), R"([
+  75,
+  44,
+  -93
+]
+)");
 }
 
 class Point {
@@ -1859,6 +2146,16 @@ TEST(JsonTest, StringifyCustomObject) {
     "x": 12.34,
     "y": 56.78
 })");
+  EXPECT_EQ(json::Stringify(value, kStringifyOptions4), absl::StrReplaceAll(R"({
+  "x": 12.34,
+  "y": 56.78
+})",
+                                                                            {{"\n", "\r\n"}}));
+  EXPECT_EQ(json::Stringify(value, kStringifyOptions5), R"({
+  "x": 12.34,
+  "y": 56.78
+}
+)");
 }
 
 using TestObjectWithReffedPtr =
@@ -1946,6 +2243,24 @@ TEST(JsonTest, StringifyReffedPtr) {
     },
     "dolor": true
 })");
+  EXPECT_EQ(json::Stringify(object, kStringifyOptions4), absl::StrReplaceAll(R"({
+  "lorem": 43,
+  "ipsum": {
+    "x": 12.12,
+    "y": 34.34
+  },
+  "dolor": true
+})",
+                                                                             {{"\n", "\r\n"}}));
+  EXPECT_EQ(json::Stringify(object, kStringifyOptions5), R"({
+  "lorem": 43,
+  "ipsum": {
+    "x": 12.12,
+    "y": 34.34
+  },
+  "dolor": true
+}
+)");
 }
 
 TEST(JsonTest, StringifyMissingReffedPtr) {
@@ -1959,6 +2274,16 @@ TEST(JsonTest, StringifyMissingReffedPtr) {
     "lorem": 43,
     "dolor": true
 })");
+  EXPECT_EQ(json::Stringify(object, kStringifyOptions4), absl::StrReplaceAll(R"({
+  "lorem": 43,
+  "dolor": true
+})",
+                                                                             {{"\n", "\r\n"}}));
+  EXPECT_EQ(json::Stringify(object, kStringifyOptions5), R"({
+  "lorem": 43,
+  "dolor": true
+}
+)");
 }
 
 template <typename Sequence>
@@ -2057,6 +2382,8 @@ TYPED_TEST_P(TypedJsonSequenceTest, StringifySequence) {
   EXPECT_EQ(json::Stringify<TypeParam>({}, kStringifyOptions1), "[]");
   EXPECT_EQ(json::Stringify<TypeParam>({}, kStringifyOptions2), "[]");
   EXPECT_EQ(json::Stringify<TypeParam>({}, kStringifyOptions3), "[]");
+  EXPECT_EQ(json::Stringify<TypeParam>({}, kStringifyOptions4), "[]");
+  EXPECT_EQ(json::Stringify<TypeParam>({}, kStringifyOptions5), "[]\n");
   EXPECT_EQ(json::Stringify<TypeParam>({42}, kStringifyOptions1), R"([42])");
   EXPECT_EQ(json::Stringify<TypeParam>({42}, kStringifyOptions2), R"([
   42
@@ -2064,6 +2391,11 @@ TYPED_TEST_P(TypedJsonSequenceTest, StringifySequence) {
   EXPECT_EQ(json::Stringify<TypeParam>({42}, kStringifyOptions3), R"([
     42
 ])");
+  EXPECT_EQ(json::Stringify<TypeParam>({42}, kStringifyOptions4), "[\r\n  42\r\n]");
+  EXPECT_EQ(json::Stringify<TypeParam>({42}, kStringifyOptions5), R"([
+  42
+]
+)");
   EXPECT_THAT(json::Stringify<TypeParam>({42, 43}, kStringifyOptions1),
               AnyOf(R"([42,43])", R"([43,42])"));
   EXPECT_THAT(json::Stringify<TypeParam>({42, 43}, kStringifyOptions2), AnyOf(R"([
@@ -2082,6 +2414,18 @@ TYPED_TEST_P(TypedJsonSequenceTest, StringifySequence) {
     43,
     42
 ])"));
+  EXPECT_THAT(json::Stringify<TypeParam>({42, 43}, kStringifyOptions4),
+              AnyOf("[\r\n  42,\r\n  43\r\n]", "[\r\n  43,\r\n  42\r\n]"));
+  EXPECT_THAT(json::Stringify<TypeParam>({42, 43}, kStringifyOptions5), AnyOf(R"([
+  42,
+  43
+]
+)",
+                                                                              R"([
+  43,
+  42
+]
+)"));
   EXPECT_THAT(json::Stringify<TypeParam>({-75, 44, 93}, kStringifyOptions1),
               AnyOf(R"([-75,44,93])", R"([-75,93,44])", R"([44,-75,93])", R"([44,93,-75])",
                     R"([93,-75,44])", R"([93,44,-75])"));
@@ -2145,6 +2489,46 @@ TYPED_TEST_P(TypedJsonSequenceTest, StringifySequence) {
     44,
     -75
 ])"));
+  EXPECT_THAT(json::Stringify<TypeParam>({-75, 44, 93}, kStringifyOptions4),
+              AnyOf("[\r\n  -75,\r\n  44,\r\n  93\r\n]", "[\r\n  -75,\r\n  93,\r\n  44\r\n]",
+                    "[\r\n  44,\r\n  -75,\r\n  93\r\n]", "[\r\n  44,\r\n  93,\r\n  -75\r\n]",
+                    "[\r\n  93,\r\n  -75,\r\n  44\r\n]", "[\r\n  93,\r\n  44,\r\n  -75\r\n]"));
+  EXPECT_THAT(json::Stringify<TypeParam>({-75, 44, 93}, kStringifyOptions5), AnyOf(R"([
+  -75,
+  44,
+  93
+]
+)",
+                                                                                   R"([
+  -75,
+  93,
+  44
+]
+)",
+                                                                                   R"([
+  44,
+  -75,
+  93
+]
+)",
+                                                                                   R"([
+  44,
+  93,
+  -75
+]
+)",
+                                                                                   R"([
+  93,
+  -75,
+  44
+]
+)",
+                                                                                   R"([
+  93,
+  44,
+  -75
+]
+)"));
 }
 
 REGISTER_TYPED_TEST_SUITE_P(TypedJsonSequenceTest, ParseSequence, StringifySequence);
@@ -2348,6 +2732,8 @@ TYPED_TEST_P(TypedJsonDictionaryTest, StringifyDictionary) {
   EXPECT_THAT(json::Stringify<TypeParam>({}, kStringifyOptions1), "{}");
   EXPECT_THAT(json::Stringify<TypeParam>({}, kStringifyOptions2), "{}");
   EXPECT_THAT(json::Stringify<TypeParam>({}, kStringifyOptions3), "{}");
+  EXPECT_THAT(json::Stringify<TypeParam>({}, kStringifyOptions4), "{}");
+  EXPECT_THAT(json::Stringify<TypeParam>({}, kStringifyOptions5), "{}\n");
   EXPECT_THAT(json::Stringify<TypeParam>({{"foo", 42}}, kStringifyOptions1), R"({"foo":42})");
   EXPECT_THAT(json::Stringify<TypeParam>({{"foo", 42}}, kStringifyOptions2), R"({
   "foo": 42
@@ -2355,6 +2741,12 @@ TYPED_TEST_P(TypedJsonDictionaryTest, StringifyDictionary) {
   EXPECT_THAT(json::Stringify<TypeParam>({{"foo", 42}}, kStringifyOptions3), R"({
     "foo": 42
 })");
+  EXPECT_THAT(json::Stringify<TypeParam>({{"foo", 42}}, kStringifyOptions4),
+              "{\r\n  \"foo\": 42\r\n}");
+  EXPECT_THAT(json::Stringify<TypeParam>({{"foo", 42}}, kStringifyOptions5), R"({
+  "foo": 42
+}
+)");
   EXPECT_THAT(json::Stringify<TypeParam>({{"lorem", 123}, {"ipsum", 456}}, kStringifyOptions1),
               AnyOf(R"({"lorem":123,"ipsum":456})", R"({"ipsum":456,"lorem":123})"));
   EXPECT_THAT(json::Stringify<TypeParam>({{"lorem", 123}, {"ipsum", 456}}, kStringifyOptions2),
@@ -2375,6 +2767,28 @@ TYPED_TEST_P(TypedJsonDictionaryTest, StringifyDictionary) {
     "ipsum": 456,
     "lorem": 123
 })"));
+  EXPECT_THAT(json::Stringify<TypeParam>({{"lorem", 123}, {"ipsum", 456}}, kStringifyOptions4),
+              AnyOf(absl::StrReplaceAll(R"({
+  "lorem": 123,
+  "ipsum": 456
+})",
+                                        {{"\n", "\r\n"}}),
+                    absl::StrReplaceAll(R"({
+  "ipsum": 456,
+  "lorem": 123
+})",
+                                        {{"\n", "\r\n"}})));
+  EXPECT_THAT(json::Stringify<TypeParam>({{"lorem", 123}, {"ipsum", 456}}, kStringifyOptions5),
+              AnyOf(R"({
+  "lorem": 123,
+  "ipsum": 456
+}
+)",
+                    R"({
+  "ipsum": 456,
+  "lorem": 123
+}
+)"));
   EXPECT_THAT(
       json::Stringify<TypeParam>({{"lorem", 123}, {"ipsum", 456}, {"dolor", 789}},
                                  kStringifyOptions1),
@@ -2446,6 +2860,82 @@ TYPED_TEST_P(TypedJsonDictionaryTest, StringifyDictionary) {
     "ipsum": 456,
     "lorem": 123
 })"));
+  EXPECT_THAT(json::Stringify<TypeParam>({{"lorem", 123}, {"ipsum", 456}, {"dolor", 789}},
+                                         kStringifyOptions4),
+              AnyOf(absl::StrReplaceAll(R"({
+  "lorem": 123,
+  "ipsum": 456,
+  "dolor": 789
+})",
+                                        {{"\n", "\r\n"}}),
+                    absl::StrReplaceAll(R"({
+  "lorem": 123,
+  "dolor": 789,
+  "ipsum": 456
+})",
+                                        {{"\n", "\r\n"}}),
+                    absl::StrReplaceAll(R"({
+  "ipsum": 456,
+  "lorem": 123,
+  "dolor": 789
+})",
+                                        {{"\n", "\r\n"}}),
+                    absl::StrReplaceAll(R"({
+  "ipsum": 456,
+  "dolor": 789,
+  "lorem": 123
+})",
+                                        {{"\n", "\r\n"}}),
+                    absl::StrReplaceAll(R"({
+  "dolor": 789,
+  "lorem": 123,
+  "ipsum": 456
+})",
+                                        {{"\n", "\r\n"}}),
+                    absl::StrReplaceAll(R"({
+  "dolor": 789,
+  "ipsum": 456,
+  "lorem": 123
+})",
+                                        {{"\n", "\r\n"}})));
+  EXPECT_THAT(json::Stringify<TypeParam>({{"lorem", 123}, {"ipsum", 456}, {"dolor", 789}},
+                                         kStringifyOptions5),
+              AnyOf(R"({
+  "lorem": 123,
+  "ipsum": 456,
+  "dolor": 789
+}
+)",
+                    R"({
+  "lorem": 123,
+  "dolor": 789,
+  "ipsum": 456
+}
+)",
+                    R"({
+  "ipsum": 456,
+  "lorem": 123,
+  "dolor": 789
+}
+)",
+                    R"({
+  "ipsum": 456,
+  "dolor": 789,
+  "lorem": 123
+}
+)",
+                    R"({
+  "dolor": 789,
+  "lorem": 123,
+  "ipsum": 456
+}
+)",
+                    R"({
+  "dolor": 789,
+  "ipsum": 456,
+  "lorem": 123
+}
+)"));
 }
 
 REGISTER_TYPED_TEST_SUITE_P(TypedJsonDictionaryTest, ParseDictionary, StringifyDictionary);

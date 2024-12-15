@@ -63,8 +63,8 @@ absl::Status AdvisoryLockRelease(FD const& fd);
 // `flock`s are associated to a file description, but `ExclusiveFileLock` deduplicates them based on
 // the inode number making it possible for a process to stack many locks even if they're associated
 // to different file descriptions, e.g. if they were acquired on two file descriptors resulting from
-// two different `open` calls. The following example doesn not block and stacks two locks on the
-// same file correctly:
+// two different `open` calls. The following example does not block and stacks two locks on the same
+// file correctly:
 //
 //   {
 //     FD fd1{::open("/tmp/foo", O_RDWR, 0664)};
@@ -80,9 +80,10 @@ absl::Status AdvisoryLockRelease(FD const& fd);
 //
 // Note that the kernel implements deadlock detection, causing `ExclusiveFileLock::Acquire` to fail
 // when two or more processes try to acquire mutually conflicting locks. At least two processes are
-// needed to trigger deadlock detection because `ExclusiveFileLock` is reentrant.
+// needed to trigger deadlock detection because `ExclusiveFileLock` is reentrant within each
+// process.
 //
-// `ExclusiveFileLock` is movable and swappable, but not copyable. Moving and swapping is not
+// `ExclusiveFileLock` is movable and swappable, but not copyable. Moving and swapping are not
 // thread-safe.
 class ExclusiveFileLock {
  public:

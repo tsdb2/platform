@@ -196,16 +196,18 @@
 namespace tsdb2 {
 namespace json {
 
+enum class LineFeedType { LF, CRLF, CR };
+
 // Options for parsing.
 struct ParseOptions {
   // If true, fields that are not defined in an `Object` template are ignored. If false, extra
   // fields cause a parsing error.
   bool allow_extra_fields = true;
 
-  // When `allow_extra_fields` is true, this option determines how to skip extra fields. The
-  // standard algorithm scans their values normally and then discards them, but still verifies that
-  // the JSON syntax is correct. The fast algorithm skips all input characters without checking the
-  // syntax, up to the point where the next field starts.
+  // When `allow_extra_fields` is true this option determines how to skip extra fields. The standard
+  // algorithm scans their values normally and then discards them, but still verifies that the JSON
+  // syntax is correct. The fast algorithm skips all input characters without checking the syntax,
+  // up to the point where the next field starts.
   bool fast_skipping = false;
 };
 
@@ -214,8 +216,15 @@ struct StringifyOptions {
   // Whether the output is formatted with indentations and newlines.
   bool pretty = false;
 
+  // Determines the character sequence to use for line feeds when `pretty` is true. Can be `LF`,
+  // `CRLF`, or `CR`.
+  LineFeedType line_feed_type = LineFeedType::LF;
+
   // Number of spaces per tab.
   size_t indent_width = 2;
+
+  // When true, append an extra empty line at the end, independently of the `pretty` flag.
+  bool trailing_newline = false;
 
   // When true, nullable or optional fields are serialized as `null` when they are null / empty.
   // Otherwise they are not serialized.
@@ -1342,7 +1351,8 @@ absl::Status Parser::ReadPointeeOrNull(std::unique_ptr<Value>* const ptr) {
 // The syntax is described at https://www.json.org/.
 class Stringifier final {
  public:
-  explicit Stringifier(StringifyOptions const& options) : options_(options) {}
+  explicit Stringifier(StringifyOptions const& options)
+      : options_(options), line_feed_(MakeLineFeed(options_.line_feed_type)) {}
 
   StringifyOptions const& options() const { return options_; }
 
@@ -1383,6 +1393,8 @@ class Stringifier final {
   template <typename... Fields>
   friend class Object;
 
+  static std::string MakeLineFeed(LineFeedType type);
+
   // Increases the current indentation level by 1.
   void Indent();
 
@@ -1406,6 +1418,7 @@ class Stringifier final {
   void WriteSequenceCompressed(Iterator first, Iterator end);
 
   StringifyOptions const options_;
+  std::string const line_feed_;
 
   // The current number of indentations.
   size_t indentation_level_ = 0;
@@ -1434,7 +1447,7 @@ void Stringifier::WriteObject(Object<Fields...> const& value) {
   if (options_.pretty) {
     Indent();
     value.WriteFieldsPretty(this, /*first_field=*/true);
-    output_.Append("\n");
+    output_.Append(line_feed_);
     Dedent();
     WriteIndentation();
   } else {
@@ -1510,16 +1523,16 @@ void Stringifier::WriteDictionaryPretty(Representation const& dictionary) {
   for (auto const& [key, value] : dictionary) {
     if (first) {
       first = false;
-      output_.Append("\n");
     } else {
-      output_.Append(",\n");
+      output_.Append(",");
     }
+    output_.Append(line_feed_);
     WriteIndentation();
     WriteString(key);
     output_.Append(": ");
     Tsdb2JsonStringify(this, value);
   }
-  output_.Append("\n");
+  output_.Append(line_feed_);
   Dedent();
   if (!first) {
     WriteIndentation();
@@ -1550,16 +1563,18 @@ void Stringifier::WriteSequencePretty(Iterator first, Iterator const end) {
     output_.Append("[]");
     return;
   }
-  output_.Append("[\n");
+  output_.Append("[");
+  output_.Append(line_feed_);
   Indent();
   WriteIndentation();
   Tsdb2JsonStringify(this, *first);
   for (++first; first != end; ++first) {
-    output_.Append(",\n");
+    output_.Append(",");
+    output_.Append(line_feed_);
     WriteIndentation();
     Tsdb2JsonStringify(this, *first);
   }
-  output_.Append("\n");
+  output_.Append(line_feed_);
   Dedent();
   WriteIndentation();
   output_.Append("]");
@@ -2040,11 +2055,10 @@ inline void Object<internal::FieldImpl<Type, Name>, OtherFields...>::WriteFields
   if (!internal::FieldDecider<Type>{}(stringifier, value_)) {
     return Object<OtherFields...>::WriteFieldsPretty(stringifier, first_field);
   }
-  if (first_field) {
-    stringifier->output_.Append("\n");
-  } else {
-    stringifier->output_.Append(",\n");
+  if (!first_field) {
+    stringifier->output_.Append(",");
   }
+  stringifier->output_.Append(stringifier->line_feed_);
   stringifier->WriteIndentation();
   stringifier->WriteString(Name::value);
   stringifier->output_.Append(": ");
