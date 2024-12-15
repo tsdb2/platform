@@ -124,10 +124,13 @@ cc_test(
     srcs = ["advisory_file_lock_test.cc"],
     deps = [
         ":advisory_file_lock",
+        ":fd",
         ":sigusr",
         "//common:testing",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
     ],
 )

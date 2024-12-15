@@ -44,6 +44,9 @@ class TestTempFile {
   tsdb2::io::FD& fd() { return fd_; }
   tsdb2::io::FD const& fd() const { return fd_; }
 
+  // Closes the file and empties the file descriptor. No-op if already closed.
+  void Close() { fd_.Close(); }
+
  private:
   static std::string MakeTempFileTemplate(std::string_view base_name);
 

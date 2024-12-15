@@ -2,10 +2,9 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <sys/file.h>
 #include <sys/stat.h>
 
-#include <cstdio>
-#include <cstring>
 #include <tuple>
 #include <utility>
 
@@ -22,9 +21,32 @@
 namespace tsdb2 {
 namespace io {
 
-absl::StatusOr<ExclusiveFileLock> ExclusiveFileLock::Acquire(FD const &fd, off_t const start,
-                                                             off_t const length) {
-  DEFINE_VAR_OR_RETURN(internal_lock, InternalLock::Acquire(fd, start, length));
+absl::Status AdvisoryLockAcquireExclusive(FD const& fd) {
+  int result;
+  do {
+    result = ::flock(*fd, LOCK_EX);
+  } while (result < 0 && errno == EINTR);
+  if (result < 0) {
+    return absl::ErrnoToStatus(errno, "flock(LOCK_EX)");
+  } else {
+    return absl::OkStatus();
+  }
+}
+
+absl::Status AdvisoryLockRelease(FD const& fd) {
+  int result;
+  do {
+    result = ::flock(*fd, LOCK_UN);
+  } while (result < 0 && errno == EINTR);
+  if (result < 0) {
+    return absl::ErrnoToStatus(errno, "flock(LOCK_UN)");
+  } else {
+    return absl::OkStatus();
+  }
+}
+
+absl::StatusOr<ExclusiveFileLock> ExclusiveFileLock::Acquire(FD const& fd) {
+  DEFINE_VAR_OR_RETURN(internal_lock, InternalLock::Acquire(fd));
   return ExclusiveFileLock(std::move(internal_lock));
 }
 
@@ -32,34 +54,21 @@ ABSL_CONST_INIT absl::Mutex ExclusiveFileLock::InternalLock::mutex_{absl::kConst
 ExclusiveFileLock::InternalLock::LockSet ExclusiveFileLock::InternalLock::locks_;
 
 absl::StatusOr<tsdb2::common::reffed_ptr<ExclusiveFileLock::InternalLock>>
-ExclusiveFileLock::InternalLock::Acquire(FD const &fd, off_t const start, off_t const length) {
+ExclusiveFileLock::InternalLock::Acquire(FD const& fd) {
   struct stat statbuf {};
   if (::fstat(*fd, &statbuf) < 0) {
     return absl::ErrnoToStatus(errno, "fstat");
   }
   absl::MutexLock lock{&mutex_};
-  auto it = locks_.find(LockInfo{
-      .inode_number = statbuf.st_ino,
-      .start = start,
-      .length = length,
-  });
+  auto it = locks_.find(statbuf.st_ino);
   if (it != locks_.end()) {
-    return tsdb2::common::WrapReffed(const_cast<InternalLock *>(&*it));
+    return tsdb2::common::WrapReffed(const_cast<InternalLock*>(&*it));
   }
   DEFINE_VAR_OR_RETURN(fd2, fd.Clone());
-  struct flock args {};
-  args.l_type = F_WRLCK;
-  args.l_whence = SEEK_SET;
-  args.l_start = start;
-  args.l_len = length;
-  int const result =
-      ::fcntl(fd2.get(), F_SETLKW, &args);  // NOLINT(cppcoreguidelines-pro-type-vararg)
-  if (result < 0) {
-    return absl::ErrnoToStatus(errno, "fcntl(F_SETLKW, F_WRLCK)");
-  }
+  RETURN_IF_ERROR(AdvisoryLockAcquireExclusive(fd2));
   bool inserted;
-  std::tie(it, inserted) = locks_.emplace(statbuf.st_ino, start, length, std::move(fd2));
-  return tsdb2::common::WrapReffed(const_cast<InternalLock *>(&*it));
+  std::tie(it, inserted) = locks_.emplace(statbuf.st_ino, std::move(fd2));
+  return tsdb2::common::WrapReffed(const_cast<InternalLock*>(&*it));
 }
 
 void ExclusiveFileLock::InternalLock::OnLastUnref() {
@@ -69,16 +78,8 @@ void ExclusiveFileLock::InternalLock::OnLastUnref() {
 }
 
 void ExclusiveFileLock::InternalLock::Release() {
-  struct flock args {};
-  args.l_type = F_UNLCK;
-  args.l_whence = SEEK_SET;
-  args.l_start = start_;
-  args.l_len = length_;
-  int const result =
-      ::fcntl(fd_.get(), F_SETLK, &args);  // NOLINT(cppcoreguidelines-pro-type-vararg)
-  if (result < 0) {
-    LOG(ERROR) << absl::ErrnoToStatus(errno, "fcntl(F_SETLK, F_UNLCK)");
-  }
+  auto const status = AdvisoryLockRelease(fd_);
+  LOG_IF(ERROR, !status.ok()) << status;
 }
 
 }  // namespace io
