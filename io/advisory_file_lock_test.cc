@@ -39,12 +39,12 @@ std::string_view constexpr kTestFileName = "advisory_file_lock_test";
 
 absl::StatusOr<FD> OpenFile(std::string_view const path) {
   FD fd{::open(  // NOLINT(cppcoreguidelines-pro-type-vararg)
-      std::string(path).c_str(), O_CLOEXEC, O_RDONLY)};
+      std::string(path).c_str(), O_CLOEXEC | O_RDONLY, /*mode=*/0664)};
   if (fd) {
     return std::move(fd);
   } else {
     return absl::ErrnoToStatus(
-        errno, absl::StrCat("open(\"", absl::CEscape(path), "\", O_CLOEXEC, O_RDONLY)"));
+        errno, absl::StrCat("open(\"", absl::CEscape(path), "\", O_CLOEXEC | O_RDONLY, 0664)"));
   }
 }
 

@@ -67,10 +67,10 @@ absl::Status AdvisoryLockRelease(FD const& fd);
 // same file correctly:
 //
 //   {
-//     FD fd1{::open("/tmp/foo", 0, O_RDWR)};
+//     FD fd1{::open("/tmp/foo", O_RDWR, 0664)};
 //     ExclusiveFileLock lock1{fd1};
 //     {
-//       FD fd2{::open("/tmp/foo", 0, O_RDWR)};
+//       FD fd2{::open("/tmp/foo", O_RDWR, 0664)};
 //       ExclusiveFileLock lock2{fd2};
 //       // `lock2` didn't block despite different file descriptions
 //     }
