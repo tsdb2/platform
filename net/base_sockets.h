@@ -21,7 +21,6 @@
 #include "io/fd.h"      // IWYU pragma: export
 #include "net/epoll_server.h"
 #include "server/base_module.h"
-#include "server/init_tsdb2.h"
 
 namespace tsdb2 {
 namespace net {
@@ -311,7 +310,8 @@ class SocketModule : public tsdb2::init::BaseModule {
  private:
   friend class tsdb2::common::NoDestructor<SocketModule>;
   static tsdb2::common::NoDestructor<SocketModule> instance_;
-  explicit SocketModule() : BaseModule("sockets") { tsdb2::init::RegisterModule(this); }
+
+  explicit SocketModule();
 };
 
 }  // namespace net

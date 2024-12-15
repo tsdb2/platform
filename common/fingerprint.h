@@ -20,8 +20,8 @@
 // fast. See https://en.wikipedia.org/wiki/MurmurHash for more information. The two 64-bit words
 // calculated by Murmur3 are eventually XOR'd to produce a single 64-bit hash value.
 //
-// Similarly to Abseil's hashing framework, custom types can be made hashable by adding a friend
-// function called `Tsdb2FingerprintValue`, like in the following example:
+// Similarly to Abseil's hashing framework, custom types can be made fingerprintable by adding a
+// friend function called `Tsdb2FingerprintValue`, like in the following example:
 //
 //   class Point {
 //    public:

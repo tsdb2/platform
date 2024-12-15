@@ -268,9 +268,13 @@ cc_library(
     deps = [
         ":metric_config",
         ":shard",
+        "//common:default_scheduler",
         "//common:lock_free_hash_map",
+        "//common:no_destructor",
         "//common:singleton",
         "//common:utilities",
+        "//server:base_module",
+        "//server:init_tsdb2",
         "//tsz:types",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

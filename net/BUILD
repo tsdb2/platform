@@ -30,6 +30,7 @@ cc_library(
     hdrs = ["base_sockets.h"],
     deps = [
         ":epoll_server",
+        "//common:default_scheduler",
         "//common:no_destructor",
         "//common:scheduler",
         "//common:utilities",
