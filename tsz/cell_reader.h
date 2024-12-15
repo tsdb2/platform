@@ -84,6 +84,8 @@ class CellReader<Value, EntityLabels<EntityLabelArgs...>, MetricFields<MetricFie
     }
   }
 
+  CellReader(CellReader &&other) noexcept ABSL_LOCKS_EXCLUDED(other.mutex_);
+
   // Reads the tsz cell identified by the provided entity label and metric field values, returning
   // the value if the cell was found or an error status otherwise.
   absl::StatusOr<Value> Read(
@@ -93,7 +95,8 @@ class CellReader<Value, EntityLabels<EntityLabelArgs...>, MetricFields<MetricFie
   template <typename ValueAlias = CanonicalValue,
             std::enable_if_t<util::IsIntegralStrictV<ValueAlias>, bool> = true>
   absl::StatusOr<Value> Delta(ParameterFieldTypeT<EntityLabelArgs> const... entity_label_values,
-                              ParameterFieldTypeT<MetricFieldArgs> const... metric_field_values);
+                              ParameterFieldTypeT<MetricFieldArgs> const... metric_field_values)
+      ABSL_LOCKS_EXCLUDED(mutex_);
 
   template <typename ValueAlias = CanonicalValue,
             std::enable_if_t<util::IsIntegralStrictV<ValueAlias>, bool> = true>
@@ -107,6 +110,7 @@ class CellReader<Value, EntityLabels<EntityLabelArgs...>, MetricFields<MetricFie
 
   CellReader(CellReader const &) = delete;
   CellReader &operator=(CellReader const &) = delete;
+  CellReader &operator=(CellReader &&) = delete;
 
   tsz::internal::Shard *GetShard() const;
 
@@ -122,6 +126,17 @@ class CellReader<Value, EntityLabels<EntityLabelArgs...>, MetricFields<MetricFie
   absl::Mutex mutable mutex_;
   absl::flat_hash_map<CellKey, CanonicalValue> snapshot_ ABSL_GUARDED_BY(mutex_);
 };
+
+template <typename Value, typename... EntityLabelArgs, typename... MetricFieldArgs>
+CellReader<Value, EntityLabels<EntityLabelArgs...>, MetricFields<MetricFieldArgs...>>::CellReader(
+    CellReader &&other) noexcept
+    : options_(other.options_),
+      entity_labels_(other.entity_labels_),
+      metric_fields_(other.metric_fields_),
+      metric_name_(other.metric_name_) {
+  absl::MutexLock lock{&other.mutex_};
+  snapshot_ = std::move(other.snapshot_);  // NOLINT(cppcoreguidelines-prefer-member-initializer)
+}
 
 template <typename Value, typename... EntityLabelArgs, typename... MetricFieldArgs>
 absl::StatusOr<Value>

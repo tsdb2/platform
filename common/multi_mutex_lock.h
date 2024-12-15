@@ -66,7 +66,7 @@ class ABSL_SCOPED_LOCKABLE MultiMutexLockImpl<First, Rest...> : public MultiMute
 // deterministic order so as to avoid potential deadlocks. The mutexes are ordered by pointer and
 // acquired in that order; upon destruction they are released in the inverse order.
 //
-// In the following example, thread A and thread B are guaranteed to not deadlock:
+// In the following example thread A and thread B are guaranteed to not deadlock:
 //
 //   absl::Mutex mutex1;
 //   absl::Mutex mutex2;

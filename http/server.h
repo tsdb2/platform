@@ -134,7 +134,7 @@ class Server final : public ChannelManager {
   absl::Status Listen(std::string_view address, uint16_t port, bool use_ssl,
                       tsdb2::net::SocketOptions const& options);
 
-  tsdb2::common::trie_map<std::unique_ptr<Handler>> const handlers_{};
+  tsdb2::common::trie_map<std::unique_ptr<Handler>> const handlers_;
 
   absl::Mutex mutable mutex_;
 

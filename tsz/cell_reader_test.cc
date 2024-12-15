@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -299,6 +300,39 @@ TEST_F(CellReaderTest, DeletedDeltaOrZero) {
   ASSERT_EQ(reader.DeltaOrZero("bar", 123, 456, true), 42);
   shard_->DeleteValue(entity_labels_, kMetricName, metric_fields);
   EXPECT_EQ(reader.DeltaOrZero("bar", 123, 456, true), 0);
+}
+
+TEST_F(CellReaderTest, MoveConstruct) {
+  ASSERT_NE(shard_, nullptr);
+  FieldMap const metric_fields1{
+      {"lorem", IntValue(456)},
+      {"ipsum", BoolValue(true)},
+  };
+  FieldMap const metric_fields2{
+      {"lorem", IntValue(789)},
+      {"ipsum", BoolValue(false)},
+  };
+  shard_->AddToInt(entity_labels_, kMetricName, metric_fields1, IntValue(12));
+  shard_->AddToInt(entity_labels_, kMetricName, metric_fields2, IntValue(34));
+  CellReader<int64_t,
+             tsz::EntityLabels<tsz::Field<std::string, kFooLabel>, tsz::Field<int, kBazLabel>>,
+             tsz::MetricFields<tsz::Field<int, kLoremField>, tsz::Field<bool, kIpsumField>>>
+      reader1{kMetricName};
+  ASSERT_THAT(reader1.Delta("bar", 123, 456, true), IsOkAndHolds(12));
+  ASSERT_THAT(reader1.Delta("bar", 123, 789, false), IsOkAndHolds(34));
+  ASSERT_THAT(reader1.Delta("bar", 123, 456, true), IsOkAndHolds(0));
+  ASSERT_THAT(reader1.Delta("bar", 123, 789, false), IsOkAndHolds(0));
+  shard_->AddToInt(entity_labels_, kMetricName, metric_fields1, IntValue(56));
+  shard_->AddToInt(entity_labels_, kMetricName, metric_fields1, IntValue(78));
+  shard_->AddToInt(entity_labels_, kMetricName, metric_fields2, IntValue(90));
+  CellReader<int64_t,
+             tsz::EntityLabels<tsz::Field<std::string, kFooLabel>, tsz::Field<int, kBazLabel>>,
+             tsz::MetricFields<tsz::Field<int, kLoremField>, tsz::Field<bool, kIpsumField>>>
+      reader2{std::move(reader1)};
+  EXPECT_THAT(reader2.Delta("bar", 123, 456, true), IsOkAndHolds(134));
+  EXPECT_THAT(reader2.Delta("bar", 123, 789, false), IsOkAndHolds(90));
+  EXPECT_THAT(reader2.Delta("bar", 123, 456, true), IsOkAndHolds(0));
+  EXPECT_THAT(reader2.Delta("bar", 123, 789, false), IsOkAndHolds(0));
 }
 
 }  // namespace
