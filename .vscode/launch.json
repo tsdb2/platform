@@ -11,6 +11,12 @@
       "program": "${fileWorkspaceFolder}/bazel-bin/${relativeFileDirname}/${fileBasenameNoExtension}",
       "args": [],
       "cwd": "${fileWorkspaceFolder}",
+      "sourceMap": [
+        [
+          ".",
+          "${fileWorkspaceFolder}"
+        ]
+      ]
     },
     {
       "name": "(gdb) Launch",
