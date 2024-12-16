@@ -3,6 +3,7 @@
 
 #include <list>
 #include <utility>
+#include <vector>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/functional/any_invocable.h"
@@ -20,17 +21,19 @@ class WriteQueue final {
 
   ~WriteQueue() { socket_->Close(); }
 
-  void WriteFrame(tsdb2::net::Buffer buffer, WriteCallback callback) ABSL_LOCKS_EXCLUDED(mutex_);
+  void AppendFrame(tsdb2::net::Buffer buffer, WriteCallback callback) ABSL_LOCKS_EXCLUDED(mutex_);
 
-  void WriteFrame(tsdb2::net::Buffer buffer) {
-    WriteFrame(std::move(buffer), /*callback=*/nullptr);
+  void AppendFrame(tsdb2::net::Buffer buffer) {
+    AppendFrame(std::move(buffer), /*callback=*/nullptr);
   }
 
-  void WriteFrameSkippingQueue(tsdb2::net::Buffer buffer, WriteCallback callback)
+  void AppendFrames(std::vector<tsdb2::net::Buffer> buffers) ABSL_LOCKS_EXCLUDED(mutex_);
+
+  void AppendFrameSkippingQueue(tsdb2::net::Buffer buffer, WriteCallback callback)
       ABSL_LOCKS_EXCLUDED(mutex_);
 
-  void WriteFrameSkippingQueue(tsdb2::net::Buffer buffer) {
-    WriteFrameSkippingQueue(std::move(buffer), /*callback=*/nullptr);
+  void AppendFrameSkippingQueue(tsdb2::net::Buffer buffer) {
+    AppendFrameSkippingQueue(std::move(buffer), /*callback=*/nullptr);
   }
 
  private:

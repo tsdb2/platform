@@ -2,6 +2,7 @@
 
 #include <tuple>
 #include <utility>
+#include <vector>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/flags/flag.h"
@@ -19,7 +20,7 @@ using ::tsdb2::net::Buffer;
 
 }  // namespace
 
-void WriteQueue::WriteFrame(Buffer buffer, WriteCallback callback) {
+void WriteQueue::AppendFrame(Buffer buffer, WriteCallback callback) {
   {
     absl::MutexLock lock{&mutex_};
     if (writing_) {
@@ -31,7 +32,29 @@ void WriteQueue::WriteFrame(Buffer buffer, WriteCallback callback) {
   Write(std::move(buffer), std::move(callback));
 }
 
-void WriteQueue::WriteFrameSkippingQueue(Buffer buffer, WriteCallback callback) {
+void WriteQueue::AppendFrames(std::vector<Buffer> buffers) {
+  auto it = buffers.begin();
+  if (it == buffers.end()) {
+    return;
+  }
+  auto first = std::move(*it++);
+  {
+    absl::MutexLock lock{&mutex_};
+    if (writing_) {
+      frame_queue_.emplace_back(std::move(first), /*callback=*/nullptr);
+    }
+    while (it != buffers.end()) {
+      frame_queue_.emplace_back(std::move(*it++), /*callback=*/nullptr);
+    }
+    if (writing_) {
+      return;
+    }
+    writing_ = true;
+  }
+  Write(std::move(first), /*callback=*/nullptr);
+}
+
+void WriteQueue::AppendFrameSkippingQueue(Buffer buffer, WriteCallback callback) {
   {
     absl::MutexLock lock{&mutex_};
     if (writing_) {

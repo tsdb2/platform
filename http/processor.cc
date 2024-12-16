@@ -140,7 +140,7 @@ void ChannelProcessor::ProcessContinuationFrame(uint32_t const stream_id, FrameH
 
 void ChannelProcessor::SendSettings() {
   absl::MutexLock lock{&mutex_};
-  write_queue_.WriteFrame(MakeSettingsFrame());
+  write_queue_.AppendFrame(MakeSettingsFrame());
 }
 
 void ChannelProcessor::GoAway(ConnectionError const error) {
@@ -244,14 +244,14 @@ Buffer ChannelProcessor::MakeGoAwayFrame(ConnectionError const error) const {
 }
 
 void ChannelProcessor::ResetStreamLocked(uint32_t const stream_id, ConnectionError const error) {
-  write_queue_.WriteFrame(MakeResetStreamFrame(stream_id, error));
+  write_queue_.AppendFrame(MakeResetStreamFrame(stream_id, error));
 }
 
-void ChannelProcessor::AckSettings() { write_queue_.WriteFrame(MakeSettingsAckFrame()); }
+void ChannelProcessor::AckSettings() { write_queue_.AppendFrame(MakeSettingsAckFrame()); }
 
 void ChannelProcessor::GoAwayLocked(ConnectionError const error) {
   going_away_ = true;
-  write_queue_.WriteFrameSkippingQueue(MakeGoAwayFrame(error));
+  write_queue_.AppendFrameSkippingQueue(MakeGoAwayFrame(error));
 }
 
 ChannelProcessor::Stream& ChannelProcessor::GetOrCreateStreamLocked(uint32_t const id) {
@@ -534,7 +534,7 @@ void ChannelProcessor::ProcessPingFrame(FrameHeader const& header, Buffer const 
   if ((header.flags() & kFlagAck) != 0) {
     GoAway(ConnectionError::kProtocolError);
   } else {
-    write_queue_.WriteFrameSkippingQueue(MakePingFrame(/*ack=*/true, std::move(payload)));
+    write_queue_.AppendFrameSkippingQueue(MakePingFrame(/*ack=*/true, std::move(payload)));
   }
 }
 
