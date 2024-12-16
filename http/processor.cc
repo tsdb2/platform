@@ -172,7 +172,9 @@ void ChannelProcessor::OnFields(uint32_t const stream_id, hpack::HeaderSet const
 <html lang="de">
 <head>
   <style>
-    font-family: sans-serif;
+    body {
+      font-family: sans-serif;
+    }
   </style>
 </head>
 <body>
@@ -184,7 +186,8 @@ void ChannelProcessor::OnFields(uint32_t const stream_id, hpack::HeaderSet const
   write_queue_.AppendFrames(MakeHeadersFrames(
       stream_id, {
                      {":status", absl::StrCat(tsdb2::util::to_underlying(Status::k200))},
-                     {"Content-Length", absl::StrCat(content.size())},
+                     {"content-type", "text/html; charset=utf-8"},
+                     {"content-length", absl::StrCat(content.size())},
                  }));
 
   write_queue_.AppendFrames(MakeDataFrames(stream_id, Buffer(content.data(), content.size())));
