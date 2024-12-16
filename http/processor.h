@@ -68,9 +68,14 @@ class ChannelProcessor {
     bool last_field_block = false;
   };
 
-  void OnData(uint32_t stream_id, absl::Span<uint8_t const> data);
-  void OnFields(uint32_t stream_id, hpack::HeaderSet fields);
+  void OnData(uint32_t stream_id, absl::Span<uint8_t const> data)
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
+  void OnFields(uint32_t stream_id, hpack::HeaderSet fields) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+
+  static std::vector<tsdb2::net::Buffer> MakeDataFrames(uint32_t id, tsdb2::net::Buffer data);
+  std::vector<tsdb2::net::Buffer> MakeHeadersFrames(uint32_t id, hpack::HeaderSet const& fields)
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
   static tsdb2::net::Buffer MakeResetStreamFrame(uint32_t id, ConnectionError error);
   tsdb2::net::Buffer MakeSettingsFrame() const ABSL_SHARED_LOCKS_REQUIRED(mutex_);
   static tsdb2::net::Buffer MakeSettingsAckFrame();
@@ -130,6 +135,7 @@ class ChannelProcessor {
   size_t max_header_list_size_ ABSL_GUARDED_BY(mutex_) = kDefaultMaxHeaderListSize;
 
   hpack::Decoder field_decoder_ ABSL_GUARDED_BY(mutex_);
+  hpack::Encoder field_encoder_ ABSL_GUARDED_BY(mutex_);
 
   absl::btree_map<uint32_t, Stream> streams_ ABSL_GUARDED_BY(mutex_);
   uint32_t last_processed_stream_id_ ABSL_GUARDED_BY(mutex_) = 0;

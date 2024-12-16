@@ -2,14 +2,19 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string_view>
 #include <utility>
+#include <vector>
 
 #include "absl/log/log.h"
+#include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
+#include "common/utilities.h"
 #include "http/channel.h"
 #include "http/hpack.h"
 #include "http/http.h"
+#include "io/cord.h"
 #include "net/base_sockets.h"
 
 namespace tsdb2 {
@@ -17,6 +22,7 @@ namespace http {
 
 namespace {
 
+using ::tsdb2::io::Cord;
 using ::tsdb2::net::Buffer;
 
 }  // namespace
@@ -154,11 +160,62 @@ void ChannelProcessor::OnData(uint32_t const stream_id, absl::Span<uint8_t const
 
 void ChannelProcessor::OnFields(uint32_t const stream_id, hpack::HeaderSet const fields) {
   // TODO: remove this temporary code.
+
   LOG(ERROR) << "--------";
   for (auto const& [key, value] : fields) {
     LOG(ERROR) << "### " << key << ": " << value;
   }
   LOG(ERROR) << "--------";
+
+  static std::string_view constexpr content = R"html(
+<!doctype html>
+<html lang="de">
+<head>
+  <style>
+    font-family: sans-serif;
+  </style>
+</head>
+<body>
+  <h1>Es Funktioniert!</h1>
+</body>
+</html>
+  )html";
+
+  write_queue_.AppendFrames(MakeHeadersFrames(
+      stream_id, {
+                     {":status", absl::StrCat(tsdb2::util::to_underlying(Status::k200))},
+                     {"Content-Length", absl::StrCat(content.size())},
+                 }));
+
+  write_queue_.AppendFrames(MakeDataFrames(stream_id, Buffer(content.data(), content.size())));
+}
+
+std::vector<Buffer> ChannelProcessor::MakeDataFrames(uint32_t const id, Buffer data) {
+  // TODO: split it if it exceeds max. frame size.
+  auto const header = FrameHeader()
+                          .set_length(data.size())
+                          .set_frame_type(FrameType::kData)
+                          .set_flags(kFlagEndStream)
+                          .set_stream_id(id);
+  std::vector<Buffer> result;
+  result.reserve(1);
+  result.emplace_back(Cord(Buffer(&header, sizeof(FrameHeader)), std::move(data)).Flatten());
+  return result;
+}
+
+std::vector<Buffer> ChannelProcessor::MakeHeadersFrames(uint32_t const id,
+                                                        hpack::HeaderSet const& fields) {
+  // TODO: split into fragments if exceeds max. frame size.
+  auto fragment = field_encoder_.Encode(fields);
+  auto const header = FrameHeader()
+                          .set_length(fragment.size())
+                          .set_frame_type(FrameType::kHeaders)
+                          .set_flags(kFlagEndHeaders)
+                          .set_stream_id(id);
+  std::vector<Buffer> result;
+  result.reserve(1);
+  result.emplace_back(Cord(Buffer(&header, sizeof(header)), std::move(fragment)).Flatten());
+  return result;
 }
 
 Buffer ChannelProcessor::MakeResetStreamFrame(uint32_t const id, ConnectionError const error) {

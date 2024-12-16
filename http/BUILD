@@ -121,6 +121,7 @@ cc_library(
         "//common:reffed_ptr",
         "//common:simple_condition",
         "//common:utilities",
+        "//io:cord",
         "//net:base_sockets",
         "//net:epoll_server",
         "//net:sockets",
