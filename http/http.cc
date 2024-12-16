@@ -15,7 +15,7 @@ ABSL_FLAG(absl::Duration, http2_io_timeout, absl::Seconds(60),
 namespace tsdb2 {
 namespace http {
 
-tsdb2::common::fixed_flat_map<int, std::string_view, kNumMethods> constexpr kMethodNames =
+tsdb2::common::fixed_flat_map<int, std::string_view, kNumStatuses> constexpr kStatusNames =
     tsdb2::common::fixed_flat_map_of<int, std::string_view>({
         {200, "OK"},
         {201, "Created"},

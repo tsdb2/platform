@@ -334,9 +334,9 @@ enum class Status {
   k505 = 505,  // HTTP Version Not Supported
 };
 
-inline size_t constexpr kNumMethods = 42;
+inline size_t constexpr kNumStatuses = 42;
 
-extern tsdb2::common::fixed_flat_map<int, std::string_view, kNumMethods> const kMethodNames;
+extern tsdb2::common::fixed_flat_map<int, std::string_view, kNumStatuses> const kStatusNames;
 
 struct Request {
   Method method;
