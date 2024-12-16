@@ -15,6 +15,21 @@ namespace tsdb2 {
 namespace testing {
 namespace io {
 
+// GoogleTest matcher to reinterpret the content of a `Buffer` as the specified type.
+//
+// Example:
+//
+//   struct Foo {
+//     int value;
+//     bool flag;
+//   };
+//
+//   Foo const foo{ .value = 42, .flag = true };
+//   tsdb2::io::Buffer buffer{&foo, sizeof(Foo)};
+//
+//   EXPECT_THAT(buffer, BufferAs<Foo>(AllOf(Field(&Foo::value, 42), Field(&Foo::flag, true))));
+//
+//
 template <typename Value, typename Inner>
 class BufferAsMatcher : public ::testing::MatcherInterface<tsdb2::io::Buffer const&> {
  public:
@@ -47,6 +62,26 @@ BufferAsMatcher<Value, Inner> BufferAs(Inner inner) {
   return BufferAsMatcher<Value, Inner>(std::move(inner));
 }
 
+// GoogleTest matcher to reinterpret the content of a `Buffer` as an array of the specified type.
+//
+// Example:
+//
+//   struct Foo {
+//     int value;
+//     bool flag;
+//   };
+//
+//   Foo const foos[2] = {
+//       { .value = 42, .flag = true },
+//       { .value = 43, .flag = false },
+//   };
+//   tsdb2::io::Buffer buffer{foos, sizeof(foo)};
+//
+//   EXPECT_THAT(buffer, BufferAsArray<Foo>(ElementsAre(
+//       AllOf(Field(&Foo::value, 42), Field(&Foo::flag, true)),
+//       AllOf(Field(&Foo::value, 43), Field(&Foo::flag, false)))));
+//
+//
 template <typename Value, typename Inner>
 class BufferAsArrayMatcher : public ::testing::MatcherInterface<tsdb2::io::Buffer const&> {
  public:
@@ -84,11 +119,21 @@ BufferAsArrayMatcher<Value, Inner> BufferAsArray(Inner inner) {
   return BufferAsArrayMatcher<Value, Inner>(std::move(inner));
 }
 
+// A specialization of `BufferAsArray` that reinterprets the content of a `Buffer` as an array of
+// `uint8_t`. You can use it to match the bytes contained in the buffer.
 template <typename Inner>
 BufferAsArrayMatcher<uint8_t, Inner> BufferAsBytes(Inner inner) {
   return BufferAsArrayMatcher<uint8_t, Inner>(std::move(inner));
 }
 
+// GoogleTest matcher to reinterpret the content of a `Buffer` as a string.
+//
+// Example:
+//
+//   std::string_view const foo = "sator arepo tenet opera rotas";
+//   tsdb2::io::Buffer buffer{foo.data, foo.size() + 1};
+//   EXPECT_THAT(buffer, BufferAsString("sator arepo tenet opera rotas"));
+//
 template <typename Inner>
 class BufferAsStringMatcher : public ::testing::MatcherInterface<tsdb2::io::Buffer const&> {
  public:
