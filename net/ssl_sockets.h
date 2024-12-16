@@ -88,13 +88,13 @@ class SSLSocket : public BaseSocket {
             std::enable_if_t<std::is_base_of_v<SSLSocket, SocketClass>, bool> = true>
   static absl::StatusOr<tsdb2::common::reffed_ptr<SocketClass>> Create(Args&&... args);
 
-  template <typename FirstSocket, typename SecondSocket,
+  template <typename FirstSocket, typename SecondSocket, typename... Args,
             std::enable_if_t<std::conjunction_v<std::is_base_of<SSLSocket, FirstSocket>,
                                                 std::is_base_of<SSLSocket, SecondSocket>>,
                              bool> = true>
   static absl::StatusOr<
       std::pair<tsdb2::common::reffed_ptr<FirstSocket>, tsdb2::common::reffed_ptr<SecondSocket>>>
-  CreateHeterogeneousPairForTesting();
+  CreateHeterogeneousPairForTesting(Args&&... args);
 
   static absl::StatusOr<
       std::pair<tsdb2::common::reffed_ptr<SSLSocket>, tsdb2::common::reffed_ptr<SSLSocket>>>
@@ -116,10 +116,10 @@ class SSLSocket : public BaseSocket {
   // Constructs a `Socket` from the specified file descriptor. Used by `ListenerSocket` to construct
   // sockets for accepted connections. The `ConnectCallback` will be notified when the SSL handshake
   // is complete.
-  template <typename SocketClass,
+  template <typename SocketClass, typename... ExtraArgs,
             std::enable_if_t<std::is_base_of_v<SSLSocket, SocketClass>, bool> = true>
   static absl::StatusOr<tsdb2::common::reffed_ptr<SocketClass>> CreateClass(
-      EpollServer* parent, FD fd, ConnectCallback<SocketClass> callback);
+      EpollServer* parent, FD fd, ConnectCallback<SocketClass> callback, ExtraArgs&&... extra_args);
 
   // Constructs an `SSLSocket` connected to the specified host and port. This function uses
   // `getaddrinfo` to perform address resolution, so the `address` can be a numeric IPv4 address
@@ -133,14 +133,14 @@ class SSLSocket : public BaseSocket {
       ConnectCallback<SocketClass> callback);
 
   // TEST ONLY: creates a pair of connected SSL sockets using the `socketpair` syscall.
-  template <typename FirstSocket, typename SecondSocket,
+  template <typename FirstSocket, typename SecondSocket, typename... ExtraArgs,
             std::enable_if_t<std::conjunction_v<std::is_base_of<SSLSocket, FirstSocket>,
                                                 std::is_base_of<SSLSocket, SecondSocket>>,
                              bool> = true>
   static absl::StatusOr<
       std::pair<tsdb2::common::reffed_ptr<FirstSocket>, tsdb2::common::reffed_ptr<SecondSocket>>>
   CreateClassPair(EpollServer* parent, ConnectCallback<FirstSocket> first_callback,
-                  ConnectCallback<SecondSocket> second_callback);
+                  ConnectCallback<SecondSocket> second_callback, ExtraArgs&&... extra_args);
 
   explicit SSLSocket(EpollServer* parent, AcceptTag, FD fd, internal::SSL ssl,
                      absl::Duration handshake_timeout, InternalConnectCallback callback);
@@ -403,18 +403,21 @@ class SSLListenerSocket : public BaseListenerSocket {
     return EpollServer::GetInstance()->CreateSocket<SSLListenerSocket>(std::forward<Args>(args)...);
   }
 
- private:
-  friend class EpollServer;
-
-  static absl::StatusOr<tsdb2::common::reffed_ptr<SSLListenerSocket>> CreateInternal(
+ protected:
+  template <
+      typename ListenerSocketClass, typename... ExtraArgs,
+      std::enable_if_t<std::is_base_of_v<SSLListenerSocket, ListenerSocketClass>, bool> = true>
+  static absl::StatusOr<tsdb2::common::reffed_ptr<ListenerSocketClass>> CreateClass(
       EpollServer* const parent, std::string_view const address, uint16_t const port,
-      SocketOptions options, AcceptCallback const callback, void* const callback_arg) {
+      SocketOptions options, AcceptCallback const callback, void* const callback_arg,
+      ExtraArgs&&... extra_args) {
     if (!callback) {
       return absl::InvalidArgumentError("the accept callback must not be empty");
     }
     DEFINE_VAR_OR_RETURN(fd, CreateInetListener(address, port));
-    return tsdb2::common::WrapReffed(new SSLListenerSocket(parent, address, port, std::move(fd),
-                                                           options, callback, callback_arg));
+    return tsdb2::common::WrapReffed(
+        new ListenerSocketClass(parent, std::forward<ExtraArgs>(extra_args)..., address, port,
+                                std::move(fd), options, callback, callback_arg));
   }
 
   explicit SSLListenerSocket(EpollServer* const parent, std::string_view const address,
@@ -424,6 +427,21 @@ class SSLListenerSocket : public BaseListenerSocket {
         options_(options),
         callback_arg_(callback_arg),
         callback_(callback) {}
+
+  // Constructs a socket from an accepted file descriptor.
+  virtual absl::StatusOr<tsdb2::common::reffed_ptr<SocketType>> CreateSocket(
+      FD fd, SSLSocket::ConnectCallback<SocketType> callback) {
+    return SocketType::Create(std::move(fd), std::move(callback));
+  }
+
+ private:
+  friend class EpollServer;
+
+  template <typename... Args>
+  static absl::StatusOr<tsdb2::common::reffed_ptr<SSLListenerSocket>> CreateInternal(
+      EpollServer* const parent, Args&&... args) {
+    return CreateClass<SSLListenerSocket>(parent, std::forward<Args>(args)...);
+  }
 
   absl::StatusOr<std::vector<FD>> AcceptAll() {
     std::vector<FD> fds;
@@ -468,7 +486,7 @@ class SSLListenerSocket : public BaseListenerSocket {
           continue;
         }
       }
-      auto status_or_socket = SocketType::Create(
+      auto status_or_socket = CreateSocket(
           std::move(fd), [this](tsdb2::common::reffed_ptr<SocketType> socket, absl::Status status) {
             if (status.ok()) {
               callback_(callback_arg_, std::move(socket));
@@ -510,13 +528,13 @@ absl::StatusOr<tsdb2::common::reffed_ptr<SocketClass>> SSLSocket::Create(Args&&.
   return std::move(socket);
 }
 
-template <typename FirstSocket, typename SecondSocket,
+template <typename FirstSocket, typename SecondSocket, typename... ExtraArgs,
           std::enable_if_t<std::conjunction_v<std::is_base_of<SSLSocket, FirstSocket>,
                                               std::is_base_of<SSLSocket, SecondSocket>>,
                            bool>>
 absl::StatusOr<
     std::pair<tsdb2::common::reffed_ptr<FirstSocket>, tsdb2::common::reffed_ptr<SecondSocket>>>
-SSLSocket::CreateHeterogeneousPairForTesting() {
+SSLSocket::CreateHeterogeneousPairForTesting(ExtraArgs&&... extra_args) {
   absl::Mutex mutex;
   bool first_ready = false;
   bool second_ready = false;
@@ -534,7 +552,8 @@ SSLSocket::CreateHeterogeneousPairForTesting() {
                  absl::MutexLock lock{&mutex};
                  final_status.Update(std::move(status));
                  second_ready = true;
-               })));
+               },
+               std::forward<ExtraArgs>(extra_args)...)));
   RETURN_IF_ERROR(sockets.first->StartHandshake());
   RETURN_IF_ERROR(sockets.second->StartHandshake());
   absl::MutexLock lock{&mutex,
@@ -546,15 +565,18 @@ SSLSocket::CreateHeterogeneousPairForTesting() {
   }
 }
 
-template <typename SocketClass, std::enable_if_t<std::is_base_of_v<SSLSocket, SocketClass>, bool>>
+template <typename SocketClass, typename... ExtraArgs,
+          std::enable_if_t<std::is_base_of_v<SSLSocket, SocketClass>, bool>>
 absl::StatusOr<tsdb2::common::reffed_ptr<SocketClass>> SSLSocket::CreateClass(
-    EpollServer* const parent, FD fd, ConnectCallback<SocketClass> callback) {
+    EpollServer* const parent, FD fd, ConnectCallback<SocketClass> callback,
+    ExtraArgs&&... extra_args) {
   if (!callback) {
     return absl::InvalidArgumentError("The connect callback must not be empty");
   }
   DEFINE_VAR_OR_RETURN(ssl, internal::SSLContext::GetServerContext().MakeSSL(fd));
   auto socket = tsdb2::common::WrapReffed(new SocketClass(
-      parent, kAcceptTag, std::move(fd), std::move(ssl), absl::GetFlag(FLAGS_ssl_handshake_timeout),
+      parent, std::forward<ExtraArgs>(extra_args)..., kAcceptTag, std::move(fd), std::move(ssl),
+      absl::GetFlag(FLAGS_ssl_handshake_timeout),
       [callback = std::move(callback)](SSLSocket* const socket, absl::Status status) mutable {
         callback(ExtractHandshakingSocket(socket).downcast<SocketClass>(), std::move(status));
       }));
@@ -616,14 +638,15 @@ absl::StatusOr<tsdb2::common::reffed_ptr<SocketClass>> SSLSocket::CreateClass(
   return std::move(socket);
 }
 
-template <typename FirstSocket, typename SecondSocket,
+template <typename FirstSocket, typename SecondSocket, typename... ExtraArgs,
           std::enable_if_t<std::conjunction_v<std::is_base_of<SSLSocket, FirstSocket>,
                                               std::is_base_of<SSLSocket, SecondSocket>>,
                            bool>>
 absl::StatusOr<
     std::pair<tsdb2::common::reffed_ptr<FirstSocket>, tsdb2::common::reffed_ptr<SecondSocket>>>
 SSLSocket::CreateClassPair(EpollServer* const parent, ConnectCallback<FirstSocket> first_callback,
-                           ConnectCallback<SecondSocket> second_callback) {
+                           ConnectCallback<SecondSocket> second_callback,
+                           ExtraArgs&&... extra_args) {
   int fds[2] = {0, 0};
   if (::socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0, fds) < 0) {
     return absl::ErrnoToStatus(errno, "socketpair(AF_UNIX, SOCK_STREAM)");
@@ -634,7 +657,8 @@ SSLSocket::CreateClassPair(EpollServer* const parent, ConnectCallback<FirstSocke
   DEFINE_VAR_OR_RETURN(ssl2, internal::SSLContext::GetClientContext().MakeSSL(fd2));
   auto const handshake_timeout = absl::GetFlag(FLAGS_ssl_handshake_timeout);
   return std::make_pair(tsdb2::common::WrapReffed(new FirstSocket(
-                            parent, kAcceptTag, std::move(fd1), std::move(ssl1), handshake_timeout,
+                            parent, std::forward<ExtraArgs>(extra_args)..., kAcceptTag,
+                            std::move(fd1), std::move(ssl1), handshake_timeout,
                             MakeConnectCallbackAdapter(std::move(first_callback)))),
                         tsdb2::common::WrapReffed(new SecondSocket(
                             parent, kConnectTag, std::move(fd2), std::move(ssl2), handshake_timeout,

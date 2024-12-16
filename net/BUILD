@@ -161,6 +161,18 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "testing",
+    testonly = True,
+    srcs = ["testing.cc"],
+    hdrs = ["testing.h"],
+    deps = [
+        "//common:sequence_number",
+        "//common:testing",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
 cc_test(
     name = "sockets_test",
     srcs = ["sockets_test.cc"],
@@ -170,6 +182,7 @@ cc_test(
         ":ssl",
         ":ssl_sockets",
         ":ssl_testing",
+        ":testing",
         "//common:default_scheduler",
         "//common:flag_override",
         "//common:mock_clock",
@@ -177,7 +190,6 @@ cc_test(
         "//common:reffed_ptr",
         "//common:scheduler",
         "//common:scoped_override",
-        "//common:sequence_number",
         "//common:simple_condition",
         "//common:singleton",
         "//common:stats_counter",
@@ -192,7 +204,6 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest_main",

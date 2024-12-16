@@ -289,6 +289,10 @@ static_assert(sizeof(WindowUpdatePayload) == 4, "incorrect WINDOW_UPDATE payload
 
 enum class Method { kGet, kHead, kPost, kPut, kDelete, kConnect, kOptions, kTrace };
 
+inline size_t constexpr kNumMethods = 8;
+extern tsdb2::common::fixed_flat_map<std::string_view, Method, kNumMethods> const kMethodsByName;
+extern tsdb2::common::fixed_flat_map<Method, std::string_view, kNumMethods> const kMethodNames;
+
 enum class Status {
   k200 = 200,  // OK
   k201 = 201,  // Created
@@ -339,14 +343,18 @@ inline size_t constexpr kNumStatuses = 42;
 extern tsdb2::common::fixed_flat_map<int, std::string_view, kNumStatuses> const kStatusNames;
 
 struct Request {
+  explicit Request(Method const method) : method(method) {}
+  ~Request() = default;
+
+  Request(Request const&) = delete;
+  Request& operator=(Request const&) = delete;
+  Request(Request&&) noexcept = default;
+  Request& operator=(Request&&) noexcept = default;
+
   Method method;
   std::string path;
+  tsdb2::common::flat_map<std::string, std::string> headers;
   tsdb2::common::flat_map<std::string, std::string> cookies;
-  std::string user_agent;
-};
-
-struct Response {
-  // TODO
 };
 
 }  // namespace http

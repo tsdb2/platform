@@ -302,9 +302,9 @@ Buffer Encoder::Encode(HeaderSet const &headers) {
     } else {
       uint8_t const code = 0x40;
       cord.Append(Buffer(&code, 1));
-      cord.Append(EncodeString(header.first, /*use_huffman=*/true));
+      cord.Append(EncodeString(header.first));
     }
-    cord.Append(EncodeString(header.second, /*use_huffman=*/true));
+    cord.Append(EncodeString(header.second));
     dynamic_headers_.Add(header);
   }
   return std::move(cord).Flatten();
@@ -329,9 +329,9 @@ Buffer Encoder::EncodeInteger(size_t value, size_t const prefix_bits) {
   return buffer;
 }
 
-Cord Encoder::EncodeString(std::string_view const string, bool const use_huffman) {
+Cord Encoder::EncodeString(std::string_view const string) {
   Cord cord;
-  if (use_huffman) {
+  if (HuffmanCode::GetEncodedLength(string) < string.size()) {
     auto buffer = HuffmanCode::Encode(string);
     cord.Append(EncodeInteger(buffer.size(), /*prefix_bits=*/7));
     cord[0] |= 0x80;

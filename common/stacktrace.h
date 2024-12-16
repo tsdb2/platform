@@ -3,6 +3,8 @@
 
 #include <string>
 
+#include "absl/log/log.h"  // IWYU pragma: export
+
 namespace tsdb2 {
 namespace common {
 

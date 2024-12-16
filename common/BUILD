@@ -34,6 +34,7 @@ cc_library(
     deps = [
         "@com_google_absl//absl/debugging:stacktrace",
         "@com_google_absl//absl/debugging:symbolize",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings",
     ],
 )

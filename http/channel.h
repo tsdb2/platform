@@ -14,7 +14,9 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
+#include "absl/strings/str_cat.h"
 #include "common/reffed_ptr.h"
+#include "http/handlers.h"
 #include "http/http.h"
 #include "http/processor.h"
 #include "net/base_sockets.h"
@@ -53,6 +55,8 @@ class ChannelManager {
 
   virtual void RemoveChannel(BaseChannel* channel) = 0;
 
+  virtual absl::StatusOr<Handler*> GetHandler(std::string_view path) = 0;
+
  private:
   ChannelManager(ChannelManager const&) = delete;
   ChannelManager& operator=(ChannelManager const&) = delete;
@@ -67,8 +71,12 @@ class ChannelInterface {
  public:
   explicit ChannelInterface() = default;
   virtual ~ChannelInterface() = default;
+
   virtual tsdb2::net::BaseSocket* socket() = 0;
   virtual tsdb2::net::BaseSocket const* socket() const = 0;
+
+  virtual absl::StatusOr<Handler*> GetHandler(std::string_view path) = 0;
+
   virtual void ReadContinuationFrame(uint32_t stream_id) = 0;
   virtual void ReadNextFrame() = 0;
   virtual void CloseConnection() = 0;
@@ -96,27 +104,36 @@ class Channel final : private Socket, public BaseChannel, private internal::Chan
   // the channel.
   static absl::StatusOr<
       std::pair<tsdb2::common::reffed_ptr<Channel>, tsdb2::common::reffed_ptr<Socket>>>
-  CreatePairWithRawPeerForTesting() {
-    return CreatePairWithRawPeerHelper<Socket>();
+  CreatePairWithRawPeerForTesting(ChannelManager* const manager) {
+    return CreatePairWithRawPeerHelper<Socket>(manager);
   }
 
   // Creates a pair of channels connected to each other.
   static absl::StatusOr<
       std::pair<tsdb2::common::reffed_ptr<Channel>, tsdb2::common::reffed_ptr<Channel>>>
-  CreatePairForTesting() {
-    return CreatePairHelper<Socket>();
+  CreatePairForTesting(ChannelManager* const manager) {
+    return CreatePairHelper<Socket>(manager);
   }
 
   using Socket::Close;
   using Socket::is_open;
   using Socket::kIsListener;
 
+  ~Channel() override { Close(); }
+
   void Ref() override { Socket::Ref(); }
   bool Unref() override { return Socket::Unref(); }
 
-  ~Channel() override { Close(); }
+  // Indicates whether this is a client-side channel.
+  bool is_client() const { return manager_ == nullptr; }
 
-  // Starts an HTTP/2 server by reading the client preface and then starting exchanging frames.
+  // Indicates whether this is a server-side channel.
+  bool is_server() const { return manager_ != nullptr; }
+
+  // Starts an HTTP/2 server by reading the client preface and then starting to exchange frames.
+  //
+  // Don't call this method explicitly, it's called automatically by the `ChannelManager` for
+  // server-side channels.
   void StartServer() override {
     ReadWithTimeout(kClientPreface.size(), [this](tsdb2::net::Buffer const data) {
       std::string_view const preface{data.as_char_array(), data.size()};
@@ -159,47 +176,57 @@ class Channel final : private Socket, public BaseChannel, private internal::Chan
   template <typename SocketType>
   static absl::StatusOr<std::pair<tsdb2::common::reffed_ptr<Channel<SocketType>>,
                                   tsdb2::common::reffed_ptr<SocketType>>>
-  CreatePairWithRawPeerHelper();
+  CreatePairWithRawPeerHelper(ChannelManager* manager);
 
   template <>
   absl::StatusOr<std::pair<tsdb2::common::reffed_ptr<Channel<tsdb2::net::Socket>>,
                            tsdb2::common::reffed_ptr<tsdb2::net::Socket>>>
-  CreatePairWithRawPeerHelper<tsdb2::net::Socket>() {
+  CreatePairWithRawPeerHelper<tsdb2::net::Socket>(ChannelManager* const manager) {
     return tsdb2::net::EpollServer::GetInstance()
         ->CreateHeterogeneousSocketPair<tsdb2::net::Socket, Channel<tsdb2::net::Socket>,
-                                        tsdb2::net::Socket>();
+                                        tsdb2::net::Socket>(manager);
   }
 
   template <>
   absl::StatusOr<std::pair<tsdb2::common::reffed_ptr<Channel<tsdb2::net::SSLSocket>>,
                            tsdb2::common::reffed_ptr<tsdb2::net::SSLSocket>>>
-  CreatePairWithRawPeerHelper<tsdb2::net::SSLSocket>() {
+  CreatePairWithRawPeerHelper<tsdb2::net::SSLSocket>(ChannelManager* const manager) {
     return tsdb2::net::SSLSocket::CreateHeterogeneousPairForTesting<Channel<tsdb2::net::SSLSocket>,
-                                                                    tsdb2::net::SSLSocket>();
+                                                                    tsdb2::net::SSLSocket>(manager);
   }
 
   template <typename SocketType>
   static absl::StatusOr<std::pair<tsdb2::common::reffed_ptr<Channel<SocketType>>,
                                   tsdb2::common::reffed_ptr<Channel<SocketType>>>>
-  CreatePairHelper();
+  CreatePairHelper(ChannelManager* manager);
 
   template <>
   absl::StatusOr<std::pair<tsdb2::common::reffed_ptr<Channel<tsdb2::net::Socket>>,
                            tsdb2::common::reffed_ptr<Channel<tsdb2::net::Socket>>>>
-  CreatePairHelper<tsdb2::net::Socket>() {
-    return tsdb2::net::EpollServer::GetInstance()->CreateSocketPair<Channel<tsdb2::net::Socket>>();
+  CreatePairHelper<tsdb2::net::Socket>(ChannelManager* const manager) {
+    return tsdb2::net::EpollServer::GetInstance()->CreateSocketPair<Channel<tsdb2::net::Socket>>(
+        manager);
   }
 
   template <>
   absl::StatusOr<std::pair<tsdb2::common::reffed_ptr<Channel<tsdb2::net::SSLSocket>>,
                            tsdb2::common::reffed_ptr<Channel<tsdb2::net::SSLSocket>>>>
-  CreatePairHelper<tsdb2::net::SSLSocket>() {
-    return tsdb2::net::SSLSocket::CreateHeterogeneousPairForTesting<
-        Channel<tsdb2::net::SSLSocket>, Channel<tsdb2::net::SSLSocket>>();
+  CreatePairHelper<tsdb2::net::SSLSocket>(ChannelManager* const manager) {
+    return tsdb2::net::SSLSocket::CreateHeterogeneousPairForTesting<Channel<tsdb2::net::SSLSocket>,
+                                                                    Channel<tsdb2::net::SSLSocket>>(
+        manager);
   }
 
+  // Constructs a server-side channel.
   template <typename... Args>
-  explicit Channel(Args&&... args) : Socket(std::forward<Args>(args)...), processor_{this} {}
+  explicit Channel(tsdb2::net::EpollServer* const parent, ChannelManager* const manager,
+                   Args&&... args)
+      : Socket(parent, std::forward<Args>(args)...), manager_(manager), processor_{this} {}
+
+  // Constructs a client-side channel.
+  template <typename... Args>
+  explicit Channel(tsdb2::net::EpollServer* const parent, Args&&... args)
+      : Socket(parent, std::forward<Args>(args)...), manager_(nullptr), processor_{this} {}
 
   Channel(Channel const&) = delete;
   Channel& operator=(Channel const&) = delete;
@@ -208,6 +235,15 @@ class Channel final : private Socket, public BaseChannel, private internal::Chan
 
   tsdb2::net::BaseSocket* socket() override { return this; }
   tsdb2::net::BaseSocket const* socket() const override { return this; }
+
+  absl::StatusOr<Handler*> GetHandler(std::string_view path) override {
+    if (manager_ != nullptr) {
+      return manager_->GetHandler(path);
+    } else {
+      return absl::FailedPreconditionError(absl::StrCat(
+          "Cannot handle requests for \"", absl::CEscape(path), "\" in a client-side channel."));
+    }
+  }
 
   void Read(size_t const length, ReadCallback callback) {
     auto const status = Socket::Read(length, [this, callback = std::move(callback)](
@@ -314,6 +350,10 @@ class Channel final : private Socket, public BaseChannel, private internal::Chan
   }
 
   void CloseConnection() override { Close(); }
+
+  // Not owned. Points to the parent `Server` for server-side channels, while it's nullptr for
+  // client-side ones.
+  ChannelManager* const manager_;
 
   ChannelProcessor processor_;
 };

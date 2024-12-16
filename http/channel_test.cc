@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string_view>
 #include <utility>
 
 #include "absl/log/check.h"
@@ -22,7 +23,9 @@
 #include "common/utilities.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "http/handlers.h"
 #include "http/http.h"
+#include "http/mock_channel_manager.h"
 #include "io/buffer_testing.h"
 #include "net/base_sockets.h"
 #include "net/sockets.h"
@@ -43,11 +46,14 @@ using ::tsdb2::common::Scheduler;
 using ::tsdb2::common::ScopedOverride;
 using ::tsdb2::common::SimpleCondition;
 using ::tsdb2::common::Singleton;
+using ::tsdb2::http::BaseChannel;
 using ::tsdb2::http::Channel;
+using ::tsdb2::http::ChannelManager;
 using ::tsdb2::http::ConnectionError;
 using ::tsdb2::http::FrameHeader;
 using ::tsdb2::http::FrameType;
 using ::tsdb2::http::GoAwayPayload;
+using ::tsdb2::http::Handler;
 using ::tsdb2::http::kClientPreface;
 using ::tsdb2::http::kDefaultInitialWindowSize;
 using ::tsdb2::http::kDefaultMaxDynamicHeaderTableSize;
@@ -62,6 +68,7 @@ using ::tsdb2::http::WindowUpdatePayload;
 using ::tsdb2::net::Buffer;
 using ::tsdb2::net::Socket;
 using ::tsdb2::net::SSLSocket;
+using ::tsdb2::testing::http::MockChannelManager;
 using ::tsdb2::testing::io::BufferAs;
 using ::tsdb2::testing::io::BufferAsArray;
 
@@ -78,7 +85,7 @@ class ChannelTest : public tsdb2::testing::init::Test {
 
   explicit ChannelTest() : ChannelTest(MakeConnection()) {}
 
-  static std::pair<reffed_ptr<Channel<Socket>>, reffed_ptr<Socket>> MakeConnection();
+  std::pair<reffed_ptr<Channel<Socket>>, reffed_ptr<Socket>> MakeConnection();
 
   absl::Status StartServer();
 
@@ -94,13 +101,15 @@ class ChannelTest : public tsdb2::testing::init::Test {
   ScopedOverride<Singleton<Scheduler>> scheduler_override_{&tsdb2::common::default_scheduler,
                                                            &scheduler_};
 
+  MockChannelManager manager_;
+
   reffed_ptr<Channel<Socket>> const channel_;
   reffed_ptr<Socket> const peer_socket_;
 };
 
 template <typename Socket>
 std::pair<reffed_ptr<Channel<Socket>>, reffed_ptr<Socket>> ChannelTest<Socket>::MakeConnection() {
-  auto status_or_sockets = Channel<Socket>::CreatePairWithRawPeerForTesting();
+  auto status_or_sockets = Channel<Socket>::CreatePairWithRawPeerForTesting(&manager_);
   CHECK_OK(status_or_sockets);
   return std::move(status_or_sockets).value();
 }
@@ -146,6 +155,8 @@ TYPED_TEST_SUITE(ChannelTest, SocketTypes);
 
 TYPED_TEST(ChannelTest, StartServer) {
   this->channel_->StartServer();
+  EXPECT_FALSE(this->channel_->is_client());
+  EXPECT_TRUE(this->channel_->is_server());
   EXPECT_OK(this->PeerWrite(Buffer(kClientPreface.data(), kClientPreface.size())));
   EXPECT_THAT(this->PeerRead(sizeof(FrameHeader)),
               IsOkAndHolds(BufferAs<FrameHeader>(

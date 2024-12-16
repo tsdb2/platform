@@ -332,11 +332,11 @@ class RawLockFreeHash {
     friend class ConstIterator;
 
     // Constructs the begin iterator.
-    explicit Iterator(BeginIterator const, RawLockFreeHash const &parent)
+    explicit Iterator(BeginIterator /*begin*/, RawLockFreeHash const &parent)
         : BaseIterator(kBeginIterator, parent) {}
 
     // Constructs the end iterator.
-    explicit Iterator(EndIterator const, RawLockFreeHash const &parent)
+    explicit Iterator(EndIterator /*end*/, RawLockFreeHash const &parent)
         : BaseIterator(kEndIterator, parent) {}
 
     // Constructs an iterator for a specific node & position.

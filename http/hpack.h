@@ -172,7 +172,7 @@ class Encoder final {
 
  private:
   static tsdb2::io::Buffer EncodeInteger(size_t value, size_t prefix_bits);
-  static tsdb2::io::Cord EncodeString(std::string_view string, bool use_huffman);
+  static tsdb2::io::Cord EncodeString(std::string_view string);
 
   // Searches the specified header in the static and dynamic header tables, returning its index if
   // found. Indices start from 1, so they're ready to be encoded as per the HPACK specs. 0 is

@@ -7,6 +7,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_set.h"
@@ -17,26 +18,13 @@
 #include "common/reffed_ptr.h"
 #include "common/trie_map.h"
 #include "http/channel.h"
-#include "http/http.h"
+#include "http/handlers.h"
 #include "net/base_sockets.h"
 #include "net/sockets.h"
 #include "net/ssl_sockets.h"
 
 namespace tsdb2 {
 namespace http {
-
-class Handler {
- public:
-  explicit Handler() = default;
-  virtual ~Handler() = default;
-  virtual absl::Status operator()(Request const& request, Response* response) = 0;
-
- private:
-  Handler(Handler const&) = delete;
-  Handler& operator=(Handler const&) = delete;
-  Handler(Handler&&) = delete;
-  Handler& operator=(Handler&&) = delete;
-};
 
 // An HTTP/2 server.
 //
@@ -53,24 +41,21 @@ class Server final : public ChannelManager {
     uint16_t port;
   };
 
+  using HandlerSet = tsdb2::common::trie_map<std::unique_ptr<Handler>>;
+
   // Constructs an HTTP server bound to the specified address and listening on the specified port.
   // If the address is an empty string the server will bind to `INADDR6_ANY`.
   static absl::StatusOr<std::unique_ptr<Server>> Create(std::string_view address, uint16_t port,
                                                         bool use_ssl,
-                                                        tsdb2::net::SocketOptions const& options);
+                                                        tsdb2::net::SocketOptions const& options,
+                                                        HandlerSet handlers);
 
-  // Shorthand for `Create("", port, use_ssl, options)`.
+  // Shorthand for `Create("", port, use_ssl, options, handlers)`.
   static absl::StatusOr<std::unique_ptr<Server>> Create(uint16_t const port, bool const use_ssl,
-                                                        tsdb2::net::SocketOptions const& options) {
-    return Create("", port, use_ssl, options);
+                                                        tsdb2::net::SocketOptions const& options,
+                                                        HandlerSet handlers) {
+    return Create("", port, use_ssl, options, std::move(handlers));
   }
-
-  // Returns a default singleton `Server` instance.
-  //
-  // The singleton instance takes its local address and port from the --local_address and --port
-  // command line flags respectively. It's created the first time `GetDefault()` is invoked and is
-  // never destroyed.
-  static Server* GetDefault();
 
   // Returns the local address & TCP port this server is bound to. An empty string for the address
   // indicates it was bound to INADDR6_ANY.
@@ -106,12 +91,15 @@ class Server final : public ChannelManager {
   using ChannelSet =
       absl::flat_hash_set<tsdb2::common::reffed_ptr<BaseChannel>, HashChannel, CompareChannels>;
 
-  explicit Server() = default;
+  explicit Server(tsdb2::common::trie_map<std::unique_ptr<Handler>> handlers)
+      : handlers_(std::move(handlers)) {}
 
   tsdb2::common::reffed_ptr<tsdb2::net::BaseListenerSocket> listener() const
       ABSL_LOCKS_EXCLUDED(listener_mutex_);
 
   void RemoveChannel(BaseChannel* channel) override ABSL_LOCKS_EXCLUDED(mutex_);
+
+  absl::StatusOr<Handler*> GetHandler(std::string_view path) override;
 
   absl::Status AcceptInternal(
       absl::StatusOr<tsdb2::common::reffed_ptr<BaseChannel>> status_or_socket)
@@ -134,7 +122,7 @@ class Server final : public ChannelManager {
   absl::Status Listen(std::string_view address, uint16_t port, bool use_ssl,
                       tsdb2::net::SocketOptions const& options);
 
-  tsdb2::common::trie_map<std::unique_ptr<Handler>> const handlers_;
+  HandlerSet const handlers_;
 
   absl::Mutex mutable mutex_;
 

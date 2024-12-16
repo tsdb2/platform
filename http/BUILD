@@ -10,6 +10,7 @@ cc_library(
         "//common:utilities",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/time",
     ],
 )
 
@@ -107,6 +108,17 @@ cc_test(
 )
 
 cc_library(
+    name = "handlers",
+    hdrs = ["handlers.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hpack",
+        ":http",
+        "//net:base_sockets",
+    ],
+)
+
+cc_library(
     name = "channel",
     srcs = ["processor.cc"],
     hdrs = [
@@ -115,12 +127,16 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
+        ":handlers",
         ":hpack",
         ":http",
         ":write_queue",
+        "//common:flat_map",
         "//common:reffed_ptr",
         "//common:simple_condition",
+        "//common:trie_map",
         "//common:utilities",
+        "//io:cord",
         "//net:base_sockets",
         "//net:epoll_server",
         "//net:sockets",
@@ -131,10 +147,23 @@ cc_library(
         "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/functional:bind_front",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "mock_channel_manager",
+    testonly = True,
+    hdrs = ["mock_channel_manager.h"],
+    deps = [
+        ":channel",
+        ":handlers",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -143,7 +172,9 @@ cc_test(
     srcs = ["channel_test.cc"],
     deps = [
         ":channel",
+        ":handlers",
         ":http",
+        ":mock_channel_manager",
         "//common:default_scheduler",
         "//common:mock_clock",
         "//common:reffed_ptr",
@@ -170,18 +201,54 @@ cc_test(
 )
 
 cc_library(
+    name = "channel_listener",
+    hdrs = ["channel_listener.h"],
+    deps = [
+        ":channel",
+        "//common:reffed_ptr",
+        "//net:base_sockets",
+        "//net:epoll_server",
+        "//net:sockets",
+        "//net:ssl_sockets",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "channel_listener_test",
+    srcs = ["channel_listener_test.cc"],
+    deps = [
+        ":channel",
+        ":channel_listener",
+        ":mock_channel_manager",
+        "//common:reffed_ptr",
+        "//common:testing",
+        "//net:base_sockets",
+        "//net:sockets",
+        "//net:testing",
+        "//server:testing",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "server",
     srcs = ["server.cc"],
     hdrs = ["server.h"],
     visibility = ["//visibility:public"],
     deps = [
         ":channel",
+        ":channel_listener",
+        ":handlers",
         ":http",
         "//common:reffed_ptr",
         "//common:simple_condition",
         "//common:trie_map",
         "//common:utilities",
         "//net:base_sockets",
+        "//net:epoll_server",
         "//net:sockets",
         "//net:ssl_sockets",
         "@com_google_absl//absl/base",
@@ -193,6 +260,31 @@ cc_library(
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/time",
+    ],
+)
+
+cc_library(
+    name = "default_server",
+    srcs = ["default_server.cc"],
+    hdrs = ["default_server.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":handlers",
+        ":server",
+        "//common:no_destructor",
+        "//common:trie_map",
+        "//common:utilities",
+        "//net:base_sockets",
+        "//server:base_module",
+        "//server:init_tsdb2",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
     ],

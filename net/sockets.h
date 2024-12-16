@@ -78,8 +78,8 @@ class Socket : public BaseSocket {
 
   template <typename SocketClass = Socket, typename... Args,
             std::enable_if_t<std::is_base_of_v<Socket, SocketClass>, bool> = true>
-  static absl::StatusOr<tsdb2::common::reffed_ptr<Socket>> Create(Args&&... args) {
-    return EpollServer::GetInstance()->CreateSocket<Socket>(std::forward<Args>(args)...);
+  static absl::StatusOr<tsdb2::common::reffed_ptr<SocketClass>> Create(Args&&... args) {
+    return EpollServer::GetInstance()->CreateSocket<SocketClass>(std::forward<Args>(args)...);
   }
 
   static absl::StatusOr<
@@ -101,11 +101,12 @@ class Socket : public BaseSocket {
 
   // Constructs a `Socket` from the specified file descriptor. Used by `ListenerSocket` to construct
   // sockets for accepted connections.
-  template <typename SocketClass,
+  template <typename SocketClass, typename... ExtraArgs,
             std::enable_if_t<std::is_base_of_v<Socket, SocketClass>, bool> = true>
   static absl::StatusOr<tsdb2::common::reffed_ptr<SocketClass>> CreateClass(
-      EpollServer* const parent, FD fd) {
-    return tsdb2::common::WrapReffed(new SocketClass(parent, kConnectedTag, std::move(fd)));
+      EpollServer* const parent, FD fd, ExtraArgs&&... extra_args) {
+    return tsdb2::common::WrapReffed(new SocketClass(parent, std::forward<ExtraArgs>(extra_args)...,
+                                                     kConnectedTag, std::move(fd)));
   }
 
   // Constructs a stream `Socket` connected to the specified host and port. This function uses
@@ -128,13 +129,13 @@ class Socket : public BaseSocket {
       std::string_view socket_name, ConnectCallback<SocketClass> callback);
 
   // Creates a pair of connected sockets using the `socketpair` syscall.
-  template <typename FirstSocket, typename SecondSocket,
+  template <typename FirstSocket, typename SecondSocket, typename... ExtraArgs,
             std::enable_if_t<std::conjunction_v<std::is_base_of<Socket, FirstSocket>,
                                                 std::is_base_of<Socket, SecondSocket>>,
                              bool> = true>
   static absl::StatusOr<
       std::pair<tsdb2::common::reffed_ptr<FirstSocket>, tsdb2::common::reffed_ptr<SecondSocket>>>
-  CreateClassPair(EpollServer* parent);
+  CreateClassPair(EpollServer* parent, ExtraArgs&&... extra_args);
 
   explicit Socket(EpollServer* const parent, ConnectedTag /*connect_tag*/, FD fd)
       : BaseSocket(parent, std::move(fd)) {}
@@ -232,14 +233,15 @@ class Socket : public BaseSocket {
   }
 
   // Creates a pair of connected sockets using the `socketpair` syscall.
-  template <typename FirstSocket, typename SecondSocket,
+  template <typename FirstSocket, typename SecondSocket, typename... Args,
             std::enable_if_t<std::conjunction_v<std::is_base_of<Socket, FirstSocket>,
                                                 std::is_base_of<Socket, SecondSocket>>,
                              bool> = true>
   static absl::StatusOr<
       std::pair<tsdb2::common::reffed_ptr<FirstSocket>, tsdb2::common::reffed_ptr<SecondSocket>>>
-  CreatePairInternal(EpollServer* const parent) {
-    return Socket::template CreateClassPair<FirstSocket, SecondSocket>(parent);
+  CreatePairInternal(EpollServer* const parent, Args&&... args) {
+    return Socket::template CreateClassPair<FirstSocket, SecondSocket>(parent,
+                                                                       std::forward<Args>(args)...);
   }
 
   Socket(Socket const&) = delete;
@@ -344,24 +346,27 @@ class ListenerSocket : public BaseListenerSocket {
     return EpollServer::GetInstance()->CreateSocket<ListenerSocket>(std::forward<Args>(args)...);
   }
 
- private:
-  friend class EpollServer;
-
-  static absl::StatusOr<tsdb2::common::reffed_ptr<ListenerSocket>> CreateInternal(
+ protected:
+  template <typename ListenerSocketClass, typename... ExtraArgs,
+            std::enable_if_t<std::is_base_of_v<ListenerSocket, ListenerSocketClass>, bool> = true>
+  static absl::StatusOr<tsdb2::common::reffed_ptr<ListenerSocketClass>> CreateClass(
       EpollServer* const parent, InetSocketTag const tag, std::string_view const address,
       uint16_t const port, SocketOptions options, AcceptCallback const callback,
-      void* const callback_arg) {
+      void* const callback_arg, ExtraArgs&&... extra_args) {
     if (!callback) {
       return absl::InvalidArgumentError("the accept callback must not be empty");
     }
     DEFINE_VAR_OR_RETURN(fd, CreateInetListener(address, port));
-    return tsdb2::common::WrapReffed(new ListenerSocket(parent, tag, address, port, std::move(fd),
-                                                        options, callback, callback_arg));
+    return tsdb2::common::WrapReffed(
+        new ListenerSocketClass(parent, std::forward<ExtraArgs>(extra_args)..., tag, address, port,
+                                std::move(fd), options, callback, callback_arg));
   }
 
-  static absl::StatusOr<tsdb2::common::reffed_ptr<ListenerSocket>> CreateInternal(
+  template <typename ListenerSocketClass, typename... ExtraArgs,
+            std::enable_if_t<std::is_base_of_v<ListenerSocket, ListenerSocketClass>, bool> = true>
+  static absl::StatusOr<tsdb2::common::reffed_ptr<ListenerSocketClass>> CreateClass(
       EpollServer* const parent, UnixDomainSocketTag const tag, std::string_view const socket_name,
-      AcceptCallback const callback, void* const callback_arg) {
+      AcceptCallback const callback, void* const callback_arg, ExtraArgs&&... extra_args) {
     if (!callback) {
       return absl::InvalidArgumentError("the accept callback must not be empty");
     }
@@ -385,7 +390,8 @@ class ListenerSocket : public BaseListenerSocket {
       return absl::ErrnoToStatus(errno, "listen()");
     }
     return tsdb2::common::WrapReffed(
-        new ListenerSocket(parent, tag, socket_name, std::move(fd), callback, callback_arg));
+        new ListenerSocketClass(parent, std::forward<ExtraArgs>(extra_args)..., tag, socket_name,
+                                std::move(fd), callback, callback_arg));
   }
 
   explicit ListenerSocket(EpollServer* const parent, InetSocketTag /*inet_socket_tag*/,
@@ -404,6 +410,20 @@ class ListenerSocket : public BaseListenerSocket {
         options_(std::nullopt),
         callback_arg_(callback_arg),
         callback_(callback) {}
+
+  // Constructs a socket from an accepted file descriptor.
+  virtual absl::StatusOr<tsdb2::common::reffed_ptr<SocketType>> CreateSocket(FD fd) {
+    return SocketType::Create(std::move(fd));
+  }
+
+ private:
+  friend class EpollServer;
+
+  template <typename... Args>
+  static absl::StatusOr<tsdb2::common::reffed_ptr<ListenerSocket>> CreateInternal(
+      EpollServer* const parent, Args&&... args) {
+    return CreateClass<ListenerSocket>(parent, std::forward<Args>(args)...);
+  }
 
   absl::StatusOr<std::vector<FD>> AcceptAll() {
     std::vector<FD> fds;
@@ -447,7 +467,7 @@ class ListenerSocket : public BaseListenerSocket {
           continue;
         }
       }
-      callback_(callback_arg_, parent()->template CreateSocket<SocketType>(std::move(fd)));
+      callback_(callback_arg_, CreateSocket(std::move(fd)));
     }
   }
 
@@ -543,19 +563,20 @@ absl::StatusOr<tsdb2::common::reffed_ptr<SocketClass>> Socket::CreateClass(
   }
 }
 
-template <typename FirstSocket, typename SecondSocket,
+template <typename FirstSocket, typename SecondSocket, typename... ExtraArgs,
           std::enable_if_t<std::conjunction_v<std::is_base_of<Socket, FirstSocket>,
                                               std::is_base_of<Socket, SecondSocket>>,
                            bool>>
 absl::StatusOr<
     std::pair<tsdb2::common::reffed_ptr<FirstSocket>, tsdb2::common::reffed_ptr<SecondSocket>>>
-Socket::CreateClassPair(EpollServer* const parent) {
+Socket::CreateClassPair(EpollServer* const parent, ExtraArgs&&... extra_args) {
   int fds[2] = {0, 0};
   if (::socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0, fds) < 0) {
     return absl::ErrnoToStatus(errno, "socketpair(AF_UNIX, SOCK_STREAM)");
   }
   return std::make_pair(
-      tsdb2::common::WrapReffed(new FirstSocket(parent, kConnectedTag, FD(fds[0]))),
+      tsdb2::common::WrapReffed(new FirstSocket(parent, std::forward<ExtraArgs>(extra_args)...,
+                                                kConnectedTag, FD(fds[0]))),
       tsdb2::common::WrapReffed(new SecondSocket(parent, kConnectedTag, FD(fds[1]))));
 }
 

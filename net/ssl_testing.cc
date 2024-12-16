@@ -144,7 +144,7 @@ class SSLTestingModule : public tsdb2::init::BaseModule {
   }
 };
 
-tsdb2::common::NoDestructor<SSLTestingModule> instance_;
+tsdb2::common::NoDestructor<SSLTestingModule> SSLTestingModule::instance_;
 
 }  // namespace internal
 }  // namespace net

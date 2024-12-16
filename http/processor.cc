@@ -1,15 +1,26 @@
 #include "http/processor.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
+#include <optional>
+#include <string>
+#include <tuple>
 #include <utility>
+#include <vector>
 
 #include "absl/log/log.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
+#include "common/flat_map.h"
+#include "common/utilities.h"
 #include "http/channel.h"
 #include "http/hpack.h"
 #include "http/http.h"
+#include "io/cord.h"
 #include "net/base_sockets.h"
 
 namespace tsdb2 {
@@ -17,6 +28,7 @@ namespace http {
 
 namespace {
 
+using ::tsdb2::io::Cord;
 using ::tsdb2::net::Buffer;
 
 }  // namespace
@@ -125,7 +137,7 @@ void ChannelProcessor::ProcessContinuationFrame(uint32_t const stream_id, FrameH
     auto status_or_fields = field_decoder_.Decode(stream.field_block);
     stream.field_block.clear();
     if (status_or_fields.ok()) {
-      OnFields(stream_id, std::move(status_or_fields).value());
+      OnFields(stream_id, FlattenFields(std::move(status_or_fields).value()));
     } else {
       stream.state = StreamState::kClosed;
       ResetStreamLocked(stream_id, ConnectionError::kCompressionError);
@@ -148,17 +160,133 @@ void ChannelProcessor::GoAway(ConnectionError const error) {
   GoAwayLocked(error);
 }
 
-void ChannelProcessor::OnData(uint32_t const stream_id, absl::Span<uint8_t const> const data) {
-  // TODO
+tsdb2::io::Cord ChannelProcessor::Stream::ReadData() {
+  tsdb2::io::Cord cord = std::move(data);
+  data = tsdb2::io::Cord();
+  return cord;
 }
 
-void ChannelProcessor::OnFields(uint32_t const stream_id, hpack::HeaderSet const fields) {
-  // TODO: remove this temporary code.
+void ChannelProcessor::Stream::SendFields(hpack::HeaderSet const& fields, bool const end_stream) {
+  parent->write_queue_.AppendFrames(parent->MakeHeadersFrames(id, end_stream, fields));
+}
+
+void ChannelProcessor::Stream::SendData(tsdb2::net::Buffer const buffer, bool const end_stream) {
+  parent->SendData(id, buffer, end_stream);
+}
+
+tsdb2::common::flat_map<std::string, std::string> ChannelProcessor::FlattenFields(
+    hpack::HeaderSet fields) {
+  tsdb2::common::flat_map<std::string, std::string> result;
+  result.reserve(fields.size());
+  for (auto& [key, value] : fields) {
+    result.insert_or_assign(std::move(key), std::move(value));
+  }
+  return result;
+}
+
+void ChannelProcessor::OnFields(uint32_t const stream_id,
+                                tsdb2::common::flat_map<std::string, std::string> fields) {
+  // TODO: remove this temporary logging code.
   LOG(ERROR) << "--------";
+  LOG(ERROR) << "## Stream ID: " << stream_id;
   for (auto const& [key, value] : fields) {
     LOG(ERROR) << "### " << key << ": " << value;
   }
   LOG(ERROR) << "--------";
+
+  auto const path_it = fields.find(":path");
+  if (path_it == fields.end()) {
+    write_queue_.AppendFrames(
+        MakeHeadersFrames(stream_id, /*end_of_stream=*/true,
+                          {{":status", absl::StrCat(tsdb2::util::to_underlying(Status::k400))}}));
+    return;
+  }
+  auto const& path = path_it->second;
+
+  auto const status_or_handler = parent_->GetHandler(path);
+  if (!status_or_handler.ok()) {
+    write_queue_.AppendFrames(
+        MakeHeadersFrames(stream_id, /*end_of_stream=*/true,
+                          {{":status", absl::StrCat(tsdb2::util::to_underlying(Status::k404))}}));
+    return;
+  }
+  auto const& handler = status_or_handler.value();
+
+  auto const method_name_it = fields.find(":method");
+  if (method_name_it == fields.end()) {
+    write_queue_.AppendFrames(
+        MakeHeadersFrames(stream_id, /*end_of_stream=*/true,
+                          {{":status", absl::StrCat(tsdb2::util::to_underlying(Status::k400))}}));
+    return;
+  }
+  auto const& method_name = method_name_it->second;
+
+  auto const method_it = kMethodsByName.find(method_name);
+  if (method_it == kMethodsByName.end()) {
+    write_queue_.AppendFrames(
+        MakeHeadersFrames(stream_id, /*end_of_stream=*/true,
+                          {{":status", absl::StrCat(tsdb2::util::to_underlying(Status::k405))}}));
+    return;
+  }
+  Method const method = method_it->second;
+
+  Request request{method};
+  request.path = path;
+  request.headers = std::move(fields);
+  (*handler)(&GetOrCreateStreamLocked(stream_id), request);
+}
+
+void ChannelProcessor::SendData(uint32_t const stream_id, Buffer const& data,
+                                bool const end_of_stream) {
+  size_t const frame_size = kDefaultMaxFramePayloadSize;
+  for (size_t offset = 0; offset < data.size(); offset += frame_size) {
+    auto const header =
+        FrameHeader()
+            .set_length(data.size())
+            .set_frame_type(FrameType::kData)
+            .set_flags(end_of_stream && (offset + frame_size < data.size()) ? 0 : kFlagEndStream)
+            .set_stream_id(stream_id);
+    write_queue_.AppendFrame(
+        Cord(Buffer(&header, sizeof(FrameHeader)),
+             Buffer(data.span(offset, std::min(frame_size, data.size() - offset))))
+            .Flatten());
+  }
+}
+
+std::vector<Buffer> ChannelProcessor::MakeHeadersFrames(uint32_t const id, bool const end_of_stream,
+                                                        hpack::HeaderSet const& fields) {
+  size_t const frame_size = kDefaultMaxFramePayloadSize;
+  auto buffer = field_encoder_.Encode(fields);
+  std::vector<Buffer> result;
+  result.reserve(buffer.size() / (frame_size + 1));
+  uint8_t const flags = end_of_stream ? kFlagEndStream : 0;
+  if (buffer.size() > frame_size) {
+    auto const header = FrameHeader()
+                            .set_length(buffer.size())
+                            .set_frame_type(FrameType::kHeaders)
+                            .set_flags(flags)
+                            .set_stream_id(id);
+    result.emplace_back(
+        Cord(Buffer(&header, sizeof(header)), Buffer(buffer.span(0, frame_size))).Flatten());
+  } else {
+    auto const header = FrameHeader()
+                            .set_length(buffer.size())
+                            .set_frame_type(FrameType::kHeaders)
+                            .set_flags(flags | kFlagEndHeaders)
+                            .set_stream_id(id);
+    result.emplace_back(Cord(Buffer(&header, sizeof(header)), std::move(buffer)).Flatten());
+    return result;
+  }
+  for (size_t offset = frame_size; offset < buffer.size(); offset += frame_size) {
+    auto const header = FrameHeader()
+                            .set_length(buffer.size())
+                            .set_frame_type(FrameType::kContinuation)
+                            .set_flags(offset + frame_size < buffer.size() ? 0 : kFlagEndHeaders)
+                            .set_stream_id(id);
+    result.emplace_back(
+        Cord(Buffer(&header, sizeof(header)), Buffer(buffer.span(offset, frame_size))).Flatten());
+  }
+  return result;
 }
 
 Buffer ChannelProcessor::MakeResetStreamFrame(uint32_t const id, ConnectionError const error) {
@@ -255,11 +383,14 @@ void ChannelProcessor::GoAwayLocked(ConnectionError const error) {
 }
 
 ChannelProcessor::Stream& ChannelProcessor::GetOrCreateStreamLocked(uint32_t const id) {
-  auto const [it, inserted] = streams_.try_emplace(id, initial_stream_window_size_);
-  if (inserted) {
+  auto it = streams_.find(id);
+  if (it == streams_.end()) {
+    bool unused;
+    std::tie(it, unused) =
+        streams_.emplace(std::make_unique<Stream>(this, id, initial_stream_window_size_));
     last_processed_stream_id_ = id;
   }
-  return it->second;
+  return **it;
 }
 
 ConnectionError ChannelProcessor::ValidateDataHeader(FrameHeader const& header) {
@@ -366,7 +497,7 @@ ConnectionError ChannelProcessor::ValidateContinuationHeaderLocked(
     return ConnectionError::kProtocolError;
   }
   auto const it = streams_.find(stream_id);
-  if (it == streams_.end() || !it->second.receiving_fields) {
+  if (it == streams_.end() || !(*it)->receiving_fields) {
     return ConnectionError::kInternalError;
   }
   return ConnectionError::kNoError;
@@ -396,7 +527,7 @@ ConnectionError ChannelProcessor::ValidateFrameHeaderLocked(FrameHeader const& h
       return ValidateGoAwayHeader(header);
     case FrameType::kWindowUpdate:
       return ValidateWindowUpdateHeader(header);
-    case FrameType::kContinuation:
+    case FrameType::kContinuation:  // NOLINT(bugprone-branch-clone)
       // NOTE: proper CONTINUATION frames are handled inside the processing of HEADERS frames, so
       // if we end up here we can assume it's a protocol error.
       return ConnectionError::kProtocolError;
@@ -438,7 +569,7 @@ void ChannelProcessor::ProcessDataFrame(FrameHeader const& header, Buffer const 
         return ResetStreamLocked(stream_id, ConnectionError::kStreamClosed);
     }
   }
-  OnData(stream_id, span);
+  stream.data.Append(Buffer(span));
 }
 
 void ChannelProcessor::ProcessHeadersFrame(FrameHeader const& header, Buffer const payload) {
@@ -492,7 +623,7 @@ void ChannelProcessor::ProcessHeadersFrame(FrameHeader const& header, Buffer con
     stream.receiving_fields = false;
     auto status_or_fields = field_decoder_.Decode(span);
     if (status_or_fields.ok()) {
-      OnFields(stream_id, std::move(status_or_fields).value());
+      OnFields(stream_id, FlattenFields(std::move(status_or_fields).value()));
     } else {
       stream.state = StreamState::kClosed;
       ResetStreamLocked(stream_id, ConnectionError::kCompressionError);

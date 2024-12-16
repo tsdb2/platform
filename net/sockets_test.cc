@@ -7,7 +7,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <string>
 #include <string_view>
 #include <thread>
 #include <utility>
@@ -19,8 +18,6 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/match.h"
-#include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/synchronization/notification.h"
 #include "absl/time/time.h"
@@ -31,7 +28,6 @@
 #include "common/reffed_ptr.h"
 #include "common/scheduler.h"
 #include "common/scoped_override.h"
-#include "common/sequence_number.h"
 #include "common/simple_condition.h"
 #include "common/singleton.h"
 #include "common/stats_counter.h"
@@ -40,6 +36,7 @@
 #include "gtest/gtest.h"
 #include "net/base_sockets.h"
 #include "net/ssl_sockets.h"
+#include "net/testing.h"
 #include "server/testing.h"
 
 ABSL_FLAG(bool, socket_test_use_random_ports, false,
@@ -75,20 +72,11 @@ using ::tsdb2::net::Socket;
 using ::tsdb2::net::SocketOptions;
 using ::tsdb2::net::SSLListenerSocket;
 using ::tsdb2::net::SSLSocket;
+using ::tsdb2::net::testing::MakeTestSocketPath;
 
 uint16_t GetNewPort() {
   static tsdb2::common::NoDestructor<tsdb2::common::StatsCounter> next_port{1024};
   return next_port->Increment();
-}
-
-std::string MakeTestSocketPath() {
-  static tsdb2::common::SequenceNumber id;
-  auto const directory = GetTestTmpDir();
-  if (absl::EndsWith(directory, "/")) {
-    return absl::StrCat(directory, "sockets_test.", id.GetNext(), ".sock");
-  } else {
-    return absl::StrCat(directory, "/sockets_test.", id.GetNext(), ".sock");
-  }
 }
 
 class SocketTest : public tsdb2::testing::init::Test {

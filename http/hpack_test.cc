@@ -17,6 +17,7 @@ using ::tsdb2::http::hpack::Decoder;
 using ::tsdb2::http::hpack::DynamicHeaderTable;
 using ::tsdb2::http::hpack::Encoder;
 using ::tsdb2::http::hpack::Header;
+using ::tsdb2::http::hpack::HeaderSet;
 using ::tsdb2::testing::io::BufferAsBytes;
 
 TEST(DynamicHeaderTableTest, InitialState) {
@@ -484,10 +485,10 @@ TEST_F(EncoderTest, Responses) {
               }),
               BufferAsBytes(ElementsAreArray({
                   0x48,
-                  0x83,
-                  0x64,
-                  0x0E,
-                  0xFF,
+                  0x03,
+                  0x33,
+                  0x30,
+                  0x37,
                   0xC1,
                   0xC0,
                   0xBF,
@@ -509,6 +510,75 @@ TEST_F(EncoderTest, Responses) {
           0x72, 0xC1, 0xAB, 0x27, 0x0F, 0xB5, 0x29, 0x1F, 0x95, 0x87, 0x31, 0x60, 0x65, 0xC0,
           0x03, 0xED, 0x4E, 0xE5, 0xB1, 0x06, 0x3D, 0x50, 0x07,
       })));
+}
+
+class PairTest : public ::testing::Test {
+ protected:
+  absl::StatusOr<HeaderSet> Transcode(HeaderSet const& headers);
+
+  Encoder encoder_;
+  Decoder decoder_;
+};
+
+absl::StatusOr<HeaderSet> PairTest::Transcode(HeaderSet const& headers) {
+  auto const buffer = encoder_.Encode(headers);
+  return decoder_.Decode(buffer.span());
+}
+
+TEST_F(PairTest, Requests) {
+  HeaderSet const headers1{
+      {":method", "GET"},
+      {":scheme", "http"},
+      {":path", "/"},
+      {":authority", "www.example.com"},
+  };
+  EXPECT_THAT(Transcode(headers1), IsOkAndHolds(headers1));
+
+  HeaderSet const headers2{
+      {":method", "GET"},
+      {":scheme", "http"},
+      {":path", "/"},
+      {":authority", "www.example.com"},
+      {"cache-control", "no-cache"},
+  };
+  EXPECT_THAT(Transcode(headers2), IsOkAndHolds(headers2));
+
+  HeaderSet const headers3{
+      {":method", "GET"},
+      {":scheme", "https"},
+      {":path", "/index.html"},
+      {":authority", "www.example.com"},
+      {"custom-key", "custom-value"},
+  };
+  EXPECT_THAT(Transcode(headers3), IsOkAndHolds(headers3));
+}
+
+TEST_F(PairTest, Responses) {
+  HeaderSet const headers1{
+      {":status", "302"},
+      {"cache-control", "private"},
+      {"date", "Mon, 21 Oct 2013 20:13:21 GMT"},
+      {"location", "https://www.example.com"},
+  };
+  EXPECT_THAT(Transcode(headers1), IsOkAndHolds(headers1));
+
+  HeaderSet const headers2{
+      {":status", "307"},
+      {"cache-control", "private"},
+      {"date", "Mon, 21 Oct 2013 20:13:21 GMT"},
+      {"location", "https://www.example.com"},
+  };
+  EXPECT_THAT(Transcode(headers2), IsOkAndHolds(headers2));
+
+  HeaderSet const headers3{
+      {":status", "200"},
+      {"cache-control", "private"},
+      {"date", "Mon, 21 Oct 2013 20:13:22 GMT"},
+      {"location", "https://www.example.com"},
+      {"content-encoding", "gzip"},
+      {"set-cookie", "foo=ASDJKHQKBZXOQWEOPIUAXQWEOIU; max-age=3600; version=1"},
+  };
+  EXPECT_THAT(Transcode(headers3), IsOkAndHolds(headers3));
 }
 
 }  // namespace
