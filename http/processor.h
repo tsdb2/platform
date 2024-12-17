@@ -73,7 +73,8 @@ class ChannelProcessor {
 
   void OnFields(uint32_t stream_id, hpack::HeaderSet fields) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
-  static std::vector<tsdb2::net::Buffer> MakeDataFrames(uint32_t id, tsdb2::net::Buffer data);
+  void SendData(uint32_t stream_id, tsdb2::net::Buffer const& data);
+
   std::vector<tsdb2::net::Buffer> MakeHeadersFrames(uint32_t id, hpack::HeaderSet const& fields)
       ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
   static tsdb2::net::Buffer MakeResetStreamFrame(uint32_t id, ConnectionError error);

@@ -1,5 +1,6 @@
 #include "http/processor.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
@@ -190,34 +191,56 @@ void ChannelProcessor::OnFields(uint32_t const stream_id, hpack::HeaderSet const
                      {"content-length", absl::StrCat(content.size())},
                  }));
 
-  write_queue_.AppendFrames(MakeDataFrames(stream_id, Buffer(content.data(), content.size())));
+  SendData(stream_id, Buffer(content.data(), content.size()));
 }
 
-std::vector<Buffer> ChannelProcessor::MakeDataFrames(uint32_t const id, Buffer data) {
-  // TODO: split it if it exceeds max. frame size.
-  auto const header = FrameHeader()
-                          .set_length(data.size())
-                          .set_frame_type(FrameType::kData)
-                          .set_flags(kFlagEndStream)
-                          .set_stream_id(id);
-  std::vector<Buffer> result;
-  result.reserve(1);
-  result.emplace_back(Cord(Buffer(&header, sizeof(FrameHeader)), std::move(data)).Flatten());
-  return result;
+void ChannelProcessor::SendData(uint32_t const stream_id, Buffer const& data) {
+  size_t const frame_size = kDefaultMaxFramePayloadSize;
+  for (size_t offset = 0; offset < data.size(); offset += frame_size) {
+    auto const header = FrameHeader()
+                            .set_length(data.size())
+                            .set_frame_type(FrameType::kData)
+                            .set_flags(offset + frame_size < data.size() ? 0 : kFlagEndStream)
+                            .set_stream_id(stream_id);
+    write_queue_.AppendFrame(
+        Cord(Buffer(&header, sizeof(FrameHeader)),
+             Buffer(data.span(offset, std::min(frame_size, data.size() - offset))))
+            .Flatten());
+  }
 }
 
 std::vector<Buffer> ChannelProcessor::MakeHeadersFrames(uint32_t const id,
                                                         hpack::HeaderSet const& fields) {
-  // TODO: split into fragments if exceeds max. frame size.
-  auto fragment = field_encoder_.Encode(fields);
-  auto const header = FrameHeader()
-                          .set_length(fragment.size())
-                          .set_frame_type(FrameType::kHeaders)
-                          .set_flags(kFlagEndHeaders)
-                          .set_stream_id(id);
+  size_t const frame_size = kDefaultMaxFramePayloadSize;
+  auto buffer = field_encoder_.Encode(fields);
   std::vector<Buffer> result;
-  result.reserve(1);
-  result.emplace_back(Cord(Buffer(&header, sizeof(header)), std::move(fragment)).Flatten());
+  result.reserve(buffer.size() / (frame_size + 1));
+  if (buffer.size() > frame_size) {
+    auto const header = FrameHeader()
+                            .set_length(buffer.size())
+                            .set_frame_type(FrameType::kHeaders)
+                            .set_flags(0)
+                            .set_stream_id(id);
+    result.emplace_back(
+        Cord(Buffer(&header, sizeof(header)), Buffer(buffer.span(0, frame_size))).Flatten());
+  } else {
+    auto const header = FrameHeader()
+                            .set_length(buffer.size())
+                            .set_frame_type(FrameType::kHeaders)
+                            .set_flags(kFlagEndHeaders)
+                            .set_stream_id(id);
+    result.emplace_back(Cord(Buffer(&header, sizeof(header)), std::move(buffer)).Flatten());
+    return result;
+  }
+  for (size_t offset = frame_size; offset < buffer.size(); offset += frame_size) {
+    auto const header = FrameHeader()
+                            .set_length(buffer.size())
+                            .set_frame_type(FrameType::kContinuation)
+                            .set_flags(offset + frame_size < buffer.size() ? 0 : kFlagEndHeaders)
+                            .set_stream_id(id);
+    result.emplace_back(
+        Cord(Buffer(&header, sizeof(header)), Buffer(buffer.span(offset, frame_size))).Flatten());
+  }
   return result;
 }
 

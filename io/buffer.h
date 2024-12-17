@@ -39,6 +39,11 @@ class Buffer {
     std::memcpy(data_, data, size);
   }
 
+  explicit Buffer(absl::Span<uint8_t const> const bytes)
+      : capacity_(bytes.size()), length_(bytes.size()), data_(new uint8_t[bytes.size()]) {
+    std::memcpy(data_, bytes.data(), bytes.size());
+  }
+
   // Frees any memory used by the buffer.
   ~Buffer() { delete[] data_; }
 

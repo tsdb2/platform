@@ -102,6 +102,20 @@ TEST(BufferTest, CopyFromCaller) {
   EXPECT_TRUE(kData == std::string_view(buffer.as_array<char>(), kData.size()));
 }
 
+TEST(BufferTest, CopySpan) {
+  std::string_view constexpr kData = "lorem ipsum dolor sit amet";
+  Buffer b1{kData.data(), kData.size()};
+  Buffer b2{b1.span(6, 11)};
+  EXPECT_EQ(b2.capacity(), 11);
+  EXPECT_EQ(b2.size(), 11);
+  EXPECT_FALSE(b2.empty());
+  EXPECT_EQ(b2.get(), b2.as_byte_array());
+  EXPECT_EQ(b2.get(), b2.as_array<char>());
+  EXPECT_EQ(b2.get(), b2.as_char_array());
+  EXPECT_THAT(b2.span(), ElementsAreArray(kData.substr(6, 11)));
+  EXPECT_TRUE(b2.is_full());
+}
+
 TEST(BufferTest, Spans) {
   std::string_view constexpr kData = "lorem ipsum dolor sit amet";
   std::string_view constexpr kSubData1 = kData.substr(10);
@@ -359,6 +373,21 @@ TEST(BufferTest, AdlSwap) {
   EXPECT_FALSE(b2.empty());
   EXPECT_EQ(b2.get(), data1);
   EXPECT_THAT(b2.span(), ElementsAre(12, 34, 56));
+}
+
+TEST(BufferTest, SelfSwap) {
+  size_t constexpr size = 10;
+  gsl::owner<uint8_t*> const data = new uint8_t[size];
+  data[0] = 12;
+  data[1] = 34;
+  data[2] = 56;
+  Buffer buffer{data, size, 3};
+  buffer.swap(buffer);
+  EXPECT_EQ(buffer.capacity(), size);
+  EXPECT_EQ(buffer.size(), 3);
+  EXPECT_FALSE(buffer.empty());
+  EXPECT_EQ(buffer.get(), data);
+  EXPECT_THAT(buffer.span(), ElementsAre(12, 34, 56));
 }
 
 TEST(BufferTest, AppendInt) {
