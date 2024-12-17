@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -168,6 +169,20 @@ void ChannelProcessor::OnFields(uint32_t const stream_id, hpack::HeaderSet const
   }
   LOG(ERROR) << "--------";
 
+  std::string path;
+  for (auto const& [key, value] : fields) {
+    if (key == ":path") {
+      path = value;
+    }
+  }
+
+  if (path != "/") {
+    write_queue_.AppendFrames(
+        MakeHeadersFrames(stream_id, /*end_of_stream=*/true,
+                          {{":status", absl::StrCat(tsdb2::util::to_underlying(Status::k404))}}));
+    return;
+  }
+
   static std::string_view constexpr content = R"html(
 <!doctype html>
 <html lang="de">
@@ -184,12 +199,13 @@ void ChannelProcessor::OnFields(uint32_t const stream_id, hpack::HeaderSet const
 </html>
   )html";
 
-  write_queue_.AppendFrames(MakeHeadersFrames(
-      stream_id, {
-                     {":status", absl::StrCat(tsdb2::util::to_underlying(Status::k200))},
-                     {"content-type", "text/html; charset=utf-8"},
-                     {"content-length", absl::StrCat(content.size())},
-                 }));
+  write_queue_.AppendFrames(
+      MakeHeadersFrames(stream_id, /*end_of_stream=*/false,
+                        {
+                            {":status", absl::StrCat(tsdb2::util::to_underlying(Status::k200))},
+                            {"content-type", "text/html; charset=utf-8"},
+                            {"content-length", absl::StrCat(content.size())},
+                        }));
 
   SendData(stream_id, Buffer(content.data(), content.size()));
 }
@@ -209,17 +225,18 @@ void ChannelProcessor::SendData(uint32_t const stream_id, Buffer const& data) {
   }
 }
 
-std::vector<Buffer> ChannelProcessor::MakeHeadersFrames(uint32_t const id,
+std::vector<Buffer> ChannelProcessor::MakeHeadersFrames(uint32_t const id, bool const end_of_stream,
                                                         hpack::HeaderSet const& fields) {
   size_t const frame_size = kDefaultMaxFramePayloadSize;
   auto buffer = field_encoder_.Encode(fields);
   std::vector<Buffer> result;
   result.reserve(buffer.size() / (frame_size + 1));
+  uint8_t const flags = end_of_stream ? kFlagEndStream : 0;
   if (buffer.size() > frame_size) {
     auto const header = FrameHeader()
                             .set_length(buffer.size())
                             .set_frame_type(FrameType::kHeaders)
-                            .set_flags(0)
+                            .set_flags(flags)
                             .set_stream_id(id);
     result.emplace_back(
         Cord(Buffer(&header, sizeof(header)), Buffer(buffer.span(0, frame_size))).Flatten());
@@ -227,7 +244,7 @@ std::vector<Buffer> ChannelProcessor::MakeHeadersFrames(uint32_t const id,
     auto const header = FrameHeader()
                             .set_length(buffer.size())
                             .set_frame_type(FrameType::kHeaders)
-                            .set_flags(kFlagEndHeaders)
+                            .set_flags(flags | kFlagEndHeaders)
                             .set_stream_id(id);
     result.emplace_back(Cord(Buffer(&header, sizeof(header)), std::move(buffer)).Flatten());
     return result;

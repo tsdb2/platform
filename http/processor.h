@@ -75,7 +75,8 @@ class ChannelProcessor {
 
   void SendData(uint32_t stream_id, tsdb2::net::Buffer const& data);
 
-  std::vector<tsdb2::net::Buffer> MakeHeadersFrames(uint32_t id, hpack::HeaderSet const& fields)
+  std::vector<tsdb2::net::Buffer> MakeHeadersFrames(uint32_t id, bool end_of_stream,
+                                                    hpack::HeaderSet const& fields)
       ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
   static tsdb2::net::Buffer MakeResetStreamFrame(uint32_t id, ConnectionError error);
   tsdb2::net::Buffer MakeSettingsFrame() const ABSL_SHARED_LOCKS_REQUIRED(mutex_);
