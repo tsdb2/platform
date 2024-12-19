@@ -364,6 +364,14 @@ std::string HuffmanCode::Decode(absl::Span<uint8_t const> const data) {
   return result;
 }
 
+size_t HuffmanCode::GetEncodedLength(std::string_view const text) {
+  size_t num_bits = 0;
+  for (char const ch : text) {
+    num_bits += codes[ch].length;
+  }
+  return (num_bits + 7) >> 3;
+}
+
 Buffer HuffmanCode::Encode(std::string_view const text) {
   std::vector<uint8_t> bytes;
   bytes.reserve(text.size());

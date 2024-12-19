@@ -1,6 +1,7 @@
 #ifndef __TSDB2_HTTP_HUFFMAN_H__
 #define __TSDB2_HTTP_HUFFMAN_H__
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -18,6 +19,9 @@ class HuffmanCode final {
  public:
   // Decodes the provided byte array.
   static std::string Decode(absl::Span<uint8_t const> data);
+
+  // Returns the length (in bytes) of the provided `text` if it were encoded.
+  static size_t GetEncodedLength(std::string_view text);
 
   // Encodes the provided text.
   //

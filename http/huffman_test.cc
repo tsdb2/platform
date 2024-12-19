@@ -59,18 +59,33 @@ uint8_t const kBytes3[] = {
 };
 
 TEST(HuffmanTest, Decode1) { EXPECT_EQ(HuffmanCode::Decode(kBytes1), kText1); }
+
 TEST(HuffmanTest, Encode1) {
   EXPECT_THAT(HuffmanCode::Encode(kText1), BufferAsBytes(ElementsAreArray(kBytes1)));
 }
 
+TEST(HuffmanTest, EncodedLength1) {
+  EXPECT_THAT(HuffmanCode::GetEncodedLength(kText1), sizeof(kBytes1));
+}
+
 TEST(HuffmanTest, Decode2) { EXPECT_EQ(HuffmanCode::Decode(kBytes2), kText2); }
+
 TEST(HuffmanTest, Encode2) {
   EXPECT_THAT(HuffmanCode::Encode(kText2), BufferAsBytes(ElementsAreArray(kBytes2)));
 }
 
+TEST(HuffmanTest, EncodedLength2) {
+  EXPECT_THAT(HuffmanCode::GetEncodedLength(kText2), sizeof(kBytes2));
+}
+
 TEST(HuffmanTest, Decode3) { EXPECT_EQ(HuffmanCode::Decode(kBytes3), kText3); }
+
 TEST(HuffmanTest, Encode3) {
   EXPECT_THAT(HuffmanCode::Encode(kText3), BufferAsBytes(ElementsAreArray(kBytes3)));
+}
+
+TEST(HuffmanTest, EncodedLength3) {
+  EXPECT_THAT(HuffmanCode::GetEncodedLength(kText3), sizeof(kBytes3));
 }
 
 }  // namespace
