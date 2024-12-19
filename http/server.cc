@@ -8,40 +8,20 @@
 #include <utility>
 
 #include "absl/base/thread_annotations.h"
-#include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/time/time.h"
 #include "common/reffed_ptr.h"
 #include "common/simple_condition.h"
 #include "common/utilities.h"
 #include "http/channel.h"
+#include "http/handlers.h"
 #include "net/base_sockets.h"
 #include "net/sockets.h"
 #include "net/ssl_sockets.h"
-
-ABSL_FLAG(std::string, local_address, "", "The local network address this server will bind to.");
-ABSL_FLAG(uint16_t, port, 443, "The local TCP/IP port this server will listen on.");
-
-ABSL_FLAG(bool, use_ssl, true,
-          "Whether to use SSL. If enabled, the server will look for the certificate file specified "
-          "in the SSL_CERTIFICATE_PATH environment variable, the private key file specified in the "
-          "SSL_PRIVATE_KEY_PATH environment variable, and a passphrase in the SSL_PASSPHRASE "
-          "environment variable.");
-
-ABSL_FLAG(bool, tcp_keep_alive, true, "Use TCP keep-alives.");
-
-ABSL_FLAG(std::optional<absl::Duration>, tcp_keep_alive_idle, std::nullopt,
-          "TCP keep-alive idle time.");
-
-ABSL_FLAG(std::optional<absl::Duration>, tcp_keep_alive_interval, std::nullopt,
-          "TCP keep-alive interval.");
-
-ABSL_FLAG(std::optional<int>, tcp_keep_alive_count, std::nullopt, "Max. TCP keep-alive count.");
 
 namespace tsdb2 {
 namespace http {
@@ -63,48 +43,11 @@ using ::tsdb2::net::SSLSocket;
 
 absl::StatusOr<std::unique_ptr<Server>> Server::Create(std::string_view const address,
                                                        uint16_t const port, bool const use_ssl,
-                                                       SocketOptions const& options) {
-  auto server = absl::WrapUnique(new Server());
+                                                       SocketOptions const& options,
+                                                       HandlerSet handlers) {
+  auto server = absl::WrapUnique(new Server(std::move(handlers)));
   RETURN_IF_ERROR(server->Listen(address, port, use_ssl, options));
   return server;
-}
-
-namespace {
-
-gsl::owner<Server*> CreateDefaultServerOrDie() {
-  SocketOptions options{
-      .keep_alive = absl::GetFlag(FLAGS_tcp_keep_alive),
-  };
-  if (options.keep_alive) {
-    auto const keep_alive_idle = absl::GetFlag(FLAGS_tcp_keep_alive_idle);
-    if (keep_alive_idle) {
-      options.keep_alive_params.idle = *keep_alive_idle;
-    }
-    auto const keep_alive_interval = absl::GetFlag(FLAGS_tcp_keep_alive_interval);
-    if (keep_alive_interval) {
-      options.keep_alive_params.interval = *keep_alive_interval;
-    }
-    auto const keep_alive_count = absl::GetFlag(FLAGS_tcp_keep_alive_count);
-    if (keep_alive_count) {
-      options.keep_alive_params.count = *keep_alive_count;
-    }
-  }
-  auto status_or_server =
-      Server::Create(absl::GetFlag(FLAGS_local_address), absl::GetFlag(FLAGS_port),
-                     absl::GetFlag(FLAGS_use_ssl), options);
-  CHECK_OK(status_or_server) << "Failed to create default HTTPS server: "
-                             << status_or_server.status();
-  auto* const server = status_or_server.value().release();
-  auto const [address, port] = server->local_binding();
-  LOG(INFO) << "Listening on " << address << ":" << port;
-  return server;
-}
-
-}  // namespace
-
-Server* Server::GetDefault() {
-  static gsl::owner<Server*> const kInstance = CreateDefaultServerOrDie();
-  return kInstance;  // NOLINT(cppcoreguidelines-owning-memory)
 }
 
 Server::Binding Server::local_binding() const {
@@ -131,6 +74,15 @@ void Server::RemoveChannel(BaseChannel* const channel) {
   typename ChannelSet::node_type node;
   absl::MutexLock lock{&mutex_};
   node = channels_.extract(channel);
+}
+
+absl::StatusOr<Handler*> Server::GetHandler(std::string_view const path) {
+  auto const it = handlers_.find(path);
+  if (it != handlers_.end()) {
+    return it->second.get();
+  } else {
+    return absl::NotFoundError(path);
+  }
 }
 
 absl::Status Server::AcceptInternal(absl::StatusOr<reffed_ptr<BaseChannel>> status_or_socket) {

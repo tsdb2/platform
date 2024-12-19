@@ -65,6 +65,24 @@ cc_test(
 )
 
 cc_library(
+    name = "statusz",
+    srcs = ["statusz.cc"],
+    deps = [
+        ":base_module",
+        ":init_tsdb2",
+        "//common:no_destructor",
+        "//common:utilities",
+        "//http",
+        "//http:default_server",
+        "//http:handlers",
+        "//io:buffer",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+    ],
+    alwayslink = True,
+)
+
+cc_library(
     name = "testing",
     testonly = True,
     hdrs = ["testing.h"],
@@ -84,6 +102,7 @@ cc_binary(
     ],
     deps = [
         ":init_tsdb2",
-        "//http:server",
+        ":statusz",  # build_cleaner: keep
+        "//http:default_server",
     ],
 )

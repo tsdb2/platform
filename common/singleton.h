@@ -37,6 +37,8 @@ namespace common {
 //
 // Retrieving the instance wrapped in a `Singleton` is very fast in production, as the check for
 // possible overrides only performs a single relaxed atomic load when there's no override.
+//
+// NOLINTBEGIN(cppcoreguidelines-owning-memory)
 template <typename T>
 class Singleton {
  public:
@@ -44,7 +46,7 @@ class Singleton {
       : construct_([this, factory = std::move(factory)]() mutable { value_ = factory(); }) {}
 
   template <typename... Args>
-  explicit Singleton(std::in_place_t, Args&&... args)
+  explicit Singleton(std::in_place_t /*in_place*/, Args&&... args)
       : construct_([this, args = std::make_tuple(std::forward<Args>(args)...)]() mutable {
           std::apply(
               [this](auto&&... args) { this->Construct(std::forward<decltype(args)>(args)...); },
@@ -117,6 +119,8 @@ class Singleton {
   std::atomic<bool> overridden_ = false;
   T* override_ = nullptr;
 };
+
+// NOLINTEND(cppcoreguidelines-owning-memory)
 
 }  // namespace common
 }  // namespace tsdb2

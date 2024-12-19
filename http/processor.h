@@ -3,16 +3,20 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "absl/base/thread_annotations.h"
-#include "absl/container/btree_map.h"
+#include "absl/container/btree_set.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/types/span.h"
+#include "common/flat_map.h"
+#include "http/handlers.h"
 #include "http/hpack.h"
 #include "http/http.h"
 #include "http/write_queue.h"
+#include "io/cord.h"
 #include "net/base_sockets.h"
 
 namespace tsdb2 {
@@ -22,9 +26,10 @@ namespace internal {
 class ChannelInterface;
 }  // namespace internal
 
-class ChannelProcessor {
+class ChannelProcessor final {
  public:
   explicit ChannelProcessor(internal::ChannelInterface* parent);
+  ~ChannelProcessor() = default;
 
   ConnectionError ValidateContinuationHeader(uint32_t stream_id, FrameHeader const& header)
       ABSL_LOCKS_EXCLUDED(mutex_);
@@ -41,14 +46,34 @@ class ChannelProcessor {
 
  private:
   // Holds per-stream state.
-  struct Stream {
-    explicit Stream(size_t const window_size) : window_size(window_size) {}
-    ~Stream() = default;
+  struct Stream final : public StreamInterface {
+    // Allows indexing streams by ID in ordered data structures.
+    struct Compare {
+      using is_transparent = void;
+      static uint32_t ToId(std::unique_ptr<Stream> const& stream) { return stream->id; }
+      static uint32_t ToId(uint32_t const id) { return id; }
+      template <typename LHS, typename RHS>
+      bool operator()(LHS&& lhs, RHS&& rhs) const {
+        return ToId(std::forward<LHS>(lhs)) < ToId(std::forward<RHS>(rhs));
+      }
+    };
+
+    explicit Stream(ChannelProcessor* const parent, uint32_t const id, size_t const window_size)
+        : parent(parent), id(id), window_size(window_size) {}
+
+    ~Stream() override = default;
 
     Stream(Stream const&) = delete;
     Stream& operator=(Stream const&) = delete;
-    Stream(Stream&&) noexcept = default;
-    Stream& operator=(Stream&&) noexcept = default;
+    Stream(Stream&&) = delete;
+    Stream& operator=(Stream&&) = delete;
+
+    tsdb2::io::Cord ReadData() override;
+    void SendFields(hpack::HeaderSet const& fields, bool end_stream) override;
+    void SendData(tsdb2::net::Buffer buffer) override;
+
+    ChannelProcessor* const parent;
+    uint32_t const id;
 
     // Stream state.
     StreamState state = StreamState::kIdle;
@@ -66,12 +91,21 @@ class ChannelProcessor {
     // If true the stream will transition into the closed state after receiving the last
     // CONTINUATION frame for the current field set.
     bool last_field_block = false;
+
+    // Chunks of data received by DATA packets that are not yet processed by the handler are
+    // buffered here.
+    tsdb2::io::Cord data;
   };
 
-  void OnData(uint32_t stream_id, absl::Span<uint8_t const> data)
-      ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  ChannelProcessor(ChannelProcessor const&) = delete;
+  ChannelProcessor& operator=(ChannelProcessor const&) = delete;
+  ChannelProcessor(ChannelProcessor&&) = delete;
+  ChannelProcessor& operator=(ChannelProcessor&&) = delete;
 
-  void OnFields(uint32_t stream_id, hpack::HeaderSet fields) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  static tsdb2::common::flat_map<std::string, std::string> FlattenFields(hpack::HeaderSet fields);
+
+  void OnFields(uint32_t stream_id, tsdb2::common::flat_map<std::string, std::string> fields)
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   void SendData(uint32_t stream_id, tsdb2::net::Buffer const& data);
 
@@ -139,7 +173,7 @@ class ChannelProcessor {
   hpack::Decoder field_decoder_ ABSL_GUARDED_BY(mutex_);
   hpack::Encoder field_encoder_ ABSL_GUARDED_BY(mutex_);
 
-  absl::btree_map<uint32_t, Stream> streams_ ABSL_GUARDED_BY(mutex_);
+  absl::btree_set<std::unique_ptr<Stream>, Stream::Compare> streams_ ABSL_GUARDED_BY(mutex_);
   uint32_t last_processed_stream_id_ ABSL_GUARDED_BY(mutex_) = 0;
   bool going_away_ ABSL_GUARDED_BY(mutex_) = false;
 

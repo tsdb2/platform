@@ -14,7 +14,9 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
+#include "absl/strings/str_cat.h"
 #include "common/reffed_ptr.h"
+#include "http/handlers.h"
 #include "http/http.h"
 #include "http/processor.h"
 #include "net/base_sockets.h"
@@ -53,6 +55,8 @@ class ChannelManager {
 
   virtual void RemoveChannel(BaseChannel* channel) = 0;
 
+  virtual absl::StatusOr<Handler*> GetHandler(std::string_view path) = 0;
+
  private:
   ChannelManager(ChannelManager const&) = delete;
   ChannelManager& operator=(ChannelManager const&) = delete;
@@ -67,8 +71,12 @@ class ChannelInterface {
  public:
   explicit ChannelInterface() = default;
   virtual ~ChannelInterface() = default;
+
   virtual tsdb2::net::BaseSocket* socket() = 0;
   virtual tsdb2::net::BaseSocket const* socket() const = 0;
+
+  virtual absl::StatusOr<Handler*> GetHandler(std::string_view path) = 0;
+
   virtual void ReadContinuationFrame(uint32_t stream_id) = 0;
   virtual void ReadNextFrame() = 0;
   virtual void CloseConnection() = 0;
@@ -198,8 +206,15 @@ class Channel final : private Socket, public BaseChannel, private internal::Chan
         Channel<tsdb2::net::SSLSocket>, Channel<tsdb2::net::SSLSocket>>();
   }
 
+  // Constructs a server-side channel.
   template <typename... Args>
-  explicit Channel(Args&&... args) : Socket(std::forward<Args>(args)...), processor_{this} {}
+  explicit Channel(ChannelManager* const manager, Args&&... args)
+      : Socket(std::forward<Args>(args)...), manager_(manager), processor_{this} {}
+
+  // Constructs a client-side channel.
+  template <typename... Args>
+  explicit Channel(Args&&... args)
+      : Socket(std::forward<Args>(args)...), manager_(nullptr), processor_{this} {}
 
   Channel(Channel const&) = delete;
   Channel& operator=(Channel const&) = delete;
@@ -208,6 +223,15 @@ class Channel final : private Socket, public BaseChannel, private internal::Chan
 
   tsdb2::net::BaseSocket* socket() override { return this; }
   tsdb2::net::BaseSocket const* socket() const override { return this; }
+
+  absl::StatusOr<Handler*> GetHandler(std::string_view path) override {
+    if (manager_ != nullptr) {
+      return manager_->GetHandler(path);
+    } else {
+      return absl::FailedPreconditionError(absl::StrCat(
+          "Cannot handle requests for \"", absl::CEscape(path), "\" in a client-side channel."));
+    }
+  }
 
   void Read(size_t const length, ReadCallback callback) {
     auto const status = Socket::Read(length, [this, callback = std::move(callback)](
@@ -314,6 +338,10 @@ class Channel final : private Socket, public BaseChannel, private internal::Chan
   }
 
   void CloseConnection() override { Close(); }
+
+  // Not owned. Points to the parent `Server` for server-side channels, it is nullptr for
+  // client-side ones.
+  ChannelManager* const manager_;
 
   ChannelProcessor processor_;
 };

@@ -10,6 +10,7 @@ cc_library(
         "//common:utilities",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/time",
     ],
 )
 
@@ -107,6 +108,17 @@ cc_test(
 )
 
 cc_library(
+    name = "handlers",
+    hdrs = ["handlers.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hpack",
+        ":http",
+        "//net:base_sockets",
+    ],
+)
+
+cc_library(
     name = "channel",
     srcs = ["processor.cc"],
     hdrs = [
@@ -115,11 +127,14 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
+        ":handlers",
         ":hpack",
         ":http",
         ":write_queue",
+        "//common:flat_map",
         "//common:reffed_ptr",
         "//common:simple_condition",
+        "//common:trie_map",
         "//common:utilities",
         "//io:cord",
         "//net:base_sockets",
@@ -132,6 +147,7 @@ cc_library(
         "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/functional:bind_front",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
@@ -177,6 +193,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":channel",
+        ":handlers",
         ":http",
         "//common:reffed_ptr",
         "//common:simple_condition",
@@ -194,6 +211,31 @@ cc_library(
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/time",
+    ],
+)
+
+cc_library(
+    name = "default_server",
+    srcs = ["default_server.cc"],
+    hdrs = ["default_server.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":handlers",
+        ":server",
+        "//common:no_destructor",
+        "//common:trie_map",
+        "//common:utilities",
+        "//net:base_sockets",
+        "//server:base_module",
+        "//server:init_tsdb2",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
     ],

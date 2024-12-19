@@ -15,6 +15,30 @@ ABSL_FLAG(absl::Duration, http2_io_timeout, absl::Seconds(60),
 namespace tsdb2 {
 namespace http {
 
+tsdb2::common::fixed_flat_map<std::string_view, Method, kNumMethods> constexpr kMethodsByName =
+    tsdb2::common::fixed_flat_map_of<std::string_view, Method>({
+        {"GET", Method::kGet},
+        {"HEAD", Method::kHead},
+        {"POST", Method::kPost},
+        {"PUT", Method::kPut},
+        {"DELETE", Method::kDelete},
+        {"CONNECT", Method::kConnect},
+        {"OPTIONS", Method::kOptions},
+        {"TRACE", Method::kTrace},
+    });
+
+tsdb2::common::fixed_flat_map<Method, std::string_view, kNumMethods> constexpr kMethodNames =
+    tsdb2::common::fixed_flat_map_of<Method, std::string_view>({
+        {Method::kGet, "GET"},
+        {Method::kHead, "HEAD"},
+        {Method::kPost, "POST"},
+        {Method::kPut, "PUT"},
+        {Method::kDelete, "DELETE"},
+        {Method::kConnect, "CONNECT"},
+        {Method::kOptions, "OPTIONS"},
+        {Method::kTrace, "TRACE"},
+    });
+
 tsdb2::common::fixed_flat_map<int, std::string_view, kNumStatuses> constexpr kStatusNames =
     tsdb2::common::fixed_flat_map_of<int, std::string_view>({
         {200, "OK"},
