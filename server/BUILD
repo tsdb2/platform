@@ -83,6 +83,25 @@ cc_library(
 )
 
 cc_library(
+    name = "flagz",
+    srcs = ["flagz.cc"],
+    deps = [
+        ":base_module",
+        ":init_tsdb2",
+        "//common:no_destructor",
+        "//common:utilities",
+        "//http",
+        "//http:default_server",
+        "//http:handlers",
+        "//io:buffer",
+        "@com_google_absl//absl/flags:reflection",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+    ],
+    alwayslink = True,
+)
+
+cc_library(
     name = "envz",
     srcs = ["envz.cc"],
     deps = [
@@ -121,6 +140,7 @@ cc_binary(
     ],
     deps = [
         ":envz",  # build_cleaner: keep
+        ":flagz",  # build_cleaner: keep
         ":init_tsdb2",
         ":statusz",  # build_cleaner: keep
         "//http:default_server",
