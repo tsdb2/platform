@@ -96,7 +96,8 @@ class DynamicHeaderTable final {
 // This class is not thread-safe, only thread-friendly.
 class Decoder final {
  public:
-  explicit Decoder() = default;
+  explicit Decoder();
+
   ~Decoder() = default;
 
   Decoder(Decoder const &) = default;
@@ -138,7 +139,7 @@ class Decoder final {
 
   // The maximum size of the `dynamic_headers_` table calculated in octets as per
   // https://httpwg.org/specs/rfc7541.html#calculating.table.size).
-  size_t max_dynamic_header_table_size_ = kDefaultMaxDynamicHeaderTableSize;
+  size_t max_dynamic_header_table_size_;
 
   DynamicHeaderTable dynamic_headers_{max_dynamic_header_table_size_};
 };

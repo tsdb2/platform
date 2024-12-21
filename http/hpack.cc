@@ -7,6 +7,7 @@
 #include <string_view>
 #include <utility>
 
+#include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -14,6 +15,7 @@
 #include "absl/types/span.h"
 #include "common/flat_map.h"
 #include "common/utilities.h"
+#include "http/http.h"
 #include "http/huffman.h"
 #include "io/buffer.h"
 #include "io/cord.h"
@@ -147,6 +149,9 @@ size_t DynamicHeaderTable::GetHeaderSize(Header const &header) {
   // https://httpwg.org/specs/rfc7541.html#calculating.table.size
   return header.first.size() + header.second.size() + 32;
 }
+
+Decoder::Decoder()
+    : max_dynamic_header_table_size_(absl::GetFlag(FLAGS_http2_max_dynamic_header_table_size)) {}
 
 absl::StatusOr<HeaderSet> Decoder::Decode(absl::Span<uint8_t const> const data) {
   HeaderSet headers;

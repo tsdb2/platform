@@ -6,16 +6,26 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 
 #include "absl/base/attributes.h"
 #include "absl/flags/declare.h"
+#include "absl/status/status.h"
 #include "absl/time/time.h"
 #include "common/flat_map.h"
+#include "common/no_destructor.h"
 #include "common/utilities.h"
+#include "server/base_module.h"
 
 ABSL_DECLARE_FLAG(absl::Duration, http2_io_timeout);
+
+ABSL_DECLARE_FLAG(size_t, http2_max_dynamic_header_table_size);
+ABSL_DECLARE_FLAG(std::optional<size_t>, http2_max_concurrent_streams);
+ABSL_DECLARE_FLAG(size_t, http2_initial_stream_window_size);
+ABSL_DECLARE_FLAG(size_t, http2_max_frame_payload_size);
+ABSL_DECLARE_FLAG(size_t, http2_max_header_list_size);
 
 namespace tsdb2 {
 namespace http {
@@ -37,6 +47,10 @@ enum class StreamState {
   kHalfClosedRemote,
   kClosed,
 };
+
+inline size_t constexpr kNumStreamStates = 7;
+extern tsdb2::common::fixed_flat_map<StreamState, std::string_view, kNumStreamStates> const
+    kStreamStateNames;
 
 enum class FrameType {
   kData = 0,
@@ -106,7 +120,13 @@ class ABSL_ATTRIBUTE_PACKED FrameHeader {
 
 static_assert(sizeof(FrameHeader) == 9, "incorrect frame header size");
 
-enum class ConnectionError {
+enum class ErrorType {
+  kConnectionError = 0,
+  kStreamError = 1,
+};
+
+// See https://httpwg.org/specs/rfc9113.html#ErrorCodes.
+enum class ErrorCode {
   kNoError = 0,
   kProtocolError = 1,
   kInternalError = 2,
@@ -122,6 +142,39 @@ enum class ConnectionError {
   kInadequateSecurity = 12,
   kHttp11Required = 13,
 };
+
+// Represents an HTTP/2 error (or lack thereof).
+class ABSL_MUST_USE_RESULT Error {
+ public:
+  explicit Error() : type_(ErrorType::kConnectionError), code_(ErrorCode::kNoError) {}
+  explicit Error(ErrorType const type, ErrorCode const code) : type_(type), code_(code) {}
+  ~Error() = default;
+
+  Error(Error const&) = default;
+  Error& operator=(Error const&) = default;
+  Error(Error&&) noexcept = default;
+  Error& operator=(Error&&) noexcept = default;
+
+  ErrorType type() const { return type_; }
+  ErrorCode code() const { return code_; }
+
+  bool ok() const { return code_ == ErrorCode::kNoError; }
+
+ private:
+  ErrorType type_;
+  ErrorCode code_;
+};
+
+// Constructs an HTTP/2 connection error with the given code.
+inline Error ConnectionError(ErrorCode const code) {
+  return Error(ErrorType::kConnectionError, code);
+}
+
+// Constructs an HTTP/2 stream error with the given code.
+inline Error StreamError(ErrorCode const code) { return Error(ErrorType::kStreamError, code); }
+
+// Constructs an HTTP/2 error object representing no error condition.
+inline Error NoError() { return Error(); }
 
 struct ABSL_ATTRIBUTE_PACKED PriorityPayload {
  public:
@@ -162,6 +215,13 @@ struct ABSL_ATTRIBUTE_PACKED PriorityPayload {
 
 static_assert(sizeof(PriorityPayload) == 5, "incorrect PRIORITY payload size");
 
+struct ABSL_ATTRIBUTE_PACKED PriorityFrame {
+  FrameHeader header;
+  PriorityPayload payload;
+};
+
+static_assert(sizeof(PriorityFrame) == 14, "incorrect PRIORITY frame size");
+
 struct ABSL_ATTRIBUTE_PACKED ResetStreamPayload {
  public:
   explicit ResetStreamPayload() = default;
@@ -172,10 +232,10 @@ struct ABSL_ATTRIBUTE_PACKED ResetStreamPayload {
   ResetStreamPayload(ResetStreamPayload&&) noexcept = default;
   ResetStreamPayload& operator=(ResetStreamPayload&&) noexcept = default;
 
-  ConnectionError error_code() const { return static_cast<ConnectionError>(::ntohl(error_code_)); }
+  ErrorCode error_code() const { return static_cast<ErrorCode>(::ntohl(error_code_)); }
 
-  ResetStreamPayload& set_error_code(ConnectionError const error) {
-    error_code_ = ::htonl(tsdb2::util::to_underlying(error));
+  ResetStreamPayload& set_error_code(ErrorCode const error_code) {
+    error_code_ = ::htonl(tsdb2::util::to_underlying(error_code));
     return *this;
   }
 
@@ -184,6 +244,13 @@ struct ABSL_ATTRIBUTE_PACKED ResetStreamPayload {
 };
 
 static_assert(sizeof(ResetStreamPayload) == 4, "incorrect RST_STREAM payload size");
+
+struct ABSL_ATTRIBUTE_PACKED ResetStreamFrame {
+  FrameHeader header;
+  ResetStreamPayload payload;
+};
+
+static_assert(sizeof(ResetStreamFrame) == 13, "incorrect RST_STREAM frame size");
 
 enum class SettingsIdentifier {
   kHeaderTableSize = 1,
@@ -248,10 +315,10 @@ struct ABSL_ATTRIBUTE_PACKED GoAwayPayload {
     return *this;
   }
 
-  ConnectionError error_code() const { return static_cast<ConnectionError>(::ntohl(error_code_)); }
+  ErrorCode error_code() const { return static_cast<ErrorCode>(::ntohl(error_code_)); }
 
-  GoAwayPayload& set_error_code(ConnectionError const error) {
-    error_code_ = ::htonl(tsdb2::util::to_underlying(error));
+  GoAwayPayload& set_error_code(ErrorCode const error_code) {
+    error_code_ = ::htonl(tsdb2::util::to_underlying(error_code));
     return *this;
   }
 
@@ -262,6 +329,13 @@ struct ABSL_ATTRIBUTE_PACKED GoAwayPayload {
 };
 
 static_assert(sizeof(GoAwayPayload) == 8, "incorrect GOAWAY payload size");
+
+struct ABSL_ATTRIBUTE_PACKED GoAwayFrame {
+  FrameHeader header;
+  GoAwayPayload payload;
+};
+
+static_assert(sizeof(GoAwayFrame) == 17, "incorrect GOAWAY frame size");
 
 struct ABSL_ATTRIBUTE_PACKED WindowUpdatePayload {
  public:
@@ -286,6 +360,20 @@ struct ABSL_ATTRIBUTE_PACKED WindowUpdatePayload {
 };
 
 static_assert(sizeof(WindowUpdatePayload) == 4, "incorrect WINDOW_UPDATE payload size");
+
+struct ABSL_ATTRIBUTE_PACKED WindowUpdateFrame {
+  FrameHeader header;
+  WindowUpdatePayload payload;
+};
+
+static_assert(sizeof(WindowUpdateFrame) == 13, "incorrect WINDOW_UPDATE frame size");
+
+// https://httpwg.org/specs/rfc9113.html#rfc.section.8.3
+inline std::string_view constexpr kAuthorityHeaderName = ":authority";
+inline std::string_view constexpr kMethodHeaderName = ":method";
+inline std::string_view constexpr kPathHeaderName = ":path";
+inline std::string_view constexpr kSchemeHeaderName = ":scheme";
+inline std::string_view constexpr kStatusHeaderName = ":status";
 
 enum class Method { kGet, kHead, kPost, kPut, kDelete, kConnect, kOptions, kTrace };
 
@@ -343,11 +431,11 @@ inline size_t constexpr kNumStatuses = 42;
 extern tsdb2::common::fixed_flat_map<int, std::string_view, kNumStatuses> const kStatusNames;
 
 struct Request {
-  explicit Request(Method const method) : method(method) {}
+  explicit Request(Method const method, std::string_view const path) : method(method), path(path) {}
   ~Request() = default;
 
-  Request(Request const&) = delete;
-  Request& operator=(Request const&) = delete;
+  Request(Request const&) = default;
+  Request& operator=(Request const&) = default;
   Request(Request&&) noexcept = default;
   Request& operator=(Request&&) noexcept = default;
 
@@ -355,6 +443,18 @@ struct Request {
   std::string path;
   tsdb2::common::flat_map<std::string, std::string> headers;
   tsdb2::common::flat_map<std::string, std::string> cookies;
+};
+
+class HttpModule final : public tsdb2::init::BaseModule {
+ public:
+  static HttpModule* Get() { return instance_.Get(); }
+  absl::Status Initialize() override;
+
+ private:
+  friend class tsdb2::common::NoDestructor<HttpModule>;
+  static tsdb2::common::NoDestructor<HttpModule> instance_;
+
+  explicit HttpModule();
 };
 
 }  // namespace http

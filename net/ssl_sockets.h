@@ -52,8 +52,8 @@ namespace net {
 // and returned in the provided `AcceptCallback`. For example:
 //
 //   reffed_ptr<Socket> socket;
-//   auto const listener = SSLListenerSocket<SSLSocket>::Create(
-//       kInetSocketTag, address, port, SocketOptions(),
+//   auto const status_or_listener = SSLListenerSocket<SSLSocket>::Create(
+//       address, port, SocketOptions(),
 //       [&](absl::StatusOr<reffed_ptr<SSLSocket>> status_or_socket) {
 //         if (!status_or_socket.ok()) {
 //           // There was an error other than EAGAIN / EWOULDBLOCK.
@@ -62,17 +62,22 @@ namespace net {
 //         }
 //       });
 //
+//
 // While client-side sockets can be constructed as follows:
 //
-//   auto const socket = SSLSocket::Create(
-//       kInetSocketTag, "www.example.com", 80, SocketOptions(),
-//       [](absl::Status const connect_status) {
-//         if (!connect_status.ok()) {
-//           // Connection to the provided address/port failed.
-//         } else {
+//   auto const status_or_socket = SSLSocket::Create(
+//       "www.example.com", 80, SocketOptions(),
+//       [](reffed_ptr<SSLSocket> socket, absl::Status const connect_status) {
+//         if (connect_status.ok()) {
 //           // We can start reading and writing.
+//         } else {
+//           // Connection to the provided address/port failed.
 //         }
 //       });
+//   if (!status_or_socket.ok()) {
+//     // An error occurred.
+//   }
+//
 //
 // The I/O model of `SSLSocket` is fully asynchronous, but keep in mind that only one read operation
 // at a time and only one write operation at a time are supported. It's okay to issue a read and a

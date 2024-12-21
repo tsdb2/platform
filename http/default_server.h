@@ -12,7 +12,6 @@
 #include "http/handlers.h"
 #include "http/server.h"
 #include "server/base_module.h"
-#include "server/init_tsdb2.h"
 
 namespace tsdb2 {
 namespace http {
@@ -60,9 +59,7 @@ class DefaultServerModule : public tsdb2::init::BaseModule {
   friend class tsdb2::common::NoDestructor<DefaultServerModule>;
   static tsdb2::common::NoDestructor<DefaultServerModule> instance_;
 
-  explicit DefaultServerModule() : BaseModule("default_server_builder") {
-    tsdb2::init::RegisterModule(this);
-  }
+  explicit DefaultServerModule();
 };
 
 }  // namespace http

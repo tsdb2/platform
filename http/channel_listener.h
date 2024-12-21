@@ -19,6 +19,7 @@ namespace http {
 template <typename SocketType>
 class ChannelListener;
 
+// Specializes `ChannelListener` for raw sockets.
 template <>
 class ChannelListener<tsdb2::net::Socket>
     : public tsdb2::net::ListenerSocket<Channel<tsdb2::net::Socket>> {
@@ -56,6 +57,7 @@ class ChannelListener<tsdb2::net::Socket>
   ChannelManager* const manager_;
 };
 
+// Specializes `ChannelListener` for SSL sockets.
 template <>
 class ChannelListener<tsdb2::net::SSLSocket>
     : public tsdb2::net::SSLListenerSocket<Channel<tsdb2::net::SSLSocket>> {

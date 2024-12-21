@@ -39,6 +39,9 @@ class BaseChannel {
   virtual bool Unref() = 0;
 
   // Starts a server endpoint by reading the HTTP/2 client preface and starting to exchange frames.
+  //
+  // Don't call this method explicitly, it's called automatically by the `ChannelManager` for
+  // server-side channels.
   virtual void StartServer() = 0;
 
  private:
@@ -69,6 +72,9 @@ namespace internal {
 // Internal interface used by `ChannelProcessor` to perform I/O on the channel.
 class ChannelInterface {
  public:
+  using ContinuationFrameCallback =
+      absl::AnyInvocable<void(FrameHeader const&, tsdb2::net::Buffer) &&>;
+
   explicit ChannelInterface() = default;
   virtual ~ChannelInterface() = default;
 
@@ -77,8 +83,11 @@ class ChannelInterface {
 
   virtual absl::StatusOr<Handler*> GetHandler(std::string_view path) = 0;
 
-  virtual void ReadContinuationFrame(uint32_t stream_id) = 0;
-  virtual void ReadNextFrame() = 0;
+  // Waits for the next frame, reads it, and passes it on to the processor.
+  virtual void Continue() = 0;
+
+  virtual void ReadContinuationFrame(uint32_t stream_id, ContinuationFrameCallback callback) = 0;
+
   virtual void CloseConnection() = 0;
 
  private:
@@ -95,6 +104,39 @@ template <typename Socket,
           std::enable_if_t<std::is_base_of_v<tsdb2::net::BaseSocket, Socket>, bool> = true>
 class Channel final : private Socket, public BaseChannel, private internal::ChannelInterface {
  public:
+  // Creates a client-side channel connected to the specified address.
+  //
+  // Example with SSL sockets:
+  //
+  //   auto status_or_channel = Channel<tsdb2::net::SSLSocket>::Create(
+  //       "www.example.com", 443, SocketOptions(),
+  //       [](reffed_ptr<Channel<tsdb2::net::SSLSocket>> channel, absl::Status connect_status) {
+  //         if (connect_status.ok()) {
+  //           // The channel is now connected.
+  //         } else {
+  //           // Connection to the provided address/port failed.
+  //         }
+  //       });
+  //   if (!status_or_channel.ok()) {
+  //     // An error occurred.
+  //   }
+  //
+  //
+  // Example with Unix domain sockets:
+  //
+  //   auto status_or_channel = Channel<tsdb2::net::Socket>::Create(
+  //       kUnixDomainSocketTag, "/tmp/foo.sock",
+  //       [](reffed_ptr<Channel<tsdb2::net::Socket>> channel, absl::Status connect_status) {
+  //         if (connect_status.ok()) {
+  //           // The channel is now connected.
+  //         } else {
+  //           // Connection to the provided address/port failed.
+  //         }
+  //       });
+  //   if (!status_or_channel.ok()) {
+  //     // An error occurred.
+  //   }
+  //
   template <typename... Args>
   static absl::StatusOr<tsdb2::common::reffed_ptr<Channel>> Create(Args&&... args) {
     return Socket::template Create<Channel>(std::forward<Args>(args)...);
@@ -130,10 +172,6 @@ class Channel final : private Socket, public BaseChannel, private internal::Chan
   // Indicates whether this is a server-side channel.
   bool is_server() const { return manager_ != nullptr; }
 
-  // Starts an HTTP/2 server by reading the client preface and then starting to exchange frames.
-  //
-  // Don't call this method explicitly, it's called automatically by the `ChannelManager` for
-  // server-side channels.
   void StartServer() override {
     ReadWithTimeout(kClientPreface.size(), [this](tsdb2::net::Buffer const data) {
       std::string_view const preface{data.as_char_array(), data.size()};
@@ -142,7 +180,7 @@ class Channel final : private Socket, public BaseChannel, private internal::Chan
         Close();
       } else {
         processor_.SendSettings();
-        ReadNextFrame();
+        Continue();
       }
     });
   }
@@ -294,57 +332,54 @@ class Channel final : private Socket, public BaseChannel, private internal::Chan
     }
   }
 
-  void ReadContinuationFrame(uint32_t const stream_id) override {
-    Read(sizeof(FrameHeader), [this, stream_id](Buffer const buffer) {
-      auto const& header = buffer.as<FrameHeader>();
-      bool going_away = false;
-      // TODO: even if we're expecting a CONTINUATION frame we need to keep accepting high-priority
-      // frames like PING and GOAWAY.
-      if (header.frame_type() != FrameType::kContinuation) {
-        going_away = true;
-        processor_.GoAway(ConnectionError::kProtocolError);
-      } else {
-        auto const header_validation_error =
-            processor_.ValidateContinuationHeader(stream_id, header);
-        going_away = header_validation_error != ConnectionError::kNoError;
-      }
-      auto const length = header.length();
-      if (going_away) {
-        if (length > 0) {
-          Skip(length, [this] { ReadNextFrame(); });
-        } else {
-          ReadNextFrame();
-        }
-      } else {
-        if (length > 0) {
-          ReadWithTimeout(length, absl::bind_front(&ChannelProcessor::ProcessContinuationFrame,
-                                                   &processor_, stream_id, header));
-        } else {
-          processor_.ProcessContinuationFrame(stream_id, header, Buffer());
-        }
-      }
-    });
+  void SkipAndContinue(size_t const length) {
+    if (length > 0) {
+      Skip(length, [this] { Continue(); });
+    } else {
+      Continue();
+    }
   }
 
-  void ReadNextFrame() override {
+  void Continue() override {
     Read(sizeof(FrameHeader), [this](Buffer const buffer) {
       auto const& header = buffer.as<FrameHeader>();
       auto const header_validation_error = processor_.ValidateFrameHeader(header);
       auto const length = header.length();
-      if (header_validation_error != ConnectionError::kNoError &&
-          header.frame_type() != FrameType::kGoAway) {
-        if (length > 0) {
-          Skip(length, [this] { ReadNextFrame(); });
-        } else {
-          ReadNextFrame();
+      if (!header_validation_error.ok()) {
+        if (header_validation_error.type() != ErrorType::kConnectionError) {
+          SkipAndContinue(length);
         }
+        return;
+      }
+      if (length > 0) {
+        ReadWithTimeout(length,
+                        absl::bind_front(&ChannelProcessor::ProcessFrame, &processor_, header));
       } else {
-        if (length > 0) {
-          ReadWithTimeout(length,
-                          absl::bind_front(&ChannelProcessor::ProcessFrame, &processor_, header));
-        } else {
-          processor_.ProcessFrame(header, Buffer());
+        processor_.ProcessFrame(header, Buffer());
+      }
+    });
+  }
+
+  void ReadContinuationFrame(uint32_t const stream_id,
+                             ContinuationFrameCallback callback) override {
+    Read(sizeof(FrameHeader), [this, stream_id,
+                               callback = std::move(callback)](Buffer const buffer) mutable {
+      auto const& header = buffer.as<FrameHeader>();
+      auto const header_validation_error =
+          ChannelProcessor::ValidateContinuationHeader(stream_id, header);
+      auto const length = header.length();
+      if (!header_validation_error.ok()) {
+        if (header_validation_error.type() != ErrorType::kConnectionError) {
+          SkipAndContinue(length);
         }
+        return;
+      }
+      if (length > 0) {
+        ReadWithTimeout(length, [header, callback = std::move(callback)](Buffer payload) mutable {
+          std::move(callback)(header, std::move(payload));
+        });
+      } else {
+        processor_.ProcessFrame(header, Buffer());
       }
     });
   }

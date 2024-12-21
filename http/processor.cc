@@ -1,58 +1,64 @@
 #include "http/processor.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <utility>
-#include <vector>
 
-#include "absl/log/log.h"
+#include "absl/flags/flag.h"
+#include "absl/functional/bind_front.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/types/span.h"
 #include "common/flat_map.h"
 #include "common/utilities.h"
 #include "http/channel.h"
+#include "http/handlers.h"
 #include "http/hpack.h"
 #include "http/http.h"
+#include "io/buffer.h"
 #include "io/cord.h"
-#include "net/base_sockets.h"
 
 namespace tsdb2 {
 namespace http {
 
 namespace {
 
+using ::tsdb2::io::Buffer;
 using ::tsdb2::io::Cord;
-using ::tsdb2::net::Buffer;
 
 }  // namespace
 
 ChannelProcessor::ChannelProcessor(internal::ChannelInterface* const parent)
-    : parent_(parent), write_queue_(parent_->socket()) {}
+    : parent_(parent),
+      max_concurrent_streams_(absl::GetFlag(FLAGS_http2_max_concurrent_streams)),
+      initial_stream_window_size_(absl::GetFlag(FLAGS_http2_initial_stream_window_size)),
+      max_frame_payload_size_(absl::GetFlag(FLAGS_http2_max_frame_payload_size)),
+      max_header_list_size_(absl::GetFlag(FLAGS_http2_max_header_list_size)),
+      write_queue_(parent_->socket(), max_frame_payload_size_) {}
 
-ConnectionError ChannelProcessor::ValidateContinuationHeader(uint32_t const stream_id,
-                                                             FrameHeader const& header) {
+Error ChannelProcessor::ValidateFrameHeader(FrameHeader const& header) {
   absl::MutexLock lock{&mutex_};
-  auto const error = ValidateContinuationHeaderLocked(stream_id, header);
-  if (error != ConnectionError::kNoError) {
-    GoAwayLocked(error);
+  auto const error = ValidateFrameHeaderLocked(header);
+  if (!error.ok() && error.type() == ErrorType::kConnectionError) {
+    GoAwayNowLocked(error.code());
   }
   return error;
 }
 
-ConnectionError ChannelProcessor::ValidateFrameHeader(FrameHeader const& header) {
-  absl::MutexLock lock{&mutex_};
-  auto const error = ValidateFrameHeaderLocked(header);
-  if (error != ConnectionError::kNoError) {
-    GoAwayLocked(error);
+Error ChannelProcessor::ValidateContinuationHeader(uint32_t const stream_id,
+                                                   FrameHeader const& header) {
+  if (header.frame_type() != FrameType::kContinuation) {
+    return ConnectionError(ErrorCode::kProtocolError);
   }
-  return error;
+  if (header.stream_id() != stream_id) {
+    return ConnectionError(ErrorCode::kProtocolError);
+  }
+  return NoError();
 }
 
 void ChannelProcessor::ProcessFrame(FrameHeader const& header, Buffer payload) {
@@ -61,10 +67,6 @@ void ChannelProcessor::ProcessFrame(FrameHeader const& header, Buffer payload) {
       ProcessDataFrame(header, std::move(payload));
       break;
     case FrameType::kHeaders:
-      // NOTE: `ProcessHeadersFrame` is different from other process methods because it also
-      // continues by invoking `ReadNextFrame` or `ReadContinuationFrame` depending on whether a
-      // CONTINUATION frame is expected. Because of that we return immediately here, and skip the
-      // final `ReadNextFrame()` call.
       return ProcessHeadersFrame(header, std::move(payload));
     case FrameType::kPriority:
       // PRIORITY is deprecated, nothing to do here.
@@ -73,81 +75,28 @@ void ChannelProcessor::ProcessFrame(FrameHeader const& header, Buffer payload) {
       ProcessResetStreamFrame(header);
       break;
     case FrameType::kSettings:
-      ProcessSettingsFrame(header, std::move(payload));
+      ProcessSettingsFrame(header, payload);
       break;
     case FrameType::kPushPromise:
       ProcessPushPromiseFrame(header);
       break;
     case FrameType::kPing:
-      ProcessPingFrame(header, std::move(payload));
+      ProcessPingFrame(header, payload);
       break;
     case FrameType::kGoAway:
       ProcessGoAwayFrame(header, std::move(payload));
       break;
     case FrameType::kWindowUpdate:
-      ProcessWindowUpdateFrame(header, std::move(payload));
+      // TODO: process WINDOW_UPDATE frames.
       break;
     case FrameType::kContinuation:
-      // NOTE: proper CONTINUATION frames are handled inside the processing of HEADERS frames, so
-      // if we end up here we can assume it's a protocol error.
-      GoAway(ConnectionError::kProtocolError);
-      break;
+      // NOTE: proper CONTINUATION frames are handled inside the processing of HEADERS or
+      // PUSH_PROMISE frames, so if we end up here we can assume it's a protocol error.
+      return GoAwayNow(ErrorCode::kProtocolError);
     default:
-      GoAway(ConnectionError::kInternalError);
-      break;
+      return GoAwayNow(ErrorCode::kInternalError);
   }
-  parent_->ReadNextFrame();
-}
-
-void ChannelProcessor::ProcessContinuationFrame(uint32_t const stream_id, FrameHeader const& header,
-                                                Buffer const payload) {
-  auto const span = payload.span();
-  absl::ReleasableMutexLock lock{&mutex_};
-  auto& stream = GetOrCreateStreamLocked(stream_id);
-  if ((stream.state != StreamState::kIdle && stream.state != StreamState::kReservedRemote) ||
-      !stream.receiving_fields) {
-    switch (stream.state) {
-      case StreamState::kHalfClosedRemote:
-      case StreamState::kClosed:
-        ResetStreamLocked(stream_id, ConnectionError::kStreamClosed);
-        break;
-      default:
-        ResetStreamLocked(stream_id, ConnectionError::kProtocolError);
-        break;
-    }
-    stream.state = StreamState::kClosed;
-    lock.Release();
-    return parent_->ReadNextFrame();
-  }
-  stream.field_block.reserve(stream.field_block.size() + span.size());
-  stream.field_block.insert(stream.field_block.end(), span.begin(), span.end());
-  if ((header.flags() & kFlagEndHeaders) != 0) {
-    switch (stream.state) {
-      case StreamState::kIdle:
-        stream.state = StreamState::kOpen;
-        break;
-      case StreamState::kReservedRemote:
-        stream.state = StreamState::kHalfClosedLocal;
-        break;
-      default:
-        // Nothing to do for other states here.
-        break;
-    }
-    stream.receiving_fields = false;
-    auto status_or_fields = field_decoder_.Decode(stream.field_block);
-    stream.field_block.clear();
-    if (status_or_fields.ok()) {
-      OnFields(stream_id, FlattenFields(std::move(status_or_fields).value()));
-    } else {
-      stream.state = StreamState::kClosed;
-      ResetStreamLocked(stream_id, ConnectionError::kCompressionError);
-    }
-    lock.Release();
-    parent_->ReadNextFrame();
-  } else {
-    lock.Release();
-    parent_->ReadContinuationFrame(stream_id);
-  }
+  parent_->Continue();
 }
 
 void ChannelProcessor::SendSettings() {
@@ -155,26 +104,184 @@ void ChannelProcessor::SendSettings() {
   write_queue_.AppendFrame(MakeSettingsFrame());
 }
 
-void ChannelProcessor::GoAway(ConnectionError const error) {
+void ChannelProcessor::GoAway(ErrorCode const error_code) {
   absl::MutexLock lock{&mutex_};
-  GoAwayLocked(error);
+  if (!going_away_) {
+    going_away_ = true;
+    write_queue_.GoAway(error_code, last_processed_stream_id_, /*reset_queue=*/false,
+                        /*callback=*/nullptr);
+  }
 }
 
-tsdb2::io::Cord ChannelProcessor::Stream::ReadData() {
-  tsdb2::io::Cord cord = std::move(data);
-  data = tsdb2::io::Cord();
-  return cord;
+void ChannelProcessor::GoAwayNow(ErrorCode const error_code) {
+  absl::MutexLock lock{&mutex_};
+  if (!going_away_) {
+    GoAwayNowLocked(error_code);
+  }
 }
 
-void ChannelProcessor::Stream::SendFields(hpack::HeaderSet const& fields, bool const end_stream) {
-  parent->write_queue_.AppendFrames(parent->MakeHeadersFrames(id, end_stream, fields));
+void ChannelProcessor::DataBuffer::AddChunk(Buffer buffer, bool const last) {
+  DataCallback callback;
+  bool ended;
+  {
+    absl::MutexLock lock{&mutex_};
+    if (callback_) {
+      callback_.swap(callback);
+      ended = ended_;
+    } else {
+      data_.Append(std::move(buffer));
+      ended_ = last;
+      return;
+    }
+  }
+  callback(Cord(std::move(buffer)), ended);
 }
 
-void ChannelProcessor::Stream::SendData(tsdb2::net::Buffer const buffer, bool const end_stream) {
-  parent->SendData(id, buffer, end_stream);
+void ChannelProcessor::DataBuffer::Read(DataCallback callback) {
+  Cord data;
+  bool ended;
+  {
+    absl::MutexLock lock{&mutex_};
+    if (data_.empty()) {
+      callback_ = std::move(callback);
+      return;
+    } else {
+      data_.swap(data);
+      ended = ended_;
+    }
+  }
+  callback(std::move(data), ended);
 }
 
-tsdb2::common::flat_map<std::string, std::string> ChannelProcessor::FlattenFields(
+Error ChannelProcessor::Stream::ProcessData(Buffer buffer, bool const end_stream) {
+  switch (state_) {
+    case StreamState::kIdle:
+    case StreamState::kReservedLocal:
+    case StreamState::kReservedRemote:
+    case StreamState::kHalfClosedRemote:
+      return ConnectionError(ErrorCode::kProtocolError);
+    case StreamState::kClosed:
+      return ConnectionError(ErrorCode::kStreamClosed);
+    default:
+      data_buffer_.AddChunk(std::move(buffer), end_stream);
+      if (end_stream) {
+        if (state_ != StreamState::kOpen) {
+          state_ = StreamState::kClosed;
+        } else {
+          state_ = StreamState::kHalfClosedRemote;
+        }
+      }
+      break;
+  }
+  return NoError();
+}
+
+Error ChannelProcessor::Stream::ProcessFields(hpack::HeaderSet fields) {
+  switch (state_) {
+    case StreamState::kIdle:
+      state_ = StreamState::kOpen;
+      break;
+    case StreamState::kReservedRemote:
+      state_ = StreamState::kHalfClosedLocal;
+      break;
+    case StreamState::kHalfClosedRemote:
+      state_ = StreamState::kClosed;
+      return StreamError(ErrorCode::kStreamClosed);
+    case StreamState::kClosed:
+      return ConnectionError(ErrorCode::kStreamClosed);
+    default:
+      state_ = StreamState::kClosed;
+      return ConnectionError(ErrorCode::kProtocolError);
+  }
+
+  auto field_map = FlattenFields(std::move(fields));
+
+  auto const method_name_it = field_map.find(kMethodHeaderName);
+  if (method_name_it == field_map.end()) {
+    return ErrorOut(Status::k400);
+  }
+  auto const method_it = kMethodsByName.find(method_name_it->second);
+  if (method_it == kMethodsByName.end()) {
+    return ErrorOut(Status::k405);
+  }
+  Method const method = method_it->second;
+
+  auto const path_it = field_map.find(kPathHeaderName);
+  if (path_it == field_map.end()) {
+    return ErrorOut(Status::k400);
+  }
+  std::string_view const path = path_it->second;
+
+  auto const status_or_handler = parent_->GetHandler(path);
+  if (!status_or_handler.ok()) {
+    return ErrorOut(Status::k404);
+  }
+  auto& handler = *status_or_handler.value();
+
+  Request request(method, path);
+  request.headers = std::move(field_map);
+  handler(this, request);
+
+  return NoError();
+}
+
+void ChannelProcessor::Stream::ProcessReset() { state_ = StreamState::kClosed; }
+
+Error ChannelProcessor::Stream::ProcessPushPromise() {
+  switch (state_) {
+    case StreamState::kIdle:
+      state_ = StreamState::kReservedRemote;
+      return NoError();
+    case StreamState::kHalfClosedRemote:
+      return StreamError(ErrorCode::kStreamClosed);
+    case StreamState::kClosed:
+      return ConnectionError(ErrorCode::kStreamClosed);
+    default:
+      state_ = StreamState::kClosed;
+      return ConnectionError(ErrorCode::kProtocolError);
+  }
+}
+
+void ChannelProcessor::Stream::ReadData(DataCallback callback) {
+  data_buffer_.Read(std::move(callback));
+}
+
+absl::Status ChannelProcessor::Stream::SendFields(hpack::HeaderSet const& fields,
+                                                  bool const end_stream) {
+  switch (state_) {
+    case StreamState::kIdle:
+      state_ = StreamState::kOpen;
+      break;
+    case StreamState::kReservedLocal:
+      state_ = StreamState::kHalfClosedRemote;
+      break;
+    case StreamState::kOpen:
+      break;
+    default:
+      return absl::FailedPreconditionError(
+          absl::StrCat("cannot send HEADERS from a stream that's already closed ",
+                       GetStreamDescriptionForErrors()));
+  }
+  if (end_stream) {
+    RETURN_IF_ERROR(EndStream());
+  }
+  parent_->SendFields(id_, fields, end_stream);
+  return absl::OkStatus();
+}
+
+absl::Status ChannelProcessor::Stream::SendData(Buffer const buffer, bool const end_stream) {
+  if (state_ != StreamState::kOpen && state_ != StreamState::kHalfClosedRemote) {
+    return absl::FailedPreconditionError(absl::StrCat(
+        "cannot send DATA from a stream that's already closed ", GetStreamDescriptionForErrors()));
+  }
+  if (end_stream) {
+    RETURN_IF_ERROR(EndStream());
+  }
+  parent_->SendData(id_, buffer, end_stream);
+  return absl::OkStatus();
+}
+
+tsdb2::common::flat_map<std::string, std::string> ChannelProcessor::Stream::FlattenFields(
     hpack::HeaderSet fields) {
   tsdb2::common::flat_map<std::string, std::string> result;
   result.reserve(fields.size());
@@ -184,122 +291,35 @@ tsdb2::common::flat_map<std::string, std::string> ChannelProcessor::FlattenField
   return result;
 }
 
-void ChannelProcessor::OnFields(uint32_t const stream_id,
-                                tsdb2::common::flat_map<std::string, std::string> fields) {
-  // TODO: remove this temporary logging code.
-  LOG(ERROR) << "--------";
-  LOG(ERROR) << "## Stream ID: " << stream_id;
-  for (auto const& [key, value] : fields) {
-    LOG(ERROR) << "### " << key << ": " << value;
-  }
-  LOG(ERROR) << "--------";
-
-  auto const path_it = fields.find(":path");
-  if (path_it == fields.end()) {
-    write_queue_.AppendFrames(
-        MakeHeadersFrames(stream_id, /*end_of_stream=*/true,
-                          {{":status", absl::StrCat(tsdb2::util::to_underlying(Status::k400))}}));
-    return;
-  }
-  auto const& path = path_it->second;
-
-  auto const status_or_handler = parent_->GetHandler(path);
-  if (!status_or_handler.ok()) {
-    write_queue_.AppendFrames(
-        MakeHeadersFrames(stream_id, /*end_of_stream=*/true,
-                          {{":status", absl::StrCat(tsdb2::util::to_underlying(Status::k404))}}));
-    return;
-  }
-  auto const& handler = status_or_handler.value();
-
-  auto const method_name_it = fields.find(":method");
-  if (method_name_it == fields.end()) {
-    write_queue_.AppendFrames(
-        MakeHeadersFrames(stream_id, /*end_of_stream=*/true,
-                          {{":status", absl::StrCat(tsdb2::util::to_underlying(Status::k400))}}));
-    return;
-  }
-  auto const& method_name = method_name_it->second;
-
-  auto const method_it = kMethodsByName.find(method_name);
-  if (method_it == kMethodsByName.end()) {
-    write_queue_.AppendFrames(
-        MakeHeadersFrames(stream_id, /*end_of_stream=*/true,
-                          {{":status", absl::StrCat(tsdb2::util::to_underlying(Status::k405))}}));
-    return;
-  }
-  Method const method = method_it->second;
-
-  Request request{method};
-  request.path = path;
-  request.headers = std::move(fields);
-  (*handler)(&GetOrCreateStreamLocked(stream_id), request);
-}
-
-void ChannelProcessor::SendData(uint32_t const stream_id, Buffer const& data,
-                                bool const end_of_stream) {
-  size_t const frame_size = kDefaultMaxFramePayloadSize;
-  for (size_t offset = 0; offset < data.size(); offset += frame_size) {
-    auto const header =
-        FrameHeader()
-            .set_length(data.size())
-            .set_frame_type(FrameType::kData)
-            .set_flags(end_of_stream && (offset + frame_size < data.size()) ? 0 : kFlagEndStream)
-            .set_stream_id(stream_id);
-    write_queue_.AppendFrame(
-        Cord(Buffer(&header, sizeof(FrameHeader)),
-             Buffer(data.span(offset, std::min(frame_size, data.size() - offset))))
-            .Flatten());
-  }
-}
-
-std::vector<Buffer> ChannelProcessor::MakeHeadersFrames(uint32_t const id, bool const end_of_stream,
-                                                        hpack::HeaderSet const& fields) {
-  size_t const frame_size = kDefaultMaxFramePayloadSize;
-  auto buffer = field_encoder_.Encode(fields);
-  std::vector<Buffer> result;
-  result.reserve(buffer.size() / (frame_size + 1));
-  uint8_t const flags = end_of_stream ? kFlagEndStream : 0;
-  if (buffer.size() > frame_size) {
-    auto const header = FrameHeader()
-                            .set_length(buffer.size())
-                            .set_frame_type(FrameType::kHeaders)
-                            .set_flags(flags)
-                            .set_stream_id(id);
-    result.emplace_back(
-        Cord(Buffer(&header, sizeof(header)), Buffer(buffer.span(0, frame_size))).Flatten());
+Error ChannelProcessor::Stream::ErrorOut(Status const http_status) {
+  parent_->write_queue_.AppendFieldsFrames(
+      id_, {{":status", absl::StrCat(tsdb2::util::to_underlying(http_status))}},
+      /*end_of_stream=*/true);
+  if (state_ == StreamState::kOpen) {
+    state_ = StreamState::kHalfClosedLocal;
   } else {
-    auto const header = FrameHeader()
-                            .set_length(buffer.size())
-                            .set_frame_type(FrameType::kHeaders)
-                            .set_flags(flags | kFlagEndHeaders)
-                            .set_stream_id(id);
-    result.emplace_back(Cord(Buffer(&header, sizeof(header)), std::move(buffer)).Flatten());
-    return result;
+    state_ = StreamState::kClosed;
   }
-  for (size_t offset = frame_size; offset < buffer.size(); offset += frame_size) {
-    auto const header = FrameHeader()
-                            .set_length(buffer.size())
-                            .set_frame_type(FrameType::kContinuation)
-                            .set_flags(offset + frame_size < buffer.size() ? 0 : kFlagEndHeaders)
-                            .set_stream_id(id);
-    result.emplace_back(
-        Cord(Buffer(&header, sizeof(header)), Buffer(buffer.span(offset, frame_size))).Flatten());
-  }
-  return result;
+  return NoError();
 }
 
-Buffer ChannelProcessor::MakeResetStreamFrame(uint32_t const id, ConnectionError const error) {
-  auto const header = FrameHeader()
-                          .set_length(sizeof(ResetStreamPayload))
-                          .set_frame_type(FrameType::kResetStream)
-                          .set_flags(0)
-                          .set_stream_id(id);
-  auto const payload = ResetStreamPayload().set_error_code(error);
-  Buffer buffer{sizeof(FrameHeader) + sizeof(ResetStreamPayload)};
-  buffer.MemCpy(&header, sizeof(FrameHeader));
-  buffer.MemCpy(&payload, sizeof(ResetStreamPayload));
-  return buffer;
+std::string ChannelProcessor::Stream::GetStreamDescriptionForErrors() {
+  return absl::StrCat("(ID: ", id_, ", state: ", kStreamStateNames.at(state_), ")");
+}
+
+absl::Status ChannelProcessor::Stream::EndStream() {
+  switch (state_) {
+    case StreamState::kOpen:
+      state_ = StreamState::kHalfClosedLocal;
+      break;
+    case StreamState::kHalfClosedRemote:
+      state_ = StreamState::kClosed;
+      break;
+    default:
+      return absl::FailedPreconditionError(
+          absl::StrCat("cannot close an already closed stream ", GetStreamDescriptionForErrors()));
+  }
+  return absl::OkStatus();
 }
 
 Buffer ChannelProcessor::MakeSettingsFrame() const {
@@ -336,76 +356,41 @@ Buffer ChannelProcessor::MakeSettingsFrame() const {
   return buffer;
 }
 
-Buffer ChannelProcessor::MakeSettingsAckFrame() {
-  auto const header = FrameHeader()
-                          .set_length(0)
-                          .set_frame_type(FrameType::kSettings)
-                          .set_flags(kFlagAck)
-                          .set_stream_id(0);
-  return Buffer{&header, sizeof(FrameHeader)};
-}
-
-Buffer ChannelProcessor::MakePingFrame(bool const ack, Buffer const& payload) {
-  auto const header = FrameHeader()
-                          .set_length(kPingPayloadSize)
-                          .set_frame_type(FrameType::kPing)
-                          .set_flags(ack ? kFlagAck : 0)
-                          .set_stream_id(0);
-  Buffer buffer{sizeof(FrameHeader) + kPingPayloadSize};
-  buffer.MemCpy(&header, sizeof(header));
-  buffer.MemCpy(payload.get(), kPingPayloadSize);
-  return buffer;
-}
-
-Buffer ChannelProcessor::MakeGoAwayFrame(ConnectionError const error) const {
-  auto const header = FrameHeader()
-                          .set_length(sizeof(GoAwayPayload))
-                          .set_frame_type(FrameType::kGoAway)
-                          .set_flags(0)
-                          .set_stream_id(0);
-  auto const payload =
-      GoAwayPayload().set_last_stream_id(last_processed_stream_id_).set_error_code(error);
-  Buffer buffer{sizeof(FrameHeader) + sizeof(GoAwayPayload)};
-  buffer.MemCpy(&header, sizeof(header));
-  buffer.MemCpy(&payload, sizeof(payload));
-  return buffer;
-}
-
-void ChannelProcessor::ResetStreamLocked(uint32_t const stream_id, ConnectionError const error) {
-  write_queue_.AppendFrame(MakeResetStreamFrame(stream_id, error));
-}
-
-void ChannelProcessor::AckSettings() { write_queue_.AppendFrame(MakeSettingsAckFrame()); }
-
-void ChannelProcessor::GoAwayLocked(ConnectionError const error) {
+void ChannelProcessor::GoAwayNowLocked(ErrorCode const error_code) {
   going_away_ = true;
-  write_queue_.AppendFrameSkippingQueue(MakeGoAwayFrame(error));
+  write_queue_.GoAway(error_code, last_processed_stream_id_, /*reset_queue=*/true,
+                      absl::bind_front(&internal::ChannelInterface::CloseConnection, parent_));
 }
 
-ChannelProcessor::Stream& ChannelProcessor::GetOrCreateStreamLocked(uint32_t const id) {
+absl::StatusOr<ChannelProcessor::Stream*> ChannelProcessor::GetOrCreateStreamLocked(
+    uint32_t const id) {
   auto it = streams_.find(id);
-  if (it == streams_.end()) {
-    bool unused;
-    std::tie(it, unused) =
-        streams_.emplace(std::make_unique<Stream>(this, id, initial_stream_window_size_));
-    last_processed_stream_id_ = id;
+  if (it != streams_.end()) {
+    return it->get();
   }
-  return **it;
+  if (going_away_) {
+    return absl::CancelledError("going away");
+  }
+  bool unused;
+  std::tie(it, unused) =
+      streams_.emplace(std::make_unique<Stream>(this, id, initial_stream_window_size_));
+  last_processed_stream_id_ = id;
+  return it->get();
 }
 
-ConnectionError ChannelProcessor::ValidateDataHeader(FrameHeader const& header) {
+Error ChannelProcessor::ValidateDataHeader(FrameHeader const& header) {
   if (header.stream_id() == 0) {
-    return ConnectionError::kProtocolError;
+    return ConnectionError(ErrorCode::kProtocolError);
   }
   if (((header.flags() & kFlagPadded) != 0) && (header.length() < 1)) {
-    return ConnectionError::kFrameSizeError;
+    return ConnectionError(ErrorCode::kFrameSizeError);
   }
-  return ConnectionError::kNoError;
+  return NoError();
 }
 
-ConnectionError ChannelProcessor::ValidateHeadersHeader(FrameHeader const& header) {
+Error ChannelProcessor::ValidateHeadersHeader(FrameHeader const& header) {
   if (header.stream_id() == 0) {
-    return ConnectionError::kProtocolError;
+    return ConnectionError(ErrorCode::kProtocolError);
   }
   size_t min_size = 0;
   auto const flags = header.flags();
@@ -416,97 +401,88 @@ ConnectionError ChannelProcessor::ValidateHeadersHeader(FrameHeader const& heade
     min_size += 1;
   }
   if (header.length() < min_size) {
-    return ConnectionError::kFrameSizeError;
+    return ConnectionError(ErrorCode::kFrameSizeError);
   }
-  return ConnectionError::kNoError;
+  return NoError();
 }
 
-ConnectionError ChannelProcessor::ValidatePriorityHeader(FrameHeader const& header) {
+Error ChannelProcessor::ValidatePriorityHeader(FrameHeader const& header) {
   if (header.stream_id() == 0) {
-    return ConnectionError::kProtocolError;
+    return ConnectionError(ErrorCode::kProtocolError);
   }
   if (header.length() != sizeof(PriorityPayload)) {
-    return ConnectionError::kFrameSizeError;
+    return ConnectionError(ErrorCode::kFrameSizeError);
   }
-  return ConnectionError::kNoError;
+  return NoError();
 }
 
-ConnectionError ChannelProcessor::ValidateResetStreamHeader(FrameHeader const& header) {
+Error ChannelProcessor::ValidateResetStreamHeader(FrameHeader const& header) {
   if (header.stream_id() == 0) {
-    return ConnectionError::kProtocolError;
+    return ConnectionError(ErrorCode::kProtocolError);
   }
   if (header.length() != sizeof(ResetStreamPayload)) {
-    return ConnectionError::kFrameSizeError;
+    return ConnectionError(ErrorCode::kFrameSizeError);
   }
-  return ConnectionError::kNoError;
+  return NoError();
 }
 
-ConnectionError ChannelProcessor::ValidateSettingsHeader(FrameHeader const& header) {
+Error ChannelProcessor::ValidateSettingsHeader(FrameHeader const& header) {
   if (header.stream_id() != 0) {
-    return ConnectionError::kProtocolError;
+    return ConnectionError(ErrorCode::kProtocolError);
   }
   auto const length = header.length();
   if ((header.flags() & kFlagAck) != 0) {
     if (length != 0) {
-      return ConnectionError::kFrameSizeError;
+      return ConnectionError(ErrorCode::kFrameSizeError);
     }
   } else if ((length == 0) || (length % sizeof(SettingsEntry) != 0)) {
-    return ConnectionError::kFrameSizeError;
+    return ConnectionError(ErrorCode::kFrameSizeError);
   }
-  return ConnectionError::kNoError;
+  return NoError();
 }
 
-ConnectionError ChannelProcessor::ValidatePushPromiseHeader(FrameHeader const& header) {
+Error ChannelProcessor::ValidatePushPromiseHeader(FrameHeader const& header) {
+  if (header.stream_id() == 0) {
+    return ConnectionError(ErrorCode::kProtocolError);
+  }
   // TODO
-  return ConnectionError::kNoError;
+  return NoError();
 }
 
-ConnectionError ChannelProcessor::ValidatePingHeader(FrameHeader const& header) {
+Error ChannelProcessor::ValidatePingHeader(FrameHeader const& header) {
   if (header.stream_id() != 0) {
-    return ConnectionError::kProtocolError;
+    return ConnectionError(ErrorCode::kProtocolError);
   }
   if (header.length() != kPingPayloadSize) {
-    return ConnectionError::kFrameSizeError;
+    return ConnectionError(ErrorCode::kFrameSizeError);
   }
   if ((header.flags() & kFlagAck) != 0) {
-    return ConnectionError::kProtocolError;
+    return ConnectionError(ErrorCode::kProtocolError);
   }
-  return ConnectionError::kNoError;
+  return NoError();
 }
 
-ConnectionError ChannelProcessor::ValidateGoAwayHeader(FrameHeader const& header) {
+Error ChannelProcessor::ValidateGoAwayHeader(FrameHeader const& header) {
   if (header.stream_id() != 0) {
-    return ConnectionError::kProtocolError;
+    return ConnectionError(ErrorCode::kProtocolError);
   }
   if (header.length() < sizeof(GoAwayPayload)) {
-    return ConnectionError::kFrameSizeError;
+    return ConnectionError(ErrorCode::kFrameSizeError);
   }
-  return ConnectionError::kNoError;
+  return NoError();
 }
 
-ConnectionError ChannelProcessor::ValidateWindowUpdateHeader(FrameHeader const& header) {
+Error ChannelProcessor::ValidateWindowUpdateHeader(FrameHeader const& header) {
   if (header.length() != sizeof(WindowUpdatePayload)) {
-    return ConnectionError::kFrameSizeError;
+    return ConnectionError(ErrorCode::kFrameSizeError);
   }
-  return ConnectionError::kNoError;
+  return NoError();
 }
 
-ConnectionError ChannelProcessor::ValidateContinuationHeaderLocked(
-    uint32_t const stream_id, FrameHeader const& header) const {
-  if (header.stream_id() != stream_id) {
-    return ConnectionError::kProtocolError;
-  }
-  auto const it = streams_.find(stream_id);
-  if (it == streams_.end() || !(*it)->receiving_fields) {
-    return ConnectionError::kInternalError;
-  }
-  return ConnectionError::kNoError;
-}
-
-ConnectionError ChannelProcessor::ValidateFrameHeaderLocked(FrameHeader const& header) const {
+Error ChannelProcessor::ValidateFrameHeaderLocked(FrameHeader const& header) const {
   auto const length = header.length();
   if (length > max_frame_payload_size_) {
-    return ConnectionError::kFrameSizeError;
+    return ConnectionError(ErrorCode::kFrameSizeError);
   }
   switch (header.frame_type()) {
     case FrameType::kData:
@@ -528,15 +504,15 @@ ConnectionError ChannelProcessor::ValidateFrameHeaderLocked(FrameHeader const& h
     case FrameType::kWindowUpdate:
       return ValidateWindowUpdateHeader(header);
     case FrameType::kContinuation:  // NOLINT(bugprone-branch-clone)
-      // NOTE: proper CONTINUATION frames are handled inside the processing of HEADERS frames, so
-      // if we end up here we can assume it's a protocol error.
-      return ConnectionError::kProtocolError;
+      // NOTE: proper CONTINUATION frames are handled inside the processing of HEADERS and
+      // PUSH_PROMISE frames, so if we end up here we can assume it's a protocol error.
+      return ConnectionError(ErrorCode::kProtocolError);
     default:
-      return ConnectionError::kProtocolError;
+      return ConnectionError(ErrorCode::kProtocolError);
   }
 }
 
-void ChannelProcessor::ProcessDataFrame(FrameHeader const& header, Buffer const payload) {
+void ChannelProcessor::ProcessDataFrame(FrameHeader const& header, Buffer payload) {
   size_t offset = 0;
   size_t pad_length = 0;
   auto const flags = header.flags();
@@ -546,33 +522,56 @@ void ChannelProcessor::ProcessDataFrame(FrameHeader const& header, Buffer const 
   }
   auto const length = header.length();
   if (offset + pad_length > length) {
-    return GoAway(ConnectionError::kFrameSizeError);
+    return GoAway(ErrorCode::kFrameSizeError);
   }
-  auto const span = payload.span(offset, length - offset - pad_length);
+  Buffer data;
+  if (offset > 0 || pad_length > 0) {
+    data = Buffer(payload.span(offset, length - offset - pad_length));
+  } else {
+    data = std::move(payload);
+  }
+  bool const end_of_stream = (flags & kFlagEndStream) != 0;
   auto const stream_id = header.stream_id();
-  absl::MutexLock lock{&mutex_};
-  auto& stream = GetOrCreateStreamLocked(stream_id);
-  if (stream.state != StreamState::kOpen && stream.state != StreamState::kHalfClosedLocal) {
-    stream.state = StreamState::kClosed;
-    return ResetStreamLocked(stream_id, ConnectionError::kStreamClosed);
+  absl::ReleasableMutexLock lock{&mutex_};
+  auto const status_or_stream = GetOrCreateStreamLocked(stream_id);
+  if (!status_or_stream.ok()) {
+    return;
   }
-  if ((flags & kFlagEndStream) != 0) {
-    switch (stream.state) {
-      case StreamState::kOpen:
-        stream.state = StreamState::kHalfClosedRemote;
-        break;
-      case StreamState::kHalfClosedLocal:
-        stream.state = StreamState::kClosed;
-        break;
-      default:
-        stream.state = StreamState::kClosed;
-        return ResetStreamLocked(stream_id, ConnectionError::kStreamClosed);
+  auto* const stream = status_or_stream.value();
+  auto const error = stream->ProcessData(std::move(data), end_of_stream);
+  if (!error.ok()) {
+    if (error.type() == ErrorType::kConnectionError) {
+      GoAwayNowLocked(error.code());
+    } else {
+      lock.Release();
+      write_queue_.AppendResetStreamFrame(stream_id, error.code());
     }
   }
-  stream.data.Append(Buffer(span));
 }
 
-void ChannelProcessor::ProcessHeadersFrame(FrameHeader const& header, Buffer const payload) {
+void ChannelProcessor::ProcessFieldBlock(uint32_t const stream_id, Buffer field_block) {
+  absl::ReleasableMutexLock lock{&mutex_};
+  auto status_or_fields = field_decoder_.Decode(field_block.span());
+  if (!status_or_fields.ok()) {
+    return GoAwayNowLocked(ErrorCode::kCompressionError);
+  }
+  auto const status_or_stream = GetOrCreateStreamLocked(stream_id);
+  if (!status_or_stream.ok()) {
+    return;
+  }
+  auto* const stream = status_or_stream.value();
+  auto const error = stream->ProcessFields(std::move(status_or_fields).value());
+  if (!error.ok()) {
+    if (error.type() == ErrorType::kConnectionError) {
+      GoAwayNowLocked(error.code());
+    } else {
+      lock.Release();
+      write_queue_.AppendResetStreamFrame(stream_id, error.code());
+    }
+  }
+}
+
+void ChannelProcessor::ProcessHeadersFrame(FrameHeader const& header, Buffer payload) {
   size_t offset = 0;
   size_t pad_length = 0;
   auto const flags = header.flags();
@@ -585,106 +584,95 @@ void ChannelProcessor::ProcessHeadersFrame(FrameHeader const& header, Buffer con
   }
   auto const length = header.length();
   if (offset + pad_length > length) {
-    GoAway(ConnectionError::kFrameSizeError);
-    return parent_->ReadNextFrame();
+    return GoAwayNow(ErrorCode::kFrameSizeError);
   }
-  auto const span = payload.span(offset, length - offset - pad_length);
   auto const stream_id = header.stream_id();
-  absl::ReleasableMutexLock lock{&mutex_};
-  auto& stream = GetOrCreateStreamLocked(stream_id);
-  if ((stream.state != StreamState::kIdle && stream.state != StreamState::kReservedRemote) ||
-      stream.receiving_fields) {
-    stream.state = StreamState::kClosed;
-    switch (stream.state) {
-      case StreamState::kHalfClosedRemote:
-      case StreamState::kClosed:
-        ResetStreamLocked(stream_id, ConnectionError::kStreamClosed);
-        break;
-      default:
-        ResetStreamLocked(stream_id, ConnectionError::kProtocolError);
-        break;
-    }
-    lock.Release();
-    return parent_->ReadNextFrame();
-  }
-  stream.receiving_fields = true;
+  Cord field_block{Buffer(payload.span(offset, length - offset - pad_length))};
   if ((flags & kFlagEndHeaders) != 0) {
-    switch (stream.state) {
-      case StreamState::kIdle:
-        stream.state = StreamState::kOpen;
-        break;
-      case StreamState::kReservedRemote:
-        stream.state = StreamState::kHalfClosedLocal;
-        break;
-      default:
-        // Nothing to do for other states here.
-        break;
-    }
-    stream.receiving_fields = false;
-    auto status_or_fields = field_decoder_.Decode(span);
-    if (status_or_fields.ok()) {
-      OnFields(stream_id, FlattenFields(std::move(status_or_fields).value()));
-    } else {
-      stream.state = StreamState::kClosed;
-      ResetStreamLocked(stream_id, ConnectionError::kCompressionError);
-    }
-    lock.Release();
-    parent_->ReadNextFrame();
+    ProcessFieldBlock(stream_id, std::move(field_block).Flatten());
+    parent_->Continue();
   } else {
-    stream.field_block.clear();
-    stream.field_block.reserve(span.size());
-    stream.field_block.insert(stream.field_block.end(), span.begin(), span.end());
-    lock.Release();
-    parent_->ReadContinuationFrame(stream_id);
+    parent_->ReadContinuationFrame(
+        stream_id, absl::bind_front(&ChannelProcessor::ProcessContinuationFrame, this, stream_id,
+                                    std::move(field_block)));
+  }
+}
+
+void ChannelProcessor::ProcessContinuationFrame(uint32_t const stream_id, Cord field_block,
+                                                FrameHeader const& header, Buffer payload) {
+  field_block.Append(std::move(payload));
+  if ((header.flags() & kFlagEndHeaders) != 0) {
+    ProcessFieldBlock(stream_id, std::move(field_block).Flatten());
+    parent_->Continue();
+  } else {
+    parent_->ReadContinuationFrame(
+        stream_id, absl::bind_front(&ChannelProcessor::ProcessContinuationFrame, this, stream_id,
+                                    std::move(field_block)));
   }
 }
 
 void ChannelProcessor::ProcessResetStreamFrame(FrameHeader const& header) {
   absl::MutexLock lock{&mutex_};
-  auto& stream = GetOrCreateStreamLocked(header.stream_id());
-  stream.state = StreamState::kClosed;
+  auto const status_or_stream = GetOrCreateStreamLocked(header.stream_id());
+  if (status_or_stream.ok()) {
+    auto* const stream = status_or_stream.value();
+    stream->ProcessReset();
+  }
 }
 
-void ChannelProcessor::ProcessSettingsFrame(FrameHeader const& header, Buffer const payload) {
+void ChannelProcessor::ProcessSettingsFrame(FrameHeader const& header, Buffer const& payload) {
   if ((header.flags() & kFlagAck) == 0) {
-    AckSettings();
+    write_queue_.AppendSettingsAckFrame();
   }
 }
 
 void ChannelProcessor::ProcessPushPromiseFrame(FrameHeader const& header) {
   auto const stream_id = header.stream_id();
-  absl::MutexLock lock{&mutex_};
-  auto& stream = GetOrCreateStreamLocked(stream_id);
-  if (stream.state != StreamState::kIdle) {
-    return ResetStreamLocked(stream_id, ConnectionError::kProtocolError);
+  absl::ReleasableMutexLock lock{&mutex_};
+  auto const status_or_stream = GetOrCreateStreamLocked(stream_id);
+  if (!status_or_stream.ok()) {
+    return;
   }
-  stream.state = StreamState::kReservedRemote;
+  auto* const stream = status_or_stream.value();
+  auto const error = stream->ProcessPushPromise();
+  if (!error.ok()) {
+    if (error.type() == ErrorType::kConnectionError) {
+      GoAwayNowLocked(error.code());
+    } else {
+      lock.Release();
+      write_queue_.AppendResetStreamFrame(stream_id, error.code());
+    }
+  }
 }
 
-void ChannelProcessor::ProcessPingFrame(FrameHeader const& header, Buffer const payload) {
+void ChannelProcessor::ProcessPingFrame(FrameHeader const& header, Buffer const& payload) {
   if ((header.flags() & kFlagAck) != 0) {
-    GoAway(ConnectionError::kProtocolError);
+    GoAwayNow(ErrorCode::kProtocolError);
   } else {
-    write_queue_.AppendFrameSkippingQueue(MakePingFrame(/*ack=*/true, std::move(payload)));
+    write_queue_.AppendPingAckFrame(payload);
   }
 }
 
-void ChannelProcessor::ProcessGoAwayFrame(FrameHeader const& header, Buffer const payload) {
+void ChannelProcessor::ProcessGoAwayFrame(FrameHeader const& header, Buffer payload) {
   absl::MutexLock lock{&mutex_};
   if (going_away_) {
     parent_->CloseConnection();
   } else {
-    GoAwayLocked(payload.as<GoAwayPayload>().error_code());
+    GoAwayNowLocked(payload.as<GoAwayPayload>().error_code());
   }
 }
 
-void ChannelProcessor::ProcessWindowUpdateFrame(FrameHeader const& header, Buffer const buffer) {
+void ChannelProcessor::ProcessWindowUpdateFrame(FrameHeader const& header, Buffer buffer) {
   auto const& payload = buffer.as<WindowUpdatePayload>();
   absl::MutexLock lock{&mutex_};
   if (payload.window_size_increment() == 0) {
-    return GoAwayLocked(ConnectionError::kProtocolError);
+    return GoAwayNowLocked(ErrorCode::kProtocolError);
   }
   // TODO
+}
+
+absl::StatusOr<Handler*> ChannelProcessor::GetHandler(std::string_view const path) const {
+  return parent_->GetHandler(path);
 }
 
 }  // namespace http

@@ -9,7 +9,10 @@
       "type": "lldb-dap",
       "request": "launch",
       "program": "${fileWorkspaceFolder}/bazel-bin/${relativeFileDirname}/${fileBasenameNoExtension}",
-      "args": [],
+      "args": [
+        "--port=8080",
+        "--http2_io_timeout=1h",
+      ],
       "cwd": "${fileWorkspaceFolder}",
       "sourceMap": [
         [

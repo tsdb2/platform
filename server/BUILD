@@ -121,12 +121,51 @@ cc_library(
 )
 
 cc_library(
+    name = "healthz",
+    srcs = ["healthz.cc"],
+    hdrs = ["healthz.h"],
+    deps = [
+        "//common:no_destructor",
+        "//common:singleton",
+        "//common:utilities",
+        "//http",
+        "//http:default_server",
+        "//http:handlers",
+        "//io:buffer",
+        "//server:base_module",
+        "//server:init_tsdb2",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/functional:any_invocable",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/synchronization",
+    ],
+    alwayslink = True,
+)
+
+cc_test(
+    name = "healthz_test",
+    srcs = ["healthz_test.cc"],
+    deps = [
+        ":healthz",
+        ":testing",
+        "//common:scoped_override",
+        "//common:singleton",
+        "//common:testing",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "testing",
     testonly = True,
     hdrs = ["testing.h"],
     deps = [
         ":init_tsdb2",
         "//common:testing",
+        "@com_google_absl//absl/flags:reflection",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -141,6 +180,7 @@ cc_binary(
     deps = [
         ":envz",  # build_cleaner: keep
         ":flagz",  # build_cleaner: keep
+        ":healthz",  # build_cleaner: keep
         ":init_tsdb2",
         ":statusz",  # build_cleaner: keep
         "//http:default_server",

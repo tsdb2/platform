@@ -39,7 +39,7 @@ std::vector<std::pair<std::string, std::string>> GetSortedEntries() {
 void FlagzHandler::operator()(tsdb2::http::StreamInterface *const stream,
                               tsdb2::http::Request const &request) {
   if (request.method != tsdb2::http::Method::kGet) {
-    return stream->SendFields(
+    return stream->SendFieldsOrLog(
         {{":status", absl::StrCat(tsdb2::util::to_underlying(tsdb2::http::Status::k405))}},
         /*end_stream=*/true);
   }
@@ -52,15 +52,14 @@ void FlagzHandler::operator()(tsdb2::http::StreamInterface *const stream,
   }
   std::string const content = absl::StrJoin(rows, "");
 
-  stream->SendFields(
+  stream->SendResponseOrLog(
       {
           {":status", absl::StrCat(tsdb2::util::to_underlying(tsdb2::http::Status::k200))},
           {"content-type", "text/plain"},
           {"content-disposition", "inline"},
           {"content-length", absl::StrCat(content.size())},
       },
-      /*end_stream=*/false);
-  stream->SendData(tsdb2::io::Buffer(content.data(), content.size()), /*end_stream=*/true);
+      tsdb2::io::Buffer(content.data(), content.size()));
 }
 
 class FlagzModule : public tsdb2::init::BaseModule {

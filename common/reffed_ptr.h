@@ -151,6 +151,9 @@ class reffed_ptr final {
   //
   // WARNING: this function doesn't check the actual type of the pointed value in any way.
   // Downcasting to an incorrect type will result in undefined behavior.
+  //
+  // NOTE: we use `reinterpret_cast` rather than `dynamic_cast` because the latter requires the base
+  // class to be polymorphic (i.e. it needs to have a vtable), which we can't assume.
   template <typename U, std::enable_if_t<std::is_base_of_v<T, U>, bool> = true>
   reffed_ptr<U> downcast() const& {
     return reffed_ptr<U>(reinterpret_cast<U*>(ptr_));
@@ -162,6 +165,9 @@ class reffed_ptr final {
   //
   // WARNING: this function doesn't check the actual type of the pointed value in any way.
   // Downcasting to an incorrect type will result in undefined behavior.
+  //
+  // NOTE: we use `reinterpret_cast` rather than `dynamic_cast` because the latter requires the base
+  // class to be polymorphic (i.e. it needs to have a vtable), which we can't assume.
   template <typename U, std::enable_if_t<std::is_base_of_v<T, U>, bool> = true>
   reffed_ptr<U> downcast() && {
     U* const ptr = reinterpret_cast<U*>(ptr_);

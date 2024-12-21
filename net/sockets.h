@@ -53,18 +53,40 @@ namespace net {
 //         }
 //       });
 //
+//
 // While client-side sockets can be constructed as follows:
 //
-//   auto const socket = Socket::Create(
-//       kInetSocketTag, "www.example.com", 80, [](absl::Status connect_status) {
-//         if (!connect_status.ok()) {
-//           // Connection to the provided address/port failed.
-//         } else {
+//   auto const status_or_socket = Socket::Create(
+//       kInetSocketTag, "www.example.com", 80, SocketOptions(),
+//       [](reffed_ptr<Socket> socket, absl::Status const connect_status) {
+//         if (connect_status.ok()) {
 //           // We can start reading and writing.
+//         } else {
+//           // Connection to the provided address/port failed.
 //         }
 //       });
+//   if (!status_or_socket.ok()) {
+//     // An error occurred.
+//   }
+//
 //
 // WARNING: unencrypted TCP/IP connections are not recommended. Prefer using `SSLSocket` instead.
+// The mainly intended use case for raw sockets is IPC via Unix Domain Sockets (UDS). You can create
+// a UDS socket as in the following example:
+//
+//   auto const status_or_socket = Socket::Create(
+//       kUnixDomainSocketTag, "/tmp/foo.sock",
+//       [](reffed_ptr<Socket> socket, absl::Status const connect_status) {
+//         if (connect_status.ok()) {
+//           // We can start reading and writing.
+//         } else {
+//           // Connection to the provided address/port failed.
+//         }
+//       });
+//   if (!status_or_socket.ok()) {
+//     // An error occurred.
+//   }
+//
 //
 // The I/O model of `Socket` is fully asynchronous, but keep in mind that only one read operation at
 // a time and only one write operation at a time are supported. It's okay to issue a read and a

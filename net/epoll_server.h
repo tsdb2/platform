@@ -198,10 +198,9 @@ class EpollServer final {
   // the signal handler knows what `EpollServer` instance it's stopping, write a state machine to
   // manage all the possible states, etc.)
   //
-  // Not being able to destroy a `EpollServer` is not a big deal because a server can't be very
-  // useful if it's completely deaf / can't accept connections, so we simply forbid destruction so
-  // that the workers can keep running indefinitely and we avoid all the aforementioned
-  // complexities.
+  // Not being able to destroy an `EpollServer` is not a big deal because a server can't be very
+  // useful if it's completely deaf, so we simply forbid destruction so that the workers can keep
+  // running indefinitely and we avoid all the aforementioned complexities.
   ~EpollServer() = delete;
 
   // Adds a target to the `EpollServer`, registering its file descriptor in the underlying epoll.

@@ -7,9 +7,13 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//common:flat_map",
+        "//common:no_destructor",
         "//common:utilities",
+        "//server:base_module",
+        "//server:init_tsdb2",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/time",
     ],
 )
@@ -47,6 +51,7 @@ cc_library(
         "//common:utilities",
         "//io:buffer",
         "//io:cord",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -72,7 +77,10 @@ cc_library(
     srcs = ["write_queue.cc"],
     hdrs = ["write_queue.h"],
     deps = [
+        ":hpack",
         ":http",
+        "//io:buffer",
+        "//io:cord",
         "//net:base_sockets",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/functional:any_invocable",
@@ -86,6 +94,8 @@ cc_test(
     name = "write_queue_test",
     srcs = ["write_queue_test.cc"],
     deps = [
+        ":hpack",
+        ":http",
         ":write_queue",
         "//common:mock_clock",
         "//common:reffed_ptr",
@@ -98,6 +108,7 @@ cc_test(
         "//net:ssl_sockets",
         "//net:ssl_testing",
         "//server:testing",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
@@ -109,12 +120,19 @@ cc_test(
 
 cc_library(
     name = "handlers",
+    srcs = ["handlers.cc"],
     hdrs = ["handlers.h"],
     visibility = ["//visibility:public"],
     deps = [
         ":hpack",
         ":http",
+        "//common:utilities",
+        "//io:cord",
         "//net:base_sockets",
+        "@com_google_absl//absl/functional:any_invocable",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 
@@ -136,6 +154,7 @@ cc_library(
         "//common:simple_condition",
         "//common:trie_map",
         "//common:utilities",
+        "//io:buffer",
         "//io:cord",
         "//net:base_sockets",
         "//net:epoll_server",
@@ -190,6 +209,7 @@ cc_test(
         "//net:ssl_sockets",
         "//net:ssl_testing",
         "//server:testing",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
