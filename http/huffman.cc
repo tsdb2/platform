@@ -353,7 +353,7 @@ std::string HuffmanCode::Decode(absl::Span<uint8_t const> const data) {
       if (node < 1) {
         int16_t const label = -node;
         if (label < 256) {
-          result += static_cast<char>(label);
+          result += static_cast<uint8_t>(label);
           node = 0;
         } else {
           return result;
