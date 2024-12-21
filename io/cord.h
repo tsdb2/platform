@@ -18,9 +18,7 @@ class Cord {
             std::enable_if_t<std::conjunction_v<std::is_same<Args, Buffer>...>, bool> = true>
   explicit Cord(Args... pieces) {
     pieces_.reserve(sizeof...(pieces));
-    size_t offset = 0;
-    size_t size;
-    ((size = pieces.size(), pieces_.emplace_back(offset, std::move(pieces)), offset += size), ...);
+    (Append(std::move(pieces)), ...);
   }
 
   ~Cord() = default;
@@ -32,6 +30,7 @@ class Cord {
   friend void swap(Cord &lhs, Cord &rhs) noexcept { lhs.swap(rhs); }
 
   size_t size() const;
+  [[nodiscard]] bool empty() const { return pieces_.empty(); }
 
   uint8_t &at(size_t const index) {
     auto &[offset, buffer] = GetPieceForIndex(index);

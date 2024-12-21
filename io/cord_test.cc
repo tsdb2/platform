@@ -14,13 +14,18 @@ using ::tsdb2::io::Buffer;
 using ::tsdb2::io::Cord;
 using ::tsdb2::testing::io::BufferAsString;
 
-TEST(CordTest, Empty) { EXPECT_EQ(Cord().size(), 0); }
+TEST(CordTest, Empty) {
+  Cord cord;
+  EXPECT_EQ(cord.size(), 0);
+  EXPECT_TRUE(cord.empty());
+}
 
 TEST(CordTest, OnePiece) {
   std::string_view constexpr kData = "abcde";
   Buffer buffer{kData.data(), kData.size()};
   Cord cord{std::move(buffer)};
   EXPECT_EQ(cord.size(), kData.size());
+  EXPECT_FALSE(cord.empty());
   EXPECT_EQ(cord.at(0), 'a');
   EXPECT_EQ(cord.at(1), 'b');
   EXPECT_EQ(cord.at(2), 'c');
@@ -29,12 +34,21 @@ TEST(CordTest, OnePiece) {
   EXPECT_THAT(std::move(cord).Flatten(), BufferAsString(kData));
 }
 
+TEST(CordTest, OneEmptyPiece) {
+  Buffer buffer;
+  Cord cord{std::move(buffer)};
+  EXPECT_EQ(cord.size(), 0);
+  EXPECT_TRUE(cord.empty());
+  EXPECT_THAT(std::move(cord).Flatten(), BufferAsString(""));
+}
+
 TEST(CordTest, OnePieceWithSpareCapacity) {
   std::string_view constexpr kData = "abcde";
   Buffer buffer{kData.size() * 2};
   buffer.MemCpy(kData.data(), kData.size());
   Cord cord{std::move(buffer)};
   EXPECT_EQ(cord.size(), kData.size());
+  EXPECT_FALSE(cord.empty());
   EXPECT_EQ(cord.at(0), 'a');
   EXPECT_EQ(cord.at(1), 'b');
   EXPECT_EQ(cord.at(2), 'c');
@@ -49,6 +63,7 @@ TEST(CordTest, TwoPieces) {
   Buffer buffer2{kData.data(), kData.size()};
   Cord cord{std::move(buffer1), std::move(buffer2)};
   EXPECT_EQ(cord.size(), kData.size() * 2);
+  EXPECT_FALSE(cord.empty());
   EXPECT_EQ(cord.at(0), 'a');
   EXPECT_EQ(cord.at(1), 'b');
   EXPECT_EQ(cord.at(2), 'c');
@@ -70,6 +85,7 @@ TEST(CordTest, TwoPiecesWithSpareCapacities) {
   buffer2.MemCpy(kData.data(), kData.size());
   Cord cord{std::move(buffer1), std::move(buffer2)};
   EXPECT_EQ(cord.size(), kData.size() * 2);
+  EXPECT_FALSE(cord.empty());
   EXPECT_EQ(cord.at(0), 'a');
   EXPECT_EQ(cord.at(1), 'b');
   EXPECT_EQ(cord.at(2), 'c');
@@ -92,6 +108,7 @@ TEST(CordTest, ThreePieces) {
   Buffer buffer3{kData3.data(), kData3.size()};
   Cord cord{std::move(buffer1), std::move(buffer2), std::move(buffer3)};
   EXPECT_EQ(cord.size(), kData1.size() + kData2.size() + kData3.size());
+  EXPECT_FALSE(cord.empty());
   EXPECT_EQ(cord.at(0), 'a');
   EXPECT_EQ(cord.at(1), 'b');
   EXPECT_EQ(cord.at(2), 'c');
@@ -119,6 +136,7 @@ TEST(CordTest, ThreePiecesWithSpareCapacities) {
   buffer3.MemCpy(kData3.data(), kData3.size());
   Cord cord{std::move(buffer1), std::move(buffer2), std::move(buffer3)};
   EXPECT_EQ(cord.size(), kData1.size() + kData2.size() + kData3.size());
+  EXPECT_FALSE(cord.empty());
   EXPECT_EQ(cord.at(0), 'a');
   EXPECT_EQ(cord.at(1), 'b');
   EXPECT_EQ(cord.at(2), 'c');
@@ -141,12 +159,23 @@ TEST(CordTest, AppendFirstBuffer) {
   ASSERT_EQ(cord.size(), 0);
   cord.Append(std::move(buffer));
   EXPECT_EQ(cord.size(), kData.size());
+  EXPECT_FALSE(cord.empty());
   EXPECT_EQ(cord.at(0), 'a');
   EXPECT_EQ(cord.at(1), 'b');
   EXPECT_EQ(cord.at(2), 'c');
   EXPECT_EQ(cord.at(3), 'd');
   EXPECT_EQ(cord.at(4), 'e');
   EXPECT_THAT(std::move(cord).Flatten(), BufferAsString(kData));
+}
+
+TEST(CordTest, AppendEmptyBuffer) {
+  Buffer buffer;
+  Cord cord;
+  ASSERT_EQ(cord.size(), 0);
+  cord.Append(std::move(buffer));
+  EXPECT_EQ(cord.size(), 0);
+  EXPECT_TRUE(cord.empty());
+  EXPECT_THAT(std::move(cord).Flatten(), BufferAsString(""));
 }
 
 TEST(CordTest, AppendBuffer) {
@@ -163,6 +192,7 @@ TEST(CordTest, AppendBuffer) {
   buffer3.MemCpy(kData3.data(), kData3.size());
   cord.Append(std::move(buffer3));
   EXPECT_EQ(cord.size(), kData1.size() + kData2.size() + kData3.size());
+  EXPECT_FALSE(cord.empty());
   EXPECT_EQ(cord.at(0), 'a');
   EXPECT_EQ(cord.at(1), 'b');
   EXPECT_EQ(cord.at(2), 'c');
@@ -176,6 +206,23 @@ TEST(CordTest, AppendBuffer) {
   EXPECT_EQ(cord.at(10), 'i');
   EXPECT_EQ(cord.at(11), 'j');
   EXPECT_THAT(std::move(cord).Flatten(), BufferAsString("abcdedefghij"));
+}
+
+TEST(CordTest, AppendAnotherEmptyBuffer) {
+  std::string_view constexpr kData = "abcde";
+  Buffer buffer{6};
+  buffer.MemCpy(kData.data(), kData.size());
+  Cord cord{std::move(buffer)};
+  ASSERT_EQ(cord.size(), kData.size());
+  cord.Append(Buffer());
+  EXPECT_EQ(cord.size(), kData.size());
+  EXPECT_FALSE(cord.empty());
+  EXPECT_EQ(cord.at(0), 'a');
+  EXPECT_EQ(cord.at(1), 'b');
+  EXPECT_EQ(cord.at(2), 'c');
+  EXPECT_EQ(cord.at(3), 'd');
+  EXPECT_EQ(cord.at(4), 'e');
+  EXPECT_THAT(std::move(cord).Flatten(), BufferAsString(kData));
 }
 
 TEST(CordTest, AppendCord) {
@@ -197,6 +244,7 @@ TEST(CordTest, AppendCord) {
   ASSERT_EQ(cord2.size(), kData3.size() + kData4.size());
   cord1.Append(std::move(cord2));
   EXPECT_EQ(cord1.size(), kData1.size() + kData2.size() + kData3.size() + kData4.size());
+  EXPECT_FALSE(cord1.empty());
   EXPECT_EQ(cord1.at(0), 'a');
   EXPECT_EQ(cord1.at(1), 'b');
   EXPECT_EQ(cord1.at(2), 'c');
@@ -221,6 +269,7 @@ TEST(CordTest, MoveConstruct) {
   Cord cord1{std::move(buffer)};
   Cord cord2{std::move(cord1)};
   EXPECT_EQ(cord2.size(), kData.size());
+  EXPECT_FALSE(cord2.empty());
   EXPECT_EQ(cord2.at(0), 'a');
   EXPECT_EQ(cord2.at(1), 'b');
   EXPECT_EQ(cord2.at(2), 'c');
@@ -236,12 +285,28 @@ TEST(CordTest, MoveAssign) {
   Cord cord2;
   cord2 = std::move(cord1);
   EXPECT_EQ(cord2.size(), kData.size());
+  EXPECT_FALSE(cord2.empty());
   EXPECT_EQ(cord2.at(0), 'a');
   EXPECT_EQ(cord2.at(1), 'b');
   EXPECT_EQ(cord2.at(2), 'c');
   EXPECT_EQ(cord2.at(3), 'd');
   EXPECT_EQ(cord2.at(4), 'e');
   EXPECT_THAT(std::move(cord2).Flatten(), BufferAsString(kData));
+}
+
+TEST(CordTest, SelfMoveAssign) {
+  std::string_view constexpr kData = "abcde";
+  Buffer buffer{kData.data(), kData.size()};
+  Cord cord{std::move(buffer)};
+  cord = std::move(cord);  // NOLINT
+  EXPECT_EQ(cord.size(), kData.size());
+  EXPECT_FALSE(cord.empty());
+  EXPECT_EQ(cord.at(0), 'a');
+  EXPECT_EQ(cord.at(1), 'b');
+  EXPECT_EQ(cord.at(2), 'c');
+  EXPECT_EQ(cord.at(3), 'd');
+  EXPECT_EQ(cord.at(4), 'e');
+  EXPECT_THAT(std::move(cord).Flatten(), BufferAsString(kData));
 }
 
 TEST(CordTest, Swap) {
@@ -253,6 +318,7 @@ TEST(CordTest, Swap) {
   Cord cord2{std::move(buffer2)};
   cord1.swap(cord2);
   EXPECT_EQ(cord1.size(), kData2.size());
+  EXPECT_FALSE(cord1.empty());
   EXPECT_EQ(cord1.at(0), 'f');
   EXPECT_EQ(cord1.at(1), 'g');
   EXPECT_EQ(cord1.at(2), 'h');
@@ -261,11 +327,26 @@ TEST(CordTest, Swap) {
   EXPECT_EQ(cord1.at(5), 'k');
   EXPECT_THAT(std::move(cord1).Flatten(), BufferAsString(kData2));
   EXPECT_EQ(cord2.size(), kData1.size());
+  EXPECT_FALSE(cord2.empty());
   EXPECT_EQ(cord2.at(0), 'a');
   EXPECT_EQ(cord2.at(1), 'b');
   EXPECT_EQ(cord2.at(2), 'c');
   EXPECT_EQ(cord2.at(3), 'd');
   EXPECT_THAT(std::move(cord2).Flatten(), BufferAsString(kData1));
+}
+
+TEST(CordTest, SelfSwap) {
+  std::string_view constexpr kData = "abcd";
+  Buffer buffer{kData.data(), kData.size()};
+  Cord cord{std::move(buffer)};
+  cord.swap(cord);
+  EXPECT_EQ(cord.size(), kData.size());
+  EXPECT_FALSE(cord.empty());
+  EXPECT_EQ(cord.at(0), 'a');
+  EXPECT_EQ(cord.at(1), 'b');
+  EXPECT_EQ(cord.at(2), 'c');
+  EXPECT_EQ(cord.at(3), 'd');
+  EXPECT_THAT(std::move(cord).Flatten(), BufferAsString(kData));
 }
 
 TEST(CordTest, AdlSwap) {
@@ -277,6 +358,7 @@ TEST(CordTest, AdlSwap) {
   Cord cord2{std::move(buffer2)};
   swap(cord1, cord2);
   EXPECT_EQ(cord1.size(), kData2.size());
+  EXPECT_FALSE(cord1.empty());
   EXPECT_EQ(cord1.at(0), 'f');
   EXPECT_EQ(cord1.at(1), 'g');
   EXPECT_EQ(cord1.at(2), 'h');
@@ -285,6 +367,7 @@ TEST(CordTest, AdlSwap) {
   EXPECT_EQ(cord1.at(5), 'k');
   EXPECT_THAT(std::move(cord1).Flatten(), BufferAsString(kData2));
   EXPECT_EQ(cord2.size(), kData1.size());
+  EXPECT_FALSE(cord2.empty());
   EXPECT_EQ(cord2.at(0), 'a');
   EXPECT_EQ(cord2.at(1), 'b');
   EXPECT_EQ(cord2.at(2), 'c');
