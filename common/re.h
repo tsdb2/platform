@@ -207,7 +207,7 @@ class RE {
   RE(RE &&) noexcept = default;
   RE &operator=(RE &&) noexcept = default;
 
-  void swap(RE &other) noexcept { std::swap(automaton_, other.automaton_); }
+  void swap(RE &other) noexcept { automaton_.swap(other.automaton_); }
   friend void swap(RE &lhs, RE &rhs) noexcept { lhs.swap(rhs); }
 
   // Indicates whether the underlying automaton is deterministic.

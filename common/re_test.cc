@@ -118,6 +118,16 @@ TEST(RegexpTest, Copy) {
   EXPECT_TRUE(re2.Test("ipsuuum"));
 }
 
+TEST(RegexpTest, SelfCopy) {
+  auto status_or_re = RE::Create("lo+rem?");
+  ASSERT_OK(status_or_re);
+  auto& re = status_or_re.value();
+  re = re;  // NOLINT
+  EXPECT_TRUE(re.Test("lore"));
+  EXPECT_TRUE(re.Test("lorem"));
+  EXPECT_TRUE(re.Test("looorem"));
+}
+
 TEST(RegexpTest, MoveConstruct) {
   auto status_or_re = RE::Create("lo+rem?");
   ASSERT_OK(status_or_re);
@@ -144,6 +154,16 @@ TEST(RegexpTest, Move) {
   EXPECT_TRUE(re1.Test("ipsuuum"));
 }
 
+TEST(RegexpTest, SelfMove) {
+  auto status_or_re = RE::Create("ipsu*m");
+  ASSERT_OK(status_or_re);
+  auto& re = status_or_re.value();
+  re = std::move(re);  // NOLINT
+  EXPECT_TRUE(re.Test("ipsm"));
+  EXPECT_TRUE(re.Test("ipsum"));
+  EXPECT_TRUE(re.Test("ipsuuum"));
+}
+
 TEST(RegexpTest, Swap) {
   auto status_or_re1 = RE::Create("lo+rem?");
   ASSERT_OK(status_or_re1);
@@ -164,6 +184,16 @@ TEST(RegexpTest, Swap) {
   EXPECT_FALSE(re2.Test("ipsm"));
   EXPECT_FALSE(re2.Test("ipsum"));
   EXPECT_FALSE(re2.Test("ipsuuum"));
+}
+
+TEST(RegexpTest, SelfSwap) {
+  auto status_or_re = RE::Create("lo+rem?");
+  ASSERT_OK(status_or_re);
+  auto& re = status_or_re.value();
+  re.swap(re);
+  EXPECT_TRUE(re.Test("lore"));
+  EXPECT_TRUE(re.Test("lorem"));
+  EXPECT_TRUE(re.Test("looorem"));
 }
 
 TEST(RegexpTest, AdlSwap) {
