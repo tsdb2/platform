@@ -73,7 +73,7 @@ class EnvzModule : public tsdb2::init::BaseModule {
   friend class tsdb2::common::NoDestructor<EnvzModule>;
   static tsdb2::common::NoDestructor<EnvzModule> instance_;
 
-  explicit EnvzModule() : BaseModule("statusz") {
+  explicit EnvzModule() : BaseModule("envz") {
     tsdb2::init::RegisterModule(this, tsdb2::http::DefaultServerModule::Get());
   }
 };

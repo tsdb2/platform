@@ -73,7 +73,7 @@ class FlagzModule : public tsdb2::init::BaseModule {
   friend class tsdb2::common::NoDestructor<FlagzModule>;
   static tsdb2::common::NoDestructor<FlagzModule> instance_;
 
-  explicit FlagzModule() : BaseModule("statusz") {
+  explicit FlagzModule() : BaseModule("flagz") {
     tsdb2::init::RegisterModule(this, tsdb2::http::DefaultServerModule::Get());
   }
 };
