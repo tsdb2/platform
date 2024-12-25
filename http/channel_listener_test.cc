@@ -6,7 +6,7 @@
 #include "common/testing.h"
 #include "gtest/gtest.h"
 #include "http/channel.h"
-#include "http/mock_channel_manager.h"
+#include "http/testing.h"
 #include "net/base_sockets.h"
 #include "net/sockets.h"
 #include "net/testing.h"

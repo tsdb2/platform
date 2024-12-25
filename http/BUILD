@@ -175,12 +175,13 @@ cc_library(
 )
 
 cc_library(
-    name = "mock_channel_manager",
+    name = "testing",
     testonly = True,
-    hdrs = ["mock_channel_manager.h"],
+    hdrs = ["testing.h"],
     deps = [
         ":channel",
         ":handlers",
+        ":http",
         "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest",
     ],
@@ -192,8 +193,9 @@ cc_test(
     deps = [
         ":channel",
         ":handlers",
+        ":hpack",
         ":http",
-        ":mock_channel_manager",
+        ":testing",
         "//common:default_scheduler",
         "//common:mock_clock",
         "//common:reffed_ptr",
@@ -240,7 +242,7 @@ cc_test(
     deps = [
         ":channel",
         ":channel_listener",
-        ":mock_channel_manager",
+        ":testing",
         "//common:reffed_ptr",
         "//common:testing",
         "//net:base_sockets",

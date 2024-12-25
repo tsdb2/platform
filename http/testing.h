@@ -1,5 +1,5 @@
-#ifndef __TSDB2_HTTP_MOCK_CHANNEL_MANAGER_H__
-#define __TSDB2_HTTP_MOCK_CHANNEL_MANAGER_H__
+#ifndef __TSDB2_HTTP_TESTING_H__
+#define __TSDB2_HTTP_TESTING_H__
 
 #include <string_view>
 
@@ -7,10 +7,21 @@
 #include "gmock/gmock.h"
 #include "http/channel.h"
 #include "http/handlers.h"
+#include "http/http.h"
 
 namespace tsdb2 {
 namespace testing {
 namespace http {
+
+class MockHandler : public tsdb2::http::Handler {
+ public:
+  MOCK_METHOD(void, Run, (tsdb2::http::StreamInterface*, tsdb2::http::Request const&));
+
+  inline void operator()(tsdb2::http::StreamInterface* const stream,
+                         tsdb2::http::Request const& request) override {
+    Run(stream, request);
+  }
+};
 
 class MockChannelManager : public tsdb2::http::ChannelManager {
  public:
@@ -22,4 +33,4 @@ class MockChannelManager : public tsdb2::http::ChannelManager {
 }  // namespace testing
 }  // namespace tsdb2
 
-#endif  // __TSDB2_HTTP_MOCK_CHANNEL_MANAGER_H__
+#endif  // __TSDB2_HTTP_TESTING_H__

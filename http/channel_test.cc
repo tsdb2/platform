@@ -3,7 +3,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <ostream>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 
 #include "absl/flags/flag.h"
@@ -12,6 +14,7 @@
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/synchronization/notification.h"
 #include "absl/time/time.h"
 #include "common/default_scheduler.h"
 #include "common/mock_clock.h"
@@ -25,8 +28,9 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "http/handlers.h"
+#include "http/hpack.h"
 #include "http/http.h"
-#include "http/mock_channel_manager.h"
+#include "http/testing.h"
 #include "io/buffer_testing.h"
 #include "net/base_sockets.h"
 #include "net/sockets.h"
@@ -37,13 +41,16 @@ namespace {
 
 using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;
+using ::testing::_;
 using ::testing::AllOf;
-using ::testing::AnyOf;
 using ::testing::Field;
+using ::testing::NiceMock;
 using ::testing::Not;
 using ::testing::Property;
 using ::testing::Return;
+using ::testing::StrictMock;
 using ::testing::UnorderedElementsAre;
+using ::testing::UnorderedElementsAreArray;
 using ::tsdb2::common::MockClock;
 using ::tsdb2::common::reffed_ptr;
 using ::tsdb2::common::Scheduler;
@@ -65,17 +72,113 @@ using ::tsdb2::http::kDefaultMaxDynamicHeaderTableSize;
 using ::tsdb2::http::kDefaultMaxFramePayloadSize;
 using ::tsdb2::http::kDefaultMaxHeaderListSize;
 using ::tsdb2::http::kFlagAck;
+using ::tsdb2::http::kFlagEndHeaders;
+using ::tsdb2::http::kFlagEndStream;
+using ::tsdb2::http::kFlagPadded;
+using ::tsdb2::http::kFlagPriority;
 using ::tsdb2::http::kPingPayloadSize;
+using ::tsdb2::http::Method;
 using ::tsdb2::http::PriorityPayload;
+using ::tsdb2::http::Request;
 using ::tsdb2::http::SettingsEntry;
 using ::tsdb2::http::SettingsIdentifier;
+using ::tsdb2::http::StreamInterface;
 using ::tsdb2::http::WindowUpdatePayload;
+using ::tsdb2::http::hpack::Decoder;
+using ::tsdb2::http::hpack::Encoder;
+using ::tsdb2::http::hpack::HeaderSet;
 using ::tsdb2::net::Buffer;
 using ::tsdb2::net::Socket;
 using ::tsdb2::net::SSLSocket;
 using ::tsdb2::testing::http::MockChannelManager;
+using ::tsdb2::testing::http::MockHandler;
 using ::tsdb2::testing::io::BufferAs;
 using ::tsdb2::testing::io::BufferAsArray;
+
+// This GoogleTest matcher checks that the received `absl::StatusOr` is either an error status or
+// the wrapped value matches the inner matcher. We use it to check all connection errors because the
+// specs state that the TCP connection must be closed right after sending the GOAWAY frame
+// (https://httpwg.org/specs/rfc9113.html#rfc.section.5.4.1), which is merely a best-effort attempt
+// at communicating the closure. That means the peer may or may not manage to read the GOAWAY frame,
+// so every time we expect a connection error in our test we must expect either a connection closure
+// (i.e. a read error status) or the GOAWAY frame (checked with various matchers nested inside
+// `IsNotOkOrHolds`).
+template <typename StatusOrValue>
+class IsNotOkOrHoldsImpl : public ::testing::MatcherInterface<StatusOrValue const&> {
+ public:
+  using is_gtest_matcher = void;
+
+  template <typename Inner>
+  explicit IsNotOkOrHoldsImpl(Inner&& inner)
+      : inner_(::testing::SafeMatcherCast<typename StatusOrValue::value_type>(
+            std::forward<Inner>(inner))) {}
+
+  ~IsNotOkOrHoldsImpl() = default;
+
+  void DescribeTo(std::ostream* const os) const override {
+    *os << "is an error status or it's OK and holds a value that ";
+    inner_.DescribeTo(os);
+  }
+
+  void DescribeNegationTo(std::ostream* const os) const override {
+    *os << "is OK but does doesn\'t hold a value that ";
+    inner_.DescribeTo(os);
+  }
+
+  bool MatchAndExplain(StatusOrValue const& value,
+                       ::testing::MatchResultListener* const listener) const override {
+    if (!value.ok()) {
+      *listener << "is an error status: " << value.status();
+      return true;
+    }
+    *listener << "is OK and holds a value that ";
+    return inner_.MatchAndExplain(value.value(), listener);
+  }
+
+ private:
+  IsNotOkOrHoldsImpl(IsNotOkOrHoldsImpl const&) = delete;
+  IsNotOkOrHoldsImpl& operator=(IsNotOkOrHoldsImpl const&) = delete;
+  IsNotOkOrHoldsImpl(IsNotOkOrHoldsImpl&&) = delete;
+  IsNotOkOrHoldsImpl& operator=(IsNotOkOrHoldsImpl&&) = delete;
+
+  ::testing::Matcher<typename StatusOrValue::value_type> inner_;
+};
+
+template <typename Inner>
+class IsNotOkOrHolds {
+ public:
+  explicit IsNotOkOrHolds(Inner&& inner) : inner_(std::move(inner)) {}
+
+  template <typename StatusOrValue>
+  operator ::testing::Matcher<StatusOrValue>() const {  // NOLINT(google-explicit-constructor)
+    return ::testing::Matcher<StatusOrValue>(
+        new IsNotOkOrHoldsImpl<std::decay_t<StatusOrValue>>(inner_));
+  }
+
+ private:
+  std::decay_t<Inner> inner_;
+};
+
+HeaderSet const kHeaders1{
+    {":method", "GET"},
+    {":scheme", "http"},
+    {":path", "/"},
+    {":authority", "www.example.com"},
+};
+
+HeaderSet const kHeaders2{
+    {":method", "POST"},
+    {":scheme", "http"},
+    {":path", "/foo"},
+    {":authority", "www.example.com"},
+};
+
+HeaderSet const kHeaders3{
+    {":method", "GET"},
+    {":scheme", "http"},
+    {":path", "/bar"},
+    {":authority", "www.example.com"},
+};
 
 using SocketTypes = ::testing::Types<tsdb2::net::Socket, tsdb2::net::SSLSocket>;
 
@@ -94,10 +197,10 @@ class ChannelTest : public tsdb2::testing::init::Test {
 
   absl::Status StartServer();
 
-  static absl::StatusOr<Buffer> PeerRead(reffed_ptr<Socket> const &peer, size_t length);
+  static absl::StatusOr<Buffer> PeerRead(reffed_ptr<Socket> const& peer, size_t length);
   absl::StatusOr<Buffer> PeerRead(size_t const length) { return PeerRead(peer_socket_, length); }
 
-  static absl::Status PeerWrite(reffed_ptr<Socket> const &peer, Buffer buffer);
+  static absl::Status PeerWrite(reffed_ptr<Socket> const& peer, Buffer buffer);
   absl::Status PeerWrite(Buffer buffer) { return PeerWrite(peer_socket_, std::move(buffer)); }
 
   MockClock clock_;
@@ -109,10 +212,13 @@ class ChannelTest : public tsdb2::testing::init::Test {
   ScopedOverride<Singleton<Scheduler>> scheduler_override_{&tsdb2::common::default_scheduler,
                                                            &scheduler_};
 
-  MockChannelManager manager_;
+  NiceMock<MockChannelManager> manager_;
 
   reffed_ptr<Channel<Socket>> const channel_;
   reffed_ptr<Socket> const peer_socket_;
+
+  Decoder field_decoder_;
+  Encoder field_encoder_;
 };
 
 template <typename Socket>
@@ -136,7 +242,7 @@ absl::Status ChannelTest<Socket>::StartServer() {
 }
 
 template <typename Socket>
-absl::StatusOr<Buffer> ChannelTest<Socket>::PeerRead(reffed_ptr<Socket> const &peer,
+absl::StatusOr<Buffer> ChannelTest<Socket>::PeerRead(reffed_ptr<Socket> const& peer,
                                                      size_t const length) {
   absl::Mutex mutex;
   std::optional<absl::StatusOr<Buffer>> result;
@@ -149,7 +255,7 @@ absl::StatusOr<Buffer> ChannelTest<Socket>::PeerRead(reffed_ptr<Socket> const &p
 }
 
 template <typename Socket>
-absl::Status ChannelTest<Socket>::PeerWrite(reffed_ptr<Socket> const &peer, Buffer buffer) {
+absl::Status ChannelTest<Socket>::PeerWrite(reffed_ptr<Socket> const& peer, Buffer buffer) {
   absl::Mutex mutex;
   std::optional<absl::Status> result;
   RETURN_IF_ERROR(peer->Write(std::move(buffer), [&](absl::Status status) {
@@ -230,16 +336,14 @@ TYPED_TEST(ChannelTest, FrameTooBig) {
   EXPECT_OK(this->PeerWrite(Buffer(&header, sizeof(FrameHeader))));
   EXPECT_THAT(
       this->PeerRead(sizeof(GoAwayFrame)),
-      AnyOf(
-          Not(IsOk()),
-          IsOkAndHolds(BufferAs<GoAwayFrame>(AllOf(
-              Field(&GoAwayFrame::header,
-                    AllOf(Property(&FrameHeader::length, sizeof(GoAwayPayload)),
-                          Property(&FrameHeader::frame_type, FrameType::kGoAway),
-                          Property(&FrameHeader::flags, 0), Property(&FrameHeader::stream_id, 0))),
-              Field(&GoAwayFrame::payload,
-                    AllOf(Property(&GoAwayPayload::last_stream_id, 0),
-                          Property(&GoAwayPayload::error_code, ErrorCode::kFrameSizeError))))))));
+      IsNotOkOrHolds(BufferAs<GoAwayFrame>(AllOf(
+          Field(&GoAwayFrame::header,
+                AllOf(Property(&FrameHeader::length, sizeof(GoAwayPayload)),
+                      Property(&FrameHeader::frame_type, FrameType::kGoAway),
+                      Property(&FrameHeader::flags, 0), Property(&FrameHeader::stream_id, 0))),
+          Field(&GoAwayFrame::payload,
+                AllOf(Property(&GoAwayPayload::last_stream_id, 0),
+                      Property(&GoAwayPayload::error_code, ErrorCode::kFrameSizeError)))))));
   EXPECT_FALSE(this->channel_->is_open());
 }
 
@@ -260,16 +364,14 @@ TYPED_TEST(ServerChannelTest, ValidateEmptySettingsWithoutAck) {
   ASSERT_OK(this->PeerWrite(Buffer(&header, sizeof(FrameHeader))));
   EXPECT_THAT(
       this->PeerRead(sizeof(GoAwayFrame)),
-      AnyOf(
-          Not(IsOk()),
-          IsOkAndHolds(BufferAs<GoAwayFrame>(AllOf(
-              Field(&GoAwayFrame::header,
-                    AllOf(Property(&FrameHeader::length, sizeof(GoAwayPayload)),
-                          Property(&FrameHeader::frame_type, FrameType::kGoAway),
-                          Property(&FrameHeader::flags, 0), Property(&FrameHeader::stream_id, 0))),
-              Field(&GoAwayFrame::payload,
-                    AllOf(Property(&GoAwayPayload::last_stream_id, 0),
-                          Property(&GoAwayPayload::error_code, ErrorCode::kFrameSizeError))))))));
+      IsNotOkOrHolds(BufferAs<GoAwayFrame>(AllOf(
+          Field(&GoAwayFrame::header,
+                AllOf(Property(&FrameHeader::length, sizeof(GoAwayPayload)),
+                      Property(&FrameHeader::frame_type, FrameType::kGoAway),
+                      Property(&FrameHeader::flags, 0), Property(&FrameHeader::stream_id, 0))),
+          Field(&GoAwayFrame::payload,
+                AllOf(Property(&GoAwayPayload::last_stream_id, 0),
+                      Property(&GoAwayPayload::error_code, ErrorCode::kFrameSizeError)))))));
   EXPECT_FALSE(this->channel_->is_open());
 }
 
@@ -281,19 +383,17 @@ TYPED_TEST(ServerChannelTest, ValidateSettingsAckWithPayload) {
                           .set_stream_id(0);
   ASSERT_OK(this->PeerWrite(Buffer(&header, sizeof(FrameHeader))));
   auto const payload = SettingsEntry().set_identifier(SettingsIdentifier::kEnablePush).set_value(0);
-  EXPECT_OK(this->PeerWrite(Buffer(&payload, sizeof(SettingsEntry))));
+  this->PeerWrite(Buffer(&payload, sizeof(SettingsEntry))).IgnoreError();
   EXPECT_THAT(
       this->PeerRead(sizeof(GoAwayFrame)),
-      AnyOf(
-          Not(IsOk()),
-          IsOkAndHolds(BufferAs<GoAwayFrame>(AllOf(
-              Field(&GoAwayFrame::header,
-                    AllOf(Property(&FrameHeader::length, sizeof(GoAwayPayload)),
-                          Property(&FrameHeader::frame_type, FrameType::kGoAway),
-                          Property(&FrameHeader::flags, 0), Property(&FrameHeader::stream_id, 0))),
-              Field(&GoAwayFrame::payload,
-                    AllOf(Property(&GoAwayPayload::last_stream_id, 0),
-                          Property(&GoAwayPayload::error_code, ErrorCode::kFrameSizeError))))))));
+      IsNotOkOrHolds(BufferAs<GoAwayFrame>(AllOf(
+          Field(&GoAwayFrame::header,
+                AllOf(Property(&FrameHeader::length, sizeof(GoAwayPayload)),
+                      Property(&FrameHeader::frame_type, FrameType::kGoAway),
+                      Property(&FrameHeader::flags, 0), Property(&FrameHeader::stream_id, 0))),
+          Field(&GoAwayFrame::payload,
+                AllOf(Property(&GoAwayPayload::last_stream_id, 0),
+                      Property(&GoAwayPayload::error_code, ErrorCode::kFrameSizeError)))))));
   EXPECT_FALSE(this->channel_->is_open());
 }
 
@@ -305,19 +405,17 @@ TYPED_TEST(ServerChannelTest, ValidateSettingsWithStreamId) {
                           .set_stream_id(123);
   ASSERT_OK(this->PeerWrite(Buffer(&header, sizeof(FrameHeader))));
   auto const payload = SettingsEntry().set_identifier(SettingsIdentifier::kEnablePush).set_value(0);
-  EXPECT_OK(this->PeerWrite(Buffer(&payload, sizeof(SettingsEntry))));
+  this->PeerWrite(Buffer(&payload, sizeof(SettingsEntry))).IgnoreError();
   EXPECT_THAT(
       this->PeerRead(sizeof(GoAwayFrame)),
-      AnyOf(
-          Not(IsOk()),
-          IsOkAndHolds(BufferAs<GoAwayFrame>(AllOf(
-              Field(&GoAwayFrame::header,
-                    AllOf(Property(&FrameHeader::length, sizeof(GoAwayPayload)),
-                          Property(&FrameHeader::frame_type, FrameType::kGoAway),
-                          Property(&FrameHeader::flags, 0), Property(&FrameHeader::stream_id, 0))),
-              Field(&GoAwayFrame::payload,
-                    AllOf(Property(&GoAwayPayload::last_stream_id, 0),
-                          Property(&GoAwayPayload::error_code, ErrorCode::kProtocolError))))))));
+      IsNotOkOrHolds(BufferAs<GoAwayFrame>(AllOf(
+          Field(&GoAwayFrame::header,
+                AllOf(Property(&FrameHeader::length, sizeof(GoAwayPayload)),
+                      Property(&FrameHeader::frame_type, FrameType::kGoAway),
+                      Property(&FrameHeader::flags, 0), Property(&FrameHeader::stream_id, 0))),
+          Field(&GoAwayFrame::payload,
+                AllOf(Property(&GoAwayPayload::last_stream_id, 0),
+                      Property(&GoAwayPayload::error_code, ErrorCode::kProtocolError)))))));
   EXPECT_FALSE(this->channel_->is_open());
 }
 
@@ -345,19 +443,17 @@ TYPED_TEST(ServerChannelTest, ValidatePingWithStreamId) {
                           .set_stream_id(123);
   ASSERT_OK(this->PeerWrite(Buffer(&header, sizeof(FrameHeader))));
   uint64_t const payload = 0x7110400071104000;
-  EXPECT_OK(this->PeerWrite(Buffer(&payload, kPingPayloadSize)));
+  this->PeerWrite(Buffer(&payload, kPingPayloadSize)).IgnoreError();
   EXPECT_THAT(
       this->PeerRead(sizeof(GoAwayFrame)),
-      AnyOf(
-          Not(IsOk()),
-          IsOkAndHolds(BufferAs<GoAwayFrame>(AllOf(
-              Field(&GoAwayFrame::header,
-                    AllOf(Property(&FrameHeader::length, sizeof(GoAwayPayload)),
-                          Property(&FrameHeader::frame_type, FrameType::kGoAway),
-                          Property(&FrameHeader::flags, 0), Property(&FrameHeader::stream_id, 0))),
-              Field(&GoAwayFrame::payload,
-                    AllOf(Property(&GoAwayPayload::last_stream_id, 0),
-                          Property(&GoAwayPayload::error_code, ErrorCode::kProtocolError))))))));
+      IsNotOkOrHolds(BufferAs<GoAwayFrame>(AllOf(
+          Field(&GoAwayFrame::header,
+                AllOf(Property(&FrameHeader::length, sizeof(GoAwayPayload)),
+                      Property(&FrameHeader::frame_type, FrameType::kGoAway),
+                      Property(&FrameHeader::flags, 0), Property(&FrameHeader::stream_id, 0))),
+          Field(&GoAwayFrame::payload,
+                AllOf(Property(&GoAwayPayload::last_stream_id, 0),
+                      Property(&GoAwayPayload::error_code, ErrorCode::kProtocolError)))))));
   EXPECT_FALSE(this->channel_->is_open());
 }
 
@@ -369,19 +465,17 @@ TYPED_TEST(ServerChannelTest, ValidatePingWithWrongSize) {
                           .set_stream_id(0);
   ASSERT_OK(this->PeerWrite(Buffer(&header, sizeof(FrameHeader))));
   uint64_t const payload[2] = {0x7110400071104000, 0x7110400071104000};
-  EXPECT_OK(this->PeerWrite(Buffer(payload, kPingPayloadSize * 2)));
+  this->PeerWrite(Buffer(payload, kPingPayloadSize * 2)).IgnoreError();
   EXPECT_THAT(
       this->PeerRead(sizeof(GoAwayFrame)),
-      AnyOf(
-          Not(IsOk()),
-          IsOkAndHolds(BufferAs<GoAwayFrame>(AllOf(
-              Field(&GoAwayFrame::header,
-                    AllOf(Property(&FrameHeader::length, sizeof(GoAwayPayload)),
-                          Property(&FrameHeader::frame_type, FrameType::kGoAway),
-                          Property(&FrameHeader::flags, 0), Property(&FrameHeader::stream_id, 0))),
-              Field(&GoAwayFrame::payload,
-                    AllOf(Property(&GoAwayPayload::last_stream_id, 0),
-                          Property(&GoAwayPayload::error_code, ErrorCode::kFrameSizeError))))))));
+      IsNotOkOrHolds(BufferAs<GoAwayFrame>(AllOf(
+          Field(&GoAwayFrame::header,
+                AllOf(Property(&FrameHeader::length, sizeof(GoAwayPayload)),
+                      Property(&FrameHeader::frame_type, FrameType::kGoAway),
+                      Property(&FrameHeader::flags, 0), Property(&FrameHeader::stream_id, 0))),
+          Field(&GoAwayFrame::payload,
+                AllOf(Property(&GoAwayPayload::last_stream_id, 0),
+                      Property(&GoAwayPayload::error_code, ErrorCode::kFrameSizeError)))))));
   EXPECT_FALSE(this->channel_->is_open());
 }
 
@@ -393,19 +487,17 @@ TYPED_TEST(ServerChannelTest, ValidateUnknownPingAck) {
                           .set_stream_id(0);
   ASSERT_OK(this->PeerWrite(Buffer(&header, sizeof(FrameHeader))));
   uint64_t const payload = 0x7110400071104000;
-  EXPECT_OK(this->PeerWrite(Buffer(&payload, kPingPayloadSize)));
+  this->PeerWrite(Buffer(&payload, kPingPayloadSize)).IgnoreError();
   EXPECT_THAT(
       this->PeerRead(sizeof(GoAwayFrame)),
-      AnyOf(
-          Not(IsOk()),
-          IsOkAndHolds(BufferAs<GoAwayFrame>(AllOf(
-              Field(&GoAwayFrame::header,
-                    AllOf(Property(&FrameHeader::length, sizeof(GoAwayPayload)),
-                          Property(&FrameHeader::frame_type, FrameType::kGoAway),
-                          Property(&FrameHeader::flags, 0), Property(&FrameHeader::stream_id, 0))),
-              Field(&GoAwayFrame::payload,
-                    AllOf(Property(&GoAwayPayload::last_stream_id, 0),
-                          Property(&GoAwayPayload::error_code, ErrorCode::kProtocolError))))))));
+      IsNotOkOrHolds(BufferAs<GoAwayFrame>(AllOf(
+          Field(&GoAwayFrame::header,
+                AllOf(Property(&FrameHeader::length, sizeof(GoAwayPayload)),
+                      Property(&FrameHeader::frame_type, FrameType::kGoAway),
+                      Property(&FrameHeader::flags, 0), Property(&FrameHeader::stream_id, 0))),
+          Field(&GoAwayFrame::payload,
+                AllOf(Property(&GoAwayPayload::last_stream_id, 0),
+                      Property(&GoAwayPayload::error_code, ErrorCode::kProtocolError)))))));
   EXPECT_FALSE(this->channel_->is_open());
 }
 
@@ -437,19 +529,17 @@ TYPED_TEST(ServerChannelTest, ValidateChannelLevelWindowUpdateWithWrongSize) {
   auto const payload = WindowUpdatePayload().set_window_size_increment(123);
   buffer.MemCpy(&payload, sizeof(WindowUpdatePayload));
   buffer.MemCpy(&payload, sizeof(WindowUpdatePayload));
-  EXPECT_OK(this->PeerWrite(std::move(buffer)));
+  this->PeerWrite(std::move(buffer)).IgnoreError();
   EXPECT_THAT(
       this->PeerRead(sizeof(GoAwayFrame)),
-      AnyOf(
-          Not(IsOk()),
-          IsOkAndHolds(BufferAs<GoAwayFrame>(AllOf(
-              Field(&GoAwayFrame::header,
-                    AllOf(Property(&FrameHeader::length, sizeof(GoAwayPayload)),
-                          Property(&FrameHeader::frame_type, FrameType::kGoAway),
-                          Property(&FrameHeader::flags, 0), Property(&FrameHeader::stream_id, 0))),
-              Field(&GoAwayFrame::payload,
-                    AllOf(Property(&GoAwayPayload::last_stream_id, 0),
-                          Property(&GoAwayPayload::error_code, ErrorCode::kFrameSizeError))))))));
+      IsNotOkOrHolds(BufferAs<GoAwayFrame>(AllOf(
+          Field(&GoAwayFrame::header,
+                AllOf(Property(&FrameHeader::length, sizeof(GoAwayPayload)),
+                      Property(&FrameHeader::frame_type, FrameType::kGoAway),
+                      Property(&FrameHeader::flags, 0), Property(&FrameHeader::stream_id, 0))),
+          Field(&GoAwayFrame::payload,
+                AllOf(Property(&GoAwayPayload::last_stream_id, 0),
+                      Property(&GoAwayPayload::error_code, ErrorCode::kFrameSizeError)))))));
   EXPECT_FALSE(this->channel_->is_open());
 }
 
@@ -465,16 +555,184 @@ TYPED_TEST(ServerChannelTest, GoAway) {
   EXPECT_OK(this->PeerWrite(Buffer(&payload, sizeof(GoAwayPayload))));
   EXPECT_THAT(
       this->PeerRead(sizeof(GoAwayFrame)),
-      AnyOf(
-          Not(IsOk()),
-          IsOkAndHolds(BufferAs<GoAwayFrame>(AllOf(
-              Field(&GoAwayFrame::header,
-                    AllOf(Property(&FrameHeader::length, sizeof(GoAwayPayload)),
-                          Property(&FrameHeader::frame_type, FrameType::kGoAway),
-                          Property(&FrameHeader::flags, 0), Property(&FrameHeader::stream_id, 0))),
-              Field(&GoAwayFrame::payload,
-                    AllOf(Property(&GoAwayPayload::last_stream_id, 0),
-                          Property(&GoAwayPayload::error_code, ErrorCode::kInternalError))))))));
+      IsNotOkOrHolds(BufferAs<GoAwayFrame>(AllOf(
+          Field(&GoAwayFrame::header,
+                AllOf(Property(&FrameHeader::length, sizeof(GoAwayPayload)),
+                      Property(&FrameHeader::frame_type, FrameType::kGoAway),
+                      Property(&FrameHeader::flags, 0), Property(&FrameHeader::stream_id, 0))),
+          Field(&GoAwayFrame::payload,
+                AllOf(Property(&GoAwayPayload::last_stream_id, 0),
+                      Property(&GoAwayPayload::error_code, ErrorCode::kInternalError)))))));
+  EXPECT_FALSE(this->channel_->is_open());
+}
+
+TYPED_TEST(ServerChannelTest, GetRequest) {
+  StrictMock<MockHandler> handler;
+  ON_CALL(this->manager_, GetHandler("/bar")).WillByDefault(Return(&handler));
+  Buffer encoded_headers{this->field_encoder_.Encode(kHeaders3)};
+  Buffer frame_header{&FrameHeader()
+                           .set_length(encoded_headers.size())
+                           .set_frame_type(FrameType::kHeaders)
+                           .set_flags(kFlagEndHeaders)
+                           .set_stream_id(42),
+                      sizeof(FrameHeader)};
+  absl::Notification done;
+  EXPECT_CALL(handler,
+              Run(_, AllOf(Field(&Request::method, Method::kGet), Field(&Request::path, "/bar"),
+                           Field(&Request::headers, UnorderedElementsAreArray(kHeaders3)))))
+      .Times(1)
+      .WillOnce([&done] { done.Notify(); });
+  ASSERT_OK(this->PeerWrite(std::move(frame_header)));
+  EXPECT_OK(this->PeerWrite(std::move(encoded_headers)));
+  done.WaitForNotification();
+  EXPECT_TRUE(this->channel_->is_open());
+}
+
+TYPED_TEST(ServerChannelTest, PostRequest) {
+  StrictMock<MockHandler> handler;
+  ON_CALL(this->manager_, GetHandler("/foo")).WillByDefault(Return(&handler));
+  Buffer encoded_headers = this->field_encoder_.Encode(kHeaders2);
+  Buffer frame_header{&FrameHeader()
+                           .set_length(encoded_headers.size())
+                           .set_frame_type(FrameType::kHeaders)
+                           .set_flags(kFlagEndHeaders)
+                           .set_stream_id(42),
+                      sizeof(FrameHeader)};
+  absl::Notification done;
+  EXPECT_CALL(handler,
+              Run(_, AllOf(Field(&Request::method, Method::kPost), Field(&Request::path, "/foo"),
+                           Field(&Request::headers, UnorderedElementsAreArray(kHeaders2)))))
+      .Times(1)
+      .WillOnce([&done] { done.Notify(); });
+  ASSERT_OK(this->PeerWrite(std::move(frame_header)));
+  EXPECT_OK(this->PeerWrite(std::move(encoded_headers)));
+  static std::string_view constexpr kData = "lorem ipsum";
+  Buffer data_frame{sizeof(FrameHeader) + kData.size()};
+  data_frame.MemCpy(&FrameHeader()
+                         .set_length(kData.size())
+                         .set_frame_type(FrameType::kData)
+                         .set_flags(kFlagEndStream)
+                         .set_stream_id(42),
+                    sizeof(FrameHeader));
+  data_frame.MemCpy(kData.data(), kData.size());
+  EXPECT_OK(this->PeerWrite(std::move(data_frame)));
+  done.WaitForNotification();
+  EXPECT_TRUE(this->channel_->is_open());
+}
+
+TYPED_TEST(ServerChannelTest, ValidateDataWithoutStreamId) {
+  auto const header =
+      FrameHeader().set_length(123).set_frame_type(FrameType::kData).set_flags(0).set_stream_id(0);
+  ASSERT_OK(this->PeerWrite(Buffer(&header, sizeof(FrameHeader))));
+  Buffer data{123};
+  data.Advance(123);
+  this->PeerWrite(std::move(data)).IgnoreError();
+  EXPECT_THAT(
+      this->PeerRead(sizeof(GoAwayFrame)),
+      IsNotOkOrHolds(BufferAs<GoAwayFrame>(AllOf(
+          Field(&GoAwayFrame::header,
+                AllOf(Property(&FrameHeader::length, sizeof(GoAwayPayload)),
+                      Property(&FrameHeader::frame_type, FrameType::kGoAway),
+                      Property(&FrameHeader::flags, 0), Property(&FrameHeader::stream_id, 0))),
+          Field(&GoAwayFrame::payload,
+                AllOf(Property(&GoAwayPayload::last_stream_id, 0),
+                      Property(&GoAwayPayload::error_code, ErrorCode::kProtocolError)))))));
+  EXPECT_FALSE(this->channel_->is_open());
+}
+
+TYPED_TEST(ServerChannelTest, ValidateDataWithoutPadding) {
+  Buffer encoded_headers = this->field_encoder_.Encode(kHeaders1);
+  ASSERT_OK(this->PeerWrite(Buffer(&FrameHeader()
+                                        .set_length(encoded_headers.size())
+                                        .set_frame_type(FrameType::kHeaders)
+                                        .set_flags(kFlagEndHeaders)
+                                        .set_stream_id(42),
+                                   sizeof(FrameHeader))));
+  ASSERT_OK(this->PeerWrite(std::move(encoded_headers)));
+  ASSERT_OK(this->PeerWrite(Buffer(&FrameHeader()
+                                        .set_length(0)
+                                        .set_frame_type(FrameType::kData)
+                                        .set_flags(kFlagPadded)
+                                        .set_stream_id(42),
+                                   sizeof(FrameHeader))));
+  EXPECT_THAT(
+      this->PeerRead(sizeof(GoAwayFrame)),
+      IsNotOkOrHolds(BufferAs<GoAwayFrame>(AllOf(
+          Field(&GoAwayFrame::header,
+                AllOf(Property(&FrameHeader::length, sizeof(GoAwayPayload)),
+                      Property(&FrameHeader::frame_type, FrameType::kGoAway),
+                      Property(&FrameHeader::flags, 0), Property(&FrameHeader::stream_id, 0))),
+          Field(&GoAwayFrame::payload,
+                AllOf(Property(&GoAwayPayload::last_stream_id, 0),
+                      Property(&GoAwayPayload::error_code, ErrorCode::kFrameSizeError)))))));
+  EXPECT_FALSE(this->channel_->is_open());
+}
+
+TYPED_TEST(ServerChannelTest, ValidateHeadersWithoutStreamId) {
+  auto encoded_headers = this->field_encoder_.Encode(kHeaders1);
+  auto const header = FrameHeader()
+                          .set_length(encoded_headers.size())
+                          .set_frame_type(FrameType::kHeaders)
+                          .set_flags(kFlagEndHeaders)
+                          .set_stream_id(0);
+  ASSERT_OK(this->PeerWrite(Buffer(&header, sizeof(FrameHeader))));
+  this->PeerWrite(std::move(encoded_headers)).IgnoreError();
+  EXPECT_THAT(
+      this->PeerRead(sizeof(GoAwayFrame)),
+      IsNotOkOrHolds(BufferAs<GoAwayFrame>(AllOf(
+          Field(&GoAwayFrame::header,
+                AllOf(Property(&FrameHeader::length, sizeof(GoAwayPayload)),
+                      Property(&FrameHeader::frame_type, FrameType::kGoAway),
+                      Property(&FrameHeader::flags, 0), Property(&FrameHeader::stream_id, 0))),
+          Field(&GoAwayFrame::payload,
+                AllOf(Property(&GoAwayPayload::last_stream_id, 0),
+                      Property(&GoAwayPayload::error_code, ErrorCode::kProtocolError)))))));
+  EXPECT_FALSE(this->channel_->is_open());
+}
+
+TYPED_TEST(ServerChannelTest, ValidateHeadersWithoutPriorityFields) {
+  auto const header = FrameHeader()
+                          .set_length(4)
+                          .set_frame_type(FrameType::kHeaders)
+                          .set_flags(kFlagEndHeaders | kFlagPriority)
+                          .set_stream_id(42);
+  ASSERT_OK(this->PeerWrite(Buffer(&header, sizeof(FrameHeader))));
+  Buffer payload{4};
+  payload.Advance(4);
+  this->PeerWrite(std::move(payload)).IgnoreError();
+  EXPECT_THAT(
+      this->PeerRead(sizeof(GoAwayFrame)),
+      IsNotOkOrHolds(BufferAs<GoAwayFrame>(AllOf(
+          Field(&GoAwayFrame::header,
+                AllOf(Property(&FrameHeader::length, sizeof(GoAwayPayload)),
+                      Property(&FrameHeader::frame_type, FrameType::kGoAway),
+                      Property(&FrameHeader::flags, 0), Property(&FrameHeader::stream_id, 0))),
+          Field(&GoAwayFrame::payload,
+                AllOf(Property(&GoAwayPayload::last_stream_id, 0),
+                      Property(&GoAwayPayload::error_code, ErrorCode::kFrameSizeError)))))));
+  EXPECT_FALSE(this->channel_->is_open());
+}
+
+TYPED_TEST(ServerChannelTest, ValidateHeadersWithoutPriorityAndPadding) {
+  auto const header = FrameHeader()
+                          .set_length(5)
+                          .set_frame_type(FrameType::kHeaders)
+                          .set_flags(kFlagEndHeaders | kFlagPriority | kFlagPadded)
+                          .set_stream_id(42);
+  ASSERT_OK(this->PeerWrite(Buffer(&header, sizeof(FrameHeader))));
+  Buffer payload{4};
+  payload.Advance(4);
+  this->PeerWrite(std::move(payload)).IgnoreError();
+  EXPECT_THAT(
+      this->PeerRead(sizeof(GoAwayFrame)),
+      IsNotOkOrHolds(BufferAs<GoAwayFrame>(AllOf(
+          Field(&GoAwayFrame::header,
+                AllOf(Property(&FrameHeader::length, sizeof(GoAwayPayload)),
+                      Property(&FrameHeader::frame_type, FrameType::kGoAway),
+                      Property(&FrameHeader::flags, 0), Property(&FrameHeader::stream_id, 0))),
+          Field(&GoAwayFrame::payload,
+                AllOf(Property(&GoAwayPayload::last_stream_id, 0),
+                      Property(&GoAwayPayload::error_code, ErrorCode::kFrameSizeError)))))));
   EXPECT_FALSE(this->channel_->is_open());
 }
 
@@ -489,19 +747,17 @@ TYPED_TEST(ServerChannelTest, ValidatePriorityWithoutStreamId) {
   ASSERT_OK(this->PeerWrite(Buffer(&header, sizeof(FrameHeader))));
   auto const payload =
       PriorityPayload().set_exclusive(false).set_stream_dependency(321).set_weight(42);
-  EXPECT_OK(this->PeerWrite(Buffer(&payload, sizeof(PriorityPayload))));
+  this->PeerWrite(Buffer(&payload, sizeof(PriorityPayload))).IgnoreError();
   EXPECT_THAT(
       this->PeerRead(sizeof(GoAwayFrame)),
-      AnyOf(
-          Not(IsOk()),
-          IsOkAndHolds(BufferAs<GoAwayFrame>(AllOf(
-              Field(&GoAwayFrame::header,
-                    AllOf(Property(&FrameHeader::length, sizeof(GoAwayPayload)),
-                          Property(&FrameHeader::frame_type, FrameType::kGoAway),
-                          Property(&FrameHeader::flags, 0), Property(&FrameHeader::stream_id, 0))),
-              Field(&GoAwayFrame::payload,
-                    AllOf(Property(&GoAwayPayload::last_stream_id, 0),
-                          Property(&GoAwayPayload::error_code, ErrorCode::kProtocolError))))))));
+      IsNotOkOrHolds(BufferAs<GoAwayFrame>(AllOf(
+          Field(&GoAwayFrame::header,
+                AllOf(Property(&FrameHeader::length, sizeof(GoAwayPayload)),
+                      Property(&FrameHeader::frame_type, FrameType::kGoAway),
+                      Property(&FrameHeader::flags, 0), Property(&FrameHeader::stream_id, 0))),
+          Field(&GoAwayFrame::payload,
+                AllOf(Property(&GoAwayPayload::last_stream_id, 0),
+                      Property(&GoAwayPayload::error_code, ErrorCode::kProtocolError)))))));
   EXPECT_FALSE(this->channel_->is_open());
 }
 
