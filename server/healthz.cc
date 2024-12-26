@@ -66,7 +66,8 @@ class HealthzHandler final : public tsdb2::http::Handler {
 tsdb2::common::NoDestructor<HealthzModule> HealthzModule::instance_;
 
 HealthzModule::HealthzModule() : BaseModule("healthz") {
-  tsdb2::init::RegisterModule(this, tsdb2::http::DefaultServerModule::Get());
+  tsdb2::init::RegisterModule(
+      this, tsdb2::init::ReverseDependency(tsdb2::http::DefaultServerModule::Get()));
 }
 
 absl::Status HealthzModule::Initialize() {

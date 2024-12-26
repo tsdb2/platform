@@ -18,6 +18,81 @@
 namespace tsdb2 {
 namespace init {
 
+class ModuleDependency {
+ public:
+  ModuleDependency(  // NOLINT(google-explicit-constructor)
+      BaseModule* const module)
+      : module_(module), reverse_(false) {}
+
+  explicit ModuleDependency(BaseModule* const module, bool const reverse)
+      : module_(module), reverse_(reverse) {}
+
+  bool is_reverse() const { return reverse_; }
+  BaseModule* module() const { return module_; }
+
+ private:
+  BaseModule* module_;
+  bool reverse_;
+};
+
+// Tag for direct module dependencies.
+//
+// It can be used with `tsdb2::init::RegisterModule`, but it's completely optional and often
+// omitted. It's provided only for consistency with `ReverseDependency`.
+//
+// Example:
+//
+//   class FooModule : public tsdb2::init::BaseModule {
+//    public:
+//     explicit FooModule() : BaseModule("foo") {
+//       tsdb2::init::RegisterModule(
+//           this, Dependency(BarModule::Get()), Dependency(BazModule::Get()));
+//     }
+//   };
+//
+// Equivalent to:
+//
+//   class FooModule : public tsdb2::init::BaseModule {
+//    public:
+//     explicit FooModule() : BaseModule("foo") {
+//       tsdb2::init::RegisterModule(this, BarModule::Get(), BazModule::Get());
+//     }
+//   };
+//
+inline ModuleDependency Dependency(BaseModule* const module) {
+  return ModuleDependency(module, /*reverse=*/false);
+}
+
+// Tag for reverse module dependencies.
+//
+// Reverse dependencies indicate that if a module A has a reverse dependency on module B, then B
+// depends on A.
+//
+// This tag can be used with `tsdb2::init::RegisterModule`. Example:
+//
+//   class FooModule : public tsdb2::init::BaseModule {
+//    public:
+//     explicit FooModule() : BaseModule("foo") {
+//       tsdb2::init::RegisterModule(
+//           this, Dependency(BarModule::Get()), ReverseDependency(BazModule::Get()));
+//     }
+//   };
+//
+// In the above, module `Foo` depends on `Bar` but also has a reverse dependency on module `Baz`, so
+// the full dependency graph is:
+//
+//   Baz -> Foo -> Bar
+//
+// where "A -> B" indicates "A depends on B".
+//
+// An example use case for reverse dependencies is HTTP handlers registering themselves in the
+// default HTTP server (each handler must reverse-depend on the default server module, we can't
+// declare all existing handlers as direct dependencies of the default server module because some
+// may not even be linked in).
+inline ModuleDependency ReverseDependency(BaseModule* const module) {
+  return ModuleDependency(module, /*reverse=*/true);
+}
+
 // Manages all registered modules.
 //
 // This class is thread-safe.
@@ -33,7 +108,7 @@ class ModuleManager {
   //
   // Circular dependencies are not checked at this stage; they're checked later on by
   // `InitializeModules`.
-  void RegisterModule(BaseModule* module, absl::Span<BaseModule* const> dependencies)
+  void RegisterModule(BaseModule* module, absl::Span<ModuleDependency const> dependencies)
       ABSL_LOCKS_EXCLUDED(mutex_);
 
   // Performs initialization of all registered modules respecting their dependency order. Each
@@ -51,6 +126,7 @@ class ModuleManager {
   // The unit test fixture is a friend so that it can override the singleton for testing.
   friend class InitTest;
 
+  using ModuleSet = absl::flat_hash_set<BaseModule*>;
   using DependencyMap = absl::flat_hash_map<BaseModule*, std::vector<BaseModule*>>;
 
   // Checks if there are circular dependencies. This is the implementation of
@@ -150,6 +226,8 @@ class ModuleManager {
   // Returns a unique text representation of a module with its name (used for error logging).
   static std::string GetModuleString(BaseModule* module);
 
+  void DoRegisterModule(BaseModule* module) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+
   // Checks if there are any circular dependencies across the registered modules, returning an error
   // status if one is found.
   absl::Status CheckCircularDependencies() ABSL_SHARED_LOCKS_REQUIRED(mutex_);
@@ -157,6 +235,11 @@ class ModuleManager {
   absl::Status InitializeModule(BaseModule* module) ABSL_SHARED_LOCKS_REQUIRED(mutex_);
 
   absl::Mutex mutable mutex_;
+
+  // The set of registered modules, stored here to check if a module gets registered more than once.
+  // If that does happen we check-fail because we don't want to run the same initialization code
+  // multiple times.
+  ModuleSet registered_modules_ ABSL_GUARDED_BY(mutex_);
 
   // Keeps track of module dependencies. When module A is the key of an entry in this map, and
   // modules B, C, and D is the list in the corresponding value, it means A depends on B, C, and D.

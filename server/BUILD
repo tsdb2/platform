@@ -125,6 +125,8 @@ cc_library(
     srcs = ["healthz.cc"],
     hdrs = ["healthz.h"],
     deps = [
+        ":base_module",
+        ":init_tsdb2",
         "//common:no_destructor",
         "//common:singleton",
         "//common:utilities",
@@ -132,8 +134,6 @@ cc_library(
         "//http:default_server",
         "//http:handlers",
         "//io:buffer",
-        "//server:base_module",
-        "//server:init_tsdb2",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/status",

@@ -64,7 +64,8 @@ class StatuszModule : public tsdb2::init::BaseModule {
   static tsdb2::common::NoDestructor<StatuszModule> instance_;
 
   explicit StatuszModule() : BaseModule("statusz") {
-    tsdb2::init::RegisterModule(this, tsdb2::http::DefaultServerModule::Get());
+    tsdb2::init::RegisterModule(
+        this, tsdb2::init::ReverseDependency(tsdb2::http::DefaultServerModule::Get()));
   }
 };
 

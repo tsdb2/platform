@@ -73,7 +73,8 @@ class FlagzModule : public tsdb2::init::BaseModule {
   static tsdb2::common::NoDestructor<FlagzModule> instance_;
 
   explicit FlagzModule() : BaseModule("flagz") {
-    tsdb2::init::RegisterModule(this, tsdb2::http::DefaultServerModule::Get());
+    tsdb2::init::RegisterModule(
+        this, tsdb2::init::ReverseDependency(tsdb2::http::DefaultServerModule::Get()));
   }
 };
 

@@ -25,8 +25,10 @@ using ::testing::_;
 using ::testing::InSequence;
 using ::testing::Return;
 using ::tsdb2::init::BaseModule;
+using ::tsdb2::init::Dependency;
 using ::tsdb2::init::ModuleManager;
 using ::tsdb2::init::RegisterModule;
+using ::tsdb2::init::ReverseDependency;
 
 struct InlineRegistration {};
 inline InlineRegistration constexpr kInlineRegistration;
@@ -138,6 +140,66 @@ TEST_F(InitTest, SimpleDependencyInTesting) {
   EXPECT_CALL(m1, InitializeForTesting).Times(1).WillOnce(Return(absl::OkStatus()));
   EXPECT_CALL(m2, InitializeForTesting).Times(1).WillOnce(Return(absl::OkStatus()));
   EXPECT_CALL(m1, Initialize).Times(0);
+  EXPECT_CALL(m2, Initialize).Times(0);
+  EXPECT_OK(manager_.InitializeModulesForTesting());
+}
+
+TEST_F(InitTest, ReverseDependency) {
+  MockModule m1{"test1"};
+  MockModule m2{"test2"};
+  m1.Register();
+  m2.Register(ReverseDependency(&m1));
+  InSequence s;
+  EXPECT_CALL(m2, Initialize).Times(1).WillOnce(Return(absl::OkStatus()));
+  EXPECT_CALL(m1, Initialize).Times(1).WillOnce(Return(absl::OkStatus()));
+  EXPECT_CALL(m2, InitializeForTesting).Times(0);
+  EXPECT_CALL(m1, InitializeForTesting).Times(0);
+  EXPECT_OK(manager_.InitializeModules());
+}
+
+TEST_F(InitTest, ReverseDependencyInTesting) {
+  MockModule m1{"test1"};
+  MockModule m2{"test2"};
+  m1.Register();
+  m2.Register(ReverseDependency(&m1));
+  InSequence s;
+  EXPECT_CALL(m2, InitializeForTesting).Times(1).WillOnce(Return(absl::OkStatus()));
+  EXPECT_CALL(m1, InitializeForTesting).Times(1).WillOnce(Return(absl::OkStatus()));
+  EXPECT_CALL(m2, Initialize).Times(0);
+  EXPECT_CALL(m1, Initialize).Times(0);
+  EXPECT_OK(manager_.InitializeModulesForTesting());
+}
+
+TEST_F(InitTest, DirectAndReverseDependencies) {
+  MockModule m1{"test1"};
+  MockModule m2{"test2"};
+  MockModule m3{"test3"};
+  m1.Register();
+  m2.Register();
+  m3.Register(Dependency(&m1), ReverseDependency(&m2));
+  InSequence s;
+  EXPECT_CALL(m1, Initialize).Times(1).WillOnce(Return(absl::OkStatus()));
+  EXPECT_CALL(m3, Initialize).Times(1).WillOnce(Return(absl::OkStatus()));
+  EXPECT_CALL(m2, Initialize).Times(1).WillOnce(Return(absl::OkStatus()));
+  EXPECT_CALL(m1, InitializeForTesting).Times(0);
+  EXPECT_CALL(m3, InitializeForTesting).Times(0);
+  EXPECT_CALL(m2, InitializeForTesting).Times(0);
+  EXPECT_OK(manager_.InitializeModules());
+}
+
+TEST_F(InitTest, DirectAndReverseDependenciesInTesting) {
+  MockModule m1{"test1"};
+  MockModule m2{"test2"};
+  MockModule m3{"test3"};
+  m1.Register();
+  m2.Register();
+  m3.Register(Dependency(&m1), ReverseDependency(&m2));
+  InSequence s;
+  EXPECT_CALL(m1, InitializeForTesting).Times(1).WillOnce(Return(absl::OkStatus()));
+  EXPECT_CALL(m3, InitializeForTesting).Times(1).WillOnce(Return(absl::OkStatus()));
+  EXPECT_CALL(m2, InitializeForTesting).Times(1).WillOnce(Return(absl::OkStatus()));
+  EXPECT_CALL(m1, Initialize).Times(0);
+  EXPECT_CALL(m3, Initialize).Times(0);
   EXPECT_CALL(m2, Initialize).Times(0);
   EXPECT_OK(manager_.InitializeModulesForTesting());
 }

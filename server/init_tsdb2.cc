@@ -26,7 +26,8 @@ bool init_done ABSL_GUARDED_BY(init_mutex) = false;
 
 }  // namespace
 
-void RegisterModule(BaseModule* const module, absl::Span<BaseModule* const> const dependencies) {
+void RegisterModule(BaseModule* const module,
+                    absl::Span<ModuleDependency const> const dependencies) {
   ModuleManager::GetInstance()->RegisterModule(module, dependencies);
 }
 

@@ -18,11 +18,19 @@ namespace tsdb2 {
 namespace init {
 
 void ModuleManager::RegisterModule(BaseModule* const module,
-                                   absl::Span<BaseModule* const> const dependencies) {
+                                   absl::Span<ModuleDependency const> const dependencies) {
   absl::MutexLock lock{&mutex_};
-  auto const [unused_it, inserted] =
-      dependencies_.try_emplace(module, dependencies.begin(), dependencies.end());
-  CHECK(inserted) << "module " << GetModuleString(module) << " has been registered twice!";
+  DoRegisterModule(module);
+  auto const [it, inserted] = dependencies_.try_emplace(module);
+  auto& direct_dependencies = it->second;
+  for (auto const& dependency : dependencies) {
+    if (dependency.is_reverse()) {
+      auto const [it, unused] = dependencies_.try_emplace(dependency.module());
+      it->second.emplace_back(module);
+    } else {
+      direct_dependencies.emplace_back(dependency.module());
+    }
+  }
 }
 
 absl::Status ModuleManager::InitializeModules() {
@@ -132,6 +140,11 @@ tsdb2::common::Singleton<ModuleManager>* ModuleManager::GetSingleton() {
 
 std::string ModuleManager::GetModuleString(BaseModule* const module) {
   return absl::StrCat("\"", module->name(), "\" (0x", absl::Hex(module, absl::kZeroPad16), ")");
+}
+
+void ModuleManager::DoRegisterModule(BaseModule* const module) {
+  auto const [it, inserted] = registered_modules_.emplace(module);
+  CHECK(inserted) << "module " << GetModuleString(module) << " has been registered twice!";
 }
 
 absl::Status ModuleManager::CheckCircularDependencies() {
