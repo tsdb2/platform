@@ -5,6 +5,7 @@
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 
 #include "absl/status/status.h"           // IWYU pragma: export
@@ -61,31 +62,55 @@ class TestTempFile {
 };
 
 // GoogleTest's `Pointee` matcher doesn't work with smart pointers, so we deploy our own.
-template <typename Inner>
-class Pointee2 {
+template <typename Pointer>
+class Pointee2Impl : public MatcherInterface<Pointer const&> {
  public:
   using is_gtest_matcher = void;
 
-  explicit Pointee2(Inner inner) : inner_(std::move(inner)) {}
+  using Pointee = decltype(*std::declval<std::decay_t<Pointer>>());
 
-  // Unfortunately GoogleTest's architecture doesn't allow for a meaningful implementation of the
-  // Describe methods for this matcher because we wouldn't be able to infer the value type, unlike
-  // in `MatchAndExplain`.
-  void DescribeTo(std::ostream* const /*os*/) const {}
-  void DescribeNegationTo(std::ostream* const /*os*/) const {}
+  template <typename Inner>
+  explicit Pointee2Impl(Inner&& inner)
+      : inner_(SafeMatcherCast<Pointee>(std::forward<Inner>(inner))) {}
 
-  template <typename Value>
-  bool MatchAndExplain(Value&& value, ::testing::MatchResultListener* const listener) const {
-    return SafeMatcherCast<Value>().MatchAndExplain(*std::forward<Value>(value), listener);
+  ~Pointee2Impl() = default;
+
+  void DescribeTo(std::ostream* const os) const override {
+    *os << "points to a value that ";
+    inner_.DescribeTo(os);
+  }
+
+  void DescribeNegationTo(std::ostream* const os) const override {
+    *os << "points to a value that ";
+    inner_.DescribeNegationTo(os);
+  }
+
+  bool MatchAndExplain(Pointer const& value, MatchResultListener* const listener) const override {
+    *listener << "points to a value that ";
+    return inner_.MatchAndExplain(*value, listener);
   }
 
  private:
-  template <typename Value>
-  auto SafeMatcherCast() const {
-    return ::testing::SafeMatcherCast<decltype(*std::declval<Value>())>(inner_);
+  Pointee2Impl(Pointee2Impl const&) = delete;
+  Pointee2Impl& operator=(Pointee2Impl const&) = delete;
+  Pointee2Impl(Pointee2Impl&&) = delete;
+  Pointee2Impl& operator=(Pointee2Impl&&) = delete;
+
+  Matcher<Pointee> inner_;
+};
+
+template <typename Inner>
+class Pointee2 {
+ public:
+  explicit Pointee2(Inner&& inner) : inner_(std::move(inner)) {}
+
+  template <typename Pointer>
+  operator Matcher<Pointer>() const {  // NOLINT(google-explicit-constructor)
+    return Matcher<Pointer>(new Pointee2Impl<std::decay_t<Pointer>>(inner_));
   }
 
-  Inner inner_;
+ private:
+  std::decay_t<Inner> inner_;
 };
 
 }  // namespace testing
