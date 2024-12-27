@@ -15,14 +15,12 @@
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
-#include "common/no_destructor.h"
 #include "common/utilities.h"
 #include "http/handlers.h"
 #include "http/http.h"
 #include "http/server.h"
 #include "net/base_sockets.h"
-#include "server/base_module.h"
-#include "server/init_tsdb2.h"
+#include "server/module.h"
 
 ABSL_FLAG(std::string, local_address, "", "The local network address this server will bind to.");
 ABSL_FLAG(uint16_t, port, 443, "The local TCP/IP port this server will listen on.");
@@ -101,11 +99,7 @@ DefaultServerBuilder::HandlerSet DefaultServerBuilder::ExtractHandlerSet() {
   return result;
 }
 
-tsdb2::common::NoDestructor<DefaultServerModule> DefaultServerModule::instance_;
-
-DefaultServerModule::DefaultServerModule() : BaseModule("default_server_builder") {
-  tsdb2::init::RegisterModule(this, HttpModule::Get());
-}
+static tsdb2::init::Module<DefaultServerModule, HttpModule> const default_server_module;
 
 }  // namespace http
 }  // namespace tsdb2

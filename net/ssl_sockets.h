@@ -28,7 +28,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
-#include "common/no_destructor.h"
 #include "common/reffed_ptr.h"
 #include "common/scheduler.h"
 #include "common/simple_condition.h"
@@ -36,8 +35,6 @@
 #include "net/base_sockets.h"
 #include "net/epoll_server.h"
 #include "net/ssl.h"
-#include "server/base_module.h"
-#include "server/init_tsdb2.h"
 
 ABSL_DECLARE_FLAG(absl::Duration, ssl_handshake_timeout);
 
@@ -511,17 +508,8 @@ class SSLListenerSocket : public BaseListenerSocket {
   AcceptCallback const callback_;
 };
 
-class SSLSocketModule : public tsdb2::init::BaseModule {
- public:
-  static SSLSocketModule* Get() { return instance_.Get(); };
-
- private:
-  friend class tsdb2::common::NoDestructor<SSLSocketModule>;
-  static tsdb2::common::NoDestructor<SSLSocketModule> instance_;
-
-  explicit SSLSocketModule() : BaseModule("ssl_sockets") {
-    tsdb2::init::RegisterModule(this, SocketModule::Get(), internal::SSLModule::Get());
-  }
+struct SSLSocketModule {
+  static std::string_view constexpr name = "ssl_sockets";
 };
 
 template <typename SocketClass, typename... Args,

@@ -24,11 +24,10 @@ using ::absl_testing::StatusIs;
 using ::testing::_;
 using ::testing::InSequence;
 using ::testing::Return;
+using ::tsdb2::common::ScopedOverride;
 using ::tsdb2::init::BaseModule;
-using ::tsdb2::init::Dependency;
 using ::tsdb2::init::ModuleManager;
 using ::tsdb2::init::RegisterModule;
-using ::tsdb2::init::ReverseDependency;
 
 struct InlineRegistration {};
 inline InlineRegistration constexpr kInlineRegistration;
@@ -42,12 +41,12 @@ class MockModule : public BaseModule {
   template <typename... Args>
   explicit MockModule(InlineRegistration /*inline*/, std::string_view const name, Args&&... args)
       : BaseModule(name) {
-    RegisterModule(this, std::forward<Args>(args)...);
+    RegisterModule(this, {std::forward<Args>(args)...});
   }
 
   template <typename... Args>
   void Register(Args&&... args) {
-    RegisterModule(this, std::forward<Args>(args)...);
+    RegisterModule(this, {std::forward<Args>(args)...});
   }
 
   MOCK_METHOD(absl::Status, Initialize, (), (override));
@@ -56,8 +55,16 @@ class MockModule : public BaseModule {
 
 class InitTest : public ::testing::Test {
  protected:
+  static ModuleDependency Dependency(BaseModule* const module) {
+    return ModuleDependency(module, /*reverse=*/false);
+  }
+
+  static ModuleDependency ReverseDependency(BaseModule* const module) {
+    return ModuleDependency(module, /*reverse=*/true);
+  }
+
   ModuleManager manager_;
-  tsdb2::common::ScopedOverride<tsdb2::common::Singleton<ModuleManager>> override_manager{
+  ScopedOverride<tsdb2::common::Singleton<ModuleManager>> override_manager_{
       ModuleManager::GetSingleton(), &manager_};
 };
 
@@ -103,7 +110,7 @@ TEST_F(InitTest, DoubleRegistration) {
 
 TEST_F(InitTest, SelfDependency) {
   MockModule m{"test"};
-  m.Register(&m);
+  m.Register(Dependency(&m));
   ON_CALL(m, Initialize).WillByDefault(Return(absl::OkStatus()));
   EXPECT_CALL(m, InitializeForTesting).Times(0);
   EXPECT_THAT(manager_.InitializeModules(), StatusIs(absl::StatusCode::kFailedPrecondition));
@@ -111,7 +118,7 @@ TEST_F(InitTest, SelfDependency) {
 
 TEST_F(InitTest, SelfDependencyInTesting) {
   MockModule m{"test"};
-  m.Register(&m);
+  m.Register(Dependency(&m));
   ON_CALL(m, InitializeForTesting).WillByDefault(Return(absl::OkStatus()));
   EXPECT_CALL(m, Initialize).Times(0);
   EXPECT_THAT(manager_.InitializeModulesForTesting(),
@@ -122,7 +129,7 @@ TEST_F(InitTest, SimpleDependency) {
   MockModule m1{"test1"};
   MockModule m2{"test2"};
   m1.Register();
-  m2.Register(&m1);
+  m2.Register(Dependency(&m1));
   InSequence s;
   EXPECT_CALL(m1, Initialize).Times(1).WillOnce(Return(absl::OkStatus()));
   EXPECT_CALL(m2, Initialize).Times(1).WillOnce(Return(absl::OkStatus()));
@@ -135,7 +142,7 @@ TEST_F(InitTest, SimpleDependencyInTesting) {
   MockModule m1{"test1"};
   MockModule m2{"test2"};
   m1.Register();
-  m2.Register(&m1);
+  m2.Register(Dependency(&m1));
   InSequence s;
   EXPECT_CALL(m1, InitializeForTesting).Times(1).WillOnce(Return(absl::OkStatus()));
   EXPECT_CALL(m2, InitializeForTesting).Times(1).WillOnce(Return(absl::OkStatus()));
@@ -207,8 +214,8 @@ TEST_F(InitTest, DirectAndReverseDependenciesInTesting) {
 TEST_F(InitTest, MutualDependency) {
   MockModule m1{"test1"};
   MockModule m2{"test2"};
-  m1.Register(&m2);
-  m2.Register(&m1);
+  m1.Register(Dependency(&m2));
+  m2.Register(Dependency(&m1));
   ON_CALL(m1, Initialize).WillByDefault(Return(absl::OkStatus()));
   ON_CALL(m2, Initialize).WillByDefault(Return(absl::OkStatus()));
   EXPECT_CALL(m1, InitializeForTesting).Times(0);
@@ -221,8 +228,8 @@ TEST_F(InitTest, ForwardTriangle) {
   MockModule m2{"test2"};
   MockModule m3{"test3"};
   m1.Register();
-  m2.Register(&m1);
-  m3.Register(&m1, &m2);
+  m2.Register(Dependency(&m1));
+  m3.Register(Dependency(&m1), Dependency(&m2));
   InSequence s;
   EXPECT_CALL(m1, Initialize).Times(1).WillOnce(Return(absl::OkStatus()));
   EXPECT_CALL(m2, Initialize).Times(1).WillOnce(Return(absl::OkStatus()));
@@ -240,10 +247,10 @@ TEST_F(InitTest, TwoRoots) {
   MockModule m4{"test4"};
   MockModule m5{"test5"};
   m1.Register();
-  m2.Register(&m1);
+  m2.Register(Dependency(&m1));
   m3.Register();
-  m4.Register(&m3);
-  m5.Register(&m3, &m4);
+  m4.Register(Dependency(&m3));
+  m5.Register(Dependency(&m3), Dependency(&m4));
   EXPECT_CALL(m1, Initialize).Times(1).WillOnce(Return(absl::OkStatus()));
   EXPECT_CALL(m2, Initialize).Times(1).WillOnce(Return(absl::OkStatus()));
   EXPECT_CALL(m3, Initialize).Times(1).WillOnce(Return(absl::OkStatus()));
@@ -265,9 +272,9 @@ TEST_F(InitTest, ManyDependencies) {
   MockModule m5{"test5"};
   m1.Register();
   m2.Register();
-  m3.Register(&m1, &m2);
-  m4.Register(&m1, &m3);
-  m5.Register(&m2, &m3);
+  m3.Register(Dependency(&m1), Dependency(&m2));
+  m4.Register(Dependency(&m1), Dependency(&m3));
+  m5.Register(Dependency(&m2), Dependency(&m3));
   EXPECT_CALL(m1, Initialize).Times(1).WillOnce(Return(absl::OkStatus()));
   EXPECT_CALL(m2, Initialize).Times(1).WillOnce(Return(absl::OkStatus()));
   EXPECT_CALL(m3, Initialize).Times(1).WillOnce(Return(absl::OkStatus()));
@@ -289,9 +296,9 @@ TEST_F(InitTest, StopsAtFailingDependency) {
   MockModule m5{"test5"};
   m1.Register();
   m2.Register();
-  m3.Register(&m1, &m2);
-  m4.Register(&m1, &m3);
-  m5.Register(&m2, &m3);
+  m3.Register(Dependency(&m1), Dependency(&m2));
+  m4.Register(Dependency(&m1), Dependency(&m3));
+  m5.Register(Dependency(&m2), Dependency(&m3));
   EXPECT_CALL(m1, Initialize).Times(1).WillOnce(Return(absl::OkStatus()));
   EXPECT_CALL(m2, Initialize).Times(1).WillOnce(Return(absl::OkStatus()));
   EXPECT_CALL(m3, Initialize).Times(1).WillOnce(Return(absl::CancelledError("")));
@@ -312,10 +319,10 @@ TEST_F(InitTest, TwoRootsOneCycle) {
   MockModule m4{"test4"};
   MockModule m5{"test5"};
   m1.Register();
-  m2.Register(&m1);
-  m3.Register(&m4);
-  m4.Register(&m5);
-  m5.Register(&m3);
+  m2.Register(Dependency(&m1));
+  m3.Register(Dependency(&m4));
+  m4.Register(Dependency(&m5));
+  m5.Register(Dependency(&m3));
   ON_CALL(m1, Initialize).WillByDefault(Return(absl::OkStatus()));
   ON_CALL(m2, Initialize).WillByDefault(Return(absl::OkStatus()));
   EXPECT_CALL(m3, Initialize).Times(0);
@@ -326,6 +333,21 @@ TEST_F(InitTest, TwoRootsOneCycle) {
   EXPECT_CALL(m3, InitializeForTesting).Times(0);
   EXPECT_CALL(m4, InitializeForTesting).Times(0);
   EXPECT_CALL(m5, InitializeForTesting).Times(0);
+  EXPECT_THAT(manager_.InitializeModules(), StatusIs(absl::StatusCode::kFailedPrecondition));
+}
+
+TEST_F(InitTest, CycleWithReverseDependency) {
+  MockModule m1{"test1"};
+  MockModule m2{"test2"};
+  MockModule m3{"test3"};
+  m1.Register(Dependency(&m2));
+  m3.Register(ReverseDependency(&m2), Dependency(&m1));
+  EXPECT_CALL(m1, Initialize).Times(0);
+  EXPECT_CALL(m2, Initialize).Times(0);
+  EXPECT_CALL(m3, Initialize).Times(0);
+  EXPECT_CALL(m1, InitializeForTesting).Times(0);
+  EXPECT_CALL(m2, InitializeForTesting).Times(0);
+  EXPECT_CALL(m3, InitializeForTesting).Times(0);
   EXPECT_THAT(manager_.InitializeModules(), StatusIs(absl::StatusCode::kFailedPrecondition));
 }
 

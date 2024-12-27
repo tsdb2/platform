@@ -1,61 +1,25 @@
 #ifndef __TSDB2_SERVER_INIT_TSDB2_H__
 #define __TSDB2_SERVER_INIT_TSDB2_H__
 
-#include <type_traits>
+#include <initializer_list>
 
-#include "absl/types/span.h"
 #include "server/base_module.h"
 #include "server/module_manager.h"  // IWYU pragma: export
 
 namespace tsdb2 {
 namespace init {
 
-// Registers a module in the initialization system.
+// Invoked by the `tsdb2::init::Module` constructor to register a module in the initialization
+// system.
 //
-// `dependencies` is the list of modules that `module` directly depends on. Don't specify transitive
-// dependencies in this list. It's okay to specify reverse dependencies by tagging them with
-// `ReverseDependency`.
+// `dependencies` is the list of modules that `module` directly depends on. Each dependency is a
+// `ModuleDependency` object specifying the dependency module and whether it's a reverse dependency
+// (see the docs for `tsdb2::init::ReverseDependency` for an explanation about reverse
+// dependencies).
 //
-// The ideal place to call this function is in a module constructor. Example:
-//
-//   FooModule::FooModule() : tsdb2::init::BaseModule("foo") {
-//     tsdb2::init::RegisterModule(this, /*dependencies=*/{
-//         BarModule::Get(),
-//         tsdb2::init::ReverseDependency(BazModule::Get()),
-//     });
-//   }
-//
-// It is safe to invoke this function in global scope. In fact, the standard use case of
-// `RegisterModule` is to invoke it in the constructor of modules instantiated in global scope (see
-// the documentation of `BaseModule` for further details). The internal implementation uses the
-// localized static initialization pattern to avoid initialization order fiascos.
-void RegisterModule(BaseModule *module, absl::Span<ModuleDependency const> dependencies);
-
-// Registers a module in the initialization system.
-//
-// `dependencies` is the list of modules that `module` directly depends on. Don't specify transitive
-// dependencies in this list. It's okay to specify reverse dependencies by tagging them with
-// `ReverseDependency`.
-//
-// This overload takes the list of dependencies as variadic arguments rather than an `absl::Span`.
-//
-// The ideal place to call this function is in a module constructor. Example:
-//
-//   FooModule::FooModule() : tsdb2::init::BaseModule("foo") {
-//     tsdb2::init::RegisterModule(
-//         this, BarModule::Get(), tsdb2::init::ReverseDependency(BazModule::Get()));
-//   }
-//
-// Similarly to the other overload, this function is safe to invoke in global scope (e.g. in the
-// constructors of modules instantiated in global scope).
-template <typename... Dependencies,
-          std::enable_if_t<
-              std::conjunction_v<std::disjunction<std::is_convertible<Dependencies, BaseModule *>,
-                                                  std::is_same<ModuleDependency, Dependencies>>...>,
-              bool> = true>
-void RegisterModule(BaseModule *const module, Dependencies const... dependencies) {
-  RegisterModule(module, {dependencies...});
-}
+// This function is safe to call in the global scope, where all `tsdb2::init::Module` objects should
+// be instantiated.
+void RegisterModule(BaseModule *module, std::initializer_list<ModuleDependency> dependencies);
 
 void InitServer(int argc, char *argv[]);
 

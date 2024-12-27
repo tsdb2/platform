@@ -7,11 +7,9 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"
-#include "common/no_destructor.h"
 #include "common/trie_map.h"
 #include "http/handlers.h"
 #include "http/server.h"
-#include "server/base_module.h"
 
 namespace tsdb2 {
 namespace http {
@@ -51,15 +49,8 @@ class DefaultServerBuilder {
   HandlerSet handlers_ ABSL_GUARDED_BY(mutex_);
 };
 
-class DefaultServerModule : public tsdb2::init::BaseModule {
- public:
-  static DefaultServerModule *Get() { return instance_.Get(); }
-
- private:
-  friend class tsdb2::common::NoDestructor<DefaultServerModule>;
-  static tsdb2::common::NoDestructor<DefaultServerModule> instance_;
-
-  explicit DefaultServerModule();
+struct DefaultServerModule {
+  static std::string_view constexpr name = "default_server_builder";
 };
 
 }  // namespace http

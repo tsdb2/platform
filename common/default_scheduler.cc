@@ -4,12 +4,9 @@
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
-#include "absl/strings/string_view.h"
-#include "common/no_destructor.h"
 #include "common/scheduler.h"
 #include "common/singleton.h"
-#include "server/base_module.h"
-#include "server/init_tsdb2.h"
+#include "server/module.h"
 
 namespace {
 #ifdef NDEBUG
@@ -32,13 +29,10 @@ Singleton<Scheduler> default_scheduler{[] {
   });
 }};
 
-NoDestructor<DefaultSchedulerModule> DefaultSchedulerModule::instance_;
+static tsdb2::init::Module<DefaultSchedulerModule> const default_scheduler_module;
 
-DefaultSchedulerModule::DefaultSchedulerModule() : tsdb2::init::BaseModule("default_scheduler") {
-  tsdb2::init::RegisterModule(this);
-}
-
-absl::Status DefaultSchedulerModule::Initialize() {
+absl::Status
+DefaultSchedulerModule::Initialize() {  // NOLINT(readability-convert-member-functions-to-static)
   default_scheduler.Get();
   return absl::OkStatus();
 }

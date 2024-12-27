@@ -9,12 +9,9 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "common/no_destructor.h"
 #include "common/singleton.h"
 #include "common/utilities.h"
 #include "io/fd.h"
-#include "server/base_module.h"
-#include "server/init_tsdb2.h"
 
 namespace tsdb2 {
 namespace net {
@@ -166,17 +163,14 @@ class SSLContext {
   gsl::owner<::SSL_CTX*> context_;
 };
 
-class SSLModule : public tsdb2::init::BaseModule {
+class SSLModule {
  public:
-  static SSLModule* Get() { return instance_.Get(); };
-  absl::Status Initialize() override;
-  absl::Status InitializeForTesting() override;
+  static std::string_view constexpr name = "ssl_lib";
+
+  absl::Status Initialize();
+  absl::Status InitializeForTesting();
 
  private:
-  friend class tsdb2::common::NoDestructor<SSLModule>;
-  static tsdb2::common::NoDestructor<SSLModule> instance_;
-  explicit SSLModule() : BaseModule("ssl_lib") { tsdb2::init::RegisterModule(this); }
-
   static absl::Status InitializeInternal();
 };
 

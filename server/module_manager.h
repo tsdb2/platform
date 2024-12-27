@@ -1,6 +1,7 @@
 #ifndef __TSDB2_SERVER_MODULE_MANAGER_H__
 #define __TSDB2_SERVER_MODULE_MANAGER_H__
 
+#include <initializer_list>
 #include <string>
 #include <vector>
 
@@ -10,7 +11,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/types/span.h"
 #include "common/singleton.h"
 #include "common/utilities.h"
 #include "server/base_module.h"
@@ -20,10 +20,6 @@ namespace init {
 
 class ModuleDependency {
  public:
-  ModuleDependency(  // NOLINT(google-explicit-constructor)
-      BaseModule* const module)
-      : module_(module), reverse_(false) {}
-
   explicit ModuleDependency(BaseModule* const module, bool const reverse)
       : module_(module), reverse_(reverse) {}
 
@@ -35,63 +31,9 @@ class ModuleDependency {
   bool reverse_;
 };
 
-// Tag for direct module dependencies.
-//
-// It can be used with `tsdb2::init::RegisterModule`, but it's completely optional and often
-// omitted. It's provided only for consistency with `ReverseDependency`.
-//
-// Example:
-//
-//   class FooModule : public tsdb2::init::BaseModule {
-//    public:
-//     explicit FooModule() : BaseModule("foo") {
-//       tsdb2::init::RegisterModule(
-//           this, Dependency(BarModule::Get()), Dependency(BazModule::Get()));
-//     }
-//   };
-//
-// Equivalent to:
-//
-//   class FooModule : public tsdb2::init::BaseModule {
-//    public:
-//     explicit FooModule() : BaseModule("foo") {
-//       tsdb2::init::RegisterModule(this, BarModule::Get(), BazModule::Get());
-//     }
-//   };
-//
-inline ModuleDependency Dependency(BaseModule* const module) {
-  return ModuleDependency(module, /*reverse=*/false);
-}
-
-// Tag for reverse module dependencies.
-//
-// Reverse dependencies indicate that if a module A has a reverse dependency on module B, then B
-// depends on A.
-//
-// This tag can be used with `tsdb2::init::RegisterModule`. Example:
-//
-//   class FooModule : public tsdb2::init::BaseModule {
-//    public:
-//     explicit FooModule() : BaseModule("foo") {
-//       tsdb2::init::RegisterModule(
-//           this, Dependency(BarModule::Get()), ReverseDependency(BazModule::Get()));
-//     }
-//   };
-//
-// In the above, module `Foo` depends on `Bar` but also has a reverse dependency on module `Baz`, so
-// the full dependency graph is:
-//
-//   Baz -> Foo -> Bar
-//
-// where "A -> B" indicates "A depends on B".
-//
-// An example use case for reverse dependencies is HTTP handlers registering themselves in the
-// default HTTP server (each handler must reverse-depend on the default server module, we can't
-// declare all existing handlers as direct dependencies of the default server module because some
-// may not even be linked in).
-inline ModuleDependency ReverseDependency(BaseModule* const module) {
-  return ModuleDependency(module, /*reverse=*/true);
-}
+namespace module_internal {
+class ModuleTest;
+}  // namespace module_internal
 
 // Manages all registered modules.
 //
@@ -108,7 +50,7 @@ class ModuleManager {
   //
   // Circular dependencies are not checked at this stage; they're checked later on by
   // `InitializeModules`.
-  void RegisterModule(BaseModule* module, absl::Span<ModuleDependency const> dependencies)
+  void RegisterModule(BaseModule* module, std::initializer_list<ModuleDependency> dependencies)
       ABSL_LOCKS_EXCLUDED(mutex_);
 
   // Performs initialization of all registered modules respecting their dependency order. Each
@@ -123,8 +65,9 @@ class ModuleManager {
   absl::Status InitializeModulesForTesting() ABSL_LOCKS_EXCLUDED(mutex_);
 
  private:
-  // The unit test fixture is a friend so that it can override the singleton for testing.
+  // These unit test fixtures are friends so that they can override the singleton for testing.
   friend class InitTest;
+  friend class module_internal::ModuleTest;
 
   using ModuleSet = absl::flat_hash_set<BaseModule*>;
   using DependencyMap = absl::flat_hash_map<BaseModule*, std::vector<BaseModule*>>;

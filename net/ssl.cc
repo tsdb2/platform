@@ -24,6 +24,7 @@
 #include "common/utilities.h"
 #include "io/fd.h"
 #include "net/alpn.h"
+#include "server/module.h"
 
 namespace tsdb2 {
 namespace net {
@@ -151,9 +152,9 @@ gsl::owner<SSLContext*> SSLContext::CreateClientContext() {
   return new SSLContext(context);
 }
 
-tsdb2::common::NoDestructor<SSLModule> SSLModule::instance_;
+static tsdb2::init::Module<SSLModule> const ssl_module;
 
-absl::Status SSLModule::Initialize() {
+absl::Status SSLModule::Initialize() {  // NOLINT(readability-convert-member-functions-to-static)
   auto status = InitializeInternal();
   if (!status.ok()) {
     TSDB2_SSL_LOG_ERRORS();
@@ -161,7 +162,8 @@ absl::Status SSLModule::Initialize() {
   return status;
 }
 
-absl::Status SSLModule::InitializeForTesting() {
+absl::Status
+SSLModule::InitializeForTesting() {  // NOLINT(readability-convert-member-functions-to-static)
   if (OPENSSL_init_ssl(OPENSSL_INIT_LOAD_SSL_STRINGS, nullptr) != 0) {
     return absl::OkStatus();
   } else {

@@ -6,11 +6,9 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "common/default_scheduler.h"
-#include "common/no_destructor.h"
 #include "common/singleton.h"
 #include "common/utilities.h"
-#include "server/base_module.h"
-#include "server/init_tsdb2.h"
+#include "server/module.h"
 #include "tsz/internal/metric_config.h"
 #include "tsz/internal/shard.h"
 #include "tsz/types.h"
@@ -68,11 +66,7 @@ MetricConfig Exporter::OptionsToConfig(Options const &options) {
   };
 }
 
-tsdb2::common::NoDestructor<ExporterModule> ExporterModule::instance_;
-
-ExporterModule::ExporterModule() : BaseModule("tsz") {
-  tsdb2::init::RegisterModule(this, tsdb2::common::DefaultSchedulerModule::Get());
-}
+static tsdb2::init::Module<ExporterModule, tsdb2::common::DefaultSchedulerModule> const tsz_module;
 
 }  // namespace internal
 }  // namespace tsz

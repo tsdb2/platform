@@ -16,11 +16,9 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
-#include "common/no_destructor.h"
 #include "io/buffer.h"  // IWYU pragma: export
 #include "io/fd.h"      // IWYU pragma: export
 #include "net/epoll_server.h"
-#include "server/base_module.h"
 
 namespace tsdb2 {
 namespace net {
@@ -302,16 +300,9 @@ class BaseListenerSocket : public EpollTarget {
   uint16_t const port_;
 };
 
-class SocketModule : public tsdb2::init::BaseModule {
- public:
-  static SocketModule* Get() { return instance_.Get(); };
-  absl::Status Initialize() override;
-
- private:
-  friend class tsdb2::common::NoDestructor<SocketModule>;
-  static tsdb2::common::NoDestructor<SocketModule> instance_;
-
-  explicit SocketModule();
+struct SocketModule {
+  static std::string_view constexpr name = "sockets";
+  absl::Status Initialize();
 };
 
 }  // namespace net

@@ -6,9 +6,7 @@
 
 #include "absl/status/statusor.h"
 #include "common/lock_free_hash_map.h"
-#include "common/no_destructor.h"
 #include "common/singleton.h"
-#include "server/base_module.h"
 #include "tsz/internal/metric_config.h"
 #include "tsz/internal/shard.h"
 #include "tsz/types.h"
@@ -44,14 +42,8 @@ class Exporter {
 
 extern tsdb2::common::Singleton<Exporter> exporter;
 
-class ExporterModule : public tsdb2::init::BaseModule {
-  static ExporterModule *Get() { return instance_.Get(); }
-
- private:
-  friend class tsdb2::common::NoDestructor<ExporterModule>;
-  static tsdb2::common::NoDestructor<ExporterModule> instance_;
-
-  explicit ExporterModule();
+struct ExporterModule {
+  static std::string_view constexpr name = "tsz";
 };
 
 }  // namespace internal

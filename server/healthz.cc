@@ -7,15 +7,13 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
-#include "common/no_destructor.h"
 #include "common/singleton.h"
 #include "common/utilities.h"
 #include "http/default_server.h"
 #include "http/handlers.h"
 #include "http/http.h"
 #include "io/buffer.h"
-#include "server/base_module.h"
-#include "server/init_tsdb2.h"
+#include "server/module.h"
 
 namespace tsdb2 {
 namespace server {
@@ -48,7 +46,7 @@ class HealthzHandler final : public tsdb2::http::Handler {
     }
 
     absl::Status const status = Healthz::instance->RunChecks();
-    std::string reply = status.ToString();
+    std::string reply = absl::StrCat(status.ToString(), "\n");
 
     stream->SendResponseOrLog(
         {
@@ -63,17 +61,14 @@ class HealthzHandler final : public tsdb2::http::Handler {
 
 }  // namespace
 
-tsdb2::common::NoDestructor<HealthzModule> HealthzModule::instance_;
-
-HealthzModule::HealthzModule() : BaseModule("healthz") {
-  tsdb2::init::RegisterModule(
-      this, tsdb2::init::ReverseDependency(tsdb2::http::DefaultServerModule::Get()));
-}
-
-absl::Status HealthzModule::Initialize() {
+absl::Status
+HealthzModule::Initialize() {  // NOLINT(readability-convert-member-functions-to-static)
   return tsdb2::http::DefaultServerBuilder::Get()->RegisterHandler(
       "/healthz", std::make_unique<HealthzHandler>());
 }
+
+static tsdb2::init::Module<
+    HealthzModule, tsdb2::init::ReverseDependency<http::DefaultServerModule>> const healthz_module;
 
 }  // namespace server
 }  // namespace tsdb2

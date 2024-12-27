@@ -35,6 +35,27 @@ namespace common {
 //
 // However, the above pattern doesn't allow overriding in tests.
 //
+// Also note that sometimes you might need to use both `Singleton` and localized static
+// initialization, as in the following example:
+//
+//   class MyClass {
+//    public:
+//     static MyClass *GetInstance() {
+//       return GetSingleton()->Get();
+//     }
+//
+//    private:
+//     static Singleton<MyClass>* GetSingleton() {
+//       static Singleton<MyClass> instance{+[] { return new MyClass(); }};
+//       return &instance;
+//     }
+//   };
+//
+//
+// This need may arise if you need the `Singleton` object itself to be available on-demand for use
+// by another class that is instantiated in global scope and at the same time you need to override
+// the `Singleton` in unit tests. We do that in the management of initializer modules, for example.
+//
 // Retrieving the instance wrapped in a `Singleton` is very fast in production, as the check for
 // possible overrides only performs a single relaxed atomic load when there's no override.
 //

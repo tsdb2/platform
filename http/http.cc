@@ -8,9 +8,7 @@
 #include "absl/status/status.h"
 #include "absl/time/time.h"
 #include "common/flat_map.h"
-#include "common/no_destructor.h"
-#include "server/base_module.h"
-#include "server/init_tsdb2.h"
+#include "server/module.h"
 
 ABSL_FLAG(absl::Duration, http2_io_timeout, absl::Seconds(60),
           "Timeout for HTTP/2 I/O operations. The timeout is reset every time some data is "
@@ -123,17 +121,15 @@ tsdb2::common::fixed_flat_map<int, std::string_view, kNumStatuses> constexpr kSt
         {505, "HTTP Version Not Supported"},
     });
 
-absl::Status HttpModule::Initialize() {
+static tsdb2::init::Module<HttpModule> const http_module;
+
+absl::Status HttpModule::Initialize() {  // NOLINT(readability-convert-member-functions-to-static)
   if (absl::GetFlag(FLAGS_http2_max_frame_payload_size) < kMinFramePayloadSizeLimit) {
     return absl::InvalidArgumentError(
         "the --http2_max_frame_payload_size must be at least 16384 (= 16 KiB).");
   }
   return absl::OkStatus();
 }
-
-HttpModule::HttpModule() : BaseModule("http") { tsdb2::init::RegisterModule(this); }
-
-tsdb2::common::NoDestructor<HttpModule> HttpModule::instance_;
 
 }  // namespace http
 }  // namespace tsdb2

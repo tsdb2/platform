@@ -4,6 +4,8 @@
 #include <openssl/prov_ssl.h>
 #include <openssl/ssl.h>
 
+#include <string_view>
+
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "common/no_destructor.h"
@@ -12,8 +14,7 @@
 #include "common/utilities.h"
 #include "net/alpn.h"
 #include "net/ssl.h"
-#include "server/base_module.h"
-#include "server/init_tsdb2.h"
+#include "server/module.h"
 
 namespace tsdb2 {
 namespace net {
@@ -126,25 +127,16 @@ void SSLContext::SetUpForTesting() {
       override_instance{&SSLContext::server_context_, CreateUnsafeServerContextForTesting()};
 }
 
-class SSLTestingModule : public tsdb2::init::BaseModule {
- public:
-  static SSLTestingModule *Get() { return instance_.Get(); };
+struct SSLTestingModule {
+  static std::string_view constexpr name = "ssl_testing";
 
-  absl::Status InitializeForTesting() override {
+  absl::Status InitializeForTesting() {  // NOLINT(readability-convert-member-functions-to-static)
     SSLContext::SetUpForTesting();
     return absl::OkStatus();
   }
-
- private:
-  friend class tsdb2::common::NoDestructor<SSLTestingModule>;
-  static tsdb2::common::NoDestructor<SSLTestingModule> instance_;
-
-  explicit SSLTestingModule() : BaseModule("ssl_testing") {
-    tsdb2::init::RegisterModule(this, SSLModule::Get());
-  }
 };
 
-tsdb2::common::NoDestructor<SSLTestingModule> SSLTestingModule::instance_;
+static tsdb2::init::Module<SSLTestingModule, SSLModule> const ssl_testing_module;
 
 }  // namespace internal
 }  // namespace net

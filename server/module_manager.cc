@@ -1,5 +1,6 @@
 #include "server/module_manager.h"
 
+#include <initializer_list>
 #include <string>
 #include <utility>
 
@@ -9,7 +10,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/types/span.h"
 #include "common/singleton.h"
 #include "common/utilities.h"
 #include "server/base_module.h"
@@ -18,7 +18,7 @@ namespace tsdb2 {
 namespace init {
 
 void ModuleManager::RegisterModule(BaseModule* const module,
-                                   absl::Span<ModuleDependency const> const dependencies) {
+                                   std::initializer_list<ModuleDependency> const dependencies) {
   absl::MutexLock lock{&mutex_};
   DoRegisterModule(module);
   auto const [it, inserted] = dependencies_.try_emplace(module);
@@ -34,14 +34,12 @@ void ModuleManager::RegisterModule(BaseModule* const module,
 }
 
 absl::Status ModuleManager::InitializeModules() {
-  absl::flat_hash_set<BaseModule*> roots;
   absl::MutexLock lock{&mutex_};
   RETURN_IF_ERROR(CheckCircularDependencies());
   return Initializer(dependencies_, /*testing=*/false).Run();
 }
 
 absl::Status ModuleManager::InitializeModulesForTesting() {
-  absl::flat_hash_set<BaseModule*> roots;
   absl::MutexLock lock{&mutex_};
   RETURN_IF_ERROR(CheckCircularDependencies());
   return Initializer(dependencies_, /*testing=*/true).Run();
@@ -128,14 +126,11 @@ gsl::owner<ModuleManager*> ModuleManager::CreateInstance() { return new ModuleMa
 
 tsdb2::common::Singleton<ModuleManager>* ModuleManager::GetSingleton() {
   // NOTE: we need to use both the localized static initialization pattern and `Singleton` for this
-  // object. The former avoids initialization order fiascos, while the latter allows overriding in
-  // tests and also makes the instance trivially destructible (as if we used `NoDestructor`). We
-  // can't just use `Singleton` in global scope or as a static class member because it would be
-  // undefined when the `Singleton` itself is constructed, so it woulnd't necessarily be available
-  // when other modules are constructed. The `GetSingleton` function on the other hand can construct
-  // the `Singleton` (and the wrapped `ModuleManager`) on demand.
-  static tsdb2::common::Singleton<ModuleManager> kInstance{&ModuleManager::CreateInstance};
-  return &kInstance;
+  // object. The former avoids initialization order fiascos that may arise due to the various
+  // modules being instantiated in global scope and depending on the `ModuleManager`; while the
+  // latter allows for thread-safe overrides in our unit tests.
+  static tsdb2::common::Singleton<ModuleManager> instance{&ModuleManager::CreateInstance};
+  return &instance;
 }
 
 std::string ModuleManager::GetModuleString(BaseModule* const module) {

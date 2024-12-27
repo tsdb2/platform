@@ -770,14 +770,11 @@ cc_library(
     srcs = ["default_scheduler.cc"],
     hdrs = ["default_scheduler.h"],
     deps = [
-        ":no_destructor",
         ":scheduler",
         ":singleton",
-        "//server:base_module",
-        "//server:init_tsdb2",
+        "//server:module",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
     ],
 )
 

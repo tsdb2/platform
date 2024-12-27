@@ -1,5 +1,7 @@
 #include "server/init_tsdb2.h"
 
+#include <initializer_list>
+
 #include "absl/base/attributes.h"
 #include "absl/base/const_init.h"
 #include "absl/base/thread_annotations.h"
@@ -8,7 +10,6 @@
 #include "absl/log/check.h"
 #include "absl/log/initialize.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/types/span.h"
 #include "server/base_module.h"
 #include "server/module_manager.h"
 
@@ -27,7 +28,7 @@ bool init_done ABSL_GUARDED_BY(init_mutex) = false;
 }  // namespace
 
 void RegisterModule(BaseModule* const module,
-                    absl::Span<ModuleDependency const> const dependencies) {
+                    std::initializer_list<ModuleDependency> const dependencies) {
   ModuleManager::GetInstance()->RegisterModule(module, dependencies);
 }
 

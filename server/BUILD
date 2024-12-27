@@ -3,6 +3,7 @@ package(default_visibility = ["//visibility:public"])
 cc_library(
     name = "base_module",
     hdrs = ["base_module.h"],
+    visibility = ["//visibility:private"],
     deps = [
         "@com_google_absl//absl/status",
     ],
@@ -25,7 +26,6 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
-        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -43,7 +43,6 @@ cc_library(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/log:initialize",
         "@com_google_absl//absl/synchronization",
-        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -65,12 +64,38 @@ cc_test(
 )
 
 cc_library(
-    name = "statusz",
-    srcs = ["statusz.cc"],
+    name = "module",
+    hdrs = ["module.h"],
     deps = [
         ":base_module",
         ":init_tsdb2",
-        "//common:no_destructor",
+        "//common:singleton",
+        "//common:utilities",
+        "@com_google_absl//absl/status",
+    ],
+)
+
+cc_test(
+    name = "module_test",
+    srcs = ["module_test.cc"],
+    deps = [
+        ":module",
+        ":module_manager",
+        "//common:scoped_override",
+        "//common:singleton",
+        "//common:testing",
+        "//common:type_string",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "statusz",
+    srcs = ["statusz.cc"],
+    deps = [
+        ":module",
         "//common:utilities",
         "//http",
         "//http:default_server",
@@ -86,9 +111,7 @@ cc_library(
     name = "flagz",
     srcs = ["flagz.cc"],
     deps = [
-        ":base_module",
-        ":init_tsdb2",
-        "//common:no_destructor",
+        ":module",
         "//common:utilities",
         "//http",
         "//http:default_server",
@@ -105,10 +128,8 @@ cc_library(
     name = "envz",
     srcs = ["envz.cc"],
     deps = [
-        ":base_module",
-        ":init_tsdb2",
+        ":module",
         "//common:env",
-        "//common:no_destructor",
         "//common:utilities",
         "//http",
         "//http:default_server",
@@ -125,9 +146,7 @@ cc_library(
     srcs = ["healthz.cc"],
     hdrs = ["healthz.h"],
     deps = [
-        ":base_module",
-        ":init_tsdb2",
-        "//common:no_destructor",
+        ":module",
         "//common:singleton",
         "//common:utilities",
         "//http",

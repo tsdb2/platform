@@ -25,12 +25,12 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "common/default_scheduler.h"
-#include "common/no_destructor.h"
 #include "common/reffed_ptr.h"
 #include "common/scheduler.h"
 #include "net/base_sockets.h"
 #include "net/epoll_server.h"
 #include "net/ssl.h"
+#include "server/module.h"
 
 ABSL_FLAG(absl::Duration, ssl_handshake_timeout, absl::Seconds(120), "Timeout for SSL handshakes.");
 
@@ -531,7 +531,8 @@ absl::Status SSLSocket::WriteInternal(Buffer buffer, WriteCallback callback,
   }
 }
 
-tsdb2::common::NoDestructor<SSLSocketModule> SSLSocketModule::instance_;
+static tsdb2::init::Module<SSLSocketModule, SocketModule, internal::SSLModule> const
+    ssl_socket_module;
 
 }  // namespace net
 }  // namespace tsdb2

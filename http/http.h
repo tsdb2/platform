@@ -15,9 +15,7 @@
 #include "absl/status/status.h"
 #include "absl/time/time.h"
 #include "common/flat_map.h"
-#include "common/no_destructor.h"
 #include "common/utilities.h"
-#include "server/base_module.h"
 
 ABSL_DECLARE_FLAG(absl::Duration, http2_io_timeout);
 
@@ -445,16 +443,9 @@ struct Request {
   tsdb2::common::flat_map<std::string, std::string> cookies;
 };
 
-class HttpModule final : public tsdb2::init::BaseModule {
- public:
-  static HttpModule* Get() { return instance_.Get(); }
-  absl::Status Initialize() override;
-
- private:
-  friend class tsdb2::common::NoDestructor<HttpModule>;
-  static tsdb2::common::NoDestructor<HttpModule> instance_;
-
-  explicit HttpModule();
+struct HttpModule {
+  static std::string_view constexpr name = "http";
+  absl::Status Initialize();
 };
 
 }  // namespace http

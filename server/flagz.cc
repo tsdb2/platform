@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -8,14 +9,12 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
-#include "common/no_destructor.h"
 #include "common/utilities.h"
 #include "http/default_server.h"
 #include "http/handlers.h"
 #include "http/http.h"
 #include "io/buffer.h"
-#include "server/base_module.h"
-#include "server/init_tsdb2.h"
+#include "server/module.h"
 
 namespace {
 
@@ -62,27 +61,17 @@ void FlagzHandler::operator()(tsdb2::http::StreamInterface *const stream,
       tsdb2::io::Buffer(content.data(), content.size()));
 }
 
-class FlagzModule : public tsdb2::init::BaseModule {
- public:
-  static FlagzModule *Get() { return instance_.Get(); }
+struct FlagzModule {
+  static std::string_view constexpr name = "flagz";  // NOLINT
 
-  absl::Status Initialize() override;
-
- private:
-  friend class tsdb2::common::NoDestructor<FlagzModule>;
-  static tsdb2::common::NoDestructor<FlagzModule> instance_;
-
-  explicit FlagzModule() : BaseModule("flagz") {
-    tsdb2::init::RegisterModule(
-        this, tsdb2::init::ReverseDependency(tsdb2::http::DefaultServerModule::Get()));
+  absl::Status Initialize() {  // NOLINT
+    return tsdb2::http::DefaultServerBuilder::Get()->RegisterHandler(
+        "/flagz", std::make_unique<FlagzHandler>());
   }
 };
 
-tsdb2::common::NoDestructor<FlagzModule> FlagzModule::instance_;
-
-absl::Status FlagzModule::Initialize() {
-  return tsdb2::http::DefaultServerBuilder::Get()->RegisterHandler(
-      "/flagz", std::make_unique<FlagzHandler>());
-}
+tsdb2::init::Module<FlagzModule,
+                    tsdb2::init::ReverseDependency<tsdb2::http::DefaultServerModule>> const
+    flagz_module;
 
 }  // namespace

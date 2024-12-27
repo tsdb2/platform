@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -8,14 +9,12 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "common/env.h"
-#include "common/no_destructor.h"
 #include "common/utilities.h"
 #include "http/default_server.h"
 #include "http/handlers.h"
 #include "http/http.h"
 #include "io/buffer.h"
-#include "server/base_module.h"
-#include "server/init_tsdb2.h"
+#include "server/module.h"
 
 namespace {
 
@@ -62,27 +61,16 @@ void EnvzHandler::operator()(tsdb2::http::StreamInterface *const stream,
       tsdb2::io::Buffer(content.data(), content.size()));
 }
 
-class EnvzModule : public tsdb2::init::BaseModule {
- public:
-  static EnvzModule *Get() { return instance_.Get(); }
+struct EnvzModule {
+  static std::string_view constexpr name = "envz";  // NOLINT
 
-  absl::Status Initialize() override;
-
- private:
-  friend class tsdb2::common::NoDestructor<EnvzModule>;
-  static tsdb2::common::NoDestructor<EnvzModule> instance_;
-
-  explicit EnvzModule() : BaseModule("envz") {
-    tsdb2::init::RegisterModule(
-        this, tsdb2::init::ReverseDependency(tsdb2::http::DefaultServerModule::Get()));
+  absl::Status Initialize() {  // NOLINT
+    return tsdb2::http::DefaultServerBuilder::Get()->RegisterHandler(
+        "/envz", std::make_unique<EnvzHandler>());
   }
 };
 
-tsdb2::common::NoDestructor<EnvzModule> EnvzModule::instance_;
-
-absl::Status EnvzModule::Initialize() {
-  return tsdb2::http::DefaultServerBuilder::Get()->RegisterHandler("/envz",
-                                                                   std::make_unique<EnvzHandler>());
-}
+tsdb2::init::Module<
+    EnvzModule, tsdb2::init::ReverseDependency<tsdb2::http::DefaultServerModule>> const envz_module;
 
 }  // namespace

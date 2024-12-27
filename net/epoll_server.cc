@@ -17,10 +17,8 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"
-#include "common/no_destructor.h"
 #include "common/utilities.h"
-#include "server/base_module.h"
-#include "server/init_tsdb2.h"
+#include "server/module.h"
 
 namespace {
 #ifdef NDEBUG
@@ -146,13 +144,10 @@ void EpollServer::WorkerLoop() {
   }
 }
 
-tsdb2::common::NoDestructor<EpollServerModule> EpollServerModule::instance_;
+static tsdb2::init::Module<EpollServerModule> const epoll_server_module;
 
-EpollServerModule::EpollServerModule() : tsdb2::init::BaseModule("epoll") {
-  tsdb2::init::RegisterModule(this);
-}
-
-absl::Status EpollServerModule::Initialize() {
+absl::Status
+EpollServerModule::Initialize() {  // NOLINT(readability-convert-member-functions-to-static)
   EpollServer::GetInstance();
   return absl::OkStatus();
 }

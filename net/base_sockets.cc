@@ -25,11 +25,9 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "common/default_scheduler.h"
-#include "common/no_destructor.h"
 #include "common/utilities.h"
 #include "net/epoll_server.h"
-#include "server/base_module.h"
-#include "server/init_tsdb2.h"
+#include "server/module.h"
 
 namespace tsdb2 {
 namespace net {
@@ -231,19 +229,15 @@ void BaseListenerSocket::OnOutput() {
   // Nothing to do here.
 }
 
-tsdb2::common::NoDestructor<SocketModule> SocketModule::instance_;
+static tsdb2::init::Module<SocketModule, EpollServerModule,
+                           tsdb2::common::DefaultSchedulerModule> const socket_module;
 
-absl::Status SocketModule::Initialize() {
+absl::Status SocketModule::Initialize() {  // NOLINT(readability-convert-member-functions-to-static)
   if (::signal(SIGPIPE, SIG_IGN) != SIG_ERR) {
     return absl::OkStatus();
   } else {
     return absl::ErrnoToStatus(errno, "signal(SIGPIPE, SIG_IGN)");
   }
-}
-
-SocketModule::SocketModule() : BaseModule("sockets") {
-  tsdb2::init::RegisterModule(this, tsdb2::net::EpollServerModule::Get(),
-                              tsdb2::common::DefaultSchedulerModule::Get());
 }
 
 }  // namespace net
