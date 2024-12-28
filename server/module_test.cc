@@ -1,5 +1,6 @@
 #include "server/module.h"
 
+#include <string_view>
 #include <type_traits>
 
 #include "absl/status/status.h"
@@ -19,6 +20,7 @@ namespace module_internal {
 namespace {
 
 using ::absl_testing::StatusIs;
+using ::testing::DoAll;
 using ::testing::InSequence;
 using ::testing::Return;
 using ::tsdb2::common::ScopedOverride;
@@ -49,6 +51,23 @@ using MockTraits1 = MockTraits<TypeStringT<kTestModule1>>;
 using MockTraits2 = MockTraits<TypeStringT<kTestModule2>>;
 using MockTraits3 = MockTraits<TypeStringT<kTestModule3>>;
 
+class MockTraits4 {
+ public:
+  static std::string_view constexpr name = "test4";
+  MOCK_METHOD(absl::Status, Initialize, ());
+};
+
+class MockTraits5 {
+ public:
+  static std::string_view constexpr name = "test5";
+  MOCK_METHOD(absl::Status, InitializeForTesting, ());
+};
+
+class MockTraits6 {
+ public:
+  static std::string_view constexpr name = "test6";
+};
+
 }  // namespace
 
 class ModuleTest : public ::testing::Test {
@@ -56,6 +75,9 @@ class ModuleTest : public ::testing::Test {
   MockTraits1& traits1() { return mock_instance1_.traits_; }
   MockTraits2& traits2() { return mock_instance2_.traits_; }
   MockTraits3& traits3() { return mock_instance3_.traits_; }
+  MockTraits4& traits4() { return mock_instance4_.traits_; }
+  MockTraits5& traits5() { return mock_instance5_.traits_; }
+  MockTraits6& traits6() { return mock_instance6_.traits_; }
 
   ModuleManager module_manager_;
   ScopedOverride<tsdb2::common::Singleton<ModuleManager>> const override_manager_{
@@ -72,12 +94,27 @@ class ModuleTest : public ::testing::Test {
   ModuleImpl<MockTraits3> mock_instance3_;
   ScopedOverride<tsdb2::common::Singleton<ModuleImpl<MockTraits3>>> const override_instance3_{
       ModuleImpl<MockTraits3>::GetSingleton(), &mock_instance3_};
+
+  ModuleImpl<MockTraits4> mock_instance4_;
+  ScopedOverride<tsdb2::common::Singleton<ModuleImpl<MockTraits4>>> const override_instance4_{
+      ModuleImpl<MockTraits4>::GetSingleton(), &mock_instance4_};
+
+  ModuleImpl<MockTraits5> mock_instance5_;
+  ScopedOverride<tsdb2::common::Singleton<ModuleImpl<MockTraits5>>> const override_instance5_{
+      ModuleImpl<MockTraits5>::GetSingleton(), &mock_instance5_};
+
+  ModuleImpl<MockTraits6> mock_instance6_;
+  ScopedOverride<tsdb2::common::Singleton<ModuleImpl<MockTraits6>>> const override_instance6_{
+      ModuleImpl<MockTraits6>::GetSingleton(), &mock_instance6_};
 };
 
 TEST_F(ModuleTest, TriviallyDestructible) {
   EXPECT_TRUE(std::is_trivially_destructible_v<Module<MockTraits1>>);
   EXPECT_TRUE(std::is_trivially_destructible_v<Module<MockTraits2>>);
   EXPECT_TRUE(std::is_trivially_destructible_v<Module<MockTraits3>>);
+  EXPECT_TRUE(std::is_trivially_destructible_v<Module<MockTraits4>>);
+  EXPECT_TRUE(std::is_trivially_destructible_v<Module<MockTraits5>>);
+  EXPECT_TRUE(std::is_trivially_destructible_v<Module<MockTraits6>>);
 }
 
 TEST_F(ModuleTest, Initialize) {
@@ -108,6 +145,39 @@ TEST_F(ModuleTest, TestingInitializationFails) {
       .Times(1)
       .WillOnce(Return(absl::AbortedError("test")));
   EXPECT_THAT(module_manager_.InitializeModulesForTesting(), StatusIs(absl::StatusCode::kAborted));
+}
+
+TEST_F(ModuleTest, DefaultTestingInitialization) {
+  Module<MockTraits4> module;
+  bool called = false;
+  EXPECT_CALL(traits4(), Initialize)
+      .Times(1)
+      .WillOnce(DoAll([&] { called = true; }, Return(absl::OkStatus())));
+  EXPECT_OK(module_manager_.InitializeModulesForTesting());
+  EXPECT_TRUE(called);
+}
+
+TEST_F(ModuleTest, DefaultTestingInitializationFails) {
+  Module<MockTraits4> module;
+  EXPECT_CALL(traits4(), Initialize).Times(1).WillOnce(Return(absl::CancelledError("test")));
+  EXPECT_THAT(module_manager_.InitializeModulesForTesting(),
+              StatusIs(absl::StatusCode::kCancelled));
+}
+
+TEST_F(ModuleTest, DefaultInitialization) {
+  Module<MockTraits5> module;
+  EXPECT_CALL(traits5(), InitializeForTesting).Times(0);
+  EXPECT_OK(module_manager_.InitializeModules());
+}
+
+TEST_F(ModuleTest, NoOpModuleInitialization) {
+  Module<MockTraits6> module;
+  EXPECT_OK(module_manager_.InitializeModules());
+}
+
+TEST_F(ModuleTest, NoOpModuleTestingInitialization) {
+  Module<MockTraits6> module;
+  EXPECT_OK(module_manager_.InitializeModulesForTesting());
 }
 
 TEST_F(ModuleTest, Dependency) {

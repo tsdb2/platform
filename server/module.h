@@ -32,7 +32,7 @@ template <typename ModuleTraits, typename Enable = void>
 struct HasInitialize : public std::false_type {};
 
 template <typename ModuleTraits>
-struct HasInitialize<ModuleTraits, std::void_t<decltype(std::declval<ModuleTraits>().Initialize())>>
+struct HasInitialize<ModuleTraits, std::void_t<decltype(&ModuleTraits::Initialize)>>
     : public std::is_same<absl::Status, decltype(std::declval<ModuleTraits>().Initialize())> {};
 
 template <typename ModuleTraits>
@@ -43,15 +43,15 @@ template <typename ModuleTraits, typename Enable = void>
 struct HasInitializeForTesting : public std::false_type {};
 
 template <typename ModuleTraits>
-struct HasInitializeForTesting<
-    ModuleTraits, std::void_t<decltype(std::declval<ModuleTraits>().InitializeForTesting())>>
+struct HasInitializeForTesting<ModuleTraits,
+                               std::void_t<decltype(&ModuleTraits::InitializeForTesting)>>
     : public std::is_same<absl::Status,
                           decltype(std::declval<ModuleTraits>().InitializeForTesting())> {};
 
 template <typename ModuleTraits>
 inline bool constexpr HasInitializeForTestingV = HasInitializeForTesting<ModuleTraits>::value;
 
-// Module implementation
+// Internal module implementation.
 template <typename Traits>
 class ModuleImpl final : public BaseModule {
  public:
@@ -151,7 +151,7 @@ struct ReverseDependency {};
 // This class simplifies the creation of initialization modules.
 //
 // When using `Module` the user doesn't have to worry about instantiating the module, making it
-// trivially destructible, avoiding initializationorder fiascos, etc.
+// trivially destructible, avoiding initialization order fiascos, etc.
 //
 // The following example shows the definition of a `FooModule` depending on two other modules called
 // `BarModule` and `BazModule`:
