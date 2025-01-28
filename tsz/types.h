@@ -65,6 +65,8 @@ class FieldMapView {
   // Constructs a view referring to the specified `FieldMap` object.
   explicit FieldMapView(FieldMap const &value) : value_(&value), hash_(absl::HashOf(*value_)) {}
 
+  ~FieldMapView() = default;
+
   FieldMapView(FieldMapView const &) = default;
   FieldMapView &operator=(FieldMapView const &) = default;
   FieldMapView(FieldMapView &&) noexcept = default;
@@ -102,6 +104,8 @@ struct Options {
     explicit BackendKey(std::string_view const key_root_prefix,
                         std::string_view const key_backend_address)
         : root_prefix(key_root_prefix), backend_address(key_backend_address) {}
+
+    ~BackendKey() = default;
 
     BackendKey(BackendKey const &) = default;
     BackendKey &operator=(BackendKey const &) = default;

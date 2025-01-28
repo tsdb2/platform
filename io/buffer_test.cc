@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <string_view>
 #include <tuple>
 #include <utility>
@@ -515,7 +516,8 @@ TEST(BufferTest, Release) {
     ASSERT_EQ(buffer.size(), 3);
     ASSERT_FALSE(buffer.empty());
     ASSERT_EQ(buffer.get(), data);
-    EXPECT_EQ(buffer.Release(), data);
+    std::unique_ptr<uint8_t[]> const ptr{buffer.Release()};
+    EXPECT_EQ(ptr.get(), data);
     EXPECT_EQ(buffer.capacity(), 0);
     EXPECT_EQ(buffer.size(), 0);
     ASSERT_TRUE(buffer.empty());

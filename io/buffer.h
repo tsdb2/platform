@@ -31,7 +31,7 @@ class Buffer {
   //
   // REQUIRES: `data` must have been allocated on the heap using `operator new`.
   explicit Buffer(gsl::owner<void*> const data, size_t const capacity, size_t const length)
-      : capacity_(capacity), length_(length), data_(static_cast<uint8_t*>(data)) {}
+      : capacity_(capacity), length_(length), data_(static_cast<gsl::owner<uint8_t*>>(data)) {}
 
   // Allocates a buffer with `size` capacity and length and copies `data` into it. This constructor
   // does not take ownership of `data`.
