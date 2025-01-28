@@ -9,6 +9,8 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "common/flat_map.h"
+#include "common/no_destructor.h"
+#include "common/re.h"
 #include "common/to_array.h"
 #include "common/utilities.h"
 
@@ -48,6 +50,12 @@ auto constexpr kEscapedCharacterByCode = tsdb2::common::fixed_flat_map_of<char, 
     {'r', '\r'},
     {'t', '\t'},
 });
+
+tsdb2::common::NoDestructor<tsdb2::common::RE> const kIntegerPattern{
+    tsdb2::common::RE::CreateOrDie(R"re((-?(?:0|[1-9][0-9]*)))re")};
+
+tsdb2::common::NoDestructor<tsdb2::common::RE> const kFloatPattern{tsdb2::common::RE::CreateOrDie(
+    R"re((-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[Ee][+-]?[0-9]+)?))re")};
 
 }  // namespace
 
@@ -189,6 +197,24 @@ void Parser::ConsumeWhitespace() {
   input_.remove_prefix(offset);
 }
 
+absl::StatusOr<std::string_view> Parser::ConsumeInteger() {
+  std::string_view number;
+  if (!kIntegerPattern->MatchPrefixArgs(input_, &number)) {
+    return InvalidSyntaxError();
+  }
+  input_.remove_prefix(number.size());
+  return number;
+}
+
+absl::StatusOr<std::string_view> Parser::ConsumeFloat() {
+  std::string_view number;
+  if (!kFloatPattern->MatchPrefixArgs(input_, &number)) {
+    return InvalidSyntaxError();
+  }
+  input_.remove_prefix(number.size());
+  return number;
+}
+
 absl::Status Parser::SkipString(size_t& offset) {
   auto const quote = input_[offset];
   for (++offset; offset < input_.size(); ++offset) {
@@ -226,6 +252,8 @@ absl::Status Parser::FastSkipArray(size_t& offset) {
         break;
       case ']':
         return absl::OkStatus();
+      default:
+        break;
     }
   }
   return InvalidSyntaxError();
@@ -247,6 +275,8 @@ absl::Status Parser::FastSkipObject(size_t& offset) {
         break;
       case '}':
         return absl::OkStatus();
+      default:
+        break;
     }
   }
   return InvalidSyntaxError();
@@ -269,6 +299,8 @@ absl::Status Parser::FastSkipField() {
       case '}':
         input_.remove_prefix(offset);
         return absl::OkStatus();
+      default:
+        break;
     }
   }
   return InvalidSyntaxError();
@@ -296,6 +328,8 @@ absl::Status Parser::SkipStringPartial() {
       case '"':
         input_.remove_prefix(i + 1);
         return absl::OkStatus();
+      default:
+        break;
     }
   }
   return InvalidSyntaxError();
@@ -359,7 +393,7 @@ absl::Status Parser::SkipValue() {
     return SkipArrayPartial();
   }
   // If none of the above prefixes were found then it must be a number.
-  return std::move(ReadFloat<long double>()).status();
+  return std::move(ConsumeFloat()).status();
 }
 
 absl::Status Parser::SkipField(bool const fast) {

@@ -151,8 +151,9 @@ class RE {
   static absl::Status PartialMatchArgs(std::string_view input, std::string_view pattern,
                                        Args *const... args);
 
-  // Strips the longest possible prefix matching `pattern` from the provided `input` string. Returns
-  // true iff a prefix was matched and removed.
+  // Strips the longest possible prefix matching `pattern` from the provided `input` string and
+  // returns an array of the strings captured by the capture groups. An error status is returned if
+  // `pattern` fails to compile or `input` doesn't have a matching prefix.
   static absl::StatusOr<CaptureSet> ConsumePrefix(std::string_view *input,
                                                   std::string_view pattern);
 

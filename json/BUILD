@@ -7,6 +7,8 @@ cc_library(
     deps = [
         "//common:flat_map",
         "//common:flat_set",
+        "//common:no_destructor",
+        "//common:re",
         "//common:reffed_ptr",
         "//common:to_array",
         "//common:trie_map",

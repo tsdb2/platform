@@ -155,16 +155,18 @@
 
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
+#include <cstdlib>
 #include <map>
 #include <memory>
 #include <optional>
 #include <set>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <tuple>
 #include <type_traits>
 #include <unordered_map>
@@ -196,7 +198,7 @@
 namespace tsdb2 {
 namespace json {
 
-enum class LineFeedType { LF, CRLF, CR };
+enum class LineFeedType : uint8_t { LF, CRLF, CR };
 
 // Options for parsing.
 struct ParseOptions {
@@ -239,7 +241,7 @@ struct FieldImpl;
 template <typename Type, char... ch>
 struct FieldImpl<Type, tsdb2::common::TypeStringMatcher<ch...>> {
   using Name = tsdb2::common::TypeStringMatcher<ch...>;
-  static inline std::string_view constexpr name = Name::value;
+  static std::string_view constexpr name = Name::value;
 };
 
 // FOR INTERNAL USE. Checks that none of `Fields` has the same name as `Name`. `Fields` are
@@ -251,17 +253,17 @@ struct CheckUniqueName;
 
 template <char... name>
 struct CheckUniqueName<tsdb2::common::TypeStringMatcher<name...>> {
-  static inline bool constexpr value = true;
+  static bool constexpr value = true;
 };
 
 template <typename Name, typename Type, typename... OtherFields>
 struct CheckUniqueName<Name, FieldImpl<Type, Name>, OtherFields...> {
-  static inline bool constexpr value = false;
+  static bool constexpr value = false;
 };
 
 template <typename FieldName, typename Type, typename Name, typename... OtherFields>
 struct CheckUniqueName<FieldName, FieldImpl<Type, Name>, OtherFields...> {
-  static inline bool constexpr value = CheckUniqueName<FieldName, OtherFields...>::value;
+  static bool constexpr value = CheckUniqueName<FieldName, OtherFields...>::value;
 };
 
 template <typename Name, typename... Fields>
@@ -661,12 +663,12 @@ class Parser final {
     }
   };
 
-  absl::Status InvalidSyntaxError() const {
+  static absl::Status InvalidSyntaxError() {
     // TODO: include row and column numbers in the error message.
     return absl::InvalidArgumentError("invalid JSON syntax");
   }
 
-  absl::Status InvalidFormatError() const {
+  static absl::Status InvalidFormatError() {
     // TODO: include row and column numbers in the error message.
     return absl::InvalidArgumentError("invalid format");
   }
@@ -692,6 +694,12 @@ class Parser final {
   absl::Status ExpectPrefix(std::string_view prefix);
 
   void ConsumeWhitespace();
+
+  absl::StatusOr<std::string_view> ConsumeInteger();
+  absl::StatusOr<std::string_view> ConsumeFloat();
+
+  template <typename Float>
+  static absl::StatusOr<Float> StrToFloat(std::string_view text);
 
   absl::Status SkipString(size_t& offset);
 
@@ -936,36 +944,13 @@ absl::StatusOr<Integer> Parser::ReadInteger() {
   if (input_.empty()) {
     return InvalidSyntaxError();
   }
-  int sign = 1;
-  if (ConsumePrefix("-")) {
-    if constexpr (!std::is_signed_v<Integer>) {
-      return InvalidSyntaxError();
-    }
-    sign = -1;
+  DEFINE_CONST_OR_RETURN(number, ConsumeInteger());
+  Integer result{};
+  auto const [ptr, ec] =
+      std::from_chars(number.data(), number.data() + number.size(), result, /*base=*/10);
+  if (ec != std::errc()) {
+    return InvalidFormatError();
   }
-  if (!PeekDigit()) {
-    return InvalidSyntaxError();
-  }
-  uint8_t digit = input_.front() - '0';
-  input_.remove_prefix(1);
-  Integer result = digit;
-  if (!digit) {
-    return result;
-  }
-  static Integer constexpr kMax = std::numeric_limits<Integer>::max();
-  while (PeekDigit()) {
-    if (result > kMax / 10) {
-      return InvalidFormatError();
-    }
-    result *= 10;
-    digit = input_.front() - '0';
-    if (result > kMax - digit) {
-      return InvalidFormatError();
-    }
-    input_.remove_prefix(1);
-    result += digit;
-  }
-  result *= sign;
   return result;
 }
 
@@ -975,108 +960,8 @@ absl::StatusOr<Float> Parser::ReadFloat() {
   if (input_.empty()) {
     return InvalidSyntaxError();
   }
-  int sign = 1;
-  if (ConsumePrefix("-")) {
-    sign = -1;
-  }
-  if (!PeekDigit()) {
-    return InvalidSyntaxError();
-  }
-  uint8_t digit = input_.front() - '0';
-  input_.remove_prefix(1);
-  if (!digit) {
-    return Float{sign * 0.0};
-  }
-  int64_t mantissa = digit;
-  static int64_t constexpr kMaxMantissa = std::numeric_limits<int64_t>::max();
-  while (PeekDigit()) {
-    if (mantissa > kMaxMantissa / 10) {
-      return InvalidFormatError();
-    }
-    mantissa *= 10;
-    digit = input_.front() - '0';
-    if (mantissa > kMaxMantissa - digit) {
-      return InvalidFormatError();
-    }
-    input_.remove_prefix(1);
-    mantissa += digit;
-  }
-  int64_t fractional_digits = 0;
-  if (ConsumePrefix(".")) {
-    if (!PeekDigit()) {
-      return InvalidSyntaxError();
-    }
-    ++fractional_digits;
-    if (mantissa > kMaxMantissa / 10) {
-      return InvalidFormatError();
-    }
-    mantissa *= 10;
-    digit = input_.front() - '0';
-    if (mantissa > kMaxMantissa - digit) {
-      return InvalidFormatError();
-    }
-    input_.remove_prefix(1);
-    mantissa += digit;
-    while (PeekDigit()) {
-      ++fractional_digits;
-      if (mantissa > kMaxMantissa / 10) {
-        return InvalidFormatError();
-      }
-      mantissa *= 10;
-      digit = input_.front() - '0';
-      if (mantissa > kMaxMantissa - digit) {
-        return InvalidFormatError();
-      }
-      input_.remove_prefix(1);
-      mantissa += digit;
-    }
-  }
-  int exponent = 0;
-  if (ConsumePrefix("E") || ConsumePrefix("e")) {
-    int exponent_sign = 1;
-    if (ConsumePrefix("-")) {
-      exponent_sign = -1;
-    } else {
-      ConsumePrefix("+");
-    }
-    if (!PeekDigit()) {
-      return InvalidSyntaxError();
-    }
-    exponent = exponent_sign * (input_.front() - '0');
-    input_.remove_prefix(1);
-    static int constexpr kMinExponent = std::numeric_limits<Float>::min_exponent10;
-    static int constexpr kMaxExponent = std::numeric_limits<Float>::max_exponent10;
-    int const min_exponent = kMinExponent - fractional_digits;
-    int const max_exponent = kMaxExponent - fractional_digits;
-    while (PeekDigit()) {
-      if (exponent_sign < 0) {
-        if (exponent < min_exponent / 10) {
-          return InvalidFormatError();
-        }
-      } else {
-        if (exponent > max_exponent / 10) {
-          return InvalidFormatError();
-        }
-      }
-      exponent *= 10;
-      int8_t const digit = input_.front() - '0';
-      input_.remove_prefix(1);
-      if (exponent_sign < 0) {
-        if (exponent < min_exponent - digit) {
-          return InvalidFormatError();
-        }
-        exponent -= digit;
-      } else {
-        if (exponent > max_exponent + digit) {
-          return InvalidFormatError();
-        }
-        exponent += digit;
-      }
-    }
-  }
-  exponent -= fractional_digits;
-  return static_cast<Float>(
-      sign * mantissa * std::pow(static_cast<long double>(10), static_cast<long double>(exponent)));
+  DEFINE_CONST_OR_RETURN(number, ConsumeFloat());
+  return StrToFloat<Float>(number);
 }
 
 namespace internal {
@@ -1344,6 +1229,27 @@ absl::Status Parser::ReadPointeeOrNull(std::unique_ptr<Value>* const ptr) {
     }
     return Tsdb2JsonParse(this, ptr->get());
   }
+}
+
+template <>
+absl::StatusOr<float> Parser::StrToFloat<float>(std::string_view const text) {
+  char const* const begin = text.data();
+  char* end = const_cast<char*>(text.data() + text.size());
+  return std::strtof(begin, &end);
+}
+
+template <>
+absl::StatusOr<double> Parser::StrToFloat<double>(std::string_view const text) {
+  char const* const begin = text.data();
+  char* end = const_cast<char*>(text.data() + text.size());
+  return std::strtod(begin, &end);
+}
+
+template <>
+absl::StatusOr<long double> Parser::StrToFloat<long double>(std::string_view const text) {
+  char const* const begin = text.data();
+  char* end = const_cast<char*>(text.data() + text.size());
+  return std::strtold(begin, &end);
 }
 
 // Low-level API to produce JSON outputs. Supports both formatted and compressed output.
