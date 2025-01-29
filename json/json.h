@@ -183,6 +183,7 @@
 #include "absl/container/node_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/charconv.h"
 #include "absl/strings/cord.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
@@ -698,9 +699,6 @@ class Parser final {
   absl::StatusOr<std::string_view> ConsumeInteger();
   absl::StatusOr<std::string_view> ConsumeFloat();
 
-  template <typename Float>
-  static absl::StatusOr<Float> StrToFloat(std::string_view text);
-
   absl::Status SkipString(size_t& offset);
 
   absl::Status FastSkipArray(size_t& offset);
@@ -961,7 +959,13 @@ absl::StatusOr<Float> Parser::ReadFloat() {
     return InvalidSyntaxError();
   }
   DEFINE_CONST_OR_RETURN(number, ConsumeFloat());
-  return StrToFloat<Float>(number);
+  Float value{};
+  auto const [ptr, ec] = absl::from_chars(number.data(), number.data() + number.size(), value,
+                                          absl::chars_format::general);
+  if (ec != std::errc()) {
+    return InvalidFormatError();
+  }
+  return value;
 }
 
 namespace internal {
@@ -1229,27 +1233,6 @@ absl::Status Parser::ReadPointeeOrNull(std::unique_ptr<Value>* const ptr) {
     }
     return Tsdb2JsonParse(this, ptr->get());
   }
-}
-
-template <>
-absl::StatusOr<float> Parser::StrToFloat<float>(std::string_view const text) {
-  char const* const begin = text.data();
-  char* end = const_cast<char*>(text.data() + text.size());
-  return std::strtof(begin, &end);
-}
-
-template <>
-absl::StatusOr<double> Parser::StrToFloat<double>(std::string_view const text) {
-  char const* const begin = text.data();
-  char* end = const_cast<char*>(text.data() + text.size());
-  return std::strtod(begin, &end);
-}
-
-template <>
-absl::StatusOr<long double> Parser::StrToFloat<long double>(std::string_view const text) {
-  char const* const begin = text.data();
-  char* end = const_cast<char*>(text.data() + text.size());
-  return std::strtold(begin, &end);
 }
 
 // Low-level API to produce JSON outputs. Supports both formatted and compressed output.
