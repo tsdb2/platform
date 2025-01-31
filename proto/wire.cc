@@ -26,12 +26,20 @@ absl::StatusOr<FieldTag> Decoder::DecodeTag() {
 
 absl::StatusOr<int32_t> Decoder::DecodeSInt32() {
   DEFINE_CONST_OR_RETURN(value, DecodeUInt32());
-  return static_cast<int32_t>((value >> 1) ^ (value << 31));
+  if ((value & 1) != 0) {
+    return static_cast<int32_t>(-(value >> 1));
+  } else {
+    return static_cast<int32_t>(value >> 1);
+  }
 }
 
 absl::StatusOr<int64_t> Decoder::DecodeSInt64() {
   DEFINE_CONST_OR_RETURN(value, DecodeUInt64());
-  return static_cast<int64_t>((value >> 1) ^ (value << 63));
+  if ((value & 1) != 0) {
+    return static_cast<int64_t>(-(value >> 1));
+  } else {
+    return static_cast<int64_t>(value >> 1);
+  }
 }
 
 namespace {
@@ -232,7 +240,7 @@ absl::Status Decoder::SkipRecord(WireType const wire_type) {
   switch (wire_type) {
     case WireType::kVarInt: {
       size_t offset = 0;
-      while ((data_[offset] & 0x7F) != 0) {
+      while ((data_[offset] & 0x80) != 0) {
         ++offset;
         if (offset >= data_.size()) {
           return EndOfInputError();
