@@ -15,13 +15,26 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "wire_test",
+    srcs = ["wire_test.cc"],
+    deps = [
+        ":wire",
+        "//common:testing",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
 cc_library(
     name = "plugin",
     srcs = ["plugin.cc"],
     hdrs = ["plugin.h"],
     deps = [
         ":wire",
+        "//common:utilities",
         "//io:cord",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
     ],
 )

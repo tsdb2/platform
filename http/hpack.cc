@@ -243,7 +243,7 @@ absl::StatusOr<size_t> Decoder::DecodeInteger(absl::Span<uint8_t const> const da
       return IntegerDecodingError("exceeds 64 bits");
     }
     byte = data[offset++];
-    value += (byte & 0x7F) << m;
+    value += (uint64_t{byte} & 0x7FULL) << m;
     m += 7;
   } while ((byte & 0x80) != 0);
   return value;

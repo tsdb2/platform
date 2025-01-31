@@ -1,6 +1,7 @@
 #ifndef __TSDB2_PROTO_PLUGIN_H__
 #define __TSDB2_PROTO_PLUGIN_H__
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -52,7 +53,7 @@ enum class Edition {
 
 // Describes an enum type.
 struct EnumDescriptorProto {
-  static absl::StatusOr<EnumDescriptorProto> Decode(absl::Span<uint8_t const> const& buffer);
+  static absl::StatusOr<EnumDescriptorProto> Decode(absl::Span<uint8_t const> buffer);
   static tsdb2::io::Cord Encode(EnumDescriptorProto const& value);
 
   auto tie() const { return std::tie(name, value, options, reserved_range, reserved_name); }
@@ -83,7 +84,7 @@ struct EnumDescriptorProto {
   // is inclusive such that it can appropriately represent the entire int32
   // domain.
   struct EnumReservedRange {
-    static absl::StatusOr<EnumReservedRange> Decode(absl::Span<uint8_t const> const& buffer);
+    static absl::StatusOr<EnumReservedRange> Decode(absl::Span<uint8_t const> buffer);
     static tsdb2::io::Cord Encode(EnumReservedRange const& value);
 
     auto tie() const { return std::tie(start, end); }
@@ -123,7 +124,7 @@ struct EnumDescriptorProto {
 struct UninterpretedOption {
   struct NamePart;
 
-  static absl::StatusOr<UninterpretedOption> Decode(absl::Span<uint8_t const> const& buffer);
+  static absl::StatusOr<UninterpretedOption> Decode(absl::Span<uint8_t const> buffer);
   static tsdb2::io::Cord Encode(UninterpretedOption const& value);
 
   auto tie() const {
@@ -149,7 +150,7 @@ struct UninterpretedOption {
   // options specs in .proto files). E.g.,{ ["foo", false], ["bar.baz", true], ["moo", false] }
   // represents "foo.(bar.baz).moo".
   struct NamePart {
-    static absl::StatusOr<NamePart> Decode(absl::Span<uint8_t const> const& buffer);
+    static absl::StatusOr<NamePart> Decode(absl::Span<uint8_t const> buffer);
     static tsdb2::io::Cord Encode(NamePart const& value);
 
     auto tie() const { return std::tie(name_part, is_extension); }
@@ -184,7 +185,7 @@ struct UninterpretedOption {
 };
 
 struct FeatureSet {
-  static absl::StatusOr<FeatureSet> Decode(absl::Span<uint8_t const> const& buffer);
+  static absl::StatusOr<FeatureSet> Decode(absl::Span<uint8_t const> buffer);
   static tsdb2::io::Cord Encode(FeatureSet const& value);
 
   auto tie() const {
@@ -264,7 +265,7 @@ struct FeatureSet {
 };
 
 struct ExtensionRangeOptions {
-  static absl::StatusOr<ExtensionRangeOptions> Decode(absl::Span<uint8_t const> const& buffer);
+  static absl::StatusOr<ExtensionRangeOptions> Decode(absl::Span<uint8_t const> buffer);
   static tsdb2::io::Cord Encode(ExtensionRangeOptions const& value);
 
   auto tie() const { return std::tie(uninterpreted_option, declaration, features, verification); }
@@ -286,7 +287,7 @@ struct ExtensionRangeOptions {
   std::vector<UninterpretedOption> uninterpreted_option;
 
   struct Declaration {
-    static absl::StatusOr<Declaration> Decode(absl::Span<uint8_t const> const& buffer);
+    static absl::StatusOr<Declaration> Decode(absl::Span<uint8_t const> buffer);
     static tsdb2::io::Cord Encode(Declaration const& value);
 
     auto tie() const { return std::tie(number, full_name, type, reserved, repeated); }
@@ -348,7 +349,7 @@ struct ExtensionRangeOptions {
 
 // Describes a field within a message.
 struct FieldDescriptorProto {
-  static absl::StatusOr<FieldDescriptorProto> Decode(absl::Span<uint8_t const> const& buffer);
+  static absl::StatusOr<FieldDescriptorProto> Decode(absl::Span<uint8_t const> buffer);
   static tsdb2::io::Cord Encode(FieldDescriptorProto const& value);
 
   auto tie() const {
@@ -471,7 +472,7 @@ struct FieldDescriptorProto {
 
 // Describes a oneof.
 struct OneofDescriptorProto {
-  static absl::StatusOr<OneofDescriptorProto> Decode(absl::Span<uint8_t const> const& buffer);
+  static absl::StatusOr<OneofDescriptorProto> Decode(absl::Span<uint8_t const> buffer);
   static tsdb2::io::Cord Encode(OneofDescriptorProto const& value);
 
   auto tie() const { return std::tie(name, options); }
@@ -491,10 +492,10 @@ struct OneofDescriptorProto {
 
   std::optional<std::string> name;
   std::optional<OneofOptions> options;
-}
+};
 
 struct MessageOptions {
-  static absl::StatusOr<MessageOptions> Decode(absl::Span<uint8_t const> const& buffer);
+  static absl::StatusOr<MessageOptions> Decode(absl::Span<uint8_t const> buffer);
   static tsdb2::io::Cord Encode(MessageOptions const& value);
 
   auto tie() const {
@@ -595,7 +596,7 @@ struct DescriptorProto {
   struct ExtensionRange;
   struct ReservedRange;
 
-  static absl::StatusOr<DescriptorProto> Decode(absl::Span<uint8_t const> const& buffer);
+  static absl::StatusOr<DescriptorProto> Decode(absl::Span<uint8_t const> buffer);
   static tsdb2::io::Cord Encode(DescriptorProto const& value);
 
   auto tie() const {
@@ -625,7 +626,7 @@ struct DescriptorProto {
   std::vector<EnumDescriptorProto> enum_type;
 
   struct ExtensionRange {
-    static absl::StatusOr<ExtensionRange> Decode(absl::Span<uint8_t const> const& buffer);
+    static absl::StatusOr<ExtensionRange> Decode(absl::Span<uint8_t const> buffer);
     static tsdb2::io::Cord Encode(ExtensionRange const& value);
 
     auto tie() const { return std::tie(start, end, options); }
@@ -657,7 +658,7 @@ struct DescriptorProto {
   // Range of reserved tag numbers. Reserved tag numbers may not be used by fields or extension
   // ranges in the same message. Reserved ranges may not overlap.
   struct ReservedRange {
-    static absl::StatusOr<ReservedRange> Decode(absl::Span<uint8_t const> const& buffer);
+    static absl::StatusOr<ReservedRange> Decode(absl::Span<uint8_t const> buffer);
     static tsdb2::io::Cord Encode(ReservedRange const& value);
 
     auto tie() const { return std::tie(start, end); }
@@ -688,7 +689,7 @@ struct DescriptorProto {
 
 // Describes a complete .proto file.
 struct FileDescriptorProto {
-  static absl::StatusOr<FileDescriptorProto> Decode(absl::Span<uint8_t const> const& buffer);
+  static absl::StatusOr<FileDescriptorProto> Decode(absl::Span<uint8_t const> buffer);
   static tsdb2::io::Cord Encode(FileDescriptorProto const& value);
 
   auto tie() const {
@@ -736,7 +737,7 @@ struct FileDescriptorProto {
 struct GeneratedCodeInfo {
   struct Annotation;
 
-  static absl::StatusOr<GeneratedCodeInfo> Decode(absl::Span<uint8_t const> const& buffer);
+  static absl::StatusOr<GeneratedCodeInfo> Decode(absl::Span<uint8_t const> buffer);
   static tsdb2::io::Cord Encode(GeneratedCodeInfo const& value);
 
   auto tie() const { return std::tie(annotation); }
@@ -759,7 +760,7 @@ struct GeneratedCodeInfo {
   std::vector<Annotation> annotation;
 
   struct Annotation {
-    static absl::StatusOr<Annotation> Decode(absl::Span<uint8_t const> const& buffer);
+    static absl::StatusOr<Annotation> Decode(absl::Span<uint8_t const> buffer);
     static tsdb2::io::Cord Encode(Annotation const& value);
 
     auto tie() const { return std::tie(path, source_file, begin, end, semantic); }
@@ -815,7 +816,7 @@ struct Version;
 
 // The version number of protocol compiler.
 struct Version {
-  static absl::StatusOr<Version> Decode(absl::Span<uint8_t const> const& buffer);
+  static absl::StatusOr<Version> Decode(absl::Span<uint8_t const> buffer);
   static tsdb2::io::Cord Encode(Version const& value);
 
   auto tie() const { return std::tie(major, minor, patch, suffix); }
@@ -839,7 +840,13 @@ struct Version {
 
 // An encoded CodeGeneratorRequest is written to the plugin's stdin.
 struct CodeGeneratorRequest {
-  static absl::StatusOr<CodeGeneratorRequest> Decode(absl::Span<uint8_t const> const& buffer);
+  static size_t constexpr kFileToGenerateTagNumber = 1;
+  static size_t constexpr kParameterTagNumber = 2;
+  static size_t constexpr kProtoFileTagNumber = 15;
+  static size_t constexpr kSourceFileDescriptorsTagNumber = 17;
+  static size_t constexpr kCompilerVersionTagNumber = 3;
+
+  static absl::StatusOr<CodeGeneratorRequest> Decode(absl::Span<uint8_t const> buffer);
   static tsdb2::io::Cord Encode(CodeGeneratorRequest const& value);
 
   auto tie() const {
@@ -897,7 +904,7 @@ struct CodeGeneratorRequest {
 struct CodeGeneratorResponse {
   struct File;
 
-  static absl::StatusOr<CodeGeneratorResponse> Decode(absl::Span<uint8_t const> const& buffer);
+  static absl::StatusOr<CodeGeneratorResponse> Decode(absl::Span<uint8_t const> buffer);
   static tsdb2::io::Cord Encode(CodeGeneratorResponse const& value);
 
   auto tie() const { return std::tie(error, supported_features, minimum_edition, maximum_edition); }
@@ -947,7 +954,7 @@ struct CodeGeneratorResponse {
 
   // Represents a single generated file.
   struct File {
-    static absl::StatusOr<File> Decode(absl::Span<uint8_t const> const& buffer);
+    static absl::StatusOr<File> Decode(absl::Span<uint8_t const> buffer);
     static tsdb2::io::Cord Encode(File const& value);
 
     auto tie() const { return std::tie(name, insertion_point, content, generated_code_info); }
