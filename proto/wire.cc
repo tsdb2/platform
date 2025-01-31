@@ -2,7 +2,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <string_view>
+#include <utility>
 
 #include "absl/base/config.h"  // IWYU pragma: keep
 #include "absl/status/status.h"
@@ -96,6 +98,31 @@ absl::StatusOr<uint64_t> Decoder::DecodeFixedUInt64() {
   value = ByteSwap64(value);
 #endif  // ABSL_IS_BIG_ENDIAN
   return value;
+}
+
+absl::StatusOr<bool> Decoder::DecodeBool() {
+  DEFINE_CONST_OR_RETURN(value, DecodeInteger<uint8_t>());
+  return static_cast<bool>(value);
+}
+
+absl::StatusOr<float> Decoder::DecodeFloat() {
+  DEFINE_CONST_OR_RETURN(value, DecodeFixedUInt32());
+  return *reinterpret_cast<float const*>(&value);
+}
+
+absl::StatusOr<double> Decoder::DecodeDouble() {
+  DEFINE_CONST_OR_RETURN(value, DecodeFixedUInt64());
+  return *reinterpret_cast<double const*>(&value);
+}
+
+absl::StatusOr<std::string> Decoder::DecodeString() {
+  DEFINE_CONST_OR_RETURN(length, DecodeInteger<size_t>());
+  if (data_.size() < length) {
+    return absl::InvalidArgumentError("reached end of input");
+  }
+  std::string value{reinterpret_cast<char const*>(data_.data()), length};
+  data_.remove_prefix(length);
+  return std::move(value);
 }
 
 absl::Status Decoder::IntegerDecodingError(std::string_view const message) {

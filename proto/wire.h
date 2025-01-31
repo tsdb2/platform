@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <string_view>
 #include <type_traits>
 
@@ -59,6 +60,12 @@ class Decoder {
   absl::StatusOr<uint32_t> DecodeFixedUInt32();
   absl::StatusOr<int64_t> DecodeFixedInt64();
   absl::StatusOr<uint64_t> DecodeFixedUInt64();
+
+  absl::StatusOr<bool> DecodeBool();
+  absl::StatusOr<float> DecodeFloat();
+  absl::StatusOr<double> DecodeDouble();
+
+  absl::StatusOr<std::string> DecodeString();
 
   // TODO
 
