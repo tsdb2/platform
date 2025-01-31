@@ -378,12 +378,12 @@ class Object<> {
 
   template <typename H>
   friend H AbslHashValue(H h, Object const& value) {
-    return h;
+    return H::combine(std::move(h));
   }
 
   template <typename State>
   friend State Tsdb2FingerprintValue(State state, Object const& value) {
-    return state;
+    return State::Combine(std::move(state));
   }
 
   void Clear() {}
@@ -536,7 +536,7 @@ class Object<internal::FieldImpl<Type, Name>, OtherFields...> : public Object<Ot
   inline void WriteFieldsCompressed(Stringifier* stringifier, bool first_field) const;
 
  private:
-  Type value_;
+  Type value_{};
 };
 
 template <typename Type2, typename Name, typename... OtherFields>

@@ -313,7 +313,8 @@ template <typename State, typename... Values>
 State Tsdb2FingerprintValue(State state, std::tuple<Values...> const& value) {
   return std::apply(
       [state = std::move(state)](auto const&... elements) mutable {
-        return ((state = Tsdb2FingerprintValue(std::move(state), elements)), ...);
+        ((state = Tsdb2FingerprintValue(std::move(state), elements)), ...);
+        return std::move(state);
       },
       value);
 }
