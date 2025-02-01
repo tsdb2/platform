@@ -2,6 +2,7 @@
 
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "common/testing.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -13,6 +14,7 @@ using ::testing::DoubleNear;
 using ::testing::ElementsAre;
 using ::testing::FloatNear;
 using ::tsdb2::proto::Decoder;
+using ::tsdb2::proto::WireType;
 
 TEST(DecoderTest, InitialState) {
   Decoder decoder{{0x82, 0x24, 0x83, 0x92, 0x01}};
@@ -591,6 +593,58 @@ TEST(DecoderTest, WrongPackedDoubleSize) {
   EXPECT_THAT(decoder.DecodePackedDoubles(), StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
-// TODO
+TEST(DecoderTest, SkipEmptyBuffer) {
+  Decoder decoder{{}};
+  EXPECT_THAT(decoder.SkipRecord(WireType::kVarInt), StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(DecoderTest, SkipSingleByteInteger) {
+  Decoder decoder{{0x48, 0x2A}};
+  EXPECT_OK(decoder.SkipRecord(WireType::kVarInt));
+  EXPECT_THAT(decoder.DecodeVarInt(), IsOkAndHolds(42));
+  EXPECT_TRUE(decoder.at_end());
+}
+
+TEST(DecoderTest, SkipTwoByteInteger) {
+  Decoder decoder{{0x84, 0x48, 0x2A}};
+  EXPECT_OK(decoder.SkipRecord(WireType::kVarInt));
+  EXPECT_THAT(decoder.DecodeVarInt(), IsOkAndHolds(42));
+  EXPECT_TRUE(decoder.at_end());
+}
+
+TEST(DecoderTest, SkipInt64) {
+  Decoder decoder{{0x84, 0x48, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2A}};
+  EXPECT_OK(decoder.SkipRecord(WireType::kInt64));
+  EXPECT_THAT(decoder.DecodeVarInt(), IsOkAndHolds(42));
+  EXPECT_TRUE(decoder.at_end());
+}
+
+TEST(DecoderTest, SkipEmptySubMessage) {
+  Decoder decoder{{0x00, 0x2A}};
+  EXPECT_OK(decoder.SkipRecord(WireType::kLength));
+  EXPECT_THAT(decoder.DecodeVarInt(), IsOkAndHolds(42));
+  EXPECT_TRUE(decoder.at_end());
+}
+
+TEST(DecoderTest, SkipOneByteSubMessage) {
+  Decoder decoder{{0x01, 0x56, 0x2A}};
+  EXPECT_OK(decoder.SkipRecord(WireType::kLength));
+  EXPECT_THAT(decoder.DecodeVarInt(), IsOkAndHolds(42));
+  EXPECT_TRUE(decoder.at_end());
+}
+
+TEST(DecoderTest, SkipTwoByteSubMessage) {
+  Decoder decoder{{0x02, 0x12, 0x34, 0x2A}};
+  EXPECT_OK(decoder.SkipRecord(WireType::kLength));
+  EXPECT_THAT(decoder.DecodeVarInt(), IsOkAndHolds(42));
+  EXPECT_TRUE(decoder.at_end());
+}
+
+TEST(DecoderTest, SkipInt32) {
+  Decoder decoder{{0x84, 0x48, 0x00, 0x00, 0x2A}};
+  EXPECT_OK(decoder.SkipRecord(WireType::kInt32));
+  EXPECT_THAT(decoder.DecodeVarInt(), IsOkAndHolds(42));
+  EXPECT_TRUE(decoder.at_end());
+}
 
 }  // namespace
