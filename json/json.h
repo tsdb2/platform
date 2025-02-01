@@ -378,12 +378,12 @@ class Object<> {
 
   template <typename H>
   friend H AbslHashValue(H h, Object const& value) {
-    return h;
+    return H::combine(std::move(h));
   }
 
   template <typename State>
   friend State Tsdb2FingerprintValue(State state, Object const& value) {
-    return state;
+    return State::Combine(std::move(state));
   }
 
   void Clear() {}

@@ -28,20 +28,32 @@ cc_test(
 )
 
 cc_library(
-    name = "plugin",
-    srcs = ["plugin.cc"],
-    hdrs = ["plugin.h"],
+    name = "object",
+    hdrs = ["object.h"],
     deps = [
         ":wire",
+        "//common:type_string",
         "//common:utilities",
-        "//io:cord",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "plugin",
+    hdrs = ["plugin.h"],
+    deps = [
+        ":object",
     ],
 )
 
 cc_binary(
     name = "proto_cc",
     srcs = ["proto.cc"],
-    deps = [":plugin"],
+    deps = [
+        ":plugin",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
 )
