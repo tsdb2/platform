@@ -114,12 +114,18 @@ absl::StatusOr<bool> Decoder::DecodeBool() {
 }
 
 absl::StatusOr<float> Decoder::DecodeFloat() {
-  DEFINE_CONST_OR_RETURN(value, DecodeFixedUInt32());
+  DEFINE_VAR_OR_RETURN(value, DecodeFixedUInt32());
+#ifdef ABSL_IS_BIG_ENDIAN
+  value = ByteSwap32(value);
+#endif  // ABSL_IS_BIG_ENDIAN
   return *reinterpret_cast<float const*>(&value);
 }
 
 absl::StatusOr<double> Decoder::DecodeDouble() {
-  DEFINE_CONST_OR_RETURN(value, DecodeFixedUInt64());
+  DEFINE_VAR_OR_RETURN(value, DecodeFixedUInt64());
+#ifdef ABSL_IS_BIG_ENDIAN
+  value = ByteSwap64(value);
+#endif  // ABSL_IS_BIG_ENDIAN
   return *reinterpret_cast<double const*>(&value);
 }
 
@@ -144,7 +150,7 @@ absl::StatusOr<absl::Span<uint8_t const>> Decoder::GetChildSpan() {
 }
 
 absl::StatusOr<std::vector<int32_t>> Decoder::DecodePackedSInt32s() {
-  DEFINE_VAR_OR_RETURN(child, DecodeChildSpan(/*record_size=*/4));
+  DEFINE_VAR_OR_RETURN(child, DecodeChildSpan());
   std::vector<int32_t> values;
   while (!child.at_end()) {
     DEFINE_CONST_OR_RETURN(value, child.DecodeSInt32());
@@ -154,7 +160,7 @@ absl::StatusOr<std::vector<int32_t>> Decoder::DecodePackedSInt32s() {
 }
 
 absl::StatusOr<std::vector<int64_t>> Decoder::DecodePackedSInt64s() {
-  DEFINE_VAR_OR_RETURN(child, DecodeChildSpan(/*record_size=*/8));
+  DEFINE_VAR_OR_RETURN(child, DecodeChildSpan());
   std::vector<int64_t> values;
   while (!child.at_end()) {
     DEFINE_CONST_OR_RETURN(value, child.DecodeSInt64());
