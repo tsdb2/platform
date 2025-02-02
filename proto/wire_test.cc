@@ -1,10 +1,13 @@
 #include "proto/wire.h"
 
+#include <utility>
+
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "common/testing.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "io/buffer_testing.h"
 
 namespace {
 
@@ -13,8 +16,12 @@ using ::absl_testing::StatusIs;
 using ::testing::DoubleNear;
 using ::testing::ElementsAre;
 using ::testing::FloatNear;
+using ::testing::IsEmpty;
 using ::tsdb2::proto::Decoder;
+using ::tsdb2::proto::Encoder;
+using ::tsdb2::proto::FieldTag;
 using ::tsdb2::proto::WireType;
+using ::tsdb2::testing::io::BufferAsBytes;
 
 TEST(DecoderTest, InitialState) {
   Decoder decoder{{0x82, 0x24, 0x83, 0x92, 0x01}};
@@ -35,6 +42,28 @@ TEST(DecoderTest, DecodeAll) {
   ASSERT_THAT(decoder.DecodeVarInt(), IsOkAndHolds(18691));
   EXPECT_TRUE(decoder.at_end());
   EXPECT_EQ(decoder.remaining(), 0);
+}
+
+TEST(DecoderTest, DecodeSingleByteTag) {
+  EXPECT_THAT(Decoder{{0x10}}.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 2, .wire_type = WireType::kVarInt}));
+  EXPECT_THAT(Decoder{{0x12}}.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 2, .wire_type = WireType::kLength}));
+  EXPECT_THAT(Decoder{{0x18}}.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 3, .wire_type = WireType::kVarInt}));
+  EXPECT_THAT(Decoder{{0x1D}}.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 3, .wire_type = WireType::kInt32}));
+}
+
+TEST(DecoderTest, DecodeTwoByteTag) {
+  EXPECT_THAT((Decoder{{0x80, 0x7D}}.DecodeTag()),
+              IsOkAndHolds(FieldTag{.field_number = 2000, .wire_type = WireType::kVarInt}));
+  EXPECT_THAT((Decoder{{0x82, 0x7D}}.DecodeTag()),
+              IsOkAndHolds(FieldTag{.field_number = 2000, .wire_type = WireType::kLength}));
+  EXPECT_THAT((Decoder{{0x88, 0x7D}}.DecodeTag()),
+              IsOkAndHolds(FieldTag{.field_number = 2001, .wire_type = WireType::kVarInt}));
+  EXPECT_THAT((Decoder{{0x8D, 0x7D}}.DecodeTag()),
+              IsOkAndHolds(FieldTag{.field_number = 2001, .wire_type = WireType::kInt32}));
 }
 
 TEST(DecoderTest, DecodeSingleByteInteger) {
@@ -118,12 +147,12 @@ TEST(DecoderTest, DecodeSingleBytePositiveOddSInt64) {
 }
 
 TEST(DecoderTest, DecodeSingleByteNegativeEvenSInt64) {
-  Decoder decoder{{0x55}};
+  Decoder decoder{{0x53}};
   EXPECT_THAT(decoder.DecodeSInt64(), IsOkAndHolds(-42));
 }
 
 TEST(DecoderTest, DecodeSingleByteNegativeOddSInt64) {
-  Decoder decoder{{0x57}};
+  Decoder decoder{{0x55}};
   EXPECT_THAT(decoder.DecodeSInt64(), IsOkAndHolds(-43));
 }
 
@@ -138,12 +167,12 @@ TEST(DecoderTest, DecodeTwoBytePositiveOddSInt64) {
 }
 
 TEST(DecoderTest, DecodeTwoByteNegativeEvenSInt64) {
-  Decoder decoder{{0x85, 0x48}};
+  Decoder decoder{{0x83, 0x48}};
   EXPECT_THAT(decoder.DecodeSInt64(), IsOkAndHolds(-4610));
 }
 
 TEST(DecoderTest, DecodeTwoByteNegativeOddSInt64) {
-  Decoder decoder{{0x87, 0x48}};
+  Decoder decoder{{0x85, 0x48}};
   EXPECT_THAT(decoder.DecodeSInt64(), IsOkAndHolds(-4611));
 }
 
@@ -152,9 +181,9 @@ TEST(DecoderTest, DecodeMaxPositiveEvenSInt64) {
   EXPECT_THAT(decoder.DecodeSInt64(), IsOkAndHolds(0x7FFFFFFFFFFFFFFELL));
 }
 
-TEST(DecoderTest, DecodeMaxNegativeEvenSInt64) {
+TEST(DecoderTest, DecodeMaxNegativeOddSInt64) {
   Decoder decoder{{0xFD, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01}};
-  EXPECT_THAT(decoder.DecodeSInt64(), IsOkAndHolds(-0x7FFFFFFFFFFFFFFELL));
+  EXPECT_THAT(decoder.DecodeSInt64(), IsOkAndHolds(-0x7FFFFFFFFFFFFFFFLL));
 }
 
 TEST(DecoderTest, DecodeMaxPositiveOddSInt64) {
@@ -162,9 +191,9 @@ TEST(DecoderTest, DecodeMaxPositiveOddSInt64) {
   EXPECT_THAT(decoder.DecodeSInt64(), IsOkAndHolds(0x7FFFFFFFFFFFFFFFLL));
 }
 
-TEST(DecoderTest, DecodeMaxNegativeOddSInt64) {
+TEST(DecoderTest, DecodeMaxNegativeEvenSInt64) {
   Decoder decoder{{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01}};
-  EXPECT_THAT(decoder.DecodeSInt64(), IsOkAndHolds(-0x7FFFFFFFFFFFFFFFLL));
+  EXPECT_THAT(decoder.DecodeSInt64(), IsOkAndHolds(-0x8000000000000000LL));
 }
 
 TEST(DecoderTest, SInt64Overflow) {
@@ -183,12 +212,12 @@ TEST(DecoderTest, DecodeSingleBytePositiveOddSInt32) {
 }
 
 TEST(DecoderTest, DecodeSingleByteNegativeEvenSInt32) {
-  Decoder decoder{{0x55}};
+  Decoder decoder{{0x53}};
   EXPECT_THAT(decoder.DecodeSInt32(), IsOkAndHolds(-42));
 }
 
 TEST(DecoderTest, DecodeSingleByteNegativeOddSInt32) {
-  Decoder decoder{{0x57}};
+  Decoder decoder{{0x55}};
   EXPECT_THAT(decoder.DecodeSInt32(), IsOkAndHolds(-43));
 }
 
@@ -203,12 +232,12 @@ TEST(DecoderTest, DecodeTwoBytePositiveOddSInt32) {
 }
 
 TEST(DecoderTest, DecodeTwoByteNegativeEvenSInt32) {
-  Decoder decoder{{0x85, 0x48}};
+  Decoder decoder{{0x83, 0x48}};
   EXPECT_THAT(decoder.DecodeSInt32(), IsOkAndHolds(-4610));
 }
 
 TEST(DecoderTest, DecodeTwoByteNegativeOddSInt32) {
-  Decoder decoder{{0x87, 0x48}};
+  Decoder decoder{{0x85, 0x48}};
   EXPECT_THAT(decoder.DecodeSInt32(), IsOkAndHolds(-4611));
 }
 
@@ -219,7 +248,7 @@ TEST(DecoderTest, DecodeMaxPositiveEvenSInt32) {
 
 TEST(DecoderTest, DecodeMaxNegativeEvenSInt32) {
   Decoder decoder{{0xFD, 0xFF, 0xFF, 0xFF, 0x0F}};
-  EXPECT_THAT(decoder.DecodeSInt32(), IsOkAndHolds(-0x7FFFFFFE));
+  EXPECT_THAT(decoder.DecodeSInt32(), IsOkAndHolds(-0x7FFFFFFF));
 }
 
 TEST(DecoderTest, DecodeMaxPositiveOddSInt32) {
@@ -229,7 +258,7 @@ TEST(DecoderTest, DecodeMaxPositiveOddSInt32) {
 
 TEST(DecoderTest, DecodeMaxNegativeOddSInt32) {
   Decoder decoder{{0xFF, 0xFF, 0xFF, 0xFF, 0x0F}};
-  EXPECT_THAT(decoder.DecodeSInt32(), IsOkAndHolds(-0x7FFFFFFF));
+  EXPECT_THAT(decoder.DecodeSInt32(), IsOkAndHolds(-0x80000000));
 }
 
 TEST(DecoderTest, SInt32Overflow) {
@@ -521,7 +550,7 @@ TEST(DecoderTest, DecodeOnePackedSInt32) {
 }
 
 TEST(DecoderTest, DecodeTwoPackedSInt32s) {
-  Decoder decoder{{0x03, 0x84, 0x48, 0x55}};
+  Decoder decoder{{0x03, 0x84, 0x48, 0x53}};
   EXPECT_THAT(decoder.DecodePackedSInt32s(), IsOkAndHolds(ElementsAre(4610, -42)));
 }
 
@@ -532,7 +561,7 @@ TEST(DecoderTest, WrongPackedSInt32Size) {
 
 TEST(DecoderTest, OverflowingPackedSInt32) {
   Decoder decoder1{{0x05, 0xFF, 0xFF, 0xFF, 0xFF, 0x0F}};
-  ASSERT_THAT(decoder1.DecodePackedSInt32s(), IsOkAndHolds(ElementsAre(-0x7FFFFFFF)));
+  ASSERT_THAT(decoder1.DecodePackedSInt32s(), IsOkAndHolds(ElementsAre(-0x80000000)));
   Decoder decoder2{{0x05, 0xFF, 0xFF, 0xFF, 0xFF, 0x10}};
   EXPECT_THAT(decoder2.DecodePackedSInt32s(), StatusIs(absl::StatusCode::kInvalidArgument));
 }
@@ -548,7 +577,7 @@ TEST(DecoderTest, DecodeOnePackedSInt64) {
 }
 
 TEST(DecoderTest, DecodeTwoPackedSInt64s) {
-  Decoder decoder{{0x03, 0x84, 0x48, 0x55}};
+  Decoder decoder{{0x03, 0x84, 0x48, 0x53}};
   EXPECT_THAT(decoder.DecodePackedSInt64s(), IsOkAndHolds(ElementsAre(4610, -42)));
 }
 
@@ -559,7 +588,7 @@ TEST(DecoderTest, WrongPackedSInt64Size) {
 
 TEST(DecoderTest, OverflowingPackedSInt64) {
   Decoder decoder1{{0x0A, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01}};
-  ASSERT_THAT(decoder1.DecodePackedSInt64s(), IsOkAndHolds(ElementsAre(-0x7FFFFFFFFFFFFFFFLL)));
+  ASSERT_THAT(decoder1.DecodePackedSInt64s(), IsOkAndHolds(ElementsAre(-0x8000000000000000LL)));
   Decoder decoder2{{0x0A, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x02}};
   EXPECT_THAT(decoder2.DecodePackedSInt64s(), StatusIs(absl::StatusCode::kInvalidArgument));
 }
@@ -760,5 +789,211 @@ TEST(DecoderTest, SkipInt32) {
   EXPECT_THAT(decoder.DecodeVarInt(), IsOkAndHolds(42));
   EXPECT_TRUE(decoder.at_end());
 }
+
+class EncoderTest : public ::testing::Test {
+ protected:
+  Encoder encoder_;
+};
+
+TEST_F(EncoderTest, EncodeNothing) {
+  EXPECT_TRUE(encoder_.empty());
+  EXPECT_EQ(encoder_.size(), 0);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(IsEmpty()));
+}
+
+TEST_F(EncoderTest, EncodeSingleByteTag1) {
+  encoder_.EncodeTag(FieldTag{.field_number = 2, .wire_type = WireType::kVarInt});
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x10)));
+}
+
+TEST_F(EncoderTest, EncodeSingleByteTag2) {
+  encoder_.EncodeTag(FieldTag{.field_number = 2, .wire_type = WireType::kLength});
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x12)));
+}
+
+TEST_F(EncoderTest, EncodeSingleByteTag3) {
+  encoder_.EncodeTag(FieldTag{.field_number = 3, .wire_type = WireType::kVarInt});
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x18)));
+}
+
+TEST_F(EncoderTest, EncodeSingleByteTag4) {
+  encoder_.EncodeTag(FieldTag{.field_number = 3, .wire_type = WireType::kInt32});
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x1D)));
+}
+
+TEST_F(EncoderTest, EncodeTwoByteTag1) {
+  encoder_.EncodeTag(FieldTag{.field_number = 2000, .wire_type = WireType::kVarInt});
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x80, 0x7D)));
+}
+
+TEST_F(EncoderTest, EncodeTwoByteTag2) {
+  encoder_.EncodeTag(FieldTag{.field_number = 2000, .wire_type = WireType::kLength});
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x82, 0x7D)));
+}
+
+TEST_F(EncoderTest, EncodeTwoByteTag3) {
+  encoder_.EncodeTag(FieldTag{.field_number = 2001, .wire_type = WireType::kVarInt});
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x88, 0x7D)));
+}
+
+TEST_F(EncoderTest, EncodeTwoByteTag4) {
+  encoder_.EncodeTag(FieldTag{.field_number = 2001, .wire_type = WireType::kInt32});
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x8D, 0x7D)));
+}
+
+TEST_F(EncoderTest, EncodeZero) {
+  encoder_.EncodeVarInt(0);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0)));
+}
+
+TEST_F(EncoderTest, EncodeSingleByteInteger) {
+  encoder_.EncodeVarInt(42);
+  EXPECT_FALSE(encoder_.empty());
+  EXPECT_EQ(encoder_.size(), 1);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x2A)));
+}
+
+TEST_F(EncoderTest, EncodeTwoByteInteger) {
+  encoder_.EncodeVarInt(4610);
+  EXPECT_FALSE(encoder_.empty());
+  EXPECT_EQ(encoder_.size(), 2);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x82, 0x24)));
+}
+
+TEST_F(EncoderTest, EncodeThreeByteInteger) {
+  encoder_.EncodeVarInt(18691);
+  EXPECT_FALSE(encoder_.empty());
+  EXPECT_EQ(encoder_.size(), 3);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x83, 0x92, 0x01)));
+}
+
+TEST_F(EncoderTest, EncodeInt32) {
+  encoder_.EncodeInt32(123);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x7B)));
+}
+
+TEST_F(EncoderTest, EncodeNegativeInt32) {
+  encoder_.EncodeInt32(-123);
+  EXPECT_THAT(
+      std::move(encoder_).Flatten(),
+      BufferAsBytes(ElementsAre(0x85, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01)));
+}
+
+TEST_F(EncoderTest, EncodeUInt32) {
+  encoder_.EncodeUInt32(123);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x7B)));
+}
+
+TEST_F(EncoderTest, EncodeBigUInt32) {
+  encoder_.EncodeUInt32(0xFFFFFFFF);
+  EXPECT_THAT(std::move(encoder_).Flatten(),
+              BufferAsBytes(ElementsAre(0xFF, 0xFF, 0xFF, 0xFF, 0x0F)));
+}
+
+TEST_F(EncoderTest, EncodeInt64) {
+  encoder_.EncodeInt64(123);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x7B)));
+}
+
+TEST_F(EncoderTest, EncodeNegativeInt64) {
+  encoder_.EncodeInt64(-123);
+  EXPECT_THAT(
+      std::move(encoder_).Flatten(),
+      BufferAsBytes(ElementsAre(0x85, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01)));
+}
+
+TEST_F(EncoderTest, EncodeUInt64) {
+  encoder_.EncodeUInt64(123);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x7B)));
+}
+
+TEST_F(EncoderTest, EncodeBigUInt64) {
+  encoder_.EncodeUInt64(0xFFFFFFFFFFFFFFFFULL);
+  EXPECT_THAT(
+      std::move(encoder_).Flatten(),
+      BufferAsBytes(ElementsAre(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01)));
+}
+
+TEST_F(EncoderTest, EncodeSingleBytePositiveEvenSInt32) {
+  encoder_.EncodeSInt32(42);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x54)));
+}
+
+TEST_F(EncoderTest, EncodeSingleBytePositiveOddSInt32) {
+  encoder_.EncodeSInt32(43);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x56)));
+}
+
+TEST_F(EncoderTest, EncodeSingleByteNegativeEvenSInt32) {
+  encoder_.EncodeSInt32(-42);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x53)));
+}
+
+TEST_F(EncoderTest, EncodeSingleByteNegativeOddSInt32) {
+  encoder_.EncodeSInt32(-43);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x55)));
+}
+
+TEST_F(EncoderTest, EncodeTwoBytePositiveEvenSInt32) {
+  encoder_.EncodeSInt32(4610);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x84, 0x48)));
+}
+
+TEST_F(EncoderTest, EncodeTwoBytePositiveOddSInt32) {
+  encoder_.EncodeSInt32(4611);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x86, 0x48)));
+}
+
+TEST_F(EncoderTest, EncodeTwoByteNegativeEvenSInt32) {
+  encoder_.EncodeSInt32(-4610);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x83, 0x48)));
+}
+
+TEST_F(EncoderTest, EncodeTwoByteNegativeOddSInt32) {
+  encoder_.EncodeSInt32(-4611);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x85, 0x48)));
+}
+
+TEST_F(EncoderTest, EncodeSingleBytePositiveEvenSInt64) {
+  encoder_.EncodeSInt64(42);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x54)));
+}
+
+TEST_F(EncoderTest, EncodeSingleBytePositiveOddSInt64) {
+  encoder_.EncodeSInt64(43);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x56)));
+}
+
+TEST_F(EncoderTest, EncodeSingleByteNegativeEvenSInt64) {
+  encoder_.EncodeSInt64(-42);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x53)));
+}
+
+TEST_F(EncoderTest, EncodeSingleByteNegativeOddSInt64) {
+  encoder_.EncodeSInt64(-43);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x55)));
+}
+
+TEST_F(EncoderTest, EncodeTwoBytePositiveEvenSInt64) {
+  encoder_.EncodeSInt64(4610);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x84, 0x48)));
+}
+
+TEST_F(EncoderTest, EncodeTwoBytePositiveOddSInt64) {
+  encoder_.EncodeSInt64(4611);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x86, 0x48)));
+}
+
+TEST_F(EncoderTest, EncodeTwoByteNegativeEvenSInt64) {
+  encoder_.EncodeSInt64(-4610);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x83, 0x48)));
+}
+
+TEST_F(EncoderTest, EncodeTwoByteNegativeOddSInt64) {
+  encoder_.EncodeSInt64(-4611);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x85, 0x48)));
+}
+
+// TODO
 
 }  // namespace

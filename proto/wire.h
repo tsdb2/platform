@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -12,6 +13,8 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "common/utilities.h"
+#include "io/buffer.h"
+#include "io/cord.h"
 
 namespace tsdb2 {
 namespace proto {
@@ -26,6 +29,28 @@ enum class WireType : uint8_t {
 };
 
 struct FieldTag {
+  auto tie() const { return std::tie(field_number, wire_type); }
+
+  friend bool operator==(FieldTag const &lhs, FieldTag const &rhs) {
+    return lhs.tie() == rhs.tie();
+  }
+
+  friend bool operator!=(FieldTag const &lhs, FieldTag const &rhs) {
+    return lhs.tie() != rhs.tie();
+  }
+
+  friend bool operator<(FieldTag const &lhs, FieldTag const &rhs) { return lhs.tie() < rhs.tie(); }
+
+  friend bool operator<=(FieldTag const &lhs, FieldTag const &rhs) {
+    return lhs.tie() <= rhs.tie();
+  }
+
+  friend bool operator>(FieldTag const &lhs, FieldTag const &rhs) { return lhs.tie() > rhs.tie(); }
+
+  friend bool operator>=(FieldTag const &lhs, FieldTag const &rhs) {
+    return lhs.tie() >= rhs.tie();
+  }
+
   uint64_t field_number;
   WireType wire_type;
 };
@@ -36,8 +61,9 @@ class Decoder {
 
   ~Decoder() = default;
 
-  Decoder(Decoder const &) = default;
-  Decoder &operator=(Decoder const &) = default;
+  Decoder(Decoder const &) = delete;
+  Decoder &operator=(Decoder const &) = delete;
+
   Decoder(Decoder &&) noexcept = default;
   Decoder &operator=(Decoder &&) noexcept = default;
 
@@ -129,6 +155,40 @@ class Decoder {
 
  private:
   absl::Span<uint8_t const> data_;
+};
+
+class Encoder {
+ public:
+  explicit Encoder() = default;
+  ~Encoder() = default;
+
+  Encoder(Encoder const &) = delete;
+  Encoder &operator=(Encoder const &) = delete;
+
+  Encoder(Encoder &&) noexcept = default;
+  Encoder &operator=(Encoder &&) noexcept = default;
+
+  [[nodiscard]] bool empty() const { return cord_.empty(); }
+  size_t size() const { return cord_.size(); }
+
+  void EncodeTag(FieldTag const &tag);
+
+  void EncodeVarInt(uint64_t const value) { return EncodeIntegerInternal(value); }
+  void EncodeInt32(int32_t const value) { return EncodeIntegerInternal(value); }
+  void EncodeUInt32(uint32_t const value) { return EncodeIntegerInternal(value); }
+  void EncodeInt64(int64_t const value) { return EncodeIntegerInternal(value); }
+  void EncodeUInt64(uint64_t const value) { return EncodeIntegerInternal(value); }
+
+  void EncodeSInt32(int32_t value);
+  void EncodeSInt64(int64_t value);
+
+  tsdb2::io::Cord Finish() && { return std::move(cord_); }
+  tsdb2::io::Buffer Flatten() && { return std::move(cord_).Flatten(); }
+
+ private:
+  void EncodeIntegerInternal(uint64_t value);
+
+  tsdb2::io::Cord cord_;
 };
 
 }  // namespace proto

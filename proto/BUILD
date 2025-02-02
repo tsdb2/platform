@@ -7,6 +7,8 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//common:utilities",
+        "//io:buffer",
+        "//io:cord",
         "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -21,6 +23,7 @@ cc_test(
     deps = [
         ":wire",
         "//common:testing",
+        "//io:buffer_testing",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_googletest//:gtest_main",

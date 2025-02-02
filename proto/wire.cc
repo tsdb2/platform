@@ -12,37 +12,15 @@
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "common/utilities.h"
+#include "io/buffer.h"
+#include "io/cord.h"
 
 namespace tsdb2 {
 namespace proto {
 
-absl::StatusOr<FieldTag> Decoder::DecodeTag() {
-  DEFINE_CONST_OR_RETURN(tag, DecodeInteger<uint64_t>());
-  return FieldTag{
-      .field_number = tag >> 3,
-      .wire_type = static_cast<WireType>(tag & 7),
-  };
-}
-
-absl::StatusOr<int32_t> Decoder::DecodeSInt32() {
-  DEFINE_CONST_OR_RETURN(value, DecodeUInt32());
-  if ((value & 1) != 0) {
-    return static_cast<int32_t>(-(value >> 1));
-  } else {
-    return static_cast<int32_t>(value >> 1);
-  }
-}
-
-absl::StatusOr<int64_t> Decoder::DecodeSInt64() {
-  DEFINE_CONST_OR_RETURN(value, DecodeUInt64());
-  if ((value & 1) != 0) {
-    return static_cast<int64_t>(-(value >> 1));
-  } else {
-    return static_cast<int64_t>(value >> 1);
-  }
-}
-
 namespace {
+
+inline size_t constexpr kMaxVarIntLength = 10;
 
 constexpr uint16_t ByteSwap(uint16_t const value) { return (value >> 8) | (value << 8); }
 
@@ -60,6 +38,24 @@ constexpr uint64_t ByteSwap(uint64_t const value) {
 
 }  // namespace
 
+absl::StatusOr<FieldTag> Decoder::DecodeTag() {
+  DEFINE_CONST_OR_RETURN(tag, DecodeInteger<uint64_t>());
+  return FieldTag{
+      .field_number = tag >> 3,
+      .wire_type = static_cast<WireType>(tag & 7),
+  };
+}
+
+absl::StatusOr<int32_t> Decoder::DecodeSInt32() {
+  DEFINE_CONST_OR_RETURN(value, DecodeUInt32());
+  return (value >> 1) ^ -(value & 1);
+}
+
+absl::StatusOr<int64_t> Decoder::DecodeSInt64() {
+  DEFINE_CONST_OR_RETURN(value, DecodeUInt64());
+  return (value >> 1) ^ -(value & 1);
+}
+
 absl::StatusOr<int32_t> Decoder::DecodeFixedInt32(WireType const wire_type) {
   if (wire_type != WireType::kInt32) {
     return absl::InvalidArgumentError("invalid wire type for sfixed32");
@@ -67,7 +63,7 @@ absl::StatusOr<int32_t> Decoder::DecodeFixedInt32(WireType const wire_type) {
   if (data_.size() < 4) {
     return EndOfInputError();
   }
-  uint32_t value = *reinterpret_cast<uint32_t const*>(data_.data());
+  uint32_t value = *reinterpret_cast<uint32_t const *>(data_.data());
   data_.remove_prefix(4);
 #ifdef ABSL_IS_BIG_ENDIAN
   value = ByteSwap32(value);
@@ -82,7 +78,7 @@ absl::StatusOr<uint32_t> Decoder::DecodeFixedUInt32(WireType const wire_type) {
   if (data_.size() < 4) {
     return EndOfInputError();
   }
-  uint32_t value = *reinterpret_cast<uint32_t const*>(data_.data());
+  uint32_t value = *reinterpret_cast<uint32_t const *>(data_.data());
   data_.remove_prefix(4);
 #ifdef ABSL_IS_BIG_ENDIAN
   value = ByteSwap32(value);
@@ -97,7 +93,7 @@ absl::StatusOr<int64_t> Decoder::DecodeFixedInt64(WireType const wire_type) {
   if (data_.size() < 8) {
     return EndOfInputError();
   }
-  uint64_t value = *reinterpret_cast<uint64_t const*>(data_.data());
+  uint64_t value = *reinterpret_cast<uint64_t const *>(data_.data());
   data_.remove_prefix(8);
 #ifdef ABSL_IS_BIG_ENDIAN
   value = ByteSwap64(value);
@@ -112,7 +108,7 @@ absl::StatusOr<uint64_t> Decoder::DecodeFixedUInt64(WireType const wire_type) {
   if (data_.size() < 8) {
     return EndOfInputError();
   }
-  uint64_t value = *reinterpret_cast<uint64_t const*>(data_.data());
+  uint64_t value = *reinterpret_cast<uint64_t const *>(data_.data());
   data_.remove_prefix(8);
 #ifdef ABSL_IS_BIG_ENDIAN
   value = ByteSwap64(value);
@@ -133,7 +129,7 @@ absl::StatusOr<float> Decoder::DecodeFloat(WireType const wire_type) {
 #ifdef ABSL_IS_BIG_ENDIAN
   value = ByteSwap32(value);
 #endif  // ABSL_IS_BIG_ENDIAN
-  return *reinterpret_cast<float const*>(&value);
+  return *reinterpret_cast<float const *>(&value);
 }
 
 absl::StatusOr<double> Decoder::DecodeDouble(WireType const wire_type) {
@@ -141,7 +137,7 @@ absl::StatusOr<double> Decoder::DecodeDouble(WireType const wire_type) {
 #ifdef ABSL_IS_BIG_ENDIAN
   value = ByteSwap64(value);
 #endif  // ABSL_IS_BIG_ENDIAN
-  return *reinterpret_cast<double const*>(&value);
+  return *reinterpret_cast<double const *>(&value);
 }
 
 absl::StatusOr<std::string> Decoder::DecodeString(WireType const wire_type) {
@@ -152,7 +148,7 @@ absl::StatusOr<std::string> Decoder::DecodeString(WireType const wire_type) {
   if (data_.size() < length) {
     return EndOfInputError();
   }
-  std::string value{reinterpret_cast<char const*>(data_.data()), length};
+  std::string value{reinterpret_cast<char const *>(data_.data()), length};
   data_.remove_prefix(length);
   return std::move(value);
 }
@@ -347,6 +343,28 @@ absl::StatusOr<Decoder> Decoder::DecodeChildSpan(size_t const record_size) {
   auto const subspan = data_.subspan(0, length);
   data_.remove_prefix(length);
   return Decoder(subspan);
+}
+
+void Encoder::EncodeTag(FieldTag const &tag) {
+  EncodeIntegerInternal((tag.field_number << 3) | static_cast<uint64_t>(tag.wire_type));
+}
+
+void Encoder::EncodeSInt32(int32_t const value) {
+  EncodeIntegerInternal((value << 1) ^ (value >> 31));
+}
+
+void Encoder::EncodeSInt64(int64_t const value) {
+  EncodeIntegerInternal((value << 1) ^ (value >> 63));
+}
+
+void Encoder::EncodeIntegerInternal(uint64_t value) {
+  tsdb2::io::Buffer buffer{kMaxVarIntLength};
+  while (value > 0x7F) {
+    buffer.Append<uint8_t>(0x80 | static_cast<uint8_t>(value & 0x7F));
+    value >>= 7;
+  }
+  buffer.Append<uint8_t>(value & 0x7F);
+  cord_.Append(std::move(buffer));
 }
 
 }  // namespace proto
