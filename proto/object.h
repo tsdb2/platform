@@ -16,6 +16,7 @@
 #include "absl/types/span.h"
 #include "common/type_string.h"
 #include "common/utilities.h"
+#include "io/cord.h"
 #include "proto/wire.h"
 
 namespace tsdb2 {
@@ -213,6 +214,26 @@ struct FieldDecoder<FieldImpl<uint64_t, Name, tag>> {
 };
 
 template <typename Name, size_t tag>
+struct FieldDecoder<FieldImpl<float, Name, tag>> {
+  absl::Status operator()(Decoder *const decoder, WireType const wire_type,
+                          float *const value) const {
+    DEFINE_CONST_OR_RETURN(decoded, decoder->DecodeFloat(wire_type));
+    *value = decoded;
+    return absl::OkStatus();
+  }
+};
+
+template <typename Name, size_t tag>
+struct FieldDecoder<FieldImpl<double, Name, tag>> {
+  absl::Status operator()(Decoder *const decoder, WireType const wire_type,
+                          double *const value) const {
+    DEFINE_CONST_OR_RETURN(decoded, decoder->DecodeDouble(wire_type));
+    *value = decoded;
+    return absl::OkStatus();
+  }
+};
+
+template <typename Name, size_t tag>
 struct FieldDecoder<FieldImpl<std::string, Name, tag>> {
   absl::Status operator()(Decoder *const decoder, WireType const wire_type,
                           std::string *const value) const {
@@ -241,7 +262,6 @@ struct FieldDecoder<FieldImpl<std::vector<Type>, Name, tag>> {
       Type decoded{};
       RETURN_IF_ERROR((FieldDecoder<FieldImpl<Type, Name, tag>>()(decoder, wire_type, &decoded)));
       value->emplace_back(std::move(decoded));
-      return absl::OkStatus();
     } else {
       DEFINE_VAR_OR_RETURN(child_decoder, decoder->DecodeChildSpan());
       WireType const wire_type = WireTypeForV<Type>;
@@ -251,6 +271,31 @@ struct FieldDecoder<FieldImpl<std::vector<Type>, Name, tag>> {
             (FieldDecoder<FieldImpl<Type, Name, tag>>()(&child_decoder, wire_type, &decoded)));
         value->emplace_back(std::move(decoded));
       }
+    }
+    return absl::OkStatus();
+  }
+};
+
+template <typename Type>
+struct MergeField {
+  void operator()(Type &lhs, Type &&rhs) const { lhs = std::move(rhs); }
+};
+
+template <typename Type>
+struct MergeField<std::optional<Type>> {
+  void operator()(std::optional<Type> &lhs, std::optional<Type> &&rhs) const {
+    if (rhs.has_value()) {
+      lhs = std::move(rhs);
+    }
+  }
+};
+
+template <typename Type>
+struct MergeField<std::vector<Type>> {
+  void operator()(std::vector<Type> &lhs, std::vector<Type> &&rhs) const {
+    if (rhs.has_value()) {
+      lhs.insert(lhs.end(), std::make_move_iterator(rhs.begin()),
+                 std::make_move_iterator(rhs.end()));
     }
   }
 };
@@ -266,6 +311,24 @@ inline Initialize constexpr kInitialize{};
 template <typename... Fields>
 class Object;
 
+namespace internal {
+
+template <typename... Fields, typename Name, size_t tag>
+struct FieldDecoder<FieldImpl<Object<Fields...>, Name, tag>> {
+  absl::Status operator()(Decoder *const decoder, WireType const wire_type,
+                          Object<Fields...> *const value) const {
+    if (wire_type != WireType::kLength) {
+      return absl::InvalidArgumentError("invalid wire type for submessage");
+    }
+    DEFINE_CONST_OR_RETURN(child_span, decoder->GetChildSpan());
+    DEFINE_VAR_OR_RETURN(decoded, Object<Fields...>::Decode(child_span));
+    value->Merge(std::move(decoded));
+    return absl::OkStatus();
+  }
+};
+
+}  // namespace internal
+
 template <>
 class Object<> {
  public:
@@ -276,6 +339,12 @@ class Object<> {
       RETURN_IF_ERROR(decoder.SkipRecord(tag.wire_type));
     }
     return Object();
+  }
+
+  void Merge(Object &&other) {}
+
+  tsdb2::io::Cord Encode() const {  // NOLINT(readability-convert-member-functions-to-static)
+    return tsdb2::io::Cord();
   }
 
   explicit Object() = default;
@@ -346,6 +415,16 @@ class Object<internal::FieldImpl<Type, Name, tag>, OtherFields...> : public Obje
       RETURN_IF_ERROR(object.ReadField(&decoder, field_tag));
     }
     return std::move(object);
+  }
+
+  void Merge(Object &&other) {
+    internal::MergeField<Type>()(value_, std::move(other.value_));
+    Object<OtherFields...>::Merge(std::move(other));
+  }
+
+  tsdb2::io::Cord Encode() const {
+    // TODO
+    return tsdb2::io::Cord();
   }
 
   explicit Object() = default;
@@ -433,8 +512,8 @@ class Object<internal::FieldImpl<Type, Name, tag>, OtherFields...> : public Obje
     if (field_tag.field_number != tag) {
       return Object<OtherFields...>::ReadField(decoder, field_tag);
     } else {
-      return internal::FieldDecoder<internal::FieldImpl<Type, Name, tag>>()(decoder, field_tag,
-                                                                            &value_);
+      return internal::FieldDecoder<internal::FieldImpl<Type, Name, tag>>()(
+          decoder, field_tag.wire_type, &value_);
     }
   }
 

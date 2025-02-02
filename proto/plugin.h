@@ -94,6 +94,40 @@ using Version = tsdb2::proto::Object<tsdb2::proto::Field<int32_t, kVersionMajorF
                                      tsdb2::proto::Field<int32_t, kVersionPatchField, 3>,
                                      tsdb2::proto::Field<std::string, kVersionSuffixField, 4>>;
 
+char constexpr kCodeGeneratorRequestFileToGenerateField[] = "file_to_generate";
+char constexpr kCodeGeneratorRequestParameterField[] = "parameter";
+char constexpr kCodeGeneratorRequestCompilerVersionField[] = "compiler_version";
+
+using CodeGeneratorRequest = tsdb2::proto::Object<
+    tsdb2::proto::Field<std::vector<std::string>, kCodeGeneratorRequestFileToGenerateField, 1>,
+    tsdb2::proto::Field<std::optional<std::string>, kCodeGeneratorRequestParameterField, 2>,
+    tsdb2::proto::Field<std::optional<Version>, kCodeGeneratorRequestCompilerVersionField, 3>>;
+
+enum class CodeGeneratorResponse_Feature {
+  FEATURE_NONE = 0,
+  FEATURE_PROTO3_OPTIONAL = 1,
+  FEATURE_SUPPORTS_EDITIONS = 2,
+};
+
+char constexpr kCodeGeneratorResponseFileNameField[] = "name";
+
+using CodeGeneratorResponse_File = tsdb2::proto::Object<
+    tsdb2::proto::Field<std::optional<std::string>, kCodeGeneratorResponseFileNameField, 1>>;
+
+char constexpr kCodeGeneratorResponseErrorField[] = "error";
+char constexpr kCodeGeneratorResponseSupportedFeaturesField[] = "supported_features";
+char constexpr kCodeGeneratorResponseMinimumEditionField[] = "minimum_edition";
+char constexpr kCodeGeneratorResponseMaximumEditionField[] = "maximum_edition";
+char constexpr kCodeGeneratorResponseFileField[] = "file";
+
+using CodeGeneratorResponse = tsdb2::proto::Object<
+    tsdb2::proto::Field<std::optional<std::string>, kCodeGeneratorResponseErrorField, 1>,
+    tsdb2::proto::Field<std::optional<uint64_t>, kCodeGeneratorResponseSupportedFeaturesField, 2>,
+    tsdb2::proto::Field<std::optional<int32_t>, kCodeGeneratorResponseMinimumEditionField, 3>,
+    tsdb2::proto::Field<std::optional<int32_t>, kCodeGeneratorResponseMaximumEditionField, 4>,
+    tsdb2::proto::Field<std::vector<CodeGeneratorResponse_File>, kCodeGeneratorResponseFileField,
+                        15>>;
+
 // TODO
 
 }  // namespace compiler

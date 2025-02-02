@@ -34,6 +34,7 @@ cc_library(
         ":wire",
         "//common:type_string",
         "//common:utilities",
+        "//io:cord",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -54,6 +55,7 @@ cc_binary(
     srcs = ["proto.cc"],
     deps = [
         ":plugin",
+        "//common:utilities",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
     ],
