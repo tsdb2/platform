@@ -349,13 +349,8 @@ void Encoder::EncodeTag(FieldTag const &tag) {
   EncodeIntegerInternal((tag.field_number << 3) | static_cast<uint64_t>(tag.wire_type));
 }
 
-void Encoder::EncodeSInt32(int32_t const value) {
-  EncodeIntegerInternal((value << 1) ^ (value >> 31));
-}
-
-void Encoder::EncodeSInt64(int64_t const value) {
-  EncodeIntegerInternal((value << 1) ^ (value >> 63));
-}
+void Encoder::EncodeSInt32(int32_t const value) { EncodeUInt32((value << 1) ^ (value >> 31)); }
+void Encoder::EncodeSInt64(int64_t const value) { EncodeUInt64((value << 1) ^ (value >> 63)); }
 
 void Encoder::EncodeIntegerInternal(uint64_t value) {
   tsdb2::io::Buffer buffer{kMaxVarIntLength};

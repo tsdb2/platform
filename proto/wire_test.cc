@@ -954,6 +954,30 @@ TEST_F(EncoderTest, EncodeTwoByteNegativeOddSInt32) {
   EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x85, 0x48)));
 }
 
+TEST_F(EncoderTest, EncodeMaxPositiveEvenSInt32) {
+  encoder_.EncodeSInt32(0x7FFFFFFE);
+  EXPECT_THAT(std::move(encoder_).Flatten(),
+              BufferAsBytes(ElementsAre(0xFC, 0xFF, 0xFF, 0xFF, 0x0F)));
+}
+
+TEST_F(EncoderTest, EncodeMaxNegativeEvenSInt32) {
+  encoder_.EncodeSInt32(-0x7FFFFFFF);
+  EXPECT_THAT(std::move(encoder_).Flatten(),
+              BufferAsBytes(ElementsAre(0xFD, 0xFF, 0xFF, 0xFF, 0x0F)));
+}
+
+TEST_F(EncoderTest, EncodeMaxPositiveOddSInt32) {
+  encoder_.EncodeSInt32(0x7FFFFFFF);
+  EXPECT_THAT(std::move(encoder_).Flatten(),
+              BufferAsBytes(ElementsAre(0xFE, 0xFF, 0xFF, 0xFF, 0x0F)));
+}
+
+TEST_F(EncoderTest, EncodeMaxNegativeOddSInt32) {
+  encoder_.EncodeSInt32(-0x80000000);
+  EXPECT_THAT(std::move(encoder_).Flatten(),
+              BufferAsBytes(ElementsAre(0xFF, 0xFF, 0xFF, 0xFF, 0x0F)));
+}
+
 TEST_F(EncoderTest, EncodeSingleBytePositiveEvenSInt64) {
   encoder_.EncodeSInt64(42);
   EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x54)));
@@ -992,6 +1016,34 @@ TEST_F(EncoderTest, EncodeTwoByteNegativeEvenSInt64) {
 TEST_F(EncoderTest, EncodeTwoByteNegativeOddSInt64) {
   encoder_.EncodeSInt64(-4611);
   EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x85, 0x48)));
+}
+
+TEST_F(EncoderTest, EncodeMaxPositiveEvenSInt64) {
+  encoder_.EncodeSInt64(0x7FFFFFFFFFFFFFFELL);
+  EXPECT_THAT(
+      std::move(encoder_).Flatten(),
+      BufferAsBytes(ElementsAre(0xFC, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01)));
+}
+
+TEST_F(EncoderTest, EncodeMaxNegativeOddSInt64) {
+  encoder_.EncodeSInt64(-0x7FFFFFFFFFFFFFFFLL);
+  EXPECT_THAT(
+      std::move(encoder_).Flatten(),
+      BufferAsBytes(ElementsAre(0xFD, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01)));
+}
+
+TEST_F(EncoderTest, EncodeMaxPositiveOddSInt64) {
+  encoder_.EncodeSInt64(0x7FFFFFFFFFFFFFFFLL);
+  EXPECT_THAT(
+      std::move(encoder_).Flatten(),
+      BufferAsBytes(ElementsAre(0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01)));
+}
+
+TEST_F(EncoderTest, EncodeMaxNegativeEvenSInt64) {
+  encoder_.EncodeSInt64(-0x8000000000000000LL);
+  EXPECT_THAT(
+      std::move(encoder_).Flatten(),
+      BufferAsBytes(ElementsAre(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01)));
 }
 
 // TODO
