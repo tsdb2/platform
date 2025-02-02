@@ -35,6 +35,7 @@ cc_library(
         "//common:type_string",
         "//common:utilities",
         "@com_google_absl//absl/base",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
     ],

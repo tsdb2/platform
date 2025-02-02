@@ -3,10 +3,15 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
+#include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
+#include <vector>
 
 #include "absl/base/attributes.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "common/type_string.h"
@@ -27,6 +32,229 @@ struct FieldImpl<Type, tsdb2::common::TypeStringMatcher<ch...>, tag> {
   static std::string_view constexpr name = Name::value;
 };
 
+template <typename Type, typename Enable = void>
+struct WireTypeFor;
+
+template <typename Integral>
+struct WireTypeFor<Integral, std::enable_if_t<std::is_integral_v<Integral>>> {
+  static WireType constexpr value = WireType::kVarInt;
+};
+
+template <typename Enum>
+struct WireTypeFor<Enum, std::enable_if_t<std::is_enum_v<Enum>>> {
+  static WireType constexpr value = WireType::kVarInt;
+};
+
+template <>
+struct WireTypeFor<std::string> {
+  static WireType constexpr value = WireType::kLength;
+};
+
+template <>
+struct WireTypeFor<float> {
+  static WireType constexpr value = WireType::kInt32;
+};
+
+template <>
+struct WireTypeFor<double> {
+  static WireType constexpr value = WireType::kInt64;
+};
+
+template <typename Type>
+inline WireType constexpr WireTypeForV = WireTypeFor<Type>::value;
+
+template <typename Field, typename Enable = void>
+struct FieldDecoder;
+
+template <typename Name, size_t tag>
+struct FieldDecoder<FieldImpl<bool, Name, tag>> {
+  absl::Status operator()(Decoder *const decoder, WireType const wire_type,
+                          bool *const value) const {
+    DEFINE_CONST_OR_RETURN(decoded, decoder->DecodeBool(wire_type));
+    *value = decoded;
+    return absl::OkStatus();
+  }
+};
+
+template <typename Name, size_t tag>
+struct FieldDecoder<FieldImpl<int8_t, Name, tag>> {
+  absl::Status operator()(Decoder *const decoder, WireType const wire_type,
+                          int8_t *const value) const {
+    if (wire_type == WireType::kVarInt) {
+      return absl::InvalidArgumentError("invalid wire type for int8_t");
+    }
+    DEFINE_CONST_OR_RETURN(decoded, decoder->DecodeInteger<int8_t>());
+    *value = decoded;
+    return absl::OkStatus();
+  }
+};
+
+template <typename Name, size_t tag>
+struct FieldDecoder<FieldImpl<uint8_t, Name, tag>> {
+  absl::Status operator()(Decoder *const decoder, WireType const wire_type,
+                          uint8_t *const value) const {
+    if (wire_type == WireType::kVarInt) {
+      return absl::InvalidArgumentError("invalid wire type for uint8_t");
+    }
+    DEFINE_CONST_OR_RETURN(decoded, decoder->DecodeInteger<uint8_t>());
+    *value = decoded;
+    return absl::OkStatus();
+  }
+};
+
+template <typename Name, size_t tag>
+struct FieldDecoder<FieldImpl<int16_t, Name, tag>> {
+  absl::Status operator()(Decoder *const decoder, WireType const wire_type,
+                          int16_t *const value) const {
+    if (wire_type == WireType::kVarInt) {
+      return absl::InvalidArgumentError("invalid wire type for int16_t");
+    }
+    DEFINE_CONST_OR_RETURN(decoded, decoder->DecodeInteger<int16_t>());
+    *value = decoded;
+    return absl::OkStatus();
+  }
+};
+
+template <typename Name, size_t tag>
+struct FieldDecoder<FieldImpl<uint16_t, Name, tag>> {
+  absl::Status operator()(Decoder *const decoder, WireType const wire_type,
+                          uint16_t *const value) const {
+    if (wire_type == WireType::kVarInt) {
+      return absl::InvalidArgumentError("invalid wire type for uint16_t");
+    }
+    DEFINE_CONST_OR_RETURN(decoded, decoder->DecodeInteger<uint16_t>());
+    *value = decoded;
+    return absl::OkStatus();
+  }
+};
+
+template <typename Name, size_t tag>
+struct FieldDecoder<FieldImpl<int32_t, Name, tag>> {
+  absl::Status operator()(Decoder *const decoder, WireType const wire_type,
+                          int32_t *const value) const {
+    switch (wire_type) {
+      case WireType::kVarInt: {
+        DEFINE_CONST_OR_RETURN(decoded, decoder->DecodeInteger<int32_t>());
+        *value = decoded;
+        return absl::OkStatus();
+      }
+      case WireType::kInt32: {
+        DEFINE_CONST_OR_RETURN(decoded, decoder->DecodeFixedInt32(WireType::kInt32));
+        *value = decoded;
+        return absl::OkStatus();
+      }
+      default:
+        return absl::InvalidArgumentError("invalid wire type for int32_t");
+    }
+  }
+};
+
+template <typename Name, size_t tag>
+struct FieldDecoder<FieldImpl<uint32_t, Name, tag>> {
+  absl::Status operator()(Decoder *const decoder, WireType const wire_type,
+                          uint32_t *const value) const {
+    switch (wire_type) {
+      case WireType::kVarInt: {
+        DEFINE_CONST_OR_RETURN(decoded, decoder->DecodeInteger<uint32_t>());
+        *value = decoded;
+        return absl::OkStatus();
+      }
+      case WireType::kInt32: {
+        DEFINE_CONST_OR_RETURN(decoded, decoder->DecodeFixedUInt32(WireType::kInt32));
+        *value = decoded;
+        return absl::OkStatus();
+      }
+      default:
+        return absl::InvalidArgumentError("invalid wire type for uint32_t");
+    }
+  }
+};
+
+template <typename Name, size_t tag>
+struct FieldDecoder<FieldImpl<int64_t, Name, tag>> {
+  absl::Status operator()(Decoder *const decoder, WireType const wire_type,
+                          int64_t *const value) const {
+    switch (wire_type) {
+      case WireType::kVarInt: {
+        DEFINE_CONST_OR_RETURN(decoded, decoder->DecodeInteger<int64_t>());
+        *value = decoded;
+        return absl::OkStatus();
+      }
+      case WireType::kInt64: {
+        DEFINE_CONST_OR_RETURN(decoded, decoder->DecodeFixedInt32(WireType::kInt64));
+        *value = decoded;
+        return absl::OkStatus();
+      }
+      default:
+        return absl::InvalidArgumentError("invalid wire type for int64_t");
+    }
+  }
+};
+
+template <typename Name, size_t tag>
+struct FieldDecoder<FieldImpl<uint64_t, Name, tag>> {
+  absl::Status operator()(Decoder *const decoder, WireType const wire_type,
+                          uint64_t *const value) const {
+    switch (wire_type) {
+      case WireType::kVarInt: {
+        DEFINE_CONST_OR_RETURN(decoded, decoder->DecodeInteger<uint64_t>());
+        *value = decoded;
+        return absl::OkStatus();
+      }
+      case WireType::kInt64: {
+        DEFINE_CONST_OR_RETURN(decoded, decoder->DecodeFixedUInt64(WireType::kInt64));
+        *value = decoded;
+        return absl::OkStatus();
+      }
+      default:
+        return absl::InvalidArgumentError("invalid wire type for uint64_t");
+    }
+  }
+};
+
+template <typename Name, size_t tag>
+struct FieldDecoder<FieldImpl<std::string, Name, tag>> {
+  absl::Status operator()(Decoder *const decoder, WireType const wire_type,
+                          std::string *const value) const {
+    DEFINE_VAR_OR_RETURN(decoded, decoder->DecodeString(wire_type));
+    *value = std::move(decoded);
+    return absl::OkStatus();
+  }
+};
+
+template <typename Type, typename Name, size_t tag>
+struct FieldDecoder<FieldImpl<std::optional<Type>, Name, tag>> {
+  absl::Status operator()(Decoder *const decoder, WireType const wire_type,
+                          std::optional<Type> *const value) const {
+    Type decoded{};
+    RETURN_IF_ERROR((FieldDecoder<FieldImpl<Type, Name, tag>>()(decoder, wire_type, &decoded)));
+    *value = std::move(decoded);
+    return absl::OkStatus();
+  }
+};
+
+template <typename Type, typename Name, size_t tag>
+struct FieldDecoder<FieldImpl<std::vector<Type>, Name, tag>> {
+  absl::Status operator()(Decoder *const decoder, WireType const wire_type,
+                          std::vector<Type> *const value) const {
+    if (wire_type != WireType::kLength) {
+      Type decoded{};
+      RETURN_IF_ERROR((FieldDecoder<FieldImpl<Type, Name, tag>>()(decoder, wire_type, &decoded)));
+      value->emplace_back(std::move(decoded));
+      return absl::OkStatus();
+    } else {
+      DEFINE_VAR_OR_RETURN(child_decoder, decoder->DecodeChildSpan());
+      WireType const wire_type = WireTypeForV<Type>;
+      while (!child_decoder.at_end()) {
+        Type decoded{};
+        RETURN_IF_ERROR(
+            (FieldDecoder<FieldImpl<Type, Name, tag>>()(&child_decoder, wire_type, &decoded)));
+        value->emplace_back(std::move(decoded));
+      }
+    }
+  }
+};
+
 }  // namespace internal
 
 template <typename Type, char const name[], size_t tag>
@@ -41,13 +269,13 @@ class Object;
 template <>
 class Object<> {
  public:
-  static absl::StatusOr<Object<>> Decode(absl::Span<uint8_t const> const buffer) {
+  static absl::StatusOr<Object> Decode(absl::Span<uint8_t const> const buffer) {
     Decoder decoder{buffer};
     while (!decoder.at_end()) {
       DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
       RETURN_IF_ERROR(decoder.SkipRecord(tag.wire_type));
     }
-    return Object<>();
+    return Object();
   }
 
   explicit Object() = default;
@@ -90,8 +318,14 @@ class Object<> {
 
  protected:
   // NOLINTBEGIN(readability-convert-member-functions-to-static)
+
   ABSL_ATTRIBUTE_ALWAYS_INLINE bool CompareEqualInternal(Object const &other) const { return true; }
   ABSL_ATTRIBUTE_ALWAYS_INLINE bool CompareLessInternal(Object const &other) const { return false; }
+
+  absl::Status ReadField(Decoder *const decoder, FieldTag const &field_tag) {
+    return decoder->SkipRecord(field_tag.wire_type);
+  }
+
   // NOLINTEND(readability-convert-member-functions-to-static)
 };
 
@@ -103,6 +337,16 @@ class Object<internal::FieldImpl<Type, Name, tag>, OtherFields...> : public Obje
 
   template <char const field_name[]>
   using FieldType = typename FieldTypeImpl<tsdb2::common::TypeStringT<field_name>>::Type;
+
+  static absl::StatusOr<Object> Decode(absl::Span<uint8_t const> const buffer) {
+    Decoder decoder{buffer};
+    Object object;
+    while (!decoder.at_end()) {
+      DEFINE_CONST_OR_RETURN(field_tag, decoder.DecodeTag());
+      RETURN_IF_ERROR(object.ReadField(&decoder, field_tag));
+    }
+    return std::move(object);
+  }
 
   explicit Object() = default;
 
@@ -185,8 +429,17 @@ class Object<internal::FieldImpl<Type, Name, tag>, OtherFields...> : public Obje
            (!(other.value_ < value_) && Object<OtherFields...>::CompareLessInternal(other));
   }
 
+  absl::Status ReadField(Decoder *const decoder, FieldTag const &field_tag) {
+    if (field_tag.field_number != tag) {
+      return Object<OtherFields...>::ReadField(decoder, field_tag);
+    } else {
+      return internal::FieldDecoder<internal::FieldImpl<Type, Name, tag>>()(decoder, field_tag,
+                                                                            &value_);
+    }
+  }
+
  private:
-  Type value_;
+  Type value_{};
 };
 
 template <typename Type2, typename Name, size_t tag, typename... OtherFields>

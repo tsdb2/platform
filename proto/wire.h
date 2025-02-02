@@ -46,6 +46,13 @@ class Decoder {
 
   absl::StatusOr<FieldTag> DecodeTag();
 
+  template <typename Integer,
+            std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>, bool> = true>
+  absl::StatusOr<Integer> DecodeInteger() {
+    DEFINE_CONST_OR_RETURN(value, DecodeIntegerInternal(sizeof(Integer) * 8));
+    return static_cast<Integer>(value);
+  }
+
   absl::StatusOr<uint64_t> DecodeVarInt() { return DecodeInteger<uint64_t>(); }
   absl::StatusOr<int32_t> DecodeInt32() { return DecodeInteger<int32_t>(); }
   absl::StatusOr<int64_t> DecodeInt64() { return DecodeInteger<int64_t>(); }
@@ -55,17 +62,29 @@ class Decoder {
   absl::StatusOr<int32_t> DecodeSInt32();
   absl::StatusOr<int64_t> DecodeSInt64();
 
-  absl::StatusOr<int32_t> DecodeFixedInt32();
-  absl::StatusOr<uint32_t> DecodeFixedUInt32();
-  absl::StatusOr<int64_t> DecodeFixedInt64();
-  absl::StatusOr<uint64_t> DecodeFixedUInt64();
+  absl::StatusOr<int32_t> DecodeFixedInt32(WireType wire_type);
+  absl::StatusOr<uint32_t> DecodeFixedUInt32(WireType wire_type);
+  absl::StatusOr<int64_t> DecodeFixedInt64(WireType wire_type);
+  absl::StatusOr<uint64_t> DecodeFixedUInt64(WireType wire_type);
 
-  absl::StatusOr<bool> DecodeBool();
-  absl::StatusOr<float> DecodeFloat();
-  absl::StatusOr<double> DecodeDouble();
-  absl::StatusOr<std::string> DecodeString();
+  absl::StatusOr<bool> DecodeBool(WireType wire_type);
+  absl::StatusOr<float> DecodeFloat(WireType wire_type);
+  absl::StatusOr<double> DecodeDouble(WireType wire_type);
+  absl::StatusOr<std::string> DecodeString(WireType wire_type);
 
   absl::StatusOr<absl::Span<uint8_t const>> GetChildSpan();
+
+  template <typename Integer,
+            std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>, bool> = true>
+  absl::StatusOr<std::vector<Integer>> DecodePackedIntegers() {
+    DEFINE_VAR_OR_RETURN(child, DecodeChildSpan());
+    std::vector<Integer> values;
+    while (!child.at_end()) {
+      DEFINE_CONST_OR_RETURN(value, child.DecodeIntegerInternal(sizeof(Integer) * 8));
+      values.push_back(value);
+    }
+    return std::move(values);
+  }
 
   absl::StatusOr<std::vector<uint64_t>> DecodePackedVarInts() {
     return DecodePackedIntegers<uint64_t>();
@@ -104,28 +123,11 @@ class Decoder {
 
   absl::StatusOr<uint64_t> DecodeIntegerInternal(size_t max_bits);
 
-  template <typename Integer,
-            std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>, bool> = true>
-  absl::StatusOr<Integer> DecodeInteger() {
-    DEFINE_CONST_OR_RETURN(value, DecodeIntegerInternal(sizeof(Integer) * 8));
-    return static_cast<Integer>(value);
-  }
-
+ public:  // TODO: make private
   absl::StatusOr<Decoder> DecodeChildSpan();
   absl::StatusOr<Decoder> DecodeChildSpan(size_t record_size);
 
-  template <typename Integer,
-            std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>, bool> = true>
-  absl::StatusOr<std::vector<Integer>> DecodePackedIntegers() {
-    DEFINE_VAR_OR_RETURN(child, DecodeChildSpan());
-    std::vector<Integer> values;
-    while (!child.at_end()) {
-      DEFINE_CONST_OR_RETURN(value, child.DecodeIntegerInternal(sizeof(Integer) * 8));
-      values.push_back(value);
-    }
-    return std::move(values);
-  }
-
+ private:
   absl::Span<uint8_t const> data_;
 };
 

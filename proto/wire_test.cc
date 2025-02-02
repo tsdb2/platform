@@ -239,53 +239,167 @@ TEST(DecoderTest, SInt32Overflow) {
 
 TEST(DecoderTest, DecodeFixedInt32) {
   Decoder decoder{{0x12, 0x34, 0x56, 0x78}};
-  EXPECT_THAT(decoder.DecodeFixedInt32(), IsOkAndHolds(0x78563412));
+  EXPECT_THAT(decoder.DecodeFixedInt32(WireType::kInt32), IsOkAndHolds(0x78563412));
 }
 
 TEST(DecoderTest, DecodeNegativeFixedInt32) {
   Decoder decoder{{0x12, 0x34, 0x56, 0x87}};
-  EXPECT_THAT(decoder.DecodeFixedInt32(), IsOkAndHolds(-2024393710));
+  EXPECT_THAT(decoder.DecodeFixedInt32(WireType::kInt32), IsOkAndHolds(-2024393710));
+}
+
+TEST(DecoderTest, WrongWireTypeForFixedInt32) {
+  Decoder decoder{{0x12, 0x34, 0x56, 0x78}};
+  EXPECT_THAT(decoder.DecodeFixedInt32(WireType::kVarInt),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeFixedInt32(WireType::kInt64),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeFixedInt32(WireType::kLength),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeFixedInt32(WireType::kDeprecatedStartGroup),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeFixedInt32(WireType::kDeprecatedEndGroup),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(DecoderTest, DecodeFixedUInt32) {
+  Decoder decoder{{0x12, 0x34, 0x56, 0x78}};
+  EXPECT_THAT(decoder.DecodeFixedUInt32(WireType::kInt32), IsOkAndHolds(0x78563412));
+}
+
+TEST(DecoderTest, WrongWireTypeForFixedUInt32) {
+  Decoder decoder{{0x12, 0x34, 0x56, 0x78}};
+  EXPECT_THAT(decoder.DecodeFixedUInt32(WireType::kVarInt),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeFixedUInt32(WireType::kInt64),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeFixedUInt32(WireType::kLength),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeFixedUInt32(WireType::kDeprecatedStartGroup),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeFixedUInt32(WireType::kDeprecatedEndGroup),
+              StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(DecoderTest, DecodeFixedInt64) {
   Decoder decoder{{0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x56}};
-  EXPECT_THAT(decoder.DecodeFixedInt64(), IsOkAndHolds(0x5634129078563412));
+  EXPECT_THAT(decoder.DecodeFixedInt64(WireType::kInt64), IsOkAndHolds(0x5634129078563412));
 }
 
 TEST(DecoderTest, DecodeNegativeFixedInt64) {
   Decoder decoder{{0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0xD6}};
-  EXPECT_THAT(decoder.DecodeFixedInt64(), IsOkAndHolds(-3011761839100513262));
+  EXPECT_THAT(decoder.DecodeFixedInt64(WireType::kInt64), IsOkAndHolds(-3011761839100513262));
+}
+
+TEST(DecoderTest, WrongWireTypeForFixedInt64) {
+  Decoder decoder{{0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x56}};
+  EXPECT_THAT(decoder.DecodeFixedInt64(WireType::kVarInt),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeFixedInt64(WireType::kLength),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeFixedInt64(WireType::kDeprecatedStartGroup),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeFixedInt64(WireType::kDeprecatedEndGroup),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeFixedInt64(WireType::kInt32),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(DecoderTest, DecodeFixedUInt64) {
+  Decoder decoder{{0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x56}};
+  EXPECT_THAT(decoder.DecodeFixedUInt64(WireType::kInt64), IsOkAndHolds(0x5634129078563412));
+}
+
+TEST(DecoderTest, WrongWireTypeForFixedUInt64) {
+  Decoder decoder{{0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x34, 0x56}};
+  EXPECT_THAT(decoder.DecodeFixedUInt64(WireType::kVarInt),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeFixedUInt64(WireType::kLength),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeFixedUInt64(WireType::kDeprecatedStartGroup),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeFixedUInt64(WireType::kDeprecatedEndGroup),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeFixedUInt64(WireType::kInt32),
+              StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(DecoderTest, DecodeBools) {
   Decoder decoder{{0x00, 0x01}};
-  EXPECT_THAT(decoder.DecodeBool(), IsOkAndHolds(false));
-  EXPECT_THAT(decoder.DecodeBool(), IsOkAndHolds(true));
+  EXPECT_THAT(decoder.DecodeBool(WireType::kVarInt), IsOkAndHolds(false));
+  EXPECT_THAT(decoder.DecodeBool(WireType::kVarInt), IsOkAndHolds(true));
+}
+
+TEST(DecoderTest, WrongWireTypeForBool) {
+  Decoder decoder{{0x00}};
+  EXPECT_THAT(decoder.DecodeBool(WireType::kInt64), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeBool(WireType::kLength), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeBool(WireType::kDeprecatedStartGroup),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeBool(WireType::kDeprecatedEndGroup),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeBool(WireType::kInt32), StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(DecoderTest, DecodeFloat) {
   Decoder decoder{{0xD0, 0x0F, 0x49, 0x40}};
-  EXPECT_THAT(decoder.DecodeFloat(), IsOkAndHolds(FloatNear(3.14159f, 0.0001)));
+  EXPECT_THAT(decoder.DecodeFloat(WireType::kInt32), IsOkAndHolds(FloatNear(3.14159f, 0.0001)));
+}
+
+TEST(DecoderTest, WrongWireTypeForFloat) {
+  Decoder decoder{{0xD0, 0x0F, 0x49, 0x40}};
+  EXPECT_THAT(decoder.DecodeFloat(WireType::kVarInt), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeFloat(WireType::kInt64), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeFloat(WireType::kLength), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeFloat(WireType::kDeprecatedStartGroup),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeFloat(WireType::kDeprecatedEndGroup),
+              StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(DecoderTest, DecodeDouble) {
   Decoder decoder{{0x6E, 0x86, 0x1B, 0xF0, 0xF9, 0x21, 0x09, 0x40}};
-  EXPECT_THAT(decoder.DecodeDouble(), IsOkAndHolds(DoubleNear(3.14159, 0.0001)));
+  EXPECT_THAT(decoder.DecodeDouble(WireType::kInt64), IsOkAndHolds(DoubleNear(3.14159, 0.0001)));
+}
+
+TEST(DecoderTest, WrongWireTypeForDouble) {
+  Decoder decoder{{0x6E, 0x86, 0x1B, 0xF0, 0xF9, 0x21, 0x09, 0x40}};
+  EXPECT_THAT(decoder.DecodeDouble(WireType::kVarInt),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeDouble(WireType::kLength),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeDouble(WireType::kDeprecatedStartGroup),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeDouble(WireType::kDeprecatedEndGroup),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeDouble(WireType::kInt32), StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(DecoderTest, DecodeEmptyString) {
   Decoder decoder{{0x00}};
-  EXPECT_THAT(decoder.DecodeString(), IsOkAndHolds(""));
+  EXPECT_THAT(decoder.DecodeString(WireType::kLength), IsOkAndHolds(""));
 }
 
 TEST(DecoderTest, DecodeString) {
   Decoder decoder{{0x05, 'l', 'o', 'r', 'e', 'm'}};
-  EXPECT_THAT(decoder.DecodeString(), IsOkAndHolds("lorem"));
+  EXPECT_THAT(decoder.DecodeString(WireType::kLength), IsOkAndHolds("lorem"));
 }
 
 TEST(DecoderTest, StringDecodingError) {
   Decoder decoder{{0x08, 'l', 'o', 'r', 'e', 'm'}};
-  EXPECT_THAT(decoder.DecodeString(), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeString(WireType::kLength),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(DecoderTest, WrongWireTypeForString) {
+  Decoder decoder{{0x05, 'l', 'o', 'r', 'e', 'm'}};
+  EXPECT_THAT(decoder.DecodeString(WireType::kVarInt),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeString(WireType::kInt64), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeString(WireType::kDeprecatedStartGroup),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeString(WireType::kDeprecatedEndGroup),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeString(WireType::kInt32), StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(DecoderTest, DecodeEmptyPackedInt32s) {

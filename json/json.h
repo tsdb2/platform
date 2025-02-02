@@ -536,7 +536,7 @@ class Object<internal::FieldImpl<Type, Name>, OtherFields...> : public Object<Ot
   inline void WriteFieldsCompressed(Stringifier* stringifier, bool first_field) const;
 
  private:
-  Type value_;
+  Type value_{};
 };
 
 template <typename Type2, typename Name, typename... OtherFields>

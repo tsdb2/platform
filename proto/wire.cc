@@ -60,7 +60,10 @@ constexpr uint64_t ByteSwap(uint64_t const value) {
 
 }  // namespace
 
-absl::StatusOr<int32_t> Decoder::DecodeFixedInt32() {
+absl::StatusOr<int32_t> Decoder::DecodeFixedInt32(WireType const wire_type) {
+  if (wire_type != WireType::kInt32) {
+    return absl::InvalidArgumentError("invalid wire type for sfixed32");
+  }
   if (data_.size() < 4) {
     return EndOfInputError();
   }
@@ -72,7 +75,10 @@ absl::StatusOr<int32_t> Decoder::DecodeFixedInt32() {
   return static_cast<int32_t>(value);
 }
 
-absl::StatusOr<uint32_t> Decoder::DecodeFixedUInt32() {
+absl::StatusOr<uint32_t> Decoder::DecodeFixedUInt32(WireType const wire_type) {
+  if (wire_type != WireType::kInt32) {
+    return absl::InvalidArgumentError("invalid wire type for fixed32");
+  }
   if (data_.size() < 4) {
     return EndOfInputError();
   }
@@ -84,7 +90,10 @@ absl::StatusOr<uint32_t> Decoder::DecodeFixedUInt32() {
   return value;
 }
 
-absl::StatusOr<int64_t> Decoder::DecodeFixedInt64() {
+absl::StatusOr<int64_t> Decoder::DecodeFixedInt64(WireType const wire_type) {
+  if (wire_type != WireType::kInt64) {
+    return absl::InvalidArgumentError("invalid wire type for sfixed64");
+  }
   if (data_.size() < 8) {
     return EndOfInputError();
   }
@@ -96,7 +105,10 @@ absl::StatusOr<int64_t> Decoder::DecodeFixedInt64() {
   return static_cast<int64_t>(value);
 }
 
-absl::StatusOr<uint64_t> Decoder::DecodeFixedUInt64() {
+absl::StatusOr<uint64_t> Decoder::DecodeFixedUInt64(WireType const wire_type) {
+  if (wire_type != WireType::kInt64) {
+    return absl::InvalidArgumentError("invalid wire type for fixed64");
+  }
   if (data_.size() < 8) {
     return EndOfInputError();
   }
@@ -108,28 +120,34 @@ absl::StatusOr<uint64_t> Decoder::DecodeFixedUInt64() {
   return value;
 }
 
-absl::StatusOr<bool> Decoder::DecodeBool() {
+absl::StatusOr<bool> Decoder::DecodeBool(WireType const wire_type) {
+  if (wire_type != WireType::kVarInt) {
+    return absl::InvalidArgumentError("invalid wire type for bool");
+  }
   DEFINE_CONST_OR_RETURN(value, DecodeInteger<uint8_t>());
   return static_cast<bool>(value);
 }
 
-absl::StatusOr<float> Decoder::DecodeFloat() {
-  DEFINE_VAR_OR_RETURN(value, DecodeFixedUInt32());
+absl::StatusOr<float> Decoder::DecodeFloat(WireType const wire_type) {
+  DEFINE_VAR_OR_RETURN(value, DecodeFixedUInt32(wire_type));
 #ifdef ABSL_IS_BIG_ENDIAN
   value = ByteSwap32(value);
 #endif  // ABSL_IS_BIG_ENDIAN
   return *reinterpret_cast<float const*>(&value);
 }
 
-absl::StatusOr<double> Decoder::DecodeDouble() {
-  DEFINE_VAR_OR_RETURN(value, DecodeFixedUInt64());
+absl::StatusOr<double> Decoder::DecodeDouble(WireType const wire_type) {
+  DEFINE_VAR_OR_RETURN(value, DecodeFixedUInt64(wire_type));
 #ifdef ABSL_IS_BIG_ENDIAN
   value = ByteSwap64(value);
 #endif  // ABSL_IS_BIG_ENDIAN
   return *reinterpret_cast<double const*>(&value);
 }
 
-absl::StatusOr<std::string> Decoder::DecodeString() {
+absl::StatusOr<std::string> Decoder::DecodeString(WireType const wire_type) {
+  if (wire_type != WireType::kLength) {
+    return absl::InvalidArgumentError("invalid wire type for string");
+  }
   DEFINE_CONST_OR_RETURN(length, DecodeInteger<size_t>());
   if (data_.size() < length) {
     return EndOfInputError();
@@ -173,7 +191,7 @@ absl::StatusOr<std::vector<int32_t>> Decoder::DecodePackedFixedInt32s() {
   DEFINE_VAR_OR_RETURN(child, DecodeChildSpan(/*record_size=*/4));
   std::vector<int32_t> values;
   while (!child.at_end()) {
-    DEFINE_CONST_OR_RETURN(value, child.DecodeFixedInt32());
+    DEFINE_CONST_OR_RETURN(value, child.DecodeFixedInt32(WireType::kInt32));
     values.push_back(value);
   }
   return std::move(values);
@@ -183,7 +201,7 @@ absl::StatusOr<std::vector<int64_t>> Decoder::DecodePackedFixedInt64s() {
   DEFINE_VAR_OR_RETURN(child, DecodeChildSpan(/*record_size=*/8));
   std::vector<int64_t> values;
   while (!child.at_end()) {
-    DEFINE_CONST_OR_RETURN(value, child.DecodeFixedInt64());
+    DEFINE_CONST_OR_RETURN(value, child.DecodeFixedInt64(WireType::kInt64));
     values.push_back(value);
   }
   return std::move(values);
@@ -193,7 +211,7 @@ absl::StatusOr<std::vector<uint32_t>> Decoder::DecodePackedFixedUInt32s() {
   DEFINE_VAR_OR_RETURN(child, DecodeChildSpan(/*record_size=*/4));
   std::vector<uint32_t> values;
   while (!child.at_end()) {
-    DEFINE_CONST_OR_RETURN(value, child.DecodeFixedUInt32());
+    DEFINE_CONST_OR_RETURN(value, child.DecodeFixedUInt32(WireType::kInt32));
     values.push_back(value);
   }
   return std::move(values);
@@ -203,7 +221,7 @@ absl::StatusOr<std::vector<uint64_t>> Decoder::DecodePackedFixedUInt64s() {
   DEFINE_VAR_OR_RETURN(child, DecodeChildSpan(/*record_size=*/8));
   std::vector<uint64_t> values;
   while (!child.at_end()) {
-    DEFINE_CONST_OR_RETURN(value, child.DecodeFixedUInt64());
+    DEFINE_CONST_OR_RETURN(value, child.DecodeFixedUInt64(WireType::kInt64));
     values.push_back(value);
   }
   return std::move(values);
@@ -213,7 +231,7 @@ absl::StatusOr<std::vector<bool>> Decoder::DecodePackedBools() {
   DEFINE_VAR_OR_RETURN(child, DecodeChildSpan());
   std::vector<bool> values;
   while (!child.at_end()) {
-    DEFINE_CONST_OR_RETURN(value, child.DecodeBool());
+    DEFINE_CONST_OR_RETURN(value, child.DecodeBool(WireType::kVarInt));
     values.push_back(value);
   }
   return std::move(values);
@@ -223,7 +241,7 @@ absl::StatusOr<std::vector<float>> Decoder::DecodePackedFloats() {
   DEFINE_VAR_OR_RETURN(child, DecodeChildSpan(/*record_size=*/4));
   std::vector<float> values;
   while (!child.at_end()) {
-    DEFINE_CONST_OR_RETURN(value, child.DecodeFloat());
+    DEFINE_CONST_OR_RETURN(value, child.DecodeFloat(WireType::kInt32));
     values.push_back(value);
   }
   return std::move(values);
@@ -233,7 +251,7 @@ absl::StatusOr<std::vector<double>> Decoder::DecodePackedDoubles() {
   DEFINE_VAR_OR_RETURN(child, DecodeChildSpan(/*record_size=*/8));
   std::vector<double> values;
   while (!child.at_end()) {
-    DEFINE_CONST_OR_RETURN(value, child.DecodeDouble());
+    DEFINE_CONST_OR_RETURN(value, child.DecodeDouble(WireType::kInt64));
     values.push_back(value);
   }
   return std::move(values);
