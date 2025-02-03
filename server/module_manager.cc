@@ -24,11 +24,16 @@ void ModuleManager::RegisterModule(BaseModule* const module,
   auto const [it, inserted] = dependencies_.try_emplace(module);
   auto& direct_dependencies = it->second;
   for (auto const& dependency : dependencies) {
+    if (!dependency.is_reverse()) {
+      direct_dependencies.emplace_back(dependency.module());
+    }
+  }
+  // Reverse dependencies must be processed separately because each `try_emplace` call may cause a
+  // rehash and invalidate the `direct_dependencies` reference above.
+  for (auto const& dependency : dependencies) {
     if (dependency.is_reverse()) {
       auto const [it, unused] = dependencies_.try_emplace(dependency.module());
       it->second.emplace_back(module);
-    } else {
-      direct_dependencies.emplace_back(dependency.module());
     }
   }
 }

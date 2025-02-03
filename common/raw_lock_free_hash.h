@@ -121,7 +121,7 @@ class RawLockFreeHash {
  private:
   using Node = Node<Key, Value>;
   using NodeAllocator = typename std::allocator_traits<Allocator>::template rebind_alloc<Node>;
-  using NodePtr = typename NodeAllocator::pointer;
+  using NodePtr = typename std::allocator_traits<NodeAllocator>::pointer;
   using NodePtrAllocator =
       typename std::allocator_traits<Allocator>::template rebind_alloc<NodePtr>;
 
@@ -183,7 +183,7 @@ class RawLockFreeHash {
   };
 
   using ArrayAllocator = typename std::allocator_traits<Allocator>::template rebind_alloc<Array>;
-  using ArrayPtr = typename ArrayAllocator::pointer;
+  using ArrayPtr = typename std::allocator_traits<ArrayAllocator>::pointer;
   using ArrayPtrAllocator =
       typename std::allocator_traits<Allocator>::template rebind_alloc<ArrayPtr>;
 
