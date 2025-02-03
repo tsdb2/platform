@@ -316,22 +316,58 @@ struct MergeField<std::vector<Type>> {
   }
 };
 
-template <typename Type, size_t tag, typename Enable = void>
-struct FieldEncoder;
+template <typename Type, typename Enable = void>
+struct ValueEncoder;
 
-template <size_t tag>
-struct FieldEncoder<bool, tag> {
-  void operator()(Encoder *const encoder, bool const value) const {
-    encoder->EncodeTag(FieldTag{.field_number = tag, .wire_type = WireType::kVarInt});
-    encoder->EncodeBool(value);
+template <typename Integer>
+struct ValueEncoder<Integer, std::enable_if_t<std::is_integral_v<Integer>>> {
+  void operator()(Encoder *const encoder, Integer const value) const {
+    encoder->EncodeVarInt(value);
   }
 };
 
+template <typename Enum>
+struct ValueEncoder<Enum, std::enable_if_t<std::is_enum_v<Enum>>> {
+  void operator()(Encoder *const encoder, Enum const value) const {
+    encoder->EncodeVarInt(tsdb2::util::to_underlying(value));
+  }
+};
+
+template <>
+struct ValueEncoder<float> {
+  void operator()(Encoder *const encoder, float const value) const { encoder->EncodeFloat(value); }
+};
+
+template <>
+struct ValueEncoder<double> {
+  void operator()(Encoder *const encoder, double const value) const {
+    encoder->EncodeDouble(value);
+  }
+};
+
+template <>
+struct ValueEncoder<std::string> {
+  void operator()(Encoder *const encoder, std::string_view const value) const {
+    encoder->EncodeString(value);
+  }
+};
+
+template <typename Type, size_t tag, typename Enable = void>
+struct FieldEncoder;
+
 template <typename Integer, size_t tag>
-struct FieldEncoder<Integer, tag, std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>>> {
+struct FieldEncoder<Integer, tag, std::enable_if_t<std::is_integral_v<Integer>>> {
   void operator()(Encoder *const encoder, Integer const value) const {
     encoder->EncodeTag(FieldTag{.field_number = tag, .wire_type = WireType::kVarInt});
-    encoder->EncodeVarInt(value);
+    ValueEncoder<Integer>{}(encoder, value);
+  }
+};
+
+template <typename Enum, size_t tag>
+struct FieldEncoder<Enum, tag, std::enable_if_t<std::is_enum_v<Enum>>> {
+  void operator()(Encoder *const encoder, Enum const value) const {
+    encoder->EncodeTag(FieldTag{.field_number = tag, .wire_type = WireType::kVarInt});
+    ValueEncoder<Enum>{}(encoder, value);
   }
 };
 
@@ -339,7 +375,7 @@ template <size_t tag>
 struct FieldEncoder<float, tag> {
   void operator()(Encoder *const encoder, float const value) const {
     encoder->EncodeTag(FieldTag{.field_number = tag, .wire_type = WireType::kInt32});
-    encoder->EncodeFloat(value);
+    ValueEncoder<float>{}(encoder, value);
   }
 };
 
@@ -347,7 +383,7 @@ template <size_t tag>
 struct FieldEncoder<double, tag> {
   void operator()(Encoder *const encoder, double const value) const {
     encoder->EncodeTag(FieldTag{.field_number = tag, .wire_type = WireType::kInt64});
-    encoder->EncodeDouble(value);
+    ValueEncoder<double>{}(encoder, value);
   }
 };
 
@@ -355,7 +391,7 @@ template <size_t tag>
 struct FieldEncoder<std::string, tag> {
   void operator()(Encoder *const encoder, std::string_view const value) const {
     encoder->EncodeTag(FieldTag{.field_number = tag, .wire_type = WireType::kLength});
-    encoder->EncodeString(value);
+    ValueEncoder<std::string>{}(encoder, value);
   }
 };
 
@@ -374,7 +410,7 @@ struct FieldEncoder<std::vector<Type>, tag, std::enable_if_t<kPackedEncodingAllo
     encoder->EncodeTag(FieldTag{.field_number = tag, .wire_type = WireType::kLength});
     Encoder child_encoder;
     for (Type const &element : value) {
-      FieldEncoder<Type, tag>{}(&child_encoder, element);
+      ValueEncoder<Type>{}(&child_encoder, element);
     }
     encoder->EncodeSubMessage(std::move(child_encoder));
   }
