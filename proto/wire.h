@@ -195,11 +195,47 @@ class Encoder {
 
   void EncodeSubMessage(Encoder &&child_encoder);
 
+  void EncodePackedVarInts(absl::Span<uint64_t const> const values) {
+    EncodePackedIntegers(values);
+  }
+
+  void EncodePackedInt32s(absl::Span<uint64_t const> const values) { EncodePackedIntegers(values); }
+
+  void EncodePackedUInt32s(absl::Span<uint64_t const> const values) {
+    EncodePackedIntegers(values);
+  }
+
+  void EncodePackedInt64s(absl::Span<uint64_t const> const values) { EncodePackedIntegers(values); }
+
+  void EncodePackedUInt64s(absl::Span<uint64_t const> const values) {
+    EncodePackedIntegers(values);
+  }
+
+  void EncodePackedSInt32s(absl::Span<int32_t const> values);
+  void EncodePackedSInt64s(absl::Span<int64_t const> values);
+  void EncodePackedFixedInt32s(absl::Span<int32_t const> values);
+  void EncodePackedFixedUInt32s(absl::Span<uint32_t const> values);
+  void EncodePackedFixedInt64s(absl::Span<int64_t const> values);
+  void EncodePackedFixedUInt64s(absl::Span<uint64_t const> values);
+  void EncodePackedBools(absl::Span<bool const> values);
+  void EncodePackedFloats(absl::Span<float const> values);
+  void EncodePackedDoubles(absl::Span<double const> values);
+
   tsdb2::io::Cord Finish() && { return std::move(cord_); }
   tsdb2::io::Buffer Flatten() && { return std::move(cord_).Flatten(); }
 
  private:
   void EncodeIntegerInternal(uint64_t value);
+
+  template <typename Integer,
+            std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>, bool> = true>
+  void EncodePackedIntegers(absl::Span<Integer const> values) {
+    Encoder child;
+    for (Integer const value : values) {
+      child.EncodeIntegerInternal(value);
+    }
+    EncodeSubMessage(std::move(child));
+  }
 
   tsdb2::io::Cord cord_;
 };

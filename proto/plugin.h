@@ -89,10 +89,11 @@ char constexpr kVersionMinorField[] = "minor";
 char constexpr kVersionPatchField[] = "patch";
 char constexpr kVersionSuffixField[] = "suffix";
 
-using Version = tsdb2::proto::Object<tsdb2::proto::Field<int32_t, kVersionMajorField, 1>,
-                                     tsdb2::proto::Field<int32_t, kVersionMinorField, 2>,
-                                     tsdb2::proto::Field<int32_t, kVersionPatchField, 3>,
-                                     tsdb2::proto::Field<std::string, kVersionSuffixField, 4>>;
+using Version =
+    tsdb2::proto::Object<tsdb2::proto::Field<std::optional<int32_t>, kVersionMajorField, 1>,
+                         tsdb2::proto::Field<std::optional<int32_t>, kVersionMinorField, 2>,
+                         tsdb2::proto::Field<std::optional<int32_t>, kVersionPatchField, 3>,
+                         tsdb2::proto::Field<std::optional<std::string>, kVersionSuffixField, 4>>;
 
 char constexpr kCodeGeneratorRequestFileToGenerateField[] = "file_to_generate";
 char constexpr kCodeGeneratorRequestParameterField[] = "parameter";

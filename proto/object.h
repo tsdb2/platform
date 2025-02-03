@@ -64,6 +64,9 @@ struct WireTypeFor<double> {
 template <typename Type>
 inline WireType constexpr WireTypeForV = WireTypeFor<Type>::value;
 
+template <typename Type>
+inline bool constexpr kPackedEncodingAllowed = std::is_arithmetic_v<Type> || std::is_enum_v<Type>;
+
 template <typename Field, typename Enable = void>
 struct FieldDecoder;
 
@@ -255,7 +258,8 @@ struct FieldDecoder<FieldImpl<std::optional<Type>, Name, tag>> {
 };
 
 template <typename Type, typename Name, size_t tag>
-struct FieldDecoder<FieldImpl<std::vector<Type>, Name, tag>> {
+struct FieldDecoder<FieldImpl<std::vector<Type>, Name, tag>,
+                    std::enable_if_t<kPackedEncodingAllowed<Type>>> {
   absl::Status operator()(Decoder *const decoder, WireType const wire_type,
                           std::vector<Type> *const value) const {
     if (wire_type != WireType::kLength) {
@@ -272,6 +276,18 @@ struct FieldDecoder<FieldImpl<std::vector<Type>, Name, tag>> {
         value->emplace_back(std::move(decoded));
       }
     }
+    return absl::OkStatus();
+  }
+};
+
+template <typename Type, typename Name, size_t tag>
+struct FieldDecoder<FieldImpl<std::vector<Type>, Name, tag>,
+                    std::enable_if_t<!kPackedEncodingAllowed<Type>>> {
+  absl::Status operator()(Decoder *const decoder, WireType const wire_type,
+                          std::vector<Type> *const value) const {
+    Type decoded{};
+    RETURN_IF_ERROR((FieldDecoder<FieldImpl<Type, Name, tag>>()(decoder, wire_type, &decoded)));
+    value->emplace_back(std::move(decoded));
     return absl::OkStatus();
   }
 };
@@ -353,7 +369,7 @@ struct FieldEncoder<std::optional<Type>, tag> {
 };
 
 template <typename Type, size_t tag>
-struct FieldEncoder<std::vector<Type>, tag> {
+struct FieldEncoder<std::vector<Type>, tag, std::enable_if_t<kPackedEncodingAllowed<Type>>> {
   void operator()(Encoder *const encoder, std::vector<Type> const &value) const {
     encoder->EncodeTag(FieldTag{.field_number = tag, .wire_type = WireType::kLength});
     Encoder child_encoder;
@@ -361,6 +377,15 @@ struct FieldEncoder<std::vector<Type>, tag> {
       FieldEncoder<Type, tag>{}(&child_encoder, element);
     }
     encoder->EncodeSubMessage(std::move(child_encoder));
+  }
+};
+
+template <typename Type, size_t tag>
+struct FieldEncoder<std::vector<Type>, tag, std::enable_if_t<!kPackedEncodingAllowed<Type>>> {
+  void operator()(Encoder *const encoder, std::vector<Type> const &value) const {
+    for (auto const &element : value) {
+      FieldEncoder<Type, tag>{}(encoder, element);
+    }
   }
 };
 

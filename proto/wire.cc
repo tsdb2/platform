@@ -410,6 +410,78 @@ void Encoder::EncodeSubMessage(Encoder &&child_encoder) {
   cord_.Append(std::move(child_encoder.cord_));
 }
 
+void Encoder::EncodePackedSInt32s(absl::Span<int32_t const> const values) {
+  Encoder child;
+  for (int32_t const value : values) {
+    child.EncodeSInt32(value);
+  }
+  EncodeSubMessage(std::move(child));
+}
+
+void Encoder::EncodePackedSInt64s(absl::Span<int64_t const> const values) {
+  Encoder child;
+  for (int64_t const value : values) {
+    child.EncodeSInt64(value);
+  }
+  EncodeSubMessage(std::move(child));
+}
+
+void Encoder::EncodePackedFixedInt32s(absl::Span<int32_t const> const values) {
+  Encoder child;
+  for (int32_t const value : values) {
+    child.EncodeFixedInt32(value);
+  }
+  EncodeSubMessage(std::move(child));
+}
+
+void Encoder::EncodePackedFixedUInt32s(absl::Span<uint32_t const> const values) {
+  Encoder child;
+  for (uint32_t const value : values) {
+    child.EncodeFixedUInt32(value);
+  }
+  EncodeSubMessage(std::move(child));
+}
+
+void Encoder::EncodePackedFixedInt64s(absl::Span<int64_t const> const values) {
+  Encoder child;
+  for (int64_t const value : values) {
+    child.EncodeFixedInt64(value);
+  }
+  EncodeSubMessage(std::move(child));
+}
+
+void Encoder::EncodePackedFixedUInt64s(absl::Span<uint64_t const> const values) {
+  Encoder child;
+  for (uint64_t const value : values) {
+    child.EncodeFixedUInt64(value);
+  }
+  EncodeSubMessage(std::move(child));
+}
+
+void Encoder::EncodePackedBools(absl::Span<bool const> const values) {
+  Encoder child;
+  for (bool const value : values) {
+    child.EncodeBool(value);
+  }
+  EncodeSubMessage(std::move(child));
+}
+
+void Encoder::EncodePackedFloats(absl::Span<float const> const values) {
+  Encoder child;
+  for (float const value : values) {
+    child.EncodeFloat(value);
+  }
+  EncodeSubMessage(std::move(child));
+}
+
+void Encoder::EncodePackedDoubles(absl::Span<double const> const values) {
+  Encoder child;
+  for (double const value : values) {
+    child.EncodeDouble(value);
+  }
+  EncodeSubMessage(std::move(child));
+}
+
 void Encoder::EncodeIntegerInternal(uint64_t value) {
   tsdb2::io::Buffer buffer{kMaxVarIntLength};
   while (value > 0x7F) {
