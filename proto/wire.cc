@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -22,14 +23,14 @@ namespace {
 
 inline size_t constexpr kMaxVarIntLength = 10;
 
-constexpr uint16_t ByteSwap(uint16_t const value) { return (value >> 8) | (value << 8); }
+constexpr uint16_t ByteSwap16(uint16_t const value) { return (value >> 8) | (value << 8); }
 
-constexpr uint32_t ByteSwap(uint32_t const value) {
+constexpr uint32_t ByteSwap32(uint32_t const value) {
   return ((value >> 24) & 0x000000FF) | ((value >> 8) & 0x0000FF00) | ((value << 8) & 0x00FF0000) |
          ((value << 24) & 0xFF000000);
 }
 
-constexpr uint64_t ByteSwap(uint64_t const value) {
+constexpr uint64_t ByteSwap64(uint64_t const value) {
   return ((value >> 56) & 0x00000000000000FF) | ((value >> 40) & 0x000000000000FF00) |
          ((value >> 24) & 0x0000000000FF0000) | ((value >> 8) & 0x00000000FF000000) |
          ((value << 8) & 0x000000FF00000000) | ((value << 24) & 0x0000FF0000000000) |
@@ -121,22 +122,16 @@ absl::StatusOr<bool> Decoder::DecodeBool(WireType const wire_type) {
     return absl::InvalidArgumentError("invalid wire type for bool");
   }
   DEFINE_CONST_OR_RETURN(value, DecodeInteger<uint8_t>());
-  return static_cast<bool>(value);
+  return value != 0;
 }
 
 absl::StatusOr<float> Decoder::DecodeFloat(WireType const wire_type) {
   DEFINE_VAR_OR_RETURN(value, DecodeFixedUInt32(wire_type));
-#ifdef ABSL_IS_BIG_ENDIAN
-  value = ByteSwap32(value);
-#endif  // ABSL_IS_BIG_ENDIAN
   return *reinterpret_cast<float const *>(&value);
 }
 
 absl::StatusOr<double> Decoder::DecodeDouble(WireType const wire_type) {
   DEFINE_VAR_OR_RETURN(value, DecodeFixedUInt64(wire_type));
-#ifdef ABSL_IS_BIG_ENDIAN
-  value = ByteSwap64(value);
-#endif  // ABSL_IS_BIG_ENDIAN
   return *reinterpret_cast<double const *>(&value);
 }
 
@@ -351,6 +346,69 @@ void Encoder::EncodeTag(FieldTag const &tag) {
 
 void Encoder::EncodeSInt32(int32_t const value) { EncodeUInt32((value << 1) ^ (value >> 31)); }
 void Encoder::EncodeSInt64(int64_t const value) { EncodeUInt64((value << 1) ^ (value >> 63)); }
+
+void Encoder::EncodeFixedInt32(int32_t value) {
+#ifdef ABSL_IS_BIG_ENDIAN
+  value = ByteSwap32(value);
+#endif  // ABSL_IS_BIG_ENDIAN
+  tsdb2::io::Buffer buffer{4};
+  buffer.as<int32_t>() = value;
+  buffer.Advance(4);
+  cord_.Append(std::move(buffer));
+}
+
+void Encoder::EncodeFixedUInt32(uint32_t value) {
+#ifdef ABSL_IS_BIG_ENDIAN
+  value = ByteSwap32(value);
+#endif  // ABSL_IS_BIG_ENDIAN
+  tsdb2::io::Buffer buffer{4};
+  buffer.as<uint32_t>() = value;
+  buffer.Advance(4);
+  cord_.Append(std::move(buffer));
+}
+
+void Encoder::EncodeFixedInt64(int64_t value) {
+#ifdef ABSL_IS_BIG_ENDIAN
+  value = ByteSwap64(value);
+#endif  // ABSL_IS_BIG_ENDIAN
+  tsdb2::io::Buffer buffer{8};
+  buffer.as<int64_t>() = value;
+  buffer.Advance(8);
+  cord_.Append(std::move(buffer));
+}
+
+void Encoder::EncodeFixedUInt64(uint64_t value) {
+#ifdef ABSL_IS_BIG_ENDIAN
+  value = ByteSwap64(value);
+#endif  // ABSL_IS_BIG_ENDIAN
+  tsdb2::io::Buffer buffer{8};
+  buffer.as<uint64_t>() = value;
+  buffer.Advance(8);
+  cord_.Append(std::move(buffer));
+}
+
+void Encoder::EncodeBool(bool const value) { EncodeIntegerInternal(static_cast<uint8_t>(!!value)); }
+
+void Encoder::EncodeFloat(float const value) {
+  EncodeFixedUInt32(*reinterpret_cast<uint32_t const *>(&value));
+}
+
+void Encoder::EncodeDouble(double const value) {
+  EncodeFixedUInt64(*reinterpret_cast<uint64_t const *>(&value));
+}
+
+void Encoder::EncodeString(std::string_view const value) {
+  size_t const length = value.size();
+  EncodeIntegerInternal(length);
+  tsdb2::io::Buffer buffer{length};
+  buffer.MemCpy(value.data(), length);
+  cord_.Append(std::move(buffer));
+}
+
+void Encoder::EncodeSubMessage(Encoder &&child_encoder) {
+  EncodeIntegerInternal(child_encoder.size());
+  cord_.Append(std::move(child_encoder.cord_));
+}
 
 void Encoder::EncodeIntegerInternal(uint64_t value) {
   tsdb2::io::Buffer buffer{kMaxVarIntLength};

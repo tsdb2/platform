@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -181,6 +182,18 @@ class Encoder {
 
   void EncodeSInt32(int32_t value);
   void EncodeSInt64(int64_t value);
+
+  void EncodeFixedInt32(int32_t value);
+  void EncodeFixedUInt32(uint32_t value);
+  void EncodeFixedInt64(int64_t value);
+  void EncodeFixedUInt64(uint64_t value);
+
+  void EncodeBool(bool value);
+  void EncodeFloat(float value);
+  void EncodeDouble(double value);
+  void EncodeString(std::string_view value);
+
+  void EncodeSubMessage(Encoder &&child_encoder);
 
   tsdb2::io::Cord Finish() && { return std::move(cord_); }
   tsdb2::io::Buffer Flatten() && { return std::move(cord_).Flatten(); }

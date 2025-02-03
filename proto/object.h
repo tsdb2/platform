@@ -300,6 +300,70 @@ struct MergeField<std::vector<Type>> {
   }
 };
 
+template <typename Type, size_t tag, typename Enable = void>
+struct FieldEncoder;
+
+template <size_t tag>
+struct FieldEncoder<bool, tag> {
+  void operator()(Encoder *const encoder, bool const value) const {
+    encoder->EncodeTag(FieldTag{.field_number = tag, .wire_type = WireType::kVarInt});
+    encoder->EncodeBool(value);
+  }
+};
+
+template <typename Integer, size_t tag>
+struct FieldEncoder<Integer, tag, std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>>> {
+  void operator()(Encoder *const encoder, Integer const value) const {
+    encoder->EncodeTag(FieldTag{.field_number = tag, .wire_type = WireType::kVarInt});
+    encoder->EncodeVarInt(value);
+  }
+};
+
+template <size_t tag>
+struct FieldEncoder<float, tag> {
+  void operator()(Encoder *const encoder, float const value) const {
+    encoder->EncodeTag(FieldTag{.field_number = tag, .wire_type = WireType::kInt32});
+    encoder->EncodeFloat(value);
+  }
+};
+
+template <size_t tag>
+struct FieldEncoder<double, tag> {
+  void operator()(Encoder *const encoder, double const value) const {
+    encoder->EncodeTag(FieldTag{.field_number = tag, .wire_type = WireType::kInt64});
+    encoder->EncodeDouble(value);
+  }
+};
+
+template <size_t tag>
+struct FieldEncoder<std::string, tag> {
+  void operator()(Encoder *const encoder, std::string_view const value) const {
+    encoder->EncodeTag(FieldTag{.field_number = tag, .wire_type = WireType::kLength});
+    encoder->EncodeString(value);
+  }
+};
+
+template <typename Type, size_t tag>
+struct FieldEncoder<std::optional<Type>, tag> {
+  void operator()(Encoder *const encoder, std::optional<Type> const &value) const {
+    if (value.has_value()) {
+      FieldEncoder<Type, tag>{}(encoder, value.value());
+    }
+  }
+};
+
+template <typename Type, size_t tag>
+struct FieldEncoder<std::vector<Type>, tag> {
+  void operator()(Encoder *const encoder, std::vector<Type> const &value) const {
+    encoder->EncodeTag(FieldTag{.field_number = tag, .wire_type = WireType::kLength});
+    Encoder child_encoder;
+    for (Type const &element : value) {
+      FieldEncoder<Type, tag>{}(&child_encoder, element);
+    }
+    encoder->EncodeSubMessage(std::move(child_encoder));
+  }
+};
+
 }  // namespace internal
 
 template <typename Type, char const name[], size_t tag>
@@ -327,6 +391,16 @@ struct FieldDecoder<FieldImpl<Object<Fields...>, Name, tag>> {
   }
 };
 
+template <typename... Fields, size_t tag>
+struct FieldEncoder<Object<Fields...>, tag> {
+  void operator()(Encoder *const encoder, Object<Fields...> const &value) const {
+    encoder->EncodeTag(FieldTag{.field_number = tag, .wire_type = WireType::kLength});
+    Encoder child_encoder;
+    value.EncodeInternal(&child_encoder);
+    encoder->EncodeSubMessage(std::move(child_encoder));
+  }
+};
+
 }  // namespace internal
 
 template <>
@@ -343,8 +417,8 @@ class Object<> {
 
   void Merge(Object &&other) {}
 
-  tsdb2::io::Cord Encode() const {  // NOLINT(readability-convert-member-functions-to-static)
-    return tsdb2::io::Cord();
+  tsdb2::io::Cord Encode() const {  // NOLINT
+    return Encoder{}.Finish();
   }
 
   explicit Object() = default;
@@ -395,6 +469,8 @@ class Object<> {
     return decoder->SkipRecord(field_tag.wire_type);
   }
 
+  void EncodeInternal(Encoder *const encoder) const {}
+
   // NOLINTEND(readability-convert-member-functions-to-static)
 };
 
@@ -423,8 +499,9 @@ class Object<internal::FieldImpl<Type, Name, tag>, OtherFields...> : public Obje
   }
 
   tsdb2::io::Cord Encode() const {
-    // TODO
-    return tsdb2::io::Cord();
+    Encoder encoder;
+    EncodeInternal(&encoder);
+    return std::move(encoder).Finish();
   }
 
   explicit Object() = default;
@@ -493,6 +570,9 @@ class Object<internal::FieldImpl<Type, Name, tag>, OtherFields...> : public Obje
   }
 
  protected:
+  template <typename FieldType, size_t field_tag, typename Enable>
+  friend struct internal::FieldEncoder;
+
   template <typename FieldName, typename Dummy = void>
   struct Getter;
 
@@ -512,9 +592,14 @@ class Object<internal::FieldImpl<Type, Name, tag>, OtherFields...> : public Obje
     if (field_tag.field_number != tag) {
       return Object<OtherFields...>::ReadField(decoder, field_tag);
     } else {
-      return internal::FieldDecoder<internal::FieldImpl<Type, Name, tag>>()(
+      return internal::FieldDecoder<internal::FieldImpl<Type, Name, tag>>{}(
           decoder, field_tag.wire_type, &value_);
     }
+  }
+
+  void EncodeInternal(Encoder *const encoder) const {
+    internal::FieldEncoder<Type, tag>{}(encoder, value_);
+    Object<OtherFields...>::EncodeInternal(encoder);
   }
 
  private:

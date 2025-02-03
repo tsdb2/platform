@@ -1046,6 +1046,60 @@ TEST_F(EncoderTest, EncodeMaxNegativeEvenSInt64) {
       BufferAsBytes(ElementsAre(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01)));
 }
 
+TEST_F(EncoderTest, EncodeFixedInt32) {
+  encoder_.EncodeFixedInt32(4610);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x02, 0x12, 0x00, 0x00)));
+}
+
+TEST_F(EncoderTest, EncodeNegativeFixedInt32) {
+  encoder_.EncodeFixedInt32(-4610);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0xFE, 0xED, 0xFF, 0xFF)));
+}
+
+TEST_F(EncoderTest, EncodeFixedInt64) {
+  encoder_.EncodeFixedInt64(4610);
+  EXPECT_THAT(std::move(encoder_).Flatten(),
+              BufferAsBytes(ElementsAre(0x02, 0x12, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)));
+}
+
+TEST_F(EncoderTest, EncodeNegativeFixedInt64) {
+  encoder_.EncodeFixedInt64(-4610);
+  EXPECT_THAT(std::move(encoder_).Flatten(),
+              BufferAsBytes(ElementsAre(0xFE, 0xED, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF)));
+}
+
+TEST_F(EncoderTest, EncodeTrue) {
+  encoder_.EncodeBool(true);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x01)));
+}
+
+TEST_F(EncoderTest, EncodeFalse) {
+  encoder_.EncodeBool(false);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x00)));
+}
+
+TEST_F(EncoderTest, EncodeFloat) {
+  encoder_.EncodeFloat(3.14159f);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0xD0, 0x0F, 0x49, 0x40)));
+}
+
+TEST_F(EncoderTest, EncodeDouble) {
+  encoder_.EncodeDouble(3.14159);
+  EXPECT_THAT(std::move(encoder_).Flatten(),
+              BufferAsBytes(ElementsAre(0x6E, 0x86, 0x1B, 0xF0, 0xF9, 0x21, 0x09, 0x40)));
+}
+
+TEST_F(EncoderTest, EncodeEmptyString) {
+  encoder_.EncodeString("");
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x00)));
+}
+
+TEST_F(EncoderTest, EncodeString) {
+  encoder_.EncodeString("lorem");
+  EXPECT_THAT(std::move(encoder_).Flatten(),
+              BufferAsBytes(ElementsAre(0x05, 'l', 'o', 'r', 'e', 'm')));
+}
+
 // TODO
 
 }  // namespace
