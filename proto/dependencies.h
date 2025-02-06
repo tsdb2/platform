@@ -221,7 +221,7 @@ class DependencyManager {
 
   std::vector<std::string> GetRoots() const;
 
-  absl::btree_map<std::string, absl::flat_hash_map<std::string, std::string>> dependencies_;
+  absl::btree_map<std::string, absl::btree_map<std::string, std::string>> dependencies_;
   absl::flat_hash_map<std::string, DependencyManager> inner_dependencies_;
 };
 
