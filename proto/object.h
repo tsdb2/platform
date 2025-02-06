@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -258,6 +259,24 @@ struct FieldDecoder<FieldImpl<std::optional<Type>, Name, tag>> {
 };
 
 template <typename Type, typename Name, size_t tag>
+struct FieldDecoder<FieldImpl<std::unique_ptr<Type>, Name, tag>> {
+  absl::Status operator()(Decoder *const decoder, WireType const wire_type,
+                          std::unique_ptr<Type> *const value) const {
+    auto decoded = std::make_unique<Type>();
+    return FieldDecoder<FieldImpl<Type, Name, tag>>()(decoder, wire_type, decoded.get());
+  }
+};
+
+template <typename Type, typename Name, size_t tag>
+struct FieldDecoder<FieldImpl<std::shared_ptr<Type>, Name, tag>> {
+  absl::Status operator()(Decoder *const decoder, WireType const wire_type,
+                          std::shared_ptr<Type> *const value) const {
+    auto decoded = std::make_shared<Type>();
+    return FieldDecoder<FieldImpl<Type, Name, tag>>()(decoder, wire_type, decoded.get());
+  }
+};
+
+template <typename Type, typename Name, size_t tag>
 struct FieldDecoder<FieldImpl<std::vector<Type>, Name, tag>,
                     std::enable_if_t<kPackedEncodingAllowed<Type>>> {
   absl::Status operator()(Decoder *const decoder, WireType const wire_type,
@@ -301,6 +320,24 @@ template <typename Type>
 struct MergeField<std::optional<Type>> {
   void operator()(std::optional<Type> &lhs, std::optional<Type> &&rhs) const {
     if (rhs.has_value()) {
+      lhs = std::move(rhs);
+    }
+  }
+};
+
+template <typename Type>
+struct MergeField<std::unique_ptr<Type>> {
+  void operator()(std::unique_ptr<Type> &lhs, std::unique_ptr<Type> &&rhs) const {
+    if (rhs) {
+      lhs = std::move(rhs);
+    }
+  }
+};
+
+template <typename Type>
+struct MergeField<std::shared_ptr<Type>> {
+  void operator()(std::shared_ptr<Type> &lhs, std::shared_ptr<Type> &&rhs) const {
+    if (rhs) {
       lhs = std::move(rhs);
     }
   }
@@ -405,6 +442,24 @@ struct FieldEncoder<std::optional<Type>, tag> {
 };
 
 template <typename Type, size_t tag>
+struct FieldEncoder<std::unique_ptr<Type>, tag> {
+  void operator()(Encoder *const encoder, std::unique_ptr<Type> const &value) const {
+    if (value) {
+      FieldEncoder<Type, tag>{}(encoder, *value);
+    }
+  }
+};
+
+template <typename Type, size_t tag>
+struct FieldEncoder<std::shared_ptr<Type>, tag> {
+  void operator()(Encoder *const encoder, std::shared_ptr<Type> const &value) const {
+    if (value) {
+      FieldEncoder<Type, tag>{}(encoder, *value);
+    }
+  }
+};
+
+template <typename Type, size_t tag>
 struct FieldEncoder<std::vector<Type>, tag, std::enable_if_t<kPackedEncodingAllowed<Type>>> {
   void operator()(Encoder *const encoder, std::vector<Type> const &value) const {
     encoder->EncodeTag(FieldTag{.field_number = tag, .wire_type = WireType::kLength});
@@ -452,13 +507,20 @@ struct FieldDecoder<FieldImpl<Object<Fields...>, Name, tag>> {
   }
 };
 
+template <typename... Fields>
+struct ValueEncoder<Object<Fields...>> {
+  void operator()(Encoder *const encoder, Object<Fields...> const &value) const {
+    Encoder child_encoder;
+    value.EncodeInternal(&child_encoder);
+    encoder->EncodeSubMessage(std::move(child_encoder));
+  }
+};
+
 template <typename... Fields, size_t tag>
 struct FieldEncoder<Object<Fields...>, tag> {
   void operator()(Encoder *const encoder, Object<Fields...> const &value) const {
     encoder->EncodeTag(FieldTag{.field_number = tag, .wire_type = WireType::kLength});
-    Encoder child_encoder;
-    value.EncodeInternal(&child_encoder);
-    encoder->EncodeSubMessage(std::move(child_encoder));
+    ValueEncoder<Object<Fields...>>{}(encoder, value);
   }
 };
 
@@ -631,8 +693,8 @@ class Object<internal::FieldImpl<Type, Name, tag>, OtherFields...> : public Obje
   }
 
  protected:
-  template <typename FieldType, size_t field_tag, typename Enable>
-  friend struct internal::FieldEncoder;
+  template <typename FieldType, typename Enable>
+  friend struct internal::ValueEncoder;
 
   template <typename FieldName, typename Dummy = void>
   struct Getter;
