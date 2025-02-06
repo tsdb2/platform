@@ -41,24 +41,6 @@ class DependencyManager {
   std::vector<std::string> MakeOrder(PathView base_path) const;
 
  private:
-  class CycleFrame {
-   public:
-    explicit CycleFrame(absl::flat_hash_set<std::string_view>* path, Cycle* stack,
-                        std::string_view node);
-
-    ~CycleFrame();
-
-   private:
-    CycleFrame(CycleFrame const&) = delete;
-    CycleFrame& operator=(CycleFrame const&) = delete;
-    CycleFrame(CycleFrame&&) = delete;
-    CycleFrame& operator=(CycleFrame&&) = delete;
-
-    absl::flat_hash_set<std::string_view>* const path_;
-    Cycle* const stack_;
-    std::string_view const node_;
-  };
-
   class CycleFinder {
    public:
     explicit CycleFinder(DependencyManager const& parent, PathView const base_path,
