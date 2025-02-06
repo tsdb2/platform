@@ -202,6 +202,58 @@ TEST_F(ModuleTest, OppositeDependency) {
   EXPECT_OK(module_manager_.InitializeModules());
 }
 
+TEST_F(ModuleTest, ConvergingDependencies1) {
+  Module<MockTraits1> module1;
+  Module<MockTraits2, MockTraits1> module2;
+  Module<MockTraits3, MockTraits1> module3;
+  EXPECT_CALL(traits1(), InitializeForTesting).Times(0);
+  EXPECT_CALL(traits2(), InitializeForTesting).Times(0);
+  EXPECT_CALL(traits3(), InitializeForTesting).Times(0);
+  InSequence s;
+  EXPECT_CALL(traits1(), Initialize).Times(1).WillOnce(Return(absl::OkStatus()));
+  EXPECT_CALL(traits2(), Initialize).Times(1).WillOnce(Return(absl::OkStatus()));
+  EXPECT_OK(module_manager_.InitializeModules());
+}
+
+TEST_F(ModuleTest, ConvergingDependencies2) {
+  Module<MockTraits1> module1;
+  Module<MockTraits2, MockTraits1> module2;
+  Module<MockTraits3, MockTraits1> module3;
+  EXPECT_CALL(traits1(), InitializeForTesting).Times(0);
+  EXPECT_CALL(traits2(), InitializeForTesting).Times(0);
+  EXPECT_CALL(traits3(), InitializeForTesting).Times(0);
+  InSequence s;
+  EXPECT_CALL(traits1(), Initialize).Times(1).WillOnce(Return(absl::OkStatus()));
+  EXPECT_CALL(traits3(), Initialize).Times(1).WillOnce(Return(absl::OkStatus()));
+  EXPECT_OK(module_manager_.InitializeModules());
+}
+
+TEST_F(ModuleTest, ConvergingDependencies3) {
+  Module<MockTraits2, MockTraits1> module2;
+  Module<MockTraits3, MockTraits1> module3;
+  Module<MockTraits1> module1;
+  EXPECT_CALL(traits1(), InitializeForTesting).Times(0);
+  EXPECT_CALL(traits2(), InitializeForTesting).Times(0);
+  EXPECT_CALL(traits3(), InitializeForTesting).Times(0);
+  InSequence s;
+  EXPECT_CALL(traits1(), Initialize).Times(1).WillOnce(Return(absl::OkStatus()));
+  EXPECT_CALL(traits2(), Initialize).Times(1).WillOnce(Return(absl::OkStatus()));
+  EXPECT_OK(module_manager_.InitializeModules());
+}
+
+TEST_F(ModuleTest, ConvergingDependencies4) {
+  Module<MockTraits2, MockTraits1> module2;
+  Module<MockTraits3, MockTraits1> module3;
+  Module<MockTraits1> module1;
+  EXPECT_CALL(traits1(), InitializeForTesting).Times(0);
+  EXPECT_CALL(traits2(), InitializeForTesting).Times(0);
+  EXPECT_CALL(traits3(), InitializeForTesting).Times(0);
+  InSequence s;
+  EXPECT_CALL(traits1(), Initialize).Times(1).WillOnce(Return(absl::OkStatus()));
+  EXPECT_CALL(traits3(), Initialize).Times(1).WillOnce(Return(absl::OkStatus()));
+  EXPECT_OK(module_manager_.InitializeModules());
+}
+
 TEST_F(ModuleTest, CircularDependency) {
   Module<MockTraits1, MockTraits2> module1;
   Module<MockTraits2, MockTraits1> module2;

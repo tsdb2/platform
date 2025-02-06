@@ -8,8 +8,8 @@
 
 #include "proto/object.h"
 
-// Manually translated from google/protobuf/compiler/plugin.proto and
-// google/protobuf/descriptor.proto (see https://github.com/protocolbuffers/protobuf).
+// Manually adapted from google/protobuf/compiler/plugin.proto and google/protobuf/descriptor.proto
+// (see https://github.com/protocolbuffers/protobuf).
 
 namespace google {
 namespace protobuf {
@@ -111,13 +111,14 @@ enum class CodeGeneratorResponse_Feature {
 };
 
 char constexpr kCodeGeneratorResponseFileNameField[] = "name";
-char constexpr kCodeGeneratorResponseInsertionPointField[] = "insertion_point";
-char constexpr kCodeGeneratorResponseContentField[] = "content";
+char constexpr kCodeGeneratorResponseFileInsertionPointField[] = "insertion_point";
+char constexpr kCodeGeneratorResponseFileContentField[] = "content";
 
 using CodeGeneratorResponse_File = tsdb2::proto::Object<
     tsdb2::proto::Field<std::optional<std::string>, kCodeGeneratorResponseFileNameField, 1>,
-    tsdb2::proto::Field<std::optional<std::string>, kCodeGeneratorResponseInsertionPointField, 2>,
-    tsdb2::proto::Field<std::optional<std::string>, kCodeGeneratorResponseContentField, 15>>;
+    tsdb2::proto::Field<std::optional<std::string>, kCodeGeneratorResponseFileInsertionPointField,
+                        2>,
+    tsdb2::proto::Field<std::optional<std::string>, kCodeGeneratorResponseFileContentField, 15>>;
 
 char constexpr kCodeGeneratorResponseErrorField[] = "error";
 char constexpr kCodeGeneratorResponseSupportedFeaturesField[] = "supported_features";

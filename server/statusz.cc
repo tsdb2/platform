@@ -64,7 +64,7 @@ struct StatuszModule {
 };
 
 tsdb2::init::Module<StatuszModule,
-                    tsdb2::init::ReverseDependency<tsdb2::http::DefaultServerModule> > const
+                    tsdb2::init::ReverseDependency<tsdb2::http::DefaultServerModule>> const
     statusz_module;
 
 }  // namespace
