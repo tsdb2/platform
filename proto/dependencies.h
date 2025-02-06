@@ -99,18 +99,37 @@ class DependencyManager {
   DependencyManager(DependencyManager&&) noexcept = default;
   DependencyManager& operator=(DependencyManager&&) noexcept = default;
 
-  // Defines a dependency between `dependent` and `dependee`, which are global paths to messages.
-  // These global paths are arrays of string components corresponding to fully qualified protobuf
-  // message names, e.g. `{"google", "protobuf", "Timestamp"}` for `google.protobuf.Timestamp`. Each
-  // component can be a package name or message name (remember that protobuf messages can be
-  // nested), but the `DependencyManager` doesn't care about that and treats the provided strings
-  // opaquely.
+  // Registers a protobuf message without any dependencies. Dependencies may be added later with
+  // `AddDependency`.
+  //
+  // `path` is a global path that identifies the added message. It's an array of path components
+  // corresponding the fully qualified name of the message, for example `{"google", "protobuf",
+  // "Timestamp"}` for `google.protobuf.Timestamp`. The `DependencyManager` treats path component
+  // strings opaquely. The only aspect that matters is that each component defines a new nested
+  // scoped with its own dependency graph.
+  //
+  // WARNING: the `path` must not be empty, this method check-fails if an empty path is specified.
+  // Empty paths don't make sense because a message must at least have a name, and the
+  // `DependencyManager` wouldn't know how to handle empty paths because `AddDependency` wouldn't be
+  // able to find the closest common ancestor.
+  void AddNode(PathView path);
+
+  // Defines a dependency between `dependent` and `dependee`, which are global paths to messages as
+  // explained in `AddNode`.
+  //
+  // REQUIRES: both the `dependee` and the `dependent` must have been previously added with
+  // respective `AddNode` calls.
   //
   // `edge_name` is the name of the field creating the dependency. In other words, the message
   // identified by `dependent` has a field called like `edge_name` whose type is the message
   // identified by `dependee`.
   //
-  // The `edge_name` is used for reporting purposes when a cycle is found.
+  // The `edge_name` is used only for reporting purposes when a cycle is found.
+  //
+  // WARNING: the `dependent` and `dependee` paths must not be empty, this method check-fails if an
+  // empty path is specified. Empty paths don't make sense because a message must at least have a
+  // name, and the `DependencyManager` wouldn't know how to handle empty paths because
+  // `AddDependency` wouldn't be able to find the closest common ancestor.
   void AddDependency(PathView dependent, PathView dependee, std::string_view edge_name);
 
   // Searches for possible cycles in the dependency graph of the scope of the protobuf message

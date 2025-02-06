@@ -6,25 +6,38 @@
 #include <utility>
 #include <vector>
 
-#include "absl/container/flat_hash_set.h"
+#include "absl/container/btree_set.h"
 #include "absl/log/check.h"
 
 namespace tsdb2 {
 namespace proto {
 namespace internal {
 
+void DependencyManager::AddNode(PathView const path) {
+  CHECK(!path.empty());
+  std::string_view const front = path.front();
+  if (path.size() > 1) {
+    dependencies_.try_emplace(front);
+    auto const [it, unused] = inner_dependencies_.try_emplace(front);
+    it->second.AddNode(path.subspan(1));
+  } else {
+    dependencies_.try_emplace(front);
+    inner_dependencies_.try_emplace(front);
+  }
+}
+
 void DependencyManager::AddDependency(PathView const dependent, PathView const dependee,
                                       std::string_view const edge_name) {
-  CHECK_GT(dependent.size(), 0);
-  CHECK_GT(dependee.size(), 0);
-  if (dependent.size() > 1 && dependee.size() > 1 && dependent[0] == dependee[0]) {
-    std::string_view const component = dependent[0];
-    dependencies_.try_emplace(component);
-    auto const [it, unused] = inner_dependencies_.try_emplace(component);
+  CHECK(!dependent.empty());
+  CHECK(!dependee.empty());
+  if (dependent.size() > 1 && dependee.size() > 1 && dependent.front() == dependee.front()) {
+    std::string_view const ancestor = dependent.front();
+    dependencies_.try_emplace(ancestor);
+    auto const [it, unused] = inner_dependencies_.try_emplace(ancestor);
     return it->second.AddDependency(dependent.subspan(1), dependee.subspan(1), edge_name);
   } else {
-    auto const [it, unused] = dependencies_.try_emplace(dependent[0]);
-    it->second.insert_or_assign(edge_name, dependee[0]);
+    auto const [it, unused] = dependencies_.try_emplace(dependent.front());
+    it->second.insert_or_assign(edge_name, dependee.front());
   }
 }
 
@@ -152,7 +165,7 @@ DependencyManager::Path DependencyManager::MakePath(PathView const base_path,
 }
 
 std::vector<std::string> DependencyManager::GetRoots() const {
-  absl::flat_hash_set<std::string> nodes{dependencies_.size()};
+  absl::btree_set<std::string> nodes;
   for (auto const& [node, unused] : dependencies_) {
     nodes.emplace(node);
   }
