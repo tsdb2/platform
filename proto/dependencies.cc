@@ -9,6 +9,8 @@
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 
 namespace tsdb2 {
 namespace proto {
@@ -38,7 +40,11 @@ void DependencyManager::AddDependency(PathView const dependent, PathView const d
     return it->second.AddDependency(dependent.subspan(1), dependee.subspan(1), edge_name);
   } else {
     auto const [it, unused] = dependencies_.try_emplace(dependent.front());
-    it->second.insert_or_assign(edge_name, dependee.front());
+    std::string field_path{edge_name};
+    if (dependent.size() > 1) {
+      field_path = absl::StrCat(absl::StrJoin(dependent.subspan(1), "."), ".", edge_name);
+    }
+    it->second.insert_or_assign(std::move(field_path), dependee.front());
   }
 }
 
@@ -79,9 +85,9 @@ std::vector<DependencyManager::Cycle> DependencyManager::CycleFinder::Run() && {
 }
 
 bool DependencyManager::CycleFinder::PushPathFrame(std::string_view const node) {
-  auto const [unused_it, inserted] = path_.emplace(node);
+  auto const [it, inserted] = path_.try_emplace(node, stack_.size());
   if (!inserted) {
-    cycles_.emplace_back(stack_);
+    cycles_.emplace_back(stack_.begin() + it->second, stack_.end());
     return false;
   }
   visited_.emplace(node);

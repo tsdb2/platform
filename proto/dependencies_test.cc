@@ -203,8 +203,7 @@ TEST_F(DependencyManagerTest, CyclesWithSharedNode1) {
   EXPECT_THAT(
       dependencies_.FindCycles({}),
       UnorderedElementsAre(
-          ElementsAre(Pair(ElementsAre("dolor"), "baz"), Pair(ElementsAre("ipsum"), "bar"),
-                      Pair(ElementsAre("lorem"), "foo")),
+          ElementsAre(Pair(ElementsAre("ipsum"), "bar"), Pair(ElementsAre("lorem"), "foo")),
           ElementsAre(Pair(ElementsAre("dolor"), "baz"), Pair(ElementsAre("ipsum"), "qux"))));
 }
 
@@ -231,12 +230,11 @@ TEST_F(DependencyManagerTest, CyclesWithSharedNode3) {
   dependencies_.AddDependency({"lorem"}, {"ipsum"}, "bar");
   dependencies_.AddDependency({"dolor"}, {"lorem"}, "baz");
   dependencies_.AddDependency({"lorem"}, {"dolor"}, "qux");
-  EXPECT_THAT(dependencies_.FindCycles({}),
-              UnorderedElementsAre(UnorderedElementsAre(Pair(ElementsAre("dolor"), "baz"),
-                                                        Pair(ElementsAre("lorem"), "bar"),
-                                                        Pair(ElementsAre("ipsum"), "foo")),
-                                   UnorderedElementsAre(Pair(ElementsAre("dolor"), "baz"),
-                                                        Pair(ElementsAre("lorem"), "qux"))));
+  EXPECT_THAT(
+      dependencies_.FindCycles({}),
+      UnorderedElementsAre(
+          ElementsAre(Pair(ElementsAre("lorem"), "bar"), Pair(ElementsAre("ipsum"), "foo")),
+          ElementsAre(Pair(ElementsAre("dolor"), "baz"), Pair(ElementsAre("lorem"), "qux"))));
 }
 
 TEST_F(DependencyManagerTest, CyclesWithSharedNode4) {
@@ -247,11 +245,11 @@ TEST_F(DependencyManagerTest, CyclesWithSharedNode4) {
   dependencies_.AddDependency({"dolor"}, {"ipsum"}, "bar");
   dependencies_.AddDependency({"lorem"}, {"dolor"}, "baz");
   dependencies_.AddDependency({"dolor"}, {"lorem"}, "qux");
-  EXPECT_THAT(dependencies_.FindCycles({}),
-              UnorderedElementsAre(UnorderedElementsAre(Pair(ElementsAre("dolor"), "bar"),
-                                                        Pair(ElementsAre("ipsum"), "foo")),
-                                   UnorderedElementsAre(Pair(ElementsAre("dolor"), "qux"),
-                                                        Pair(ElementsAre("lorem"), "baz"))));
+  EXPECT_THAT(
+      dependencies_.FindCycles({}),
+      UnorderedElementsAre(
+          ElementsAre(Pair(ElementsAre("dolor"), "bar"), Pair(ElementsAre("ipsum"), "foo")),
+          ElementsAre(Pair(ElementsAre("dolor"), "qux"), Pair(ElementsAre("lorem"), "baz"))));
 }
 
 TEST_F(DependencyManagerTest, CyclesWithSharedNode5) {
@@ -262,12 +260,11 @@ TEST_F(DependencyManagerTest, CyclesWithSharedNode5) {
   dependencies_.AddDependency({"lorem"}, {"dolor"}, "bar");
   dependencies_.AddDependency({"ipsum"}, {"lorem"}, "baz");
   dependencies_.AddDependency({"lorem"}, {"ipsum"}, "qux");
-  EXPECT_THAT(dependencies_.FindCycles({}),
-              UnorderedElementsAre(UnorderedElementsAre(Pair(ElementsAre("dolor"), "foo"),
-                                                        Pair(ElementsAre("lorem"), "bar")),
-                                   UnorderedElementsAre(Pair(ElementsAre("dolor"), "foo"),
-                                                        Pair(ElementsAre("lorem"), "qux"),
-                                                        Pair(ElementsAre("ipsum"), "baz"))));
+  EXPECT_THAT(
+      dependencies_.FindCycles({}),
+      UnorderedElementsAre(
+          ElementsAre(Pair(ElementsAre("dolor"), "foo"), Pair(ElementsAre("lorem"), "bar")),
+          ElementsAre(Pair(ElementsAre("lorem"), "qux"), Pair(ElementsAre("ipsum"), "baz"))));
 }
 
 TEST_F(DependencyManagerTest, CyclesWithSharedNode6) {
@@ -278,14 +275,117 @@ TEST_F(DependencyManagerTest, CyclesWithSharedNode6) {
   dependencies_.AddDependency({"ipsum"}, {"dolor"}, "bar");
   dependencies_.AddDependency({"lorem"}, {"ipsum"}, "baz");
   dependencies_.AddDependency({"ipsum"}, {"lorem"}, "qux");
-  EXPECT_THAT(dependencies_.FindCycles({}),
-              UnorderedElementsAre(UnorderedElementsAre(Pair(ElementsAre("dolor"), "foo"),
-                                                        Pair(ElementsAre("ipsum"), "bar")),
-                                   UnorderedElementsAre(Pair(ElementsAre("dolor"), "foo"),
-                                                        Pair(ElementsAre("ipsum"), "qux"),
-                                                        Pair(ElementsAre("lorem"), "baz"))));
+  EXPECT_THAT(
+      dependencies_.FindCycles({}),
+      UnorderedElementsAre(
+          ElementsAre(Pair(ElementsAre("dolor"), "foo"), Pair(ElementsAre("ipsum"), "bar")),
+          ElementsAre(Pair(ElementsAre("ipsum"), "qux"), Pair(ElementsAre("lorem"), "baz"))));
 }
 
-// TODO
+TEST_F(DependencyManagerTest, CycleFurtherOn) {
+  dependencies_.AddNode({"sator"});
+  dependencies_.AddNode({"arepo"});
+  dependencies_.AddNode({"tenet"});
+  dependencies_.AddDependency({"arepo"}, {"sator"}, "foo");
+  dependencies_.AddDependency({"sator"}, {"tenet"}, "bar");
+  dependencies_.AddDependency({"tenet"}, {"sator"}, "baz");
+  EXPECT_THAT(dependencies_.FindCycles({}),
+              ElementsAre(ElementsAre(Pair(ElementsAre("sator"), "bar"),
+                                      Pair(ElementsAre("tenet"), "baz"))));
+}
+
+TEST_F(DependencyManagerTest, NestedDependency) {
+  dependencies_.AddNode({"sator", "arepo"});
+  dependencies_.AddNode({"sator", "tenet"});
+  dependencies_.AddDependency({"sator", "arepo"}, {"sator", "tenet"}, "foo");
+  EXPECT_THAT(dependencies_.FindCycles({}), IsEmpty());
+  EXPECT_THAT(dependencies_.FindCycles({"sator"}), IsEmpty());
+  EXPECT_THAT(dependencies_.MakeOrder({}), ElementsAre("sator"));
+  EXPECT_THAT(dependencies_.MakeOrder({"sator"}), ElementsAre("tenet", "arepo"));
+}
+
+TEST_F(DependencyManagerTest, NestedCycle) {
+  dependencies_.AddNode({"sator", "arepo"});
+  dependencies_.AddNode({"sator", "tenet"});
+  dependencies_.AddDependency({"sator", "arepo"}, {"sator", "tenet"}, "foo");
+  dependencies_.AddDependency({"sator", "tenet"}, {"sator", "arepo"}, "bar");
+  EXPECT_THAT(dependencies_.FindCycles({}), IsEmpty());
+  EXPECT_THAT(dependencies_.FindCycles({"sator"}),
+              ElementsAre(ElementsAre(Pair(ElementsAre("sator", "arepo"), "foo"),
+                                      Pair(ElementsAre("sator", "tenet"), "bar"))));
+}
+
+TEST_F(DependencyManagerTest, CrossScopeDependency) {
+  dependencies_.AddNode({"sator", "arepo"});
+  dependencies_.AddNode({"sator", "tenet"});
+  dependencies_.AddNode({"opera", "arepo"});
+  dependencies_.AddNode({"opera", "tenet"});
+  dependencies_.AddDependency({"opera", "arepo"}, {"sator", "tenet"}, "foo");
+  EXPECT_THAT(dependencies_.FindCycles({}), IsEmpty());
+  EXPECT_THAT(dependencies_.FindCycles({"sator"}), IsEmpty());
+  EXPECT_THAT(dependencies_.FindCycles({"opera"}), IsEmpty());
+  EXPECT_THAT(dependencies_.MakeOrder({}), ElementsAre("sator", "opera"));
+  EXPECT_THAT(dependencies_.MakeOrder({"sator"}), ElementsAre("arepo", "tenet"));
+  EXPECT_THAT(dependencies_.MakeOrder({"opera"}), ElementsAre("arepo", "tenet"));
+}
+
+TEST_F(DependencyManagerTest, OppositeCrossScopeDependency) {
+  dependencies_.AddNode({"sator", "arepo"});
+  dependencies_.AddNode({"sator", "tenet"});
+  dependencies_.AddNode({"opera", "arepo"});
+  dependencies_.AddNode({"opera", "tenet"});
+  dependencies_.AddDependency({"sator", "arepo"}, {"opera", "tenet"}, "foo");
+  EXPECT_THAT(dependencies_.FindCycles({}), IsEmpty());
+  EXPECT_THAT(dependencies_.FindCycles({"sator"}), IsEmpty());
+  EXPECT_THAT(dependencies_.FindCycles({"opera"}), IsEmpty());
+  EXPECT_THAT(dependencies_.MakeOrder({}), ElementsAre("opera", "sator"));
+  EXPECT_THAT(dependencies_.MakeOrder({"sator"}), ElementsAre("arepo", "tenet"));
+  EXPECT_THAT(dependencies_.MakeOrder({"opera"}), ElementsAre("arepo", "tenet"));
+}
+
+TEST_F(DependencyManagerTest, CrossScopeCycle) {
+  dependencies_.AddNode({"sator", "arepo"});
+  dependencies_.AddNode({"sator", "tenet"});
+  dependencies_.AddNode({"opera", "arepo"});
+  dependencies_.AddNode({"opera", "tenet"});
+  dependencies_.AddDependency({"opera", "arepo"}, {"sator", "tenet"}, "foo");
+  dependencies_.AddDependency({"sator", "tenet"}, {"opera", "arepo"}, "bar");
+  EXPECT_THAT(dependencies_.FindCycles({}),
+              ElementsAre(ElementsAre(Pair(ElementsAre("opera"), "arepo.foo"),
+                                      Pair(ElementsAre("sator"), "tenet.bar"))));
+  EXPECT_THAT(dependencies_.FindCycles({"sator"}), IsEmpty());
+  EXPECT_THAT(dependencies_.FindCycles({"opera"}), IsEmpty());
+}
+
+TEST_F(DependencyManagerTest, CrossScopeDependencyWithCommonAncestor) {
+  dependencies_.AddNode({"sator", "arepo", "tenet"});
+  dependencies_.AddNode({"sator", "tenet", "opera"});
+  dependencies_.AddDependency({"sator", "arepo", "tenet"}, {"sator", "tenet", "opera"}, "rotas");
+  EXPECT_THAT(dependencies_.FindCycles({}), IsEmpty());
+  EXPECT_THAT(dependencies_.FindCycles({"sator"}), IsEmpty());
+  EXPECT_THAT(dependencies_.FindCycles({"sator", "arepo"}), IsEmpty());
+  EXPECT_THAT(dependencies_.FindCycles({"sator", "arepo", "tenet"}), IsEmpty());
+  EXPECT_THAT(dependencies_.FindCycles({"sator", "tenet"}), IsEmpty());
+  EXPECT_THAT(dependencies_.FindCycles({"sator", "tenet", "opera"}), IsEmpty());
+  EXPECT_THAT(dependencies_.MakeOrder({}), ElementsAre("sator"));
+  EXPECT_THAT(dependencies_.MakeOrder({"sator"}), ElementsAre("tenet", "arepo"));
+  EXPECT_THAT(dependencies_.MakeOrder({"sator", "arepo"}), ElementsAre("tenet"));
+  EXPECT_THAT(dependencies_.MakeOrder({"sator", "tenet"}), ElementsAre("opera"));
+}
+
+TEST_F(DependencyManagerTest, CrossScopeCycleWithCommonAncestor) {
+  dependencies_.AddNode({"sator", "arepo", "tenet"});
+  dependencies_.AddNode({"sator", "tenet", "opera"});
+  dependencies_.AddDependency({"sator", "arepo", "tenet"}, {"sator", "tenet", "opera"}, "rotas");
+  dependencies_.AddDependency({"sator", "tenet", "opera"}, {"sator", "arepo", "tenet"}, "rotas");
+  EXPECT_THAT(dependencies_.FindCycles({}), IsEmpty());
+  EXPECT_THAT(dependencies_.FindCycles({"sator"}),
+              ElementsAre(ElementsAre(Pair(ElementsAre("sator", "arepo"), "tenet.rotas"),
+                                      Pair(ElementsAre("sator", "tenet"), "opera.rotas"))));
+  EXPECT_THAT(dependencies_.FindCycles({"sator", "arepo"}), IsEmpty());
+  EXPECT_THAT(dependencies_.FindCycles({"sator", "arepo", "tenet"}), IsEmpty());
+  EXPECT_THAT(dependencies_.FindCycles({"sator", "tenet"}), IsEmpty());
+  EXPECT_THAT(dependencies_.FindCycles({"sator", "tenet", "opera"}), IsEmpty());
+}
 
 }  // namespace

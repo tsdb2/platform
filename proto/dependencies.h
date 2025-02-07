@@ -1,6 +1,7 @@
 #ifndef __TSDB2_PROTO_DEPENDENCIES_H__
 #define __TSDB2_PROTO_DEPENDENCIES_H__
 
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -193,8 +194,8 @@ class DependencyManager {
     DependencyManager const& parent_;
     PathView const base_path_;
     std::vector<Cycle> cycles_;
-    absl::flat_hash_set<std::string> visited_;
-    absl::flat_hash_set<std::string_view> path_;
+    absl::flat_hash_set<std::string_view> visited_;
+    absl::flat_hash_map<std::string_view, size_t> path_;
     Cycle stack_;
   };
 
