@@ -53,17 +53,7 @@ std::vector<DependencyManager::Cycle> DependencyManager::FindCycles(
       return {};
     }
   }
-  std::vector<Cycle> cycles;
-  absl::flat_hash_set<std::string> visited;
-  for (auto const& root : manager->GetRoots()) {
-    auto const it = manager->dependencies_.find(root);
-    if (it != manager->dependencies_.end()) {
-      for (auto const& [edge_name, unused] : it->second) {
-        CycleFinder(*manager, base_path, &cycles, &visited).Run(root, edge_name);
-      }
-    }
-  }
-  return cycles;
+  return CycleFinder(*manager, base_path).Run();
 }
 
 std::vector<std::string> DependencyManager::MakeOrder(PathView const base_path) const {
@@ -79,60 +69,84 @@ std::vector<std::string> DependencyManager::MakeOrder(PathView const base_path) 
   return OrderMaker(*manager).Run();
 }
 
-void DependencyManager::CycleFinder::Run(std::string_view const node,
-                                         std::string_view const edge_name) && {
-  auto const [unused_it, inserted] = visited_->emplace(node);
-  if (inserted) {
-    RunInternal(node, edge_name);
+std::vector<DependencyManager::Cycle> DependencyManager::CycleFinder::Run() && {
+  for (auto const& [node, unused] : parent_.dependencies_) {
+    if (!visited_.contains(node)) {
+      RunInternal(node);
+    }
   }
+  return std::move(cycles_);
 }
 
-bool DependencyManager::CycleFinder::PushFrame(std::string_view const node,
-                                               std::string_view const edge) {
+bool DependencyManager::CycleFinder::PushPathFrame(std::string_view const node) {
   auto const [unused_it, inserted] = path_.emplace(node);
   if (!inserted) {
-    cycles_->emplace_back(stack_);
+    cycles_.emplace_back(stack_);
     return false;
   }
-  stack_.emplace_back(MakePath(base_path_, node), edge);
+  visited_.emplace(node);
   return true;
 }
 
-void DependencyManager::CycleFinder::PopFrame(std::string_view const node) {
-  stack_.pop_back();
+void DependencyManager::CycleFinder::PopPathFrame(std::string_view const node) {
   path_.erase(node);
 }
 
-void DependencyManager::CycleFinder::RunInternal(std::string_view const node,
-                                                 std::string_view const edge_name) {
-  auto const maybe_frame = CycleFrame::Create(this, node, edge_name);
-  if (maybe_frame) {
+void DependencyManager::CycleFinder::PushStackFrame(std::string_view const node,
+                                                    std::string_view const edge) {
+  stack_.emplace_back(MakePath(base_path_, node), edge);
+}
+
+void DependencyManager::CycleFinder::PopStackFrame() { stack_.pop_back(); }
+
+void DependencyManager::CycleFinder::RunInternal(std::string_view const node) {
+  auto const maybe_path_frame = CyclePathFrame::Create(this, node);
+  if (maybe_path_frame) {
     auto const it = parent_.dependencies_.find(node);
     if (it != parent_.dependencies_.end()) {
       for (auto const& [edge, dependee] : it->second) {
-        RunInternal(dependee, edge);
+        CycleStackFrame stack_frame{this, node, edge};
+        RunInternal(dependee);
       }
     }
   }
 }
 
-std::optional<DependencyManager::CycleFrame> DependencyManager::CycleFrame::Create(
-    CycleFinder* const parent, std::string_view const node, std::string_view const edge) {
-  if (parent->PushFrame(node, edge)) {
-    return std::make_optional<CycleFrame>(parent, node);
+std::optional<DependencyManager::CyclePathFrame> DependencyManager::CyclePathFrame::Create(
+    CycleFinder* const parent, std::string_view const node) {
+  if (parent->PushPathFrame(node)) {
+    return std::make_optional<CyclePathFrame>(parent, node);
   } else {
     return std::nullopt;
   }
 }
 
-DependencyManager::CycleFrame::~CycleFrame() {
+DependencyManager::CyclePathFrame::~CyclePathFrame() {
   if (parent_ != nullptr) {
-    parent_->PopFrame(node_);
+    parent_->PopPathFrame(node_);
   }
 }
 
-DependencyManager::CycleFrame::CycleFrame(CycleFrame&& other) noexcept
+DependencyManager::CyclePathFrame::CyclePathFrame(CyclePathFrame&& other) noexcept
     : parent_(other.parent_), node_(other.node_) {
+  other.parent_ = nullptr;
+}
+
+DependencyManager::CycleStackFrame::CycleStackFrame(CycleFinder* const parent,
+                                                    std::string_view const node,
+                                                    std::string_view const edge)
+    : parent_(parent) {
+  parent_->PushStackFrame(node, edge);
+}
+
+DependencyManager::CycleStackFrame::~CycleStackFrame() {
+  if (parent_ != nullptr) {
+    parent_->PopStackFrame();
+  }
+}
+
+DependencyManager::CycleStackFrame::CycleStackFrame(CycleStackFrame&& other) noexcept
+    : parent_(other.parent_) {
   other.parent_ = nullptr;
 }
 
@@ -159,7 +173,8 @@ void DependencyManager::OrderMaker::RunInternal(std::string_view const node) {
 
 DependencyManager::Path DependencyManager::MakePath(PathView const base_path,
                                                     std::string_view const component) {
-  Path path{base_path.size() + 1};
+  Path path;
+  path.reserve(base_path.size() + 1);
   path.insert(path.end(), base_path.begin(), base_path.end());
   path.emplace_back(component);
   return path;

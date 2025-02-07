@@ -136,7 +136,16 @@ class DependencyManager {
   // identified by `base_path`.
   //
   // Note that a `.proto` file will typically have many messages and many scopes, and this function
-  // needs to be invoked separately for each one of them.
+  // needs to be invoked separately for each one of them. For example, the following `.proto` file:
+  //
+  //   message M1 {
+  //     message M2 { /* ... */ }
+  //     /* ... */
+  //   }
+  //   message M3 { /* ... */ }
+  //
+  // has four lexical scopes: the global one (base_path = {}) plus one for each message (base_path =
+  // {"M1"}, {"M1", "M2"}, {"M3"}).
   //
   // The returned array is empty if there are no cycles. If one or more cycles are found, each one
   // is expressed as an array of (message, field) pairs. The last entry of the cycle is always the
@@ -144,66 +153,87 @@ class DependencyManager {
   // case the returned cycle has only one entry).
   std::vector<Cycle> FindCycles(PathView base_path) const;
 
-  // REQUIRES: `FindCycles` MUST have returned an empty array.
+  // Returns the list of protobuf messages beloning to the lexical scope identified by `base_path`
+  // in the order they need to be defined in.
+  //
+  // REQUIRES: `FindCycles` MUST have returned an empty array because the behavior of this algorithm
+  // is undefined if there are cycles (it may loop indefinitely, trigger a stack overflow, etc.).
   std::vector<std::string> MakeOrder(PathView base_path) const;
 
  private:
-  class CycleFrame;
+  class CyclePathFrame;
+  class CycleStackFrame;
 
-  class CycleFinder {
+  class CycleFinder final {
    public:
-    explicit CycleFinder(DependencyManager const& parent, PathView const base_path,
-                         std::vector<Cycle>* const cycles,
-                         absl::flat_hash_set<std::string>* const visited)
-        : parent_(parent), base_path_(base_path), cycles_(cycles), visited_(visited) {}
+    explicit CycleFinder(DependencyManager const& parent, PathView const base_path)
+        : parent_(parent), base_path_(base_path) {}
 
     ~CycleFinder() = default;
 
-    void Run(std::string_view node, std::string_view edge_name) &&;
+    std::vector<Cycle> Run() &&;
 
    private:
-    friend class CycleFrame;
+    friend class CyclePathFrame;
+    friend class CycleStackFrame;
 
     CycleFinder(CycleFinder const&) = delete;
     CycleFinder& operator=(CycleFinder const&) = delete;
     CycleFinder(CycleFinder&&) = delete;
     CycleFinder& operator=(CycleFinder&&) = delete;
 
-    bool PushFrame(std::string_view node, std::string_view edge);
-    void PopFrame(std::string_view node);
+    bool PushPathFrame(std::string_view node);
+    void PopPathFrame(std::string_view node);
 
-    void RunInternal(std::string_view node, std::string_view edge_name);
+    void PushStackFrame(std::string_view node, std::string_view edge);
+    void PopStackFrame();
+
+    void RunInternal(std::string_view node);
 
     DependencyManager const& parent_;
     PathView const base_path_;
-    std::vector<Cycle>* const cycles_;
-    absl::flat_hash_set<std::string>* const visited_;
+    std::vector<Cycle> cycles_;
+    absl::flat_hash_set<std::string> visited_;
     absl::flat_hash_set<std::string_view> path_;
     Cycle stack_;
   };
 
-  class CycleFrame {
+  class CyclePathFrame final {
    public:
-    static std::optional<CycleFrame> Create(CycleFinder* parent, std::string_view node,
-                                            std::string_view edge);
+    static std::optional<CyclePathFrame> Create(CycleFinder* parent, std::string_view node);
 
-    explicit CycleFrame(CycleFinder* const parent, std::string_view const node)
+    explicit CyclePathFrame(CycleFinder* parent, std::string_view node)
         : parent_(parent), node_(node) {}
 
-    ~CycleFrame();
+    ~CyclePathFrame();
 
    private:
-    CycleFrame(CycleFrame const&) = delete;
-    CycleFrame& operator=(CycleFrame const&) = delete;
+    CyclePathFrame(CyclePathFrame const&) = delete;
+    CyclePathFrame& operator=(CyclePathFrame const&) = delete;
 
-    CycleFrame(CycleFrame&& other) noexcept;
-    CycleFrame& operator=(CycleFrame&&) = delete;
+    CyclePathFrame(CyclePathFrame&& other) noexcept;
+    CyclePathFrame& operator=(CyclePathFrame&&) = delete;
 
     CycleFinder* parent_;
     std::string_view node_;
   };
 
-  class OrderMaker {
+  class CycleStackFrame final {
+   public:
+    explicit CycleStackFrame(CycleFinder* parent, std::string_view node, std::string_view edge);
+    ~CycleStackFrame();
+
+   private:
+    CycleStackFrame(CycleStackFrame const&) = delete;
+    CycleStackFrame& operator=(CycleStackFrame const&) = delete;
+
+    CycleStackFrame(CycleStackFrame&& other) noexcept;
+    CycleStackFrame& operator=(CycleStackFrame&&) = delete;
+
+    CycleFinder* parent_;
+  };
+
+  class OrderMaker final {
    public:
     explicit OrderMaker(DependencyManager const& parent) : parent_(parent) {}
 
