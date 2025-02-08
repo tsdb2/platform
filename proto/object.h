@@ -14,6 +14,7 @@
 #include "absl/base/attributes.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "common/type_string.h"
 #include "common/utilities.h"
@@ -85,7 +86,7 @@ template <typename Name, size_t tag>
 struct FieldDecoder<FieldImpl<int8_t, Name, tag>> {
   absl::Status operator()(Decoder *const decoder, WireType const wire_type,
                           int8_t *const value) const {
-    if (wire_type == WireType::kVarInt) {
+    if (wire_type != WireType::kVarInt) {
       return absl::InvalidArgumentError("invalid wire type for int8_t");
     }
     DEFINE_CONST_OR_RETURN(decoded, decoder->DecodeInteger<int8_t>());
@@ -98,7 +99,7 @@ template <typename Name, size_t tag>
 struct FieldDecoder<FieldImpl<uint8_t, Name, tag>> {
   absl::Status operator()(Decoder *const decoder, WireType const wire_type,
                           uint8_t *const value) const {
-    if (wire_type == WireType::kVarInt) {
+    if (wire_type != WireType::kVarInt) {
       return absl::InvalidArgumentError("invalid wire type for uint8_t");
     }
     DEFINE_CONST_OR_RETURN(decoded, decoder->DecodeInteger<uint8_t>());
@@ -111,7 +112,7 @@ template <typename Name, size_t tag>
 struct FieldDecoder<FieldImpl<int16_t, Name, tag>> {
   absl::Status operator()(Decoder *const decoder, WireType const wire_type,
                           int16_t *const value) const {
-    if (wire_type == WireType::kVarInt) {
+    if (wire_type != WireType::kVarInt) {
       return absl::InvalidArgumentError("invalid wire type for int16_t");
     }
     DEFINE_CONST_OR_RETURN(decoded, decoder->DecodeInteger<int16_t>());
@@ -124,7 +125,7 @@ template <typename Name, size_t tag>
 struct FieldDecoder<FieldImpl<uint16_t, Name, tag>> {
   absl::Status operator()(Decoder *const decoder, WireType const wire_type,
                           uint16_t *const value) const {
-    if (wire_type == WireType::kVarInt) {
+    if (wire_type != WireType::kVarInt) {
       return absl::InvalidArgumentError("invalid wire type for uint16_t");
     }
     DEFINE_CONST_OR_RETURN(decoded, decoder->DecodeInteger<uint16_t>());
@@ -214,6 +215,19 @@ struct FieldDecoder<FieldImpl<uint64_t, Name, tag>> {
       default:
         return absl::InvalidArgumentError("invalid wire type for uint64_t");
     }
+  }
+};
+
+template <typename Enum, typename Name, size_t tag>
+struct FieldDecoder<FieldImpl<Enum, Name, tag>, std::enable_if_t<std::is_enum_v<Enum>>> {
+  absl::Status operator()(Decoder *const decoder, WireType const wire_type,
+                          Enum *const value) const {
+    if (wire_type != WireType::kVarInt) {
+      return absl::InvalidArgumentError("invalid wire type for enum");
+    }
+    DEFINE_CONST_OR_RETURN(decoded, decoder->DecodeInteger<std::underlying_type_t<Enum>>());
+    *value = static_cast<Enum>(decoded);
+    return absl::OkStatus();
   }
 };
 
@@ -346,10 +360,7 @@ struct MergeField<std::shared_ptr<Type>> {
 template <typename Type>
 struct MergeField<std::vector<Type>> {
   void operator()(std::vector<Type> &lhs, std::vector<Type> &&rhs) const {
-    if (rhs.has_value()) {
-      lhs.insert(lhs.end(), std::make_move_iterator(rhs.begin()),
-                 std::make_move_iterator(rhs.end()));
-    }
+    lhs.insert(lhs.end(), std::make_move_iterator(rhs.begin()), std::make_move_iterator(rhs.end()));
   }
 };
 
@@ -367,25 +378,6 @@ template <typename Enum>
 struct ValueEncoder<Enum, std::enable_if_t<std::is_enum_v<Enum>>> {
   void operator()(Encoder *const encoder, Enum const value) const {
     encoder->EncodeVarInt(tsdb2::util::to_underlying(value));
-  }
-};
-
-template <>
-struct ValueEncoder<float> {
-  void operator()(Encoder *const encoder, float const value) const { encoder->EncodeFloat(value); }
-};
-
-template <>
-struct ValueEncoder<double> {
-  void operator()(Encoder *const encoder, double const value) const {
-    encoder->EncodeDouble(value);
-  }
-};
-
-template <>
-struct ValueEncoder<std::string> {
-  void operator()(Encoder *const encoder, std::string_view const value) const {
-    encoder->EncodeString(value);
   }
 };
 
@@ -411,24 +403,21 @@ struct FieldEncoder<Enum, tag, std::enable_if_t<std::is_enum_v<Enum>>> {
 template <size_t tag>
 struct FieldEncoder<float, tag> {
   void operator()(Encoder *const encoder, float const value) const {
-    encoder->EncodeTag(FieldTag{.field_number = tag, .wire_type = WireType::kInt32});
-    ValueEncoder<float>{}(encoder, value);
+    encoder->EncodeFloatField(tag, value);
   }
 };
 
 template <size_t tag>
 struct FieldEncoder<double, tag> {
   void operator()(Encoder *const encoder, double const value) const {
-    encoder->EncodeTag(FieldTag{.field_number = tag, .wire_type = WireType::kInt64});
-    ValueEncoder<double>{}(encoder, value);
+    encoder->EncodeDoubleField(tag, value);
   }
 };
 
 template <size_t tag>
 struct FieldEncoder<std::string, tag> {
   void operator()(Encoder *const encoder, std::string_view const value) const {
-    encoder->EncodeTag(FieldTag{.field_number = tag, .wire_type = WireType::kLength});
-    ValueEncoder<std::string>{}(encoder, value);
+    encoder->EncodeStringField(tag, value);
   }
 };
 
@@ -497,10 +486,7 @@ template <typename... Fields, typename Name, size_t tag>
 struct FieldDecoder<FieldImpl<Object<Fields...>, Name, tag>> {
   absl::Status operator()(Decoder *const decoder, WireType const wire_type,
                           Object<Fields...> *const value) const {
-    if (wire_type != WireType::kLength) {
-      return absl::InvalidArgumentError("invalid wire type for submessage");
-    }
-    DEFINE_CONST_OR_RETURN(child_span, decoder->GetChildSpan());
+    DEFINE_CONST_OR_RETURN(child_span, decoder->GetChildSpan(wire_type));
     DEFINE_VAR_OR_RETURN(decoded, Object<Fields...>::Decode(child_span));
     value->Merge(std::move(decoded));
     return absl::OkStatus();
@@ -588,11 +574,12 @@ class Object<> {
   ABSL_ATTRIBUTE_ALWAYS_INLINE bool CompareEqualInternal(Object const &other) const { return true; }
   ABSL_ATTRIBUTE_ALWAYS_INLINE bool CompareLessInternal(Object const &other) const { return false; }
 
-  absl::Status ReadField(Decoder *const decoder, FieldTag const &field_tag) {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE absl::Status ReadField(Decoder *const decoder,
+                                                      FieldTag const &field_tag) {
     return decoder->SkipRecord(field_tag.wire_type);
   }
 
-  void EncodeInternal(Encoder *const encoder) const {}
+  ABSL_ATTRIBUTE_ALWAYS_INLINE void EncodeInternal(Encoder *const encoder) const {}
 
   // NOLINTEND(readability-convert-member-functions-to-static)
 };
@@ -600,6 +587,12 @@ class Object<> {
 template <typename Type, typename Name, size_t tag, typename... OtherFields>
 class Object<internal::FieldImpl<Type, Name, tag>, OtherFields...> : public Object<OtherFields...> {
  public:
+  template <typename FieldName, typename Dummy = void>
+  struct BaseImpl;
+
+  template <char const field_name[]>
+  using Base = typename BaseImpl<tsdb2::common::TypeStringT<field_name>>::Type;
+
   template <typename FieldName, typename Dummy = void>
   struct FieldTypeImpl;
 
@@ -711,7 +704,8 @@ class Object<internal::FieldImpl<Type, Name, tag>, OtherFields...> : public Obje
            (!(other.value_ < value_) && Object<OtherFields...>::CompareLessInternal(other));
   }
 
-  absl::Status ReadField(Decoder *const decoder, FieldTag const &field_tag) {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE absl::Status ReadField(Decoder *const decoder,
+                                                      FieldTag const &field_tag) {
     if (field_tag.field_number != tag) {
       return Object<OtherFields...>::ReadField(decoder, field_tag);
     } else {
@@ -720,7 +714,7 @@ class Object<internal::FieldImpl<Type, Name, tag>, OtherFields...> : public Obje
     }
   }
 
-  void EncodeInternal(Encoder *const encoder) const {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE void EncodeInternal(Encoder *const encoder) const {
     internal::FieldEncoder<Type, tag>{}(encoder, value_);
     Object<OtherFields...>::EncodeInternal(encoder);
   }
@@ -728,6 +722,19 @@ class Object<internal::FieldImpl<Type, Name, tag>, OtherFields...> : public Obje
  private:
   Type value_{};
 };
+
+template <typename Type2, typename Name, size_t tag, typename... OtherFields>
+template <typename Dummy>
+struct Object<internal::FieldImpl<Type2, Name, tag>, OtherFields...>::BaseImpl<Name, Dummy> {
+  using Type = Object<internal::FieldImpl<Type2, Name, tag>, OtherFields...>;
+};
+
+template <typename Type, typename Name, size_t tag, typename... OtherFields>
+template <typename Dummy, char... field_name>
+struct Object<internal::FieldImpl<Type, Name, tag>,
+              OtherFields...>::BaseImpl<tsdb2::common::TypeStringMatcher<field_name...>, Dummy>
+    : public Object<OtherFields...>::template BaseImpl<
+          tsdb2::common::TypeStringMatcher<field_name...>> {};
 
 template <typename Type2, typename Name, size_t tag, typename... OtherFields>
 template <typename Dummy>
@@ -780,8 +787,77 @@ struct Object<internal::FieldImpl<Type, Name, tag>,
             tsdb2::common::TypeStringMatcher<field_name...>>(obj) {}
 };
 
-template <typename... Fields>
-class ObjectDecoder;
+namespace internal {
+
+template <char const name[], typename Object>
+class RequireFieldImpl;
+
+template <char const name[], typename Value, size_t tag, typename... OtherFields>
+class RequireFieldImpl<name, Object<Field<std::optional<Value>, name, tag>, OtherFields...>> {
+ public:
+  using ObjectType = Object<Field<std::optional<Value>, name, tag>, OtherFields...>;
+
+  explicit RequireFieldImpl(ObjectType const &object) : object_(object) {}
+
+  absl::StatusOr<Value const *> operator()() {
+    auto const &maybe_field = object_.template get<name>();
+    if (maybe_field) {
+      return &(*maybe_field);
+    } else {
+      return absl::InvalidArgumentError(absl::StrCat("missing required field \"", name, "\""));
+    }
+  }
+
+ private:
+  ObjectType const &object_;
+};
+
+template <char const name[], typename Value, size_t tag, typename... OtherFields>
+class RequireFieldImpl<name, Object<Field<std::unique_ptr<Value>, name, tag>, OtherFields...>> {
+ public:
+  using ObjectType = Object<Field<std::unique_ptr<Value>, name, tag>, OtherFields...>;
+
+  explicit RequireFieldImpl(ObjectType const &object) : object_(object) {}
+
+  absl::StatusOr<Value const *> operator()() {
+    auto const &maybe_field = object_.template get<name>();
+    if (maybe_field) {
+      return maybe_field.get();
+    } else {
+      return absl::InvalidArgumentError(absl::StrCat("missing required field \"", name, "\""));
+    }
+  }
+
+ private:
+  ObjectType const &object_;
+};
+
+template <char const name[], typename Value, size_t tag, typename... OtherFields>
+class RequireFieldImpl<name, Object<Field<std::shared_ptr<Value>, name, tag>, OtherFields...>> {
+ public:
+  using ObjectType = Object<Field<std::shared_ptr<Value>, name, tag>, OtherFields...>;
+
+  explicit RequireFieldImpl(ObjectType const &object) : object_(object) {}
+
+  absl::StatusOr<Value const *> operator()() {
+    auto const &maybe_field = object_.template get<name>();
+    if (maybe_field) {
+      return maybe_field.get();
+    } else {
+      return absl::InvalidArgumentError(absl::StrCat("missing required field \"", name, "\""));
+    }
+  }
+
+ private:
+  ObjectType const &object_;
+};
+
+}  // namespace internal
+
+template <char const name[], typename Object>
+auto RequireField(Object const &object) {
+  return internal::RequireFieldImpl<name, typename Object::template Base<name>>{object}();
+}
 
 }  // namespace proto
 }  // namespace tsdb2

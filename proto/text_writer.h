@@ -1,5 +1,5 @@
-#ifndef __TSDB2_PROTO_FILE_WRITER_H__
-#define __TSDB2_PROTO_FILE_WRITER_H__
+#ifndef __TSDB2_PROTO_TEXT_WRITER_H__
+#define __TSDB2_PROTO_TEXT_WRITER_H__
 
 #include <cstddef>
 #include <string>
@@ -12,11 +12,11 @@ namespace tsdb2 {
 namespace proto {
 namespace internal {
 
-class FileWriter {
+class TextWriter {
  public:
   class IndentedScope final {
    public:
-    explicit IndentedScope(FileWriter* const parent) : parent_(parent) { parent_->Indent(); }
+    explicit IndentedScope(TextWriter* const parent) : parent_(parent) { parent_->Indent(); }
     ~IndentedScope() { parent_->Dedent(); }
 
    private:
@@ -25,7 +25,7 @@ class FileWriter {
     IndentedScope(IndentedScope&&) = delete;
     IndentedScope& operator=(IndentedScope&&) = delete;
 
-    FileWriter* const parent_;
+    TextWriter* const parent_;
   };
 
   void Indent();
@@ -52,4 +52,4 @@ class FileWriter {
 }  // namespace proto
 }  // namespace tsdb2
 
-#endif  // __TSDB2_PROTO_FILE_WRITER_H__
+#endif  // __TSDB2_PROTO_TEXT_WRITER_H__

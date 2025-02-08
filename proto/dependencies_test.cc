@@ -18,12 +18,16 @@ class DependencyManagerTest : public ::testing::Test {
 };
 
 TEST_F(DependencyManagerTest, Empty) {
+  EXPECT_FALSE(dependencies_.HasNode({"lorem"}));
   EXPECT_THAT(dependencies_.FindCycles({}), IsEmpty());
   EXPECT_THAT(dependencies_.MakeOrder({}), IsEmpty());
 }
 
 TEST_F(DependencyManagerTest, OneNode) {
   dependencies_.AddNode({"lorem"});
+  EXPECT_TRUE(dependencies_.HasNode({"lorem"}));
+  EXPECT_FALSE(dependencies_.HasNode({"ipsum"}));
+  EXPECT_FALSE(dependencies_.HasNode({"lorem", "ipsum"}));
   EXPECT_THAT(dependencies_.FindCycles({}), IsEmpty());
   EXPECT_THAT(dependencies_.FindCycles({"lorem"}), IsEmpty());
   EXPECT_THAT(dependencies_.FindCycles({"ipsum"}), IsEmpty());
@@ -36,6 +40,10 @@ TEST_F(DependencyManagerTest, OneNode) {
 
 TEST_F(DependencyManagerTest, NestedNode) {
   dependencies_.AddNode({"lorem", "ipsum"});
+  EXPECT_TRUE(dependencies_.HasNode({"lorem"}));
+  EXPECT_FALSE(dependencies_.HasNode({"ipsum"}));
+  EXPECT_TRUE(dependencies_.HasNode({"lorem", "ipsum"}));
+  EXPECT_FALSE(dependencies_.HasNode({"lorem", "dolor"}));
   EXPECT_THAT(dependencies_.FindCycles({}), IsEmpty());
   EXPECT_THAT(dependencies_.FindCycles({"lorem"}), IsEmpty());
   EXPECT_THAT(dependencies_.FindCycles({"ipsum"}), IsEmpty());
@@ -49,6 +57,10 @@ TEST_F(DependencyManagerTest, NestedNode) {
 TEST_F(DependencyManagerTest, NestedNodes) {
   dependencies_.AddNode({"lorem", "ipsum"});
   dependencies_.AddNode({"lorem", "dolor"});
+  EXPECT_TRUE(dependencies_.HasNode({"lorem"}));
+  EXPECT_FALSE(dependencies_.HasNode({"ipsum"}));
+  EXPECT_TRUE(dependencies_.HasNode({"lorem", "ipsum"}));
+  EXPECT_TRUE(dependencies_.HasNode({"lorem", "dolor"}));
   EXPECT_THAT(dependencies_.FindCycles({}), IsEmpty());
   EXPECT_THAT(dependencies_.FindCycles({"lorem"}), IsEmpty());
   EXPECT_THAT(dependencies_.FindCycles({"ipsum"}), IsEmpty());
@@ -66,6 +78,10 @@ TEST_F(DependencyManagerTest, NestedNodes) {
 TEST_F(DependencyManagerTest, TwoNodes) {
   dependencies_.AddNode({"lorem"});
   dependencies_.AddNode({"ipsum"});
+  EXPECT_TRUE(dependencies_.HasNode({"lorem"}));
+  EXPECT_TRUE(dependencies_.HasNode({"ipsum"}));
+  EXPECT_FALSE(dependencies_.HasNode({"lorem", "ipsum"}));
+  EXPECT_FALSE(dependencies_.HasNode({"ipsum", "lorem"}));
   EXPECT_THAT(dependencies_.FindCycles({}), IsEmpty());
   EXPECT_THAT(dependencies_.FindCycles({"lorem"}), IsEmpty());
   EXPECT_THAT(dependencies_.FindCycles({"ipsum"}), IsEmpty());
@@ -386,6 +402,31 @@ TEST_F(DependencyManagerTest, CrossScopeCycleWithCommonAncestor) {
   EXPECT_THAT(dependencies_.FindCycles({"sator", "arepo", "tenet"}), IsEmpty());
   EXPECT_THAT(dependencies_.FindCycles({"sator", "tenet"}), IsEmpty());
   EXPECT_THAT(dependencies_.FindCycles({"sator", "tenet", "opera"}), IsEmpty());
+}
+
+TEST_F(DependencyManagerTest, SelfCycleWithNestedDependencyAllowed) {
+  dependencies_.AddNode({"sator", "arepo"});
+  dependencies_.AddDependency({"sator"}, {"sator", "arepo"}, "foo");
+  EXPECT_THAT(dependencies_.FindCycles({}), IsEmpty());
+  EXPECT_THAT(dependencies_.FindCycles({"sator"}), IsEmpty());
+  EXPECT_THAT(dependencies_.FindCycles({"sator", "arepo"}), IsEmpty());
+  EXPECT_THAT(dependencies_.MakeOrder({}), ElementsAre("sator"));
+  EXPECT_THAT(dependencies_.MakeOrder({"sator"}), ElementsAre("arepo"));
+  EXPECT_THAT(dependencies_.MakeOrder({"sator", "arepo"}), IsEmpty());
+}
+
+TEST_F(DependencyManagerTest, MutualNestedDependencyNotAllowed) {
+  dependencies_.AddNode({"sator", "tenet"});
+  dependencies_.AddNode({"arepo", "opera"});
+  dependencies_.AddDependency({"sator"}, {"arepo", "opera"}, "foo");
+  dependencies_.AddDependency({"arepo"}, {"sator", "tenet"}, "bar");
+  EXPECT_THAT(dependencies_.FindCycles({}),
+              ElementsAre(ElementsAre(Pair(ElementsAre("arepo"), "bar"),
+                                      Pair(ElementsAre("sator"), "foo"))));
+  EXPECT_THAT(dependencies_.FindCycles({"sator"}), IsEmpty());
+  EXPECT_THAT(dependencies_.FindCycles({"sator", "tenet"}), IsEmpty());
+  EXPECT_THAT(dependencies_.FindCycles({"arepo"}), IsEmpty());
+  EXPECT_THAT(dependencies_.FindCycles({"arepo", "opera"}), IsEmpty());
 }
 
 }  // namespace

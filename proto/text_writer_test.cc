@@ -1,4 +1,4 @@
-#include "proto/file_writer.h"
+#include "proto/text_writer.h"
 
 #include <utility>
 
@@ -6,40 +6,40 @@
 
 namespace {
 
-using ::tsdb2::proto::internal::FileWriter;
+using ::tsdb2::proto::internal::TextWriter;
 
-class FileWriterTest : public ::testing::Test {
+class TextWriterTest : public ::testing::Test {
  protected:
-  FileWriter writer_;
+  TextWriter writer_;
 };
 
-TEST_F(FileWriterTest, Empty) { EXPECT_EQ(std::move(writer_).Finish(), ""); }
+TEST_F(TextWriterTest, Empty) { EXPECT_EQ(std::move(writer_).Finish(), ""); }
 
-TEST_F(FileWriterTest, AppendLine) {
+TEST_F(TextWriterTest, AppendLine) {
   writer_.AppendLine("lorem ipsum");
   EXPECT_EQ(std::move(writer_).Finish(), "lorem ipsum\n");
 }
 
-TEST_F(FileWriterTest, AppendTwoLines) {
+TEST_F(TextWriterTest, AppendTwoLines) {
   writer_.AppendLine("dolor amet");
   writer_.AppendLine("lorem ipsum");
   EXPECT_EQ(std::move(writer_).Finish(), "dolor amet\nlorem ipsum\n");
 }
 
-TEST_F(FileWriterTest, Indent) {
+TEST_F(TextWriterTest, Indent) {
   writer_.Indent();
   writer_.AppendLine("lorem ipsum");
   EXPECT_EQ(std::move(writer_).Finish(), "  lorem ipsum\n");
 }
 
-TEST_F(FileWriterTest, IndentTwice) {
+TEST_F(TextWriterTest, IndentTwice) {
   writer_.Indent();
   writer_.Indent();
   writer_.AppendLine("lorem ipsum");
   EXPECT_EQ(std::move(writer_).Finish(), "    lorem ipsum\n");
 }
 
-TEST_F(FileWriterTest, Dedent) {
+TEST_F(TextWriterTest, Dedent) {
   writer_.AppendLine("lorem ipsum");
   writer_.Indent();
   writer_.AppendLine("dolor amet");
@@ -48,7 +48,7 @@ TEST_F(FileWriterTest, Dedent) {
   EXPECT_EQ(std::move(writer_).Finish(), "lorem ipsum\n  dolor amet\nadipisci elit\n");
 }
 
-TEST_F(FileWriterTest, DedentTwice) {
+TEST_F(TextWriterTest, DedentTwice) {
   writer_.AppendLine("lorem");
   writer_.Indent();
   writer_.AppendLine("ipsum");
@@ -61,13 +61,13 @@ TEST_F(FileWriterTest, DedentTwice) {
   EXPECT_EQ(std::move(writer_).Finish(), "lorem\n  ipsum\n    dolor\n  amet\nadipisci\n");
 }
 
-TEST_F(FileWriterTest, AppendUnindentedLine) {
+TEST_F(TextWriterTest, AppendUnindentedLine) {
   writer_.Indent();
   writer_.AppendUnindentedLine("lorem ipsum");
   EXPECT_EQ(std::move(writer_).Finish(), "lorem ipsum\n");
 }
 
-TEST_F(FileWriterTest, IndentedAndUnindentedLines) {
+TEST_F(TextWriterTest, IndentedAndUnindentedLines) {
   writer_.AppendLine("lorem");
   writer_.Indent();
   writer_.AppendLine("ipsum");
@@ -80,19 +80,19 @@ TEST_F(FileWriterTest, IndentedAndUnindentedLines) {
   EXPECT_EQ(std::move(writer_).Finish(), "lorem\n  ipsum\ndolor\n  amet\nadipisci\n");
 }
 
-TEST_F(FileWriterTest, AppendEmptyLine) {
+TEST_F(TextWriterTest, AppendEmptyLine) {
   writer_.AppendEmptyLine();
   EXPECT_EQ(std::move(writer_).Finish(), "\n");
 }
 
-TEST_F(FileWriterTest, AppendEmptyLineBetweenLines) {
+TEST_F(TextWriterTest, AppendEmptyLineBetweenLines) {
   writer_.AppendLine("lorem");
   writer_.AppendEmptyLine();
   writer_.AppendLine("ipsum");
   EXPECT_EQ(std::move(writer_).Finish(), "lorem\n\nipsum\n");
 }
 
-TEST_F(FileWriterTest, EmptyLineIsNotIndented) {
+TEST_F(TextWriterTest, EmptyLineIsNotIndented) {
   writer_.Indent();
   writer_.AppendLine("lorem");
   writer_.AppendEmptyLine();
@@ -100,23 +100,23 @@ TEST_F(FileWriterTest, EmptyLineIsNotIndented) {
   EXPECT_EQ(std::move(writer_).Finish(), "  lorem\n\n  ipsum\n");
 }
 
-TEST_F(FileWriterTest, IndentedScope) {
+TEST_F(TextWriterTest, IndentedScope) {
   writer_.AppendLine("lorem");
   {
-    FileWriter::IndentedScope is{&writer_};
+    TextWriter::IndentedScope is{&writer_};
     writer_.AppendLine("ipsum");
   }
   writer_.AppendLine("dolor");
   EXPECT_EQ(std::move(writer_).Finish(), "lorem\n  ipsum\ndolor\n");
 }
 
-TEST_F(FileWriterTest, NestedIndentedScope) {
+TEST_F(TextWriterTest, NestedIndentedScope) {
   writer_.AppendLine("lorem");
   {
-    FileWriter::IndentedScope is{&writer_};
+    TextWriter::IndentedScope is{&writer_};
     writer_.AppendLine("ipsum");
     {
-      FileWriter::IndentedScope is{&writer_};
+      TextWriter::IndentedScope is{&writer_};
       writer_.AppendLine("dolor");
     }
     writer_.AppendLine("amet");

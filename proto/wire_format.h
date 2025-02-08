@@ -81,13 +81,13 @@ class Decoder {
   }
 
   absl::StatusOr<uint64_t> DecodeVarInt() { return DecodeInteger<uint64_t>(); }
-  absl::StatusOr<int32_t> DecodeInt32() { return DecodeInteger<int32_t>(); }
-  absl::StatusOr<int64_t> DecodeInt64() { return DecodeInteger<int64_t>(); }
-  absl::StatusOr<uint32_t> DecodeUInt32() { return DecodeInteger<uint32_t>(); }
-  absl::StatusOr<uint64_t> DecodeUInt64() { return DecodeInteger<uint64_t>(); }
+  absl::StatusOr<int32_t> DecodeInt32(WireType wire_type);
+  absl::StatusOr<int64_t> DecodeInt64(WireType wire_type);
+  absl::StatusOr<uint32_t> DecodeUInt32(WireType wire_type);
+  absl::StatusOr<uint64_t> DecodeUInt64(WireType wire_type);
 
-  absl::StatusOr<int32_t> DecodeSInt32();
-  absl::StatusOr<int64_t> DecodeSInt64();
+  absl::StatusOr<int32_t> DecodeSInt32(WireType wire_type);
+  absl::StatusOr<int64_t> DecodeSInt64(WireType wire_type);
 
   absl::StatusOr<int32_t> DecodeFixedInt32(WireType wire_type);
   absl::StatusOr<uint32_t> DecodeFixedUInt32(WireType wire_type);
@@ -98,8 +98,9 @@ class Decoder {
   absl::StatusOr<float> DecodeFloat(WireType wire_type);
   absl::StatusOr<double> DecodeDouble(WireType wire_type);
   absl::StatusOr<std::string> DecodeString(WireType wire_type);
+  absl::StatusOr<std::vector<uint8_t>> DecodeBytes(WireType wire_type);
 
-  absl::StatusOr<absl::Span<uint8_t const>> GetChildSpan();
+  absl::StatusOr<absl::Span<uint8_t const>> GetChildSpan(WireType wire_type);
 
   template <typename Integer,
             std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>, bool> = true>
@@ -175,10 +176,85 @@ class Encoder {
   void EncodeTag(FieldTag const &tag);
 
   void EncodeVarInt(uint64_t const value) { return EncodeIntegerInternal(value); }
-  void EncodeInt32(int32_t const value) { return EncodeIntegerInternal(value); }
-  void EncodeUInt32(uint32_t const value) { return EncodeIntegerInternal(value); }
-  void EncodeInt64(int64_t const value) { return EncodeIntegerInternal(value); }
-  void EncodeUInt64(uint64_t const value) { return EncodeIntegerInternal(value); }
+
+  void EncodeInt32Field(size_t number, int32_t value);
+  void EncodeUInt32Field(size_t number, uint32_t value);
+  void EncodeInt64Field(size_t number, int64_t value);
+  void EncodeUInt64Field(size_t number, uint64_t value);
+
+  void EncodeSInt32Field(size_t number, int32_t value);
+  void EncodeSInt64Field(size_t number, int64_t value);
+
+  void EncodeFixedInt32Field(size_t number, int32_t value);
+  void EncodeFixedUInt32Field(size_t number, uint32_t value);
+  void EncodeFixedInt64Field(size_t number, int64_t value);
+  void EncodeFixedUInt64Field(size_t number, uint64_t value);
+
+  void EncodeBoolField(size_t number, bool value);
+  void EncodeFloatField(size_t number, float value);
+  void EncodeDoubleField(size_t number, double value);
+  void EncodeStringField(size_t number, std::string_view value);
+  void EncodeBytesField(size_t number, absl::Span<uint8_t const> value);
+
+  template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+  void EncodeEnumField(size_t const number, Enum const value) {
+    EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kVarInt});
+    EncodeIntegerInternal(tsdb2::util::to_underlying(value));
+  }
+
+  void EncodeSubMessage(Encoder &&child_encoder);
+  void EncodeSubMessage(tsdb2::io::Cord cord);
+
+  void EncodePackedVarInts(size_t const field_number, absl::Span<uint64_t const> const values) {
+    EncodePackedIntegers(field_number, values);
+  }
+
+  void EncodePackedInt32s(size_t const field_number, absl::Span<uint64_t const> const values) {
+    EncodePackedIntegers(field_number, values);
+  }
+
+  void EncodePackedUInt32s(size_t const field_number, absl::Span<uint64_t const> const values) {
+    EncodePackedIntegers(field_number, values);
+  }
+
+  void EncodePackedInt64s(size_t const field_number, absl::Span<uint64_t const> const values) {
+    EncodePackedIntegers(field_number, values);
+  }
+
+  void EncodePackedUInt64s(size_t const field_number, absl::Span<uint64_t const> const values) {
+    EncodePackedIntegers(field_number, values);
+  }
+
+  void EncodePackedSInt32s(size_t field_number, absl::Span<int32_t const> values);
+  void EncodePackedSInt64s(size_t field_number, absl::Span<int64_t const> values);
+  void EncodePackedFixedInt32s(size_t field_number, absl::Span<int32_t const> values);
+  void EncodePackedFixedUInt32s(size_t field_number, absl::Span<uint32_t const> values);
+  void EncodePackedFixedInt64s(size_t field_number, absl::Span<int64_t const> values);
+  void EncodePackedFixedUInt64s(size_t field_number, absl::Span<uint64_t const> values);
+  void EncodePackedBools(size_t field_number, absl::Span<bool const> values);
+  void EncodePackedFloats(size_t field_number, absl::Span<float const> values);
+  void EncodePackedDoubles(size_t field_number, absl::Span<double const> values);
+
+  template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+  void EncodePackedEnums(size_t const field_number, absl::Span<Enum const> const values) {
+    EncodeTag(FieldTag{.field_number = field_number, .wire_type = WireType::kLength});
+    Encoder child;
+    for (Enum const value : values) {
+      child.EncodeIntegerInternal(tsdb2::util::to_underlying(value));
+    }
+    EncodeSubMessage(std::move(child));
+  }
+
+  tsdb2::io::Cord Finish() && { return std::move(cord_); }
+  tsdb2::io::Buffer Flatten() && { return std::move(cord_).Flatten(); }
+
+ private:
+  void EncodeIntegerInternal(uint64_t value);
+
+  void EncodeInt32(int32_t const value) { EncodeIntegerInternal(value); }
+  void EncodeUInt32(uint32_t const value) { EncodeIntegerInternal(value); }
+  void EncodeInt64(int64_t const value) { EncodeIntegerInternal(value); }
+  void EncodeUInt64(uint64_t const value) { EncodeIntegerInternal(value); }
 
   void EncodeSInt32(int32_t value);
   void EncodeSInt64(int64_t value);
@@ -188,48 +264,20 @@ class Encoder {
   void EncodeFixedInt64(int64_t value);
   void EncodeFixedUInt64(uint64_t value);
 
-  void EncodeBool(bool value);
-  void EncodeFloat(float value);
-  void EncodeDouble(double value);
-  void EncodeString(std::string_view value);
+  void EncodeBool(bool const value) { EncodeIntegerInternal(static_cast<uint8_t>(!!value)); }
 
-  void EncodeSubMessage(Encoder &&child_encoder);
-
-  void EncodePackedVarInts(absl::Span<uint64_t const> const values) {
-    EncodePackedIntegers(values);
+  void EncodeFloat(float const value) {
+    EncodeFixedUInt32(*reinterpret_cast<uint32_t const *>(&value));
   }
 
-  void EncodePackedInt32s(absl::Span<uint64_t const> const values) { EncodePackedIntegers(values); }
-
-  void EncodePackedUInt32s(absl::Span<uint64_t const> const values) {
-    EncodePackedIntegers(values);
+  void EncodeDouble(double const value) {
+    EncodeFixedUInt64(*reinterpret_cast<uint64_t const *>(&value));
   }
-
-  void EncodePackedInt64s(absl::Span<uint64_t const> const values) { EncodePackedIntegers(values); }
-
-  void EncodePackedUInt64s(absl::Span<uint64_t const> const values) {
-    EncodePackedIntegers(values);
-  }
-
-  void EncodePackedSInt32s(absl::Span<int32_t const> values);
-  void EncodePackedSInt64s(absl::Span<int64_t const> values);
-  void EncodePackedFixedInt32s(absl::Span<int32_t const> values);
-  void EncodePackedFixedUInt32s(absl::Span<uint32_t const> values);
-  void EncodePackedFixedInt64s(absl::Span<int64_t const> values);
-  void EncodePackedFixedUInt64s(absl::Span<uint64_t const> values);
-  void EncodePackedBools(absl::Span<bool const> values);
-  void EncodePackedFloats(absl::Span<float const> values);
-  void EncodePackedDoubles(absl::Span<double const> values);
-
-  tsdb2::io::Cord Finish() && { return std::move(cord_); }
-  tsdb2::io::Buffer Flatten() && { return std::move(cord_).Flatten(); }
-
- private:
-  void EncodeIntegerInternal(uint64_t value);
 
   template <typename Integer,
             std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>, bool> = true>
-  void EncodePackedIntegers(absl::Span<Integer const> values) {
+  void EncodePackedIntegers(size_t const field_number, absl::Span<Integer const> values) {
+    EncodeTag(FieldTag{.field_number = field_number, .wire_type = WireType::kLength});
     Encoder child;
     for (Integer const value : values) {
       child.EncodeIntegerInternal(value);

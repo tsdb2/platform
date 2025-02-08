@@ -116,6 +116,10 @@ class DependencyManager {
   // able to find the closest common ancestor.
   void AddNode(PathView path);
 
+  // Indicates whether a node with the specified path has been added using `AddNode`. `path` must
+  // not be empty.
+  bool HasNode(PathView path) const;
+
   // Defines a dependency between `dependent` and `dependee`, which are global paths to messages as
   // explained in `AddNode`.
   //

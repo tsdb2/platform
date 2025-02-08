@@ -23,8 +23,7 @@ namespace {
 
 inline size_t constexpr kMaxVarIntLength = 10;
 
-constexpr uint16_t ByteSwap16(uint16_t const value) { return (value >> 8) | (value << 8); }
-
+#ifdef ABSL_IS_BIG_ENDIAN
 constexpr uint32_t ByteSwap32(uint32_t const value) {
   return ((value >> 24) & 0x000000FF) | ((value >> 8) & 0x0000FF00) | ((value << 8) & 0x00FF0000) |
          ((value << 24) & 0xFF000000);
@@ -36,6 +35,7 @@ constexpr uint64_t ByteSwap64(uint64_t const value) {
          ((value << 8) & 0x000000FF00000000) | ((value << 24) & 0x0000FF0000000000) |
          ((value << 40) & 0x00FF000000000000) | ((value << 56) & 0xFF00000000000000);
 }
+#endif  // ABSL_IS_BIG_ENDIAN
 
 }  // namespace
 
@@ -47,13 +47,47 @@ absl::StatusOr<FieldTag> Decoder::DecodeTag() {
   };
 }
 
-absl::StatusOr<int32_t> Decoder::DecodeSInt32() {
-  DEFINE_CONST_OR_RETURN(value, DecodeUInt32());
+absl::StatusOr<int32_t> Decoder::DecodeInt32(WireType const wire_type) {
+  if (wire_type != WireType::kVarInt) {
+    return absl::InvalidArgumentError("invalid wire type for int32");
+  }
+  return DecodeInteger<int32_t>();
+}
+
+absl::StatusOr<int64_t> Decoder::DecodeInt64(WireType const wire_type) {
+  if (wire_type != WireType::kVarInt) {
+    return absl::InvalidArgumentError("invalid wire type for int64");
+  }
+  return DecodeInteger<int64_t>();
+}
+
+absl::StatusOr<uint32_t> Decoder::DecodeUInt32(WireType const wire_type) {
+  if (wire_type != WireType::kVarInt) {
+    return absl::InvalidArgumentError("invalid wire type for uint32");
+  }
+  return DecodeInteger<uint32_t>();
+}
+
+absl::StatusOr<uint64_t> Decoder::DecodeUInt64(WireType const wire_type) {
+  if (wire_type != WireType::kVarInt) {
+    return absl::InvalidArgumentError("invalid wire type for uint64");
+  }
+  return DecodeInteger<uint64_t>();
+}
+
+absl::StatusOr<int32_t> Decoder::DecodeSInt32(WireType const wire_type) {
+  if (wire_type != WireType::kVarInt) {
+    return absl::InvalidArgumentError("invalid wire type for sint32");
+  }
+  DEFINE_CONST_OR_RETURN(value, DecodeInteger<uint32_t>());
   return (value >> 1) ^ -(value & 1);
 }
 
-absl::StatusOr<int64_t> Decoder::DecodeSInt64() {
-  DEFINE_CONST_OR_RETURN(value, DecodeUInt64());
+absl::StatusOr<int64_t> Decoder::DecodeSInt64(WireType const wire_type) {
+  if (wire_type != WireType::kVarInt) {
+    return absl::InvalidArgumentError("invalid wire type for sint64");
+  }
+  DEFINE_CONST_OR_RETURN(value, DecodeInteger<uint64_t>());
   return (value >> 1) ^ -(value & 1);
 }
 
@@ -148,7 +182,23 @@ absl::StatusOr<std::string> Decoder::DecodeString(WireType const wire_type) {
   return std::move(value);
 }
 
-absl::StatusOr<absl::Span<uint8_t const>> Decoder::GetChildSpan() {
+absl::StatusOr<std::vector<uint8_t>> Decoder::DecodeBytes(WireType const wire_type) {
+  if (wire_type != WireType::kLength) {
+    return absl::InvalidArgumentError("invalid wire type for bytes");
+  }
+  DEFINE_CONST_OR_RETURN(length, DecodeInteger<size_t>());
+  if (data_.size() < length) {
+    return EndOfInputError();
+  }
+  std::vector<uint8_t> value{data_.begin(), data_.begin() + length};
+  data_.remove_prefix(length);
+  return std::move(value);
+}
+
+absl::StatusOr<absl::Span<uint8_t const>> Decoder::GetChildSpan(WireType const wire_type) {
+  if (wire_type != WireType::kLength) {
+    return absl::InvalidArgumentError("invalid wire type for submessage");
+  }
   DEFINE_CONST_OR_RETURN(length, DecodeInteger<size_t>());
   if (data_.size() < length) {
     return EndOfInputError();
@@ -162,7 +212,7 @@ absl::StatusOr<std::vector<int32_t>> Decoder::DecodePackedSInt32s() {
   DEFINE_VAR_OR_RETURN(child, DecodeChildSpan());
   std::vector<int32_t> values;
   while (!child.at_end()) {
-    DEFINE_CONST_OR_RETURN(value, child.DecodeSInt32());
+    DEFINE_CONST_OR_RETURN(value, child.DecodeSInt32(WireType::kVarInt));
     values.push_back(value);
   }
   return std::move(values);
@@ -172,7 +222,7 @@ absl::StatusOr<std::vector<int64_t>> Decoder::DecodePackedSInt64s() {
   DEFINE_VAR_OR_RETURN(child, DecodeChildSpan());
   std::vector<int64_t> values;
   while (!child.at_end()) {
-    DEFINE_CONST_OR_RETURN(value, child.DecodeSInt64());
+    DEFINE_CONST_OR_RETURN(value, child.DecodeSInt64(WireType::kVarInt));
     values.push_back(value);
   }
   return std::move(values);
@@ -344,7 +394,199 @@ void Encoder::EncodeTag(FieldTag const &tag) {
   EncodeIntegerInternal((tag.field_number << 3) | static_cast<uint64_t>(tag.wire_type));
 }
 
+void Encoder::EncodeInt32Field(size_t const number, int32_t const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kVarInt});
+  EncodeInt32(value);
+}
+
+void Encoder::EncodeUInt32Field(size_t const number, uint32_t const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kVarInt});
+  EncodeUInt32(value);
+}
+
+void Encoder::EncodeInt64Field(size_t const number, int64_t const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kVarInt});
+  EncodeInt64(value);
+}
+
+void Encoder::EncodeUInt64Field(size_t const number, uint64_t const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kVarInt});
+  EncodeUInt64(value);
+}
+
+void Encoder::EncodeSInt32Field(size_t const number, int32_t const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kVarInt});
+  EncodeSInt32(value);
+}
+
+void Encoder::EncodeSInt64Field(size_t const number, int64_t const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kVarInt});
+  EncodeSInt64(value);
+}
+
+void Encoder::EncodeFixedInt32Field(size_t const number, int32_t const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kInt32});
+  EncodeFixedInt32(value);
+}
+
+void Encoder::EncodeFixedUInt32Field(size_t const number, uint32_t const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kInt32});
+  EncodeFixedUInt32(value);
+}
+
+void Encoder::EncodeFixedInt64Field(size_t const number, int64_t const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kInt64});
+  EncodeFixedInt64(value);
+}
+
+void Encoder::EncodeFixedUInt64Field(size_t const number, uint64_t const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kInt64});
+  EncodeFixedUInt64(value);
+}
+
+void Encoder::EncodeBoolField(size_t const number, bool const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kVarInt});
+  EncodeBool(value);
+}
+
+void Encoder::EncodeFloatField(size_t const number, float const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kInt32});
+  EncodeFloat(value);
+}
+
+void Encoder::EncodeDoubleField(size_t const number, double const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kInt64});
+  EncodeDouble(value);
+}
+
+void Encoder::EncodeStringField(size_t const number, std::string_view const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kLength});
+  size_t const length = value.size();
+  EncodeIntegerInternal(length);
+  tsdb2::io::Buffer buffer{length};
+  buffer.MemCpy(value.data(), length);
+  cord_.Append(std::move(buffer));
+}
+
+void Encoder::EncodeBytesField(size_t const number, absl::Span<uint8_t const> const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kLength});
+  size_t const length = value.size();
+  EncodeIntegerInternal(length);
+  tsdb2::io::Buffer buffer{length};
+  buffer.MemCpy(value.data(), length);
+  cord_.Append(std::move(buffer));
+}
+
+void Encoder::EncodeSubMessage(Encoder &&child_encoder) {
+  EncodeIntegerInternal(child_encoder.size());
+  cord_.Append(std::move(child_encoder.cord_));
+}
+
+void Encoder::EncodeSubMessage(tsdb2::io::Cord cord) {
+  EncodeIntegerInternal(cord.size());
+  cord_.Append(std::move(cord));
+}
+
+void Encoder::EncodePackedSInt32s(size_t const field_number,
+                                  absl::Span<int32_t const> const values) {
+  EncodeTag(FieldTag{.field_number = field_number, .wire_type = WireType::kLength});
+  Encoder child;
+  for (int32_t const value : values) {
+    child.EncodeSInt32(value);
+  }
+  EncodeSubMessage(std::move(child));
+}
+
+void Encoder::EncodePackedSInt64s(size_t const field_number,
+                                  absl::Span<int64_t const> const values) {
+  EncodeTag(FieldTag{.field_number = field_number, .wire_type = WireType::kLength});
+  Encoder child;
+  for (int64_t const value : values) {
+    child.EncodeSInt64(value);
+  }
+  EncodeSubMessage(std::move(child));
+}
+
+void Encoder::EncodePackedFixedInt32s(size_t const field_number,
+                                      absl::Span<int32_t const> const values) {
+  EncodeTag(FieldTag{.field_number = field_number, .wire_type = WireType::kLength});
+  Encoder child;
+  for (int32_t const value : values) {
+    child.EncodeFixedInt32(value);
+  }
+  EncodeSubMessage(std::move(child));
+}
+
+void Encoder::EncodePackedFixedUInt32s(size_t const field_number,
+                                       absl::Span<uint32_t const> const values) {
+  EncodeTag(FieldTag{.field_number = field_number, .wire_type = WireType::kLength});
+  Encoder child;
+  for (uint32_t const value : values) {
+    child.EncodeFixedUInt32(value);
+  }
+  EncodeSubMessage(std::move(child));
+}
+
+void Encoder::EncodePackedFixedInt64s(size_t const field_number,
+                                      absl::Span<int64_t const> const values) {
+  EncodeTag(FieldTag{.field_number = field_number, .wire_type = WireType::kLength});
+  Encoder child;
+  for (int64_t const value : values) {
+    child.EncodeFixedInt64(value);
+  }
+  EncodeSubMessage(std::move(child));
+}
+
+void Encoder::EncodePackedFixedUInt64s(size_t const field_number,
+                                       absl::Span<uint64_t const> const values) {
+  EncodeTag(FieldTag{.field_number = field_number, .wire_type = WireType::kLength});
+  Encoder child;
+  for (uint64_t const value : values) {
+    child.EncodeFixedUInt64(value);
+  }
+  EncodeSubMessage(std::move(child));
+}
+
+void Encoder::EncodePackedBools(size_t const field_number, absl::Span<bool const> const values) {
+  EncodeTag(FieldTag{.field_number = field_number, .wire_type = WireType::kLength});
+  Encoder child;
+  for (bool const value : values) {
+    child.EncodeBool(value);
+  }
+  EncodeSubMessage(std::move(child));
+}
+
+void Encoder::EncodePackedFloats(size_t const field_number, absl::Span<float const> const values) {
+  EncodeTag(FieldTag{.field_number = field_number, .wire_type = WireType::kLength});
+  Encoder child;
+  for (float const value : values) {
+    child.EncodeFloat(value);
+  }
+  EncodeSubMessage(std::move(child));
+}
+
+void Encoder::EncodePackedDoubles(size_t const field_number,
+                                  absl::Span<double const> const values) {
+  EncodeTag(FieldTag{.field_number = field_number, .wire_type = WireType::kLength});
+  Encoder child;
+  for (double const value : values) {
+    child.EncodeDouble(value);
+  }
+  EncodeSubMessage(std::move(child));
+}
+
+void Encoder::EncodeIntegerInternal(uint64_t value) {
+  tsdb2::io::Buffer buffer{kMaxVarIntLength};
+  while (value > 0x7F) {
+    buffer.Append<uint8_t>(0x80 | static_cast<uint8_t>(value & 0x7F));
+    value >>= 7;
+  }
+  buffer.Append<uint8_t>(value & 0x7F);
+  cord_.Append(std::move(buffer));
+}
+
 void Encoder::EncodeSInt32(int32_t const value) { EncodeUInt32((value << 1) ^ (value >> 31)); }
+
 void Encoder::EncodeSInt64(int64_t const value) { EncodeUInt64((value << 1) ^ (value >> 63)); }
 
 void Encoder::EncodeFixedInt32(int32_t value) {
@@ -384,111 +626,6 @@ void Encoder::EncodeFixedUInt64(uint64_t value) {
   tsdb2::io::Buffer buffer{8};
   buffer.as<uint64_t>() = value;
   buffer.Advance(8);
-  cord_.Append(std::move(buffer));
-}
-
-void Encoder::EncodeBool(bool const value) { EncodeIntegerInternal(static_cast<uint8_t>(!!value)); }
-
-void Encoder::EncodeFloat(float const value) {
-  EncodeFixedUInt32(*reinterpret_cast<uint32_t const *>(&value));
-}
-
-void Encoder::EncodeDouble(double const value) {
-  EncodeFixedUInt64(*reinterpret_cast<uint64_t const *>(&value));
-}
-
-void Encoder::EncodeString(std::string_view const value) {
-  size_t const length = value.size();
-  EncodeIntegerInternal(length);
-  tsdb2::io::Buffer buffer{length};
-  buffer.MemCpy(value.data(), length);
-  cord_.Append(std::move(buffer));
-}
-
-void Encoder::EncodeSubMessage(Encoder &&child_encoder) {
-  EncodeIntegerInternal(child_encoder.size());
-  cord_.Append(std::move(child_encoder.cord_));
-}
-
-void Encoder::EncodePackedSInt32s(absl::Span<int32_t const> const values) {
-  Encoder child;
-  for (int32_t const value : values) {
-    child.EncodeSInt32(value);
-  }
-  EncodeSubMessage(std::move(child));
-}
-
-void Encoder::EncodePackedSInt64s(absl::Span<int64_t const> const values) {
-  Encoder child;
-  for (int64_t const value : values) {
-    child.EncodeSInt64(value);
-  }
-  EncodeSubMessage(std::move(child));
-}
-
-void Encoder::EncodePackedFixedInt32s(absl::Span<int32_t const> const values) {
-  Encoder child;
-  for (int32_t const value : values) {
-    child.EncodeFixedInt32(value);
-  }
-  EncodeSubMessage(std::move(child));
-}
-
-void Encoder::EncodePackedFixedUInt32s(absl::Span<uint32_t const> const values) {
-  Encoder child;
-  for (uint32_t const value : values) {
-    child.EncodeFixedUInt32(value);
-  }
-  EncodeSubMessage(std::move(child));
-}
-
-void Encoder::EncodePackedFixedInt64s(absl::Span<int64_t const> const values) {
-  Encoder child;
-  for (int64_t const value : values) {
-    child.EncodeFixedInt64(value);
-  }
-  EncodeSubMessage(std::move(child));
-}
-
-void Encoder::EncodePackedFixedUInt64s(absl::Span<uint64_t const> const values) {
-  Encoder child;
-  for (uint64_t const value : values) {
-    child.EncodeFixedUInt64(value);
-  }
-  EncodeSubMessage(std::move(child));
-}
-
-void Encoder::EncodePackedBools(absl::Span<bool const> const values) {
-  Encoder child;
-  for (bool const value : values) {
-    child.EncodeBool(value);
-  }
-  EncodeSubMessage(std::move(child));
-}
-
-void Encoder::EncodePackedFloats(absl::Span<float const> const values) {
-  Encoder child;
-  for (float const value : values) {
-    child.EncodeFloat(value);
-  }
-  EncodeSubMessage(std::move(child));
-}
-
-void Encoder::EncodePackedDoubles(absl::Span<double const> const values) {
-  Encoder child;
-  for (double const value : values) {
-    child.EncodeDouble(value);
-  }
-  EncodeSubMessage(std::move(child));
-}
-
-void Encoder::EncodeIntegerInternal(uint64_t value) {
-  tsdb2::io::Buffer buffer{kMaxVarIntLength};
-  while (value > 0x7F) {
-    buffer.Append<uint8_t>(0x80 | static_cast<uint8_t>(value & 0x7F));
-    value >>= 7;
-  }
-  buffer.Append<uint8_t>(value & 0x7F);
   cord_.Append(std::move(buffer));
 }
 

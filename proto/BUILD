@@ -1,3 +1,6 @@
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
+load("//proto:proto.bzl", "cc_proto_library")
+
 package(default_visibility = ["//visibility:private"])
 
 cc_library(
@@ -71,42 +74,103 @@ cc_test(
 )
 
 cc_library(
-    name = "file_writer",
-    srcs = ["file_writer.cc"],
-    hdrs = ["file_writer.h"],
+    name = "text_writer",
+    srcs = ["text_writer.cc"],
+    hdrs = ["text_writer.h"],
     deps = [
         "@com_google_absl//absl/strings:cord",
     ],
 )
 
 cc_test(
-    name = "file_writer_test",
-    srcs = ["file_writer_test.cc"],
+    name = "text_writer_test",
+    srcs = ["text_writer_test.cc"],
     deps = [
-        ":file_writer",
+        ":text_writer",
         "//common:testing",
         "@com_google_googletest//:gtest_main",
     ],
 )
 
 cc_library(
-    name = "plugin",
-    hdrs = ["plugin.h"],
+    name = "temp_descriptor",
+    hdrs = ["descriptor.h"],
     deps = [
         ":object",
     ],
 )
 
-cc_binary(
-    name = "proto_cc",
-    srcs = ["proto.cc"],
+# proto_library(
+#     name = "descriptor_proto",
+#     srcs = ["descriptor.proto"],
+# )
+
+# cc_proto_library(
+#     name = "descriptor_cc_proto",
+#     proto = ":descriptor_proto",
+#     visibility = ["//visibility:public"],
+# )
+
+cc_library(
+    name = "generator",
+    srcs = ["generator.cc"],
+    hdrs = ["generator.h"],
     deps = [
         ":dependencies",
-        ":file_writer",
-        ":plugin",
+        ":object",
+        ":temp_descriptor",
+        ":text_writer",
+        "//common:flat_map",
+        "//common:no_destructor",
+        "//common:re",
         "//common:utilities",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "generator_test",
+    srcs = ["generator_test.cc"],
+    deps = [
+        ":generator",
+        "//common:testing",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_binary(
+    name = "generate",
+    srcs = ["generate.cc"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":generator",
+        ":object",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/flags:parse",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:initialize",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_binary(
+    name = "plugin",
+    srcs = ["plugin.cc"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":generator",
+        ":object",
+        ":temp_descriptor",
+        "//common:utilities",
+        "@com_google_absl//absl/log:initialize",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
     ],
 )

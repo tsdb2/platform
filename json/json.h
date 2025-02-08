@@ -416,6 +416,12 @@ class Object<internal::FieldImpl<Type, Name>, OtherFields...> : public Object<Ot
   static_assert(internal::CheckUniqueNameV<Name, OtherFields...>, "duplicate field names");
 
   template <typename FieldName, typename Dummy = void>
+  struct BaseImpl;
+
+  template <char const field_name[]>
+  using Base = typename BaseImpl<tsdb2::common::TypeStringT<field_name>>::Type;
+
+  template <typename FieldName, typename Dummy = void>
   struct FieldTypeImpl;
 
   template <char const field_name[]>
@@ -538,6 +544,19 @@ class Object<internal::FieldImpl<Type, Name>, OtherFields...> : public Object<Ot
  private:
   Type value_{};
 };
+
+template <typename Type2, typename Name, typename... OtherFields>
+template <typename Dummy>
+struct Object<internal::FieldImpl<Type2, Name>, OtherFields...>::BaseImpl<Name, Dummy> {
+  using Type = Object<internal::FieldImpl<Type2, Name>, OtherFields...>;
+};
+
+template <typename Type, typename Name, typename... OtherFields>
+template <typename Dummy, char... field_name>
+struct Object<internal::FieldImpl<Type, Name>,
+              OtherFields...>::BaseImpl<tsdb2::common::TypeStringMatcher<field_name...>, Dummy>
+    : public Object<OtherFields...>::template BaseImpl<
+          tsdb2::common::TypeStringMatcher<field_name...>> {};
 
 template <typename Type2, typename Name, typename... OtherFields>
 template <typename Dummy>
