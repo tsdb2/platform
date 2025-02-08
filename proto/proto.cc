@@ -8,7 +8,10 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "common/utilities.h"
+#include "proto/dependencies.h"
+#include "proto/file_writer.h"
 #include "proto/object.h"
 #include "proto/plugin.h"
 
@@ -23,33 +26,38 @@ using ::google::protobuf::compiler::kCodeGeneratorResponseFileField;
 using ::google::protobuf::compiler::kCodeGeneratorResponseFileNameField;
 using ::google::protobuf::compiler::kCodeGeneratorResponseSupportedFeaturesField;
 using ::tsdb2::proto::kInitialize;
+using ::tsdb2::proto::internal::DependencyManager;
+using ::tsdb2::proto::internal::FileWriter;
+
+std::string GetHeaderGuardName() {
+  // TODO
+  return absl::StrCat("__TSDB2_", "_H__");
+}
 
 absl::StatusOr<CodeGeneratorResponse_File> GenerateHeaderFile() {
+  DependencyManager dm;
+  FileWriter fw;
+  auto const header_guard_name = GetHeaderGuardName();
+  fw.AppendUnindentedLine(absl::StrCat("#ifndef ", header_guard_name));
+  fw.AppendUnindentedLine(absl::StrCat("#define ", header_guard_name));
+  fw.AppendEmptyLine();
+  // TODO
+  fw.AppendEmptyLine();
+  fw.AppendUnindentedLine(absl::StrCat("#endif  // ", header_guard_name));
   CodeGeneratorResponse_File file;
   file.get<kCodeGeneratorResponseFileNameField>() = "proto.h";
-  file.get<kCodeGeneratorResponseFileContentField>() = R"cc(
-#ifndef __TSDB2_PROTO_PROTO_H__
-#define __TSDB2_PROTO_PROTO_H__
-
-    namespace tsdb2 {
-
-    // TODO
-
-    }  // namespace tsdb2
-
-#endif  // __TSDB2_PROTO_PROTO_H__
-  )cc";
+  file.get<kCodeGeneratorResponseFileContentField>() = std::move(fw).Finish();
   return std::move(file);
 }
 
 absl::StatusOr<CodeGeneratorResponse_File> GenerateSourceFile() {
+  FileWriter fw;
+  fw.AppendUnindentedLine(absl::StrCat("#include \"", "\""));
+  fw.AppendEmptyLine();
+  // TODO
   CodeGeneratorResponse_File file;
   file.get<kCodeGeneratorResponseFileNameField>() = "proto.cc";
-  file.get<kCodeGeneratorResponseFileContentField>() = R"cc(
-#include "proto/proto.h"
-
-    // TODO
-  )cc";
+  file.get<kCodeGeneratorResponseFileContentField>() = std::move(fw).Finish();
   return std::move(file);
 }
 

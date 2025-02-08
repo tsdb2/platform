@@ -71,6 +71,25 @@ cc_test(
 )
 
 cc_library(
+    name = "file_writer",
+    srcs = ["file_writer.cc"],
+    hdrs = ["file_writer.h"],
+    deps = [
+        "@com_google_absl//absl/strings:cord",
+    ],
+)
+
+cc_test(
+    name = "file_writer_test",
+    srcs = ["file_writer_test.cc"],
+    deps = [
+        ":file_writer",
+        "//common:testing",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "plugin",
     hdrs = ["plugin.h"],
     deps = [
@@ -82,9 +101,12 @@ cc_binary(
     name = "proto_cc",
     srcs = ["proto.cc"],
     deps = [
+        ":dependencies",
+        ":file_writer",
         ":plugin",
         "//common:utilities",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
     ],
 )
