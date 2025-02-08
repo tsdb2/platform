@@ -40,9 +40,11 @@ void DependencyManager::AddDependency(PathView const dependent, PathView const d
     return it->second.AddDependency(dependent.subspan(1), dependee.subspan(1), edge_name);
   } else {
     auto const [it, unused] = dependencies_.try_emplace(dependent.front());
-    std::string field_path{edge_name};
+    std::string field_path;
     if (dependent.size() > 1) {
       field_path = absl::StrCat(absl::StrJoin(dependent.subspan(1), "."), ".", edge_name);
+    } else {
+      field_path = std::string(edge_name);
     }
     it->second.insert_or_assign(std::move(field_path), dependee.front());
   }

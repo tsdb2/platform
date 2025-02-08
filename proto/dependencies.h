@@ -152,6 +152,28 @@ class DependencyManager {
   // is expressed as an array of (message, field) pairs. The last entry of the cycle is always the
   // same as the first, so it's omitted unless the cycle has a single node with a self-edge (in that
   // case the returned cycle has only one entry).
+  //
+  // Sometimes the field names reported in the elements of a cycle may contain one or more nested
+  // message names. This happens for cross-scope dependencies. For example, in the following
+  // dependency cycle:
+  //
+  //   message M0 {
+  //     message M1 {
+  //       message M2 {
+  //         optional M3.M4 m4 = 1;
+  //       }
+  //     }
+  //     message M3 {
+  //       message M4 {
+  //         optional M1.M2 m2 = 1;
+  //       }
+  //     }
+  //   }
+  //
+  // the search for the closest common ancestor stops at `M0`, so the cycle is reported for the
+  // lexical scope of that message. That means the cycle will report messages `M1` and `M3`, so
+  // their respective field names will be reported as `M2.m4` and `M4.m2` rather than just `m4` and
+  // `m2`.
   std::vector<Cycle> FindCycles(PathView base_path) const;
 
   // Returns the list of protobuf messages beloning to the lexical scope identified by `base_path`
