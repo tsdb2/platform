@@ -100,4 +100,29 @@ TEST_F(FileWriterTest, EmptyLineIsNotIndented) {
   EXPECT_EQ(std::move(writer_).Finish(), "  lorem\n\n  ipsum\n");
 }
 
+TEST_F(FileWriterTest, IndentedScope) {
+  writer_.AppendLine("lorem");
+  {
+    FileWriter::IndentedScope is{&writer_};
+    writer_.AppendLine("ipsum");
+  }
+  writer_.AppendLine("dolor");
+  EXPECT_EQ(std::move(writer_).Finish(), "lorem\n  ipsum\ndolor\n");
+}
+
+TEST_F(FileWriterTest, NestedIndentedScope) {
+  writer_.AppendLine("lorem");
+  {
+    FileWriter::IndentedScope is{&writer_};
+    writer_.AppendLine("ipsum");
+    {
+      FileWriter::IndentedScope is{&writer_};
+      writer_.AppendLine("dolor");
+    }
+    writer_.AppendLine("amet");
+  }
+  writer_.AppendLine("adipisci");
+  EXPECT_EQ(std::move(writer_).Finish(), "lorem\n  ipsum\n    dolor\n  amet\nadipisci\n");
+}
+
 }  // namespace
