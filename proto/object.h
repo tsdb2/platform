@@ -346,10 +346,7 @@ struct MergeField<std::shared_ptr<Type>> {
 template <typename Type>
 struct MergeField<std::vector<Type>> {
   void operator()(std::vector<Type> &lhs, std::vector<Type> &&rhs) const {
-    if (rhs.has_value()) {
-      lhs.insert(lhs.end(), std::make_move_iterator(rhs.begin()),
-                 std::make_move_iterator(rhs.end()));
-    }
+    lhs.insert(lhs.end(), std::make_move_iterator(rhs.begin()), std::make_move_iterator(rhs.end()));
   }
 };
 

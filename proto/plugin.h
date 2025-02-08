@@ -80,7 +80,88 @@ char constexpr kSourceCodeInfoLocationField[] = "location";
 using SourceCodeInfo = tsdb2::proto::Object<
     tsdb2::proto::Field<std::vector<SourceCodeInfo_Location>, kSourceCodeInfoLocationField, 1>>;
 
-// TODO
+enum class FieldDescriptorProto_Type {
+  TYPE_DOUBLE = 1,
+  TYPE_FLOAT = 2,
+
+  // Not ZigZag encoded.  Negative numbers take 10 bytes.  Use TYPE_SINT64 if
+  // negative values are likely.
+  TYPE_INT64 = 3,
+  TYPE_UINT64 = 4,
+
+  // Not ZigZag encoded.  Negative numbers take 10 bytes.  Use TYPE_SINT32 if
+  // negative values are likely.
+  TYPE_INT32 = 5,
+  TYPE_FIXED64 = 6,
+  TYPE_FIXED32 = 7,
+  TYPE_BOOL = 8,
+  TYPE_STRING = 9,
+
+  // Tag-delimited aggregate.
+  TYPE_GROUP = 10,
+  TYPE_MESSAGE = 11,  // Length-delimited aggregate.
+
+  // New in version 2.
+  TYPE_BYTES = 12,
+  TYPE_UINT32 = 13,
+  TYPE_ENUM = 14,
+  TYPE_SFIXED32 = 15,
+  TYPE_SFIXED64 = 16,
+  TYPE_SINT32 = 17,  // Uses ZigZag encoding.
+  TYPE_SINT64 = 18,  // Uses ZigZag encoding.
+};
+
+enum class FieldDescriptorProto_Label {
+  LABEL_OPTIONAL = 1,
+  LABEL_REPEATED = 3,
+  LABEL_REQUIRED = 2,
+};
+
+char constexpr kFieldDescriptorProtoNameField[] = "name";
+char constexpr kFieldDescriptorProtoNumberField[] = "number";
+char constexpr kFieldDescriptorProtoLabelField[] = "label";
+char constexpr kFieldDescriptorProtoTypeField[] = "type";
+char constexpr kFieldDescriptorProtoTypeNameField[] = "type_name";
+char constexpr kFieldDescriptorProtoExtendeeField[] = "extendee";
+char constexpr kFieldDescriptorProtoDefaultValueField[] = "default_value";
+char constexpr kFieldDescriptorProtoOneOfIndexField[] = "oneof_index";
+char constexpr kFieldDescriptorProtoJsonNameField[] = "json_name";
+char constexpr kFieldDescriptorProtoOptionsField[] = "options";
+char constexpr kFieldDescriptorProtoProto3OptionalField[] = "proto3_optional";
+
+using FieldDescriptorProto = tsdb2::proto::Object<
+    tsdb2::proto::Field<std::optional<std::string>, kFieldDescriptorProtoNameField, 1>,
+    tsdb2::proto::Field<std::optional<int32_t>, kFieldDescriptorProtoNumberField, 3>,
+    tsdb2::proto::Field<std::optional<FieldDescriptorProto_Label>, kFieldDescriptorProtoLabelField,
+                        4>,
+    tsdb2::proto::Field<std::optional<FieldDescriptorProto_Type>, kFieldDescriptorProtoTypeField,
+                        5>,
+    tsdb2::proto::Field<std::optional<std::string>, kFieldDescriptorProtoTypeNameField, 6>,
+    tsdb2::proto::Field<std::optional<std::string>, kFieldDescriptorProtoExtendeeField, 2>,
+    tsdb2::proto::Field<std::optional<std::string>, kFieldDescriptorProtoDefaultValueField, 7>,
+    tsdb2::proto::Field<std::optional<int32_t>, kFieldDescriptorProtoOneOfIndexField, 9>,
+    tsdb2::proto::Field<std::optional<std::string>, kFieldDescriptorProtoJsonNameField, 10>,
+    tsdb2::proto::Field<std::optional<bool>, kFieldDescriptorProtoProto3OptionalField, 17>>;
+
+char constexpr kDescriptorProtoNameField[] = "name";
+char constexpr kDescriptorProtoFieldField[] = "field";
+char constexpr kDescriptorProtoExtensionField[] = "extension";
+
+using DescriptorProto = tsdb2::proto::Object<
+    tsdb2::proto::Field<std::optional<std::string>, kDescriptorProtoNameField, 1>,
+    tsdb2::proto::Field<std::vector<FieldDescriptorProto>, kDescriptorProtoFieldField, 2>,
+    tsdb2::proto::Field<std::vector<FieldDescriptorProto>, kDescriptorProtoExtensionField, 6>>;
+
+char constexpr kFileDescriptorProtoNameField[] = "name";
+char constexpr kFileDescriptorProtoPackageField[] = "package";
+char constexpr kFileDescriptorProtoDependencyField[] = "dependency";
+char constexpr kFileDescriptorProtoPublicDependencyField[] = "public_dependency";
+
+using FileDescriptorProto = tsdb2::proto::Object<
+    tsdb2::proto::Field<std::optional<std::string>, kFileDescriptorProtoNameField, 1>,
+    tsdb2::proto::Field<std::optional<std::string>, kFileDescriptorProtoPackageField, 2>,
+    tsdb2::proto::Field<std::vector<std::string>, kFileDescriptorProtoDependencyField, 3>,
+    tsdb2::proto::Field<std::vector<int32_t>, kFileDescriptorProtoPublicDependencyField, 10>>;
 
 namespace compiler {
 
@@ -97,11 +178,16 @@ using Version =
 
 char constexpr kCodeGeneratorRequestFileToGenerateField[] = "file_to_generate";
 char constexpr kCodeGeneratorRequestParameterField[] = "parameter";
+char constexpr kCodeGeneratorRequestProtoFileField[] = "proto_file";
+char constexpr kCodeGeneratorRequestSourceFileDescriptorsField[] = "source_file_descriptors";
 char constexpr kCodeGeneratorRequestCompilerVersionField[] = "compiler_version";
 
 using CodeGeneratorRequest = tsdb2::proto::Object<
     tsdb2::proto::Field<std::vector<std::string>, kCodeGeneratorRequestFileToGenerateField, 1>,
     tsdb2::proto::Field<std::optional<std::string>, kCodeGeneratorRequestParameterField, 2>,
+    tsdb2::proto::Field<std::vector<FileDescriptorProto>, kCodeGeneratorRequestProtoFileField, 15>,
+    tsdb2::proto::Field<std::vector<FileDescriptorProto>,
+                        kCodeGeneratorRequestSourceFileDescriptorsField, 17>,
     tsdb2::proto::Field<std::optional<Version>, kCodeGeneratorRequestCompilerVersionField, 3>>;
 
 enum class CodeGeneratorResponse_Feature {
