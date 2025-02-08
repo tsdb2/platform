@@ -18,7 +18,7 @@
 #include "common/type_string.h"
 #include "common/utilities.h"
 #include "io/cord.h"
-#include "proto/wire.h"
+#include "proto/wire_format.h"
 
 namespace tsdb2 {
 namespace proto {

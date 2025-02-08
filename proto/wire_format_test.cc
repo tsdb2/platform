@@ -1,4 +1,4 @@
-#include "proto/wire.h"
+#include "proto/wire_format.h"
 
 #include <cstdint>
 #include <utility>

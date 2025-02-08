@@ -1,9 +1,9 @@
 package(default_visibility = ["//visibility:private"])
 
 cc_library(
-    name = "wire",
-    srcs = ["wire.cc"],
-    hdrs = ["wire.h"],
+    name = "wire_format",
+    srcs = ["wire_format.cc"],
+    hdrs = ["wire_format.h"],
     visibility = ["//visibility:public"],
     deps = [
         "//common:utilities",
@@ -18,10 +18,10 @@ cc_library(
 )
 
 cc_test(
-    name = "wire_test",
-    srcs = ["wire_test.cc"],
+    name = "wire_format_test",
+    srcs = ["wire_format_test.cc"],
     deps = [
-        ":wire",
+        ":wire_format",
         "//common:testing",
         "//io:buffer_testing",
         "@com_google_absl//absl/status",
@@ -34,7 +34,7 @@ cc_library(
     name = "object",
     hdrs = ["object.h"],
     deps = [
-        ":wire",
+        ":wire_format",
         "//common:type_string",
         "//common:utilities",
         "//io:cord",

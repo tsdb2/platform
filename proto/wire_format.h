@@ -1,5 +1,5 @@
-#ifndef __TSDB2_PROTO_DECODER_H__
-#define __TSDB2_PROTO_DECODER_H__
+#ifndef __TSDB2_PROTO_WIRE_FORMAT_H__
+#define __TSDB2_PROTO_WIRE_FORMAT_H__
 
 #include <cstddef>
 #include <cstdint>
@@ -243,4 +243,4 @@ class Encoder {
 }  // namespace proto
 }  // namespace tsdb2
 
-#endif  // __TSDB2_PROTO_DECODER_H__
+#endif  // __TSDB2_PROTO_WIRE_FORMAT_H__
