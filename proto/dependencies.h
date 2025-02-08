@@ -18,15 +18,16 @@ namespace tsdb2 {
 namespace proto {
 namespace internal {
 
-// Keeps track of the dependencies among messages and allows inferring a definition order (for both
-// global scope message and nested messages) that doesn't require forward declarations. Also allows
-// erroring out when a cycle is detected.
+// Keeps track of the dependencies among protobuf messages and allows inferring a definition order
+// (for both global scope messages and nested messages) that doesn't require forward declarations.
+// Also allows erroring out when a cycle is detected.
 //
-// This class keeps track of a separate dependency graph for each scope. If a message `A` depends on
-// a *nested* message `B.C`, the dependency won't affect the order of the messages inside `B`, it
-// will only require that `B` itself is declared before `A`. More in general a dependency between
-// two arbitrary paths `A0.A1.(...).An` and `B0.B1.(...).Bm` will only affect the dependency graph
-// of the closest common ancestor. For example, in the following message definition:
+// This class keeps track of a separate dependency graph for each lexical scope. If a message `A`
+// depends on a *nested* message `B.C` for example, the dependency won't affect the order of the
+// messages inside `B`, it will only require that `B` itself is declared before `A`. More in general
+// a dependency between two arbitrary paths `A0.A1.(...).An` and `B0.B1.(...).Bm` will only affect
+// the dependency graph of the closest common ancestor. For example, in the following message
+// definition:
 //
 //   message A0 {
 //     message A1 {
@@ -52,8 +53,8 @@ namespace internal {
 //
 // NOTE: in the protobuf compiler of the TSDB2 platform we cannot resolve the dependency issue by
 // just forward-declaring all messages of each scope at the beginning of the scope. The very reason
-// why we have a separate protobuf compiler is that we generally want to use `std::optional` rather
-// than any kind of pointers for fields referring to another message, so nested messages won't be
+// why we have a custom protobuf compiler is that we generally want to use `std::optional` rather
+// than any kind of pointers for fields referring to other messages, so nested messages won't be
 // allocated in a separate memory block -- instead they'll be inlined inside the outer message. We
 // do that because minimizing the number of heap allocations is one of the key micro-optimization
 // goals of the TSDB2 platform, and platform-based programs are expected to be protobuf-heavy. That
@@ -107,7 +108,7 @@ class DependencyManager {
   // corresponding the fully qualified name of the message, for example `{"google", "protobuf",
   // "Timestamp"}` for `google.protobuf.Timestamp`. The `DependencyManager` treats path component
   // strings opaquely. The only aspect that matters is that each component defines a new nested
-  // scoped with its own dependency graph.
+  // lexical scope with its own dependency graph.
   //
   // WARNING: the `path` must not be empty, this method check-fails if an empty path is specified.
   // Empty paths don't make sense because a message must at least have a name, and the
@@ -145,7 +146,7 @@ class DependencyManager {
   //   }
   //   message M3 { /* ... */ }
   //
-  // has four lexical scopes: the global one (base_path = {}) plus one for each message (base_path =
+  // has four lexical scopes: the global one (base_path: {}) plus one for each message (base_paths:
   // {"M1"}, {"M1", "M2"}, {"M3"}).
   //
   // The returned array is empty if there are no cycles. If one or more cycles are found, each one
@@ -171,16 +172,17 @@ class DependencyManager {
   //   }
   //
   // the search for the closest common ancestor stops at `M0`, so the cycle is reported for the
-  // lexical scope of that message. That means the cycle will report messages `M1` and `M3`, so
-  // their respective field names will be reported as `M2.m4` and `M4.m2` rather than just `m4` and
-  // `m2`.
+  // lexical scope of that message. That means the cycle will report messages `M1` and `M3` rather
+  // than `M2` and `M4`, so their respective field names will be reported as `M2.m4` and `M4.m2`
+  // rather than just `m4` and `m2`.
   std::vector<Cycle> FindCycles(PathView base_path) const;
 
-  // Returns the list of protobuf messages beloning to the lexical scope identified by `base_path`
+  // Returns the list of protobuf messages belonging to the lexical scope identified by `base_path`
   // in the order they need to be defined in.
   //
-  // REQUIRES: `FindCycles` MUST have returned an empty array because the behavior of this algorithm
-  // is undefined if there are cycles (it may loop indefinitely, trigger a stack overflow, etc.).
+  // REQUIRES: `FindCycles` MUST have returned an empty array before calling this function because
+  // the behavior of the ordering algorithm is undefined if there are any cycles (it may loop
+  // indefinitely, trigger a stack overflow, etc.).
   std::vector<std::string> MakeOrder(PathView base_path) const;
 
  private:
