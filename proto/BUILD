@@ -1,3 +1,6 @@
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
+load("//proto:proto.bzl", "cc_proto_library")
+
 package(default_visibility = ["//visibility:private"])
 
 cc_library(
@@ -97,6 +100,18 @@ cc_library(
     ],
 )
 
+proto_library(
+    name = "descriptor_proto",
+    srcs = ["descriptor.proto"],
+)
+
+cc_proto_library(
+    name = "descriptor_cc_proto",
+    deps = [
+        ":descriptor_proto",
+    ],
+)
+
 cc_binary(
     name = "proto_cc",
     srcs = ["proto.cc"],
@@ -104,6 +119,8 @@ cc_binary(
         ":dependencies",
         ":file_writer",
         ":plugin",
+        "//common:no_destructor",
+        "//common:re",
         "//common:utilities",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

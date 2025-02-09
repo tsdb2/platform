@@ -598,6 +598,12 @@ template <typename Type, typename Name, size_t tag, typename... OtherFields>
 class Object<internal::FieldImpl<Type, Name, tag>, OtherFields...> : public Object<OtherFields...> {
  public:
   template <typename FieldName, typename Dummy = void>
+  struct BaseImpl;
+
+  template <char const field_name[]>
+  using Base = typename BaseImpl<tsdb2::common::TypeStringT<field_name>>::Type;
+
+  template <typename FieldName, typename Dummy = void>
   struct FieldTypeImpl;
 
   template <char const field_name[]>
@@ -725,6 +731,19 @@ class Object<internal::FieldImpl<Type, Name, tag>, OtherFields...> : public Obje
  private:
   Type value_{};
 };
+
+template <typename Type2, typename Name, size_t tag, typename... OtherFields>
+template <typename Dummy>
+struct Object<internal::FieldImpl<Type2, Name, tag>, OtherFields...>::BaseImpl<Name, Dummy> {
+  using Type = Object<internal::FieldImpl<Type2, Name, tag>, OtherFields...>;
+};
+
+template <typename Type, typename Name, size_t tag, typename... OtherFields>
+template <typename Dummy, char... field_name>
+struct Object<internal::FieldImpl<Type, Name, tag>,
+              OtherFields...>::BaseImpl<tsdb2::common::TypeStringMatcher<field_name...>, Dummy>
+    : public Object<OtherFields...>::template BaseImpl<
+          tsdb2::common::TypeStringMatcher<field_name...>> {};
 
 template <typename Type2, typename Name, size_t tag, typename... OtherFields>
 template <typename Dummy>
