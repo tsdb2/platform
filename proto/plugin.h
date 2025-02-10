@@ -163,6 +163,11 @@ using FileDescriptorProto = tsdb2::proto::Object<
     tsdb2::proto::Field<std::vector<std::string>, kFileDescriptorProtoDependencyField, 3>,
     tsdb2::proto::Field<std::vector<int32_t>, kFileDescriptorProtoPublicDependencyField, 10>>;
 
+char constexpr kFileDescriptorSetFileField[] = "file";
+
+using FileDescriptorSet = tsdb2::proto::Object<
+    tsdb2::proto::Field<std::vector<FileDescriptorProto>, kFileDescriptorSetFileField, 1>>;
+
 namespace compiler {
 
 char constexpr kVersionMajorField[] = "major";

@@ -112,12 +112,14 @@ cc_proto_library(
     ],
 )
 
-cc_binary(
-    name = "proto_cc",
-    srcs = ["proto.cc"],
+cc_library(
+    name = "generator",
+    srcs = ["generator.cc"],
+    hdrs = ["generator.h"],
     deps = [
         ":dependencies",
         ":file_writer",
+        ":object",
         ":plugin",
         "//common:no_destructor",
         "//common:re",
@@ -125,5 +127,29 @@ cc_binary(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_binary(
+    name = "generate",
+    srcs = ["generate.cc"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":generator",
+        "@com_google_absl//absl/flags:flag",
+    ],
+)
+
+cc_binary(
+    name = "proto_cc",
+    srcs = ["proto.cc"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":generator",
+        ":object",
+        ":plugin",
+        "//common:utilities",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
