@@ -1,3 +1,4 @@
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("//proto:proto.bzl", "cc_proto_library")
 
 package(default_visibility = ["//visibility:private"])
