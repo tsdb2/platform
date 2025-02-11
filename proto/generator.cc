@@ -1,15 +1,20 @@
 #include "proto/generator.h"
 
+#include <cerrno>
 #include <cstddef>
+#include <cstdint>
+#include <cstdio>
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_replace.h"
+#include "absl/types/span.h"
 #include "common/no_destructor.h"
 #include "common/re.h"
 #include "common/utilities.h"
@@ -75,6 +80,25 @@ auto RequireField(Proto const& proto) {
 
 tsdb2::common::NoDestructor<tsdb2::common::RE> const kPackagePattern{
     tsdb2::common::RE::CreateOrDie("^[A-Za-z][A-Za-z0-9]*(?:\\.[A-Za-z][A-Za-z0-9]*)*$")};
+
+absl::StatusOr<std::vector<uint8_t>> ReadFile(FILE* const fp) {
+  std::vector<uint8_t> buffer;
+  uint8_t temp[4096];
+  while (size_t bytesRead = ::fread(temp, 1, sizeof(temp), fp)) {
+    buffer.insert(buffer.end(), temp, temp + bytesRead);
+  }
+  if (::ferror(stdin) != 0) {
+    return absl::ErrnoToStatus(errno, "fread");
+  }
+  return std::move(buffer);
+}
+
+absl::Status WriteFile(FILE* const fp, absl::Span<uint8_t const> const data) {
+  if (::fwrite(data.data(), 1, data.size(), fp) != data.size()) {
+    return absl::ErrnoToStatus(errno, "fwrite");
+  }
+  return absl::OkStatus();
+}
 
 absl::StatusOr<std::string> GetHeaderGuardName(FileDescriptorProto const& file_descriptor) {
   DEFINE_CONST_OR_RETURN(name, RequireField<kFileDescriptorProtoNameField>(file_descriptor));

@@ -1,6 +1,4 @@
 #include <cerrno>
-#include <cstddef>
-#include <cstdint>
 #include <cstdio>
 #include <optional>
 #include <string>
@@ -24,6 +22,8 @@ using ::google::protobuf::compiler::kCodeGeneratorResponseFileField;
 using ::google::protobuf::compiler::kCodeGeneratorResponseSupportedFeaturesField;
 using ::tsdb2::proto::generator::GenerateHeaderFile;
 using ::tsdb2::proto::generator::GenerateSourceFile;
+using ::tsdb2::proto::generator::ReadFile;
+using ::tsdb2::proto::generator::WriteFile;
 
 absl::StatusOr<CodeGeneratorResponse> Run(CodeGeneratorRequest const& request) {
   CodeGeneratorResponse response;
@@ -38,27 +38,12 @@ absl::StatusOr<CodeGeneratorResponse> Run(CodeGeneratorRequest const& request) {
   return std::move(response);
 }
 
-absl::StatusOr<std::vector<uint8_t>> ReadInput() {
-  std::vector<uint8_t> buffer;
-  uint8_t temp[4096];
-  while (size_t bytesRead = ::fread(temp, 1, sizeof(temp), stdin)) {
-    buffer.insert(buffer.end(), temp, temp + bytesRead);
-  }
-  if (::ferror(stdin) != 0) {
-    return absl::ErrnoToStatus(errno, "fread");
-  }
-  return std::move(buffer);
-}
-
 absl::Status Run() {
-  DEFINE_CONST_OR_RETURN(input, ReadInput());
+  DEFINE_CONST_OR_RETURN(input, ReadFile(stdin));
   DEFINE_CONST_OR_RETURN(request, CodeGeneratorRequest::Decode(input));
   DEFINE_CONST_OR_RETURN(response, Run(request));
   auto const output = response.Encode().Flatten();
-  if (::fwrite(output.span().data(), 1, output.size(), stdout) != output.size()) {
-    return absl::ErrnoToStatus(errno, "fwrite");
-  }
-  return absl::OkStatus();
+  return WriteFile(stdout, output.span());
 }
 
 }  // namespace
