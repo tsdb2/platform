@@ -4,8 +4,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -19,9 +19,9 @@
 #include "common/re.h"
 #include "common/utilities.h"
 #include "proto/dependencies.h"
+#include "proto/descriptor.h"
 #include "proto/file_writer.h"
 #include "proto/object.h"
-#include "proto/plugin.h"
 
 namespace tsdb2 {
 namespace proto {
@@ -42,44 +42,17 @@ using ::google::protobuf::compiler::kCodeGeneratorResponseFileField;
 using ::google::protobuf::compiler::kCodeGeneratorResponseFileNameField;
 using ::google::protobuf::compiler::kCodeGeneratorResponseSupportedFeaturesField;
 using ::tsdb2::proto::kInitialize;
+using ::tsdb2::proto::RequireField;
 using ::tsdb2::proto::internal::DependencyManager;
 using ::tsdb2::proto::internal::FileWriter;
 
 }  // namespace
 
-template <char const name[], typename Proto>
-class RequireFieldImpl;
-
-template <char const name[], typename Value, size_t tag, typename... OtherFields>
-class RequireFieldImpl<
-    name,
-    tsdb2::proto::Object<tsdb2::proto::Field<std::optional<Value>, name, tag>, OtherFields...>> {
- public:
-  using Proto =
-      tsdb2::proto::Object<tsdb2::proto::Field<std::optional<Value>, name, tag>, OtherFields...>;
-
-  explicit RequireFieldImpl(Proto const& proto) : proto_(proto) {}
-
-  absl::StatusOr<Value const*> operator()() {
-    auto const& maybe_field = proto_.template get<name>();
-    if (maybe_field) {
-      return &(*maybe_field);
-    } else {
-      return absl::InvalidArgumentError(absl::StrCat("missing required field \"", name, "\""));
-    }
-  }
-
- private:
-  Proto const& proto_;
-};
-
-template <char const name[], typename Proto>
-auto RequireField(Proto const& proto) {
-  return RequireFieldImpl<name, typename Proto::template Base<name>>{proto}();
-}
-
 tsdb2::common::NoDestructor<tsdb2::common::RE> const kPackagePattern{
     tsdb2::common::RE::CreateOrDie("^[A-Za-z][A-Za-z0-9]*(?:\\.[A-Za-z][A-Za-z0-9]*)*$")};
+
+tsdb2::common::NoDestructor<tsdb2::common::RE> const kFileExtensionPattern{
+    tsdb2::common::RE::CreateOrDie("(\\.[^./\\\\]*)$")};
 
 absl::StatusOr<std::vector<uint8_t>> ReadFile(FILE* const fp) {
   std::vector<uint8_t> buffer;
@@ -104,12 +77,12 @@ absl::StatusOr<std::string> GetHeaderGuardName(FileDescriptorProto const& file_d
   DEFINE_CONST_OR_RETURN(name, RequireField<kFileDescriptorProtoNameField>(file_descriptor));
   // TODO: we are replacing only path separators here, but file paths may contain many more symbols.
   std::string converted = absl::StrReplaceAll(*name, {{"/", "_"}, {"\\", "_"}});
-  auto const last_dot = converted.find_last_of('.');
-  if (last_dot != std::string::npos) {
-    converted.erase(last_dot);
+  std::string_view extension;
+  if (kFileExtensionPattern->PartialMatchArgs(converted, &extension)) {
+    converted.erase(converted.size() - extension.size());
   }
   absl::AsciiStrToUpper(&converted);
-  return absl::StrCat("__TSDB2_", converted, "_H__");
+  return absl::StrCat("__TSDB2_", converted, "_PB_H__");
 }
 
 absl::StatusOr<std::string> GetCppPackage(FileDescriptorProto const& file_descriptor) {
@@ -154,20 +127,38 @@ absl::StatusOr<std::string> GenerateSourceFileContent(
   return std::move(fw).Finish();
 }
 
+std::string MakeHeaderFileName(std::string_view proto_file_name) {
+  std::string_view extension;
+  if (kFileExtensionPattern->PartialMatchArgs(proto_file_name, &extension)) {
+    proto_file_name.remove_suffix(extension.size());
+  }
+  return absl::StrCat(proto_file_name, ".pb.h");
+}
+
+std::string MakeSourceFileName(std::string_view proto_file_name) {
+  std::string_view extension;
+  if (kFileExtensionPattern->PartialMatchArgs(proto_file_name, &extension)) {
+    proto_file_name.remove_suffix(extension.size());
+  }
+  return absl::StrCat(proto_file_name, ".pb.cc");
+}
+
 absl::StatusOr<CodeGeneratorResponse_File> GenerateHeaderFile(
     FileDescriptorProto const& file_descriptor) {
+  DEFINE_CONST_OR_RETURN(name, RequireField<kFileDescriptorProtoNameField>(file_descriptor));
   DEFINE_VAR_OR_RETURN(content, GenerateHeaderFileContent(file_descriptor));
   CodeGeneratorResponse_File file;
-  file.get<kCodeGeneratorResponseFileNameField>() = "proto.pb.h";
+  file.get<kCodeGeneratorResponseFileNameField>() = MakeHeaderFileName(*name);
   file.get<kCodeGeneratorResponseFileContentField>() = std::move(content);
   return std::move(file);
 }
 
 absl::StatusOr<CodeGeneratorResponse_File> GenerateSourceFile(
     FileDescriptorProto const& file_descriptor) {
+  DEFINE_CONST_OR_RETURN(name, RequireField<kFileDescriptorProtoNameField>(file_descriptor));
   DEFINE_VAR_OR_RETURN(content, GenerateSourceFileContent(file_descriptor));
   CodeGeneratorResponse_File file;
-  file.get<kCodeGeneratorResponseFileNameField>() = "proto.pb.cc";
+  file.get<kCodeGeneratorResponseFileNameField>() = MakeSourceFileName(*name);
   file.get<kCodeGeneratorResponseFileContentField>() = std::move(content);
   return std::move(file);
 }

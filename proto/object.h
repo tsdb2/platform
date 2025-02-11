@@ -14,6 +14,7 @@
 #include "absl/base/attributes.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "common/type_string.h"
 #include "common/utilities.h"
@@ -798,6 +799,78 @@ struct Object<internal::FieldImpl<Type, Name, tag>,
 
 template <typename... Fields>
 class ObjectDecoder;
+
+namespace internal {
+
+template <char const name[], typename Object>
+class RequireFieldImpl;
+
+template <char const name[], typename Value, size_t tag, typename... OtherFields>
+class RequireFieldImpl<name, Object<Field<std::optional<Value>, name, tag>, OtherFields...>> {
+ public:
+  using ObjectType = Object<Field<std::optional<Value>, name, tag>, OtherFields...>;
+
+  explicit RequireFieldImpl(ObjectType const &object) : object_(object) {}
+
+  absl::StatusOr<Value const *> operator()() {
+    auto const &maybe_field = object_.template get<name>();
+    if (maybe_field) {
+      return &(*maybe_field);
+    } else {
+      return absl::InvalidArgumentError(absl::StrCat("missing required field \"", name, "\""));
+    }
+  }
+
+ private:
+  ObjectType const &object_;
+};
+
+template <char const name[], typename Value, size_t tag, typename... OtherFields>
+class RequireFieldImpl<name, Object<Field<std::unique_ptr<Value>, name, tag>, OtherFields...>> {
+ public:
+  using ObjectType = Object<Field<std::unique_ptr<Value>, name, tag>, OtherFields...>;
+
+  explicit RequireFieldImpl(ObjectType const &object) : object_(object) {}
+
+  absl::StatusOr<Value const *> operator()() {
+    auto const &maybe_field = object_.template get<name>();
+    if (maybe_field) {
+      return maybe_field.get();
+    } else {
+      return absl::InvalidArgumentError(absl::StrCat("missing required field \"", name, "\""));
+    }
+  }
+
+ private:
+  ObjectType const &object_;
+};
+
+template <char const name[], typename Value, size_t tag, typename... OtherFields>
+class RequireFieldImpl<name, Object<Field<std::shared_ptr<Value>, name, tag>, OtherFields...>> {
+ public:
+  using ObjectType = Object<Field<std::shared_ptr<Value>, name, tag>, OtherFields...>;
+
+  explicit RequireFieldImpl(ObjectType const &object) : object_(object) {}
+
+  absl::StatusOr<Value const *> operator()() {
+    auto const &maybe_field = object_.template get<name>();
+    if (maybe_field) {
+      return maybe_field.get();
+    } else {
+      return absl::InvalidArgumentError(absl::StrCat("missing required field \"", name, "\""));
+    }
+  }
+
+ private:
+  ObjectType const &object_;
+};
+
+}  // namespace internal
+
+template <char const name[], typename Object>
+auto RequireField(Object const &object) {
+  return internal::RequireFieldImpl<name, typename Object::template Base<name>>{object}();
+}
 
 }  // namespace proto
 }  // namespace tsdb2

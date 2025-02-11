@@ -5,12 +5,13 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/initialize.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "common/utilities.h"
+#include "proto/descriptor.h"
 #include "proto/generator.h"
 #include "proto/object.h"
-#include "proto/plugin.h"
 
 namespace {
 
@@ -49,6 +50,7 @@ absl::Status Run() {
 }  // namespace
 
 int main() {
+  absl::InitializeLog();
   auto const status = Run();
   if (!status.ok()) {
     std::string const message{status.message()};

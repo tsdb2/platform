@@ -93,8 +93,8 @@ cc_test(
 )
 
 cc_library(
-    name = "plugin",
-    hdrs = ["plugin.h"],
+    name = "temp_descriptor",
+    hdrs = ["descriptor.h"],
     deps = [
         ":object",
     ],
@@ -120,7 +120,7 @@ cc_library(
         ":dependencies",
         ":file_writer",
         ":object",
-        ":plugin",
+        ":temp_descriptor",
         "//common:no_destructor",
         "//common:re",
         "//common:utilities",
@@ -131,27 +131,43 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "generator_test",
+    srcs = ["generator_test.cc"],
+    deps = [
+        ":generator",
+        "//common:testing",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
 cc_binary(
     name = "generate",
     srcs = ["generate.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":generator",
+        ":object",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:parse",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:initialize",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
 cc_binary(
-    name = "proto_cc",
-    srcs = ["proto.cc"],
+    name = "plugin",
+    srcs = ["plugin.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":generator",
         ":object",
-        ":plugin",
+        ":temp_descriptor",
         "//common:utilities",
+        "@com_google_absl//absl/log:initialize",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
     ],
