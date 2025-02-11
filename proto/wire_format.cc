@@ -23,8 +23,7 @@ namespace {
 
 inline size_t constexpr kMaxVarIntLength = 10;
 
-constexpr uint16_t ByteSwap16(uint16_t const value) { return (value >> 8) | (value << 8); }
-
+#ifdef ABSL_IS_BIG_ENDIAN
 constexpr uint32_t ByteSwap32(uint32_t const value) {
   return ((value >> 24) & 0x000000FF) | ((value >> 8) & 0x0000FF00) | ((value << 8) & 0x00FF0000) |
          ((value << 24) & 0xFF000000);
@@ -36,6 +35,7 @@ constexpr uint64_t ByteSwap64(uint64_t const value) {
          ((value << 8) & 0x000000FF00000000) | ((value << 24) & 0x0000FF0000000000) |
          ((value << 40) & 0x00FF000000000000) | ((value << 56) & 0xFF00000000000000);
 }
+#endif  // ABSL_IS_BIG_ENDIAN
 
 }  // namespace
 

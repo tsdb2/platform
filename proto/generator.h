@@ -19,14 +19,14 @@ namespace generator {
 absl::StatusOr<std::vector<uint8_t>> ReadFile(FILE* fp);
 absl::Status WriteFile(FILE* fp, absl::Span<uint8_t const> data);
 
+std::string MakeHeaderFileName(std::string_view proto_file_name);
+std::string MakeSourceFileName(std::string_view proto_file_name);
+
 absl::StatusOr<std::string> GenerateHeaderFileContent(
     google::protobuf::FileDescriptorProto const& file_descriptor);
 
 absl::StatusOr<std::string> GenerateSourceFileContent(
     google::protobuf::FileDescriptorProto const& file_descriptor);
-
-std::string MakeHeaderFileName(std::string_view proto_file_name);
-std::string MakeSourceFileName(std::string_view proto_file_name);
 
 absl::StatusOr<google::protobuf::compiler::CodeGeneratorResponse_File> GenerateHeaderFile(
     google::protobuf::FileDescriptorProto const& file_descriptor);

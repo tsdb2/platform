@@ -46,13 +46,23 @@ using ::tsdb2::proto::RequireField;
 using ::tsdb2::proto::internal::DependencyManager;
 using ::tsdb2::proto::internal::FileWriter;
 
-}  // namespace
-
 tsdb2::common::NoDestructor<tsdb2::common::RE> const kPackagePattern{
     tsdb2::common::RE::CreateOrDie("^[A-Za-z][A-Za-z0-9]*(?:\\.[A-Za-z][A-Za-z0-9]*)*$")};
 
 tsdb2::common::NoDestructor<tsdb2::common::RE> const kFileExtensionPattern{
     tsdb2::common::RE::CreateOrDie("(\\.[^./\\\\]*)$")};
+
+absl::StatusOr<std::string> GetHeaderPath(FileDescriptorProto const& file_descriptor) {
+  DEFINE_CONST_OR_RETURN(name, RequireField<kFileDescriptorProtoNameField>(file_descriptor));
+  std::string converted = *name;
+  std::string_view extension;
+  if (kFileExtensionPattern->PartialMatchArgs(converted, &extension)) {
+    converted.erase(converted.size() - extension.size());
+  }
+  return absl::StrCat(converted, ".pb.h");
+}
+
+}  // namespace
 
 absl::StatusOr<std::vector<uint8_t>> ReadFile(FILE* const fp) {
   std::vector<uint8_t> buffer;
@@ -71,6 +81,22 @@ absl::Status WriteFile(FILE* const fp, absl::Span<uint8_t const> const data) {
     return absl::ErrnoToStatus(errno, "fwrite");
   }
   return absl::OkStatus();
+}
+
+std::string MakeHeaderFileName(std::string_view proto_file_name) {
+  std::string_view extension;
+  if (kFileExtensionPattern->PartialMatchArgs(proto_file_name, &extension)) {
+    proto_file_name.remove_suffix(extension.size());
+  }
+  return absl::StrCat(proto_file_name, ".pb.h");
+}
+
+std::string MakeSourceFileName(std::string_view proto_file_name) {
+  std::string_view extension;
+  if (kFileExtensionPattern->PartialMatchArgs(proto_file_name, &extension)) {
+    proto_file_name.remove_suffix(extension.size());
+  }
+  return absl::StrCat(proto_file_name, ".pb.cc");
 }
 
 absl::StatusOr<std::string> GetHeaderGuardName(FileDescriptorProto const& file_descriptor) {
@@ -102,6 +128,8 @@ absl::StatusOr<std::string> GenerateHeaderFileContent(
   fw.AppendUnindentedLine(absl::StrCat("#ifndef ", header_guard_name));
   fw.AppendUnindentedLine(absl::StrCat("#define ", header_guard_name));
   fw.AppendEmptyLine();
+  fw.AppendUnindentedLine("#include \"proto/wire_format.h\"");
+  fw.AppendEmptyLine();
   DEFINE_CONST_OR_RETURN(package, GetCppPackage(file_descriptor));
   fw.AppendLine(absl::StrCat("namespace ", package, " {"));
   fw.AppendEmptyLine();
@@ -116,7 +144,8 @@ absl::StatusOr<std::string> GenerateHeaderFileContent(
 absl::StatusOr<std::string> GenerateSourceFileContent(
     google::protobuf::FileDescriptorProto const& file_descriptor) {
   FileWriter fw;
-  fw.AppendUnindentedLine(absl::StrCat("#include \"", "\""));
+  DEFINE_CONST_OR_RETURN(header_path, GetHeaderPath(file_descriptor));
+  fw.AppendUnindentedLine(absl::StrCat("#include \"", header_path, "\""));
   fw.AppendEmptyLine();
   DEFINE_CONST_OR_RETURN(package, GetCppPackage(file_descriptor));
   fw.AppendLine(absl::StrCat("namespace ", package, " {"));
@@ -125,22 +154,6 @@ absl::StatusOr<std::string> GenerateSourceFileContent(
   fw.AppendEmptyLine();
   fw.AppendLine(absl::StrCat("}  // namespace ", package));
   return std::move(fw).Finish();
-}
-
-std::string MakeHeaderFileName(std::string_view proto_file_name) {
-  std::string_view extension;
-  if (kFileExtensionPattern->PartialMatchArgs(proto_file_name, &extension)) {
-    proto_file_name.remove_suffix(extension.size());
-  }
-  return absl::StrCat(proto_file_name, ".pb.h");
-}
-
-std::string MakeSourceFileName(std::string_view proto_file_name) {
-  std::string_view extension;
-  if (kFileExtensionPattern->PartialMatchArgs(proto_file_name, &extension)) {
-    proto_file_name.remove_suffix(extension.size());
-  }
-  return absl::StrCat(proto_file_name, ".pb.cc");
 }
 
 absl::StatusOr<CodeGeneratorResponse_File> GenerateHeaderFile(
