@@ -25,7 +25,6 @@
 
 namespace tsdb2 {
 namespace proto {
-namespace generator {
 
 namespace {
 
@@ -52,17 +51,9 @@ tsdb2::common::NoDestructor<tsdb2::common::RE> const kPackagePattern{
 tsdb2::common::NoDestructor<tsdb2::common::RE> const kFileExtensionPattern{
     tsdb2::common::RE::CreateOrDie("(\\.[^./\\\\]*)$")};
 
-absl::StatusOr<std::string> GetHeaderPath(FileDescriptorProto const& file_descriptor) {
-  DEFINE_CONST_OR_RETURN(name, RequireField<kFileDescriptorProtoNameField>(file_descriptor));
-  std::string converted = *name;
-  std::string_view extension;
-  if (kFileExtensionPattern->PartialMatchArgs(converted, &extension)) {
-    converted.erase(converted.size() - extension.size());
-  }
-  return absl::StrCat(converted, ".pb.h");
-}
-
 }  // namespace
+
+namespace generator {
 
 absl::StatusOr<std::vector<uint8_t>> ReadFile(FILE* const fp) {
   std::vector<uint8_t> buffer;
@@ -99,38 +90,23 @@ std::string MakeSourceFileName(std::string_view proto_file_name) {
   return absl::StrCat(proto_file_name, ".pb.cc");
 }
 
-absl::StatusOr<std::string> GetHeaderGuardName(FileDescriptorProto const& file_descriptor) {
-  DEFINE_CONST_OR_RETURN(name, RequireField<kFileDescriptorProtoNameField>(file_descriptor));
-  // TODO: we are replacing only path separators here, but file paths may contain many more symbols.
-  std::string converted = absl::StrReplaceAll(*name, {{"/", "_"}, {"\\", "_"}});
-  std::string_view extension;
-  if (kFileExtensionPattern->PartialMatchArgs(converted, &extension)) {
-    converted.erase(converted.size() - extension.size());
-  }
-  absl::AsciiStrToUpper(&converted);
-  return absl::StrCat("__TSDB2_", converted, "_PB_H__");
+}  // namespace generator
+
+Generator::Generator(google::protobuf::FileDescriptorProto const& file_descriptor)
+    : file_descriptor_(file_descriptor) {
+  // TODO
 }
 
-absl::StatusOr<std::string> GetCppPackage(FileDescriptorProto const& file_descriptor) {
-  DEFINE_CONST_OR_RETURN(package, RequireField<kFileDescriptorProtoPackageField>(file_descriptor));
-  if (!kPackagePattern->Test(*package)) {
-    return absl::InvalidArgumentError(
-        absl::StrCat("package name \"", *package, "\" has an invalid format"));
-  }
-  return absl::StrReplaceAll(*package, {{".", "::"}});
-}
-
-absl::StatusOr<std::string> GenerateHeaderFileContent(
-    google::protobuf::FileDescriptorProto const& file_descriptor) {
+absl::StatusOr<std::string> Generator::GenerateHeaderFileContent() {
   DependencyManager dm;
   FileWriter fw;
-  DEFINE_CONST_OR_RETURN(header_guard_name, GetHeaderGuardName(file_descriptor));
+  DEFINE_CONST_OR_RETURN(header_guard_name, GetHeaderGuardName());
   fw.AppendUnindentedLine(absl::StrCat("#ifndef ", header_guard_name));
   fw.AppendUnindentedLine(absl::StrCat("#define ", header_guard_name));
   fw.AppendEmptyLine();
   fw.AppendUnindentedLine("#include \"proto/wire_format.h\"");
   fw.AppendEmptyLine();
-  DEFINE_CONST_OR_RETURN(package, GetCppPackage(file_descriptor));
+  DEFINE_CONST_OR_RETURN(package, GetCppPackage());
   fw.AppendLine(absl::StrCat("namespace ", package, " {"));
   fw.AppendEmptyLine();
   // TODO
@@ -141,13 +117,12 @@ absl::StatusOr<std::string> GenerateHeaderFileContent(
   return std::move(fw).Finish();
 }
 
-absl::StatusOr<std::string> GenerateSourceFileContent(
-    google::protobuf::FileDescriptorProto const& file_descriptor) {
+absl::StatusOr<std::string> Generator::GenerateSourceFileContent() {
   FileWriter fw;
-  DEFINE_CONST_OR_RETURN(header_path, GetHeaderPath(file_descriptor));
+  DEFINE_CONST_OR_RETURN(header_path, GetHeaderPath());
   fw.AppendUnindentedLine(absl::StrCat("#include \"", header_path, "\""));
   fw.AppendEmptyLine();
-  DEFINE_CONST_OR_RETURN(package, GetCppPackage(file_descriptor));
+  DEFINE_CONST_OR_RETURN(package, GetCppPackage());
   fw.AppendLine(absl::StrCat("namespace ", package, " {"));
   fw.AppendEmptyLine();
   // TODO
@@ -156,26 +131,54 @@ absl::StatusOr<std::string> GenerateSourceFileContent(
   return std::move(fw).Finish();
 }
 
-absl::StatusOr<CodeGeneratorResponse_File> GenerateHeaderFile(
-    FileDescriptorProto const& file_descriptor) {
-  DEFINE_CONST_OR_RETURN(name, RequireField<kFileDescriptorProtoNameField>(file_descriptor));
-  DEFINE_VAR_OR_RETURN(content, GenerateHeaderFileContent(file_descriptor));
+absl::StatusOr<CodeGeneratorResponse_File> Generator::GenerateHeaderFile() {
+  DEFINE_CONST_OR_RETURN(name, RequireField<kFileDescriptorProtoNameField>(file_descriptor_));
+  DEFINE_VAR_OR_RETURN(content, GenerateHeaderFileContent());
   CodeGeneratorResponse_File file;
-  file.get<kCodeGeneratorResponseFileNameField>() = MakeHeaderFileName(*name);
+  file.get<kCodeGeneratorResponseFileNameField>() = generator::MakeHeaderFileName(*name);
   file.get<kCodeGeneratorResponseFileContentField>() = std::move(content);
   return std::move(file);
 }
 
-absl::StatusOr<CodeGeneratorResponse_File> GenerateSourceFile(
-    FileDescriptorProto const& file_descriptor) {
-  DEFINE_CONST_OR_RETURN(name, RequireField<kFileDescriptorProtoNameField>(file_descriptor));
-  DEFINE_VAR_OR_RETURN(content, GenerateSourceFileContent(file_descriptor));
+absl::StatusOr<CodeGeneratorResponse_File> Generator::GenerateSourceFile() {
+  DEFINE_CONST_OR_RETURN(name, RequireField<kFileDescriptorProtoNameField>(file_descriptor_));
+  DEFINE_VAR_OR_RETURN(content, GenerateSourceFileContent());
   CodeGeneratorResponse_File file;
-  file.get<kCodeGeneratorResponseFileNameField>() = MakeSourceFileName(*name);
+  file.get<kCodeGeneratorResponseFileNameField>() = generator::MakeSourceFileName(*name);
   file.get<kCodeGeneratorResponseFileContentField>() = std::move(content);
   return std::move(file);
 }
 
-}  // namespace generator
+absl::StatusOr<std::string> Generator::GetHeaderPath() {
+  DEFINE_CONST_OR_RETURN(name, RequireField<kFileDescriptorProtoNameField>(file_descriptor_));
+  std::string converted = *name;
+  std::string_view extension;
+  if (kFileExtensionPattern->PartialMatchArgs(converted, &extension)) {
+    converted.erase(converted.size() - extension.size());
+  }
+  return absl::StrCat(converted, ".pb.h");
+}
+
+absl::StatusOr<std::string> Generator::GetHeaderGuardName() {
+  DEFINE_CONST_OR_RETURN(name, RequireField<kFileDescriptorProtoNameField>(file_descriptor_));
+  // TODO: we are replacing only path separators here, but file paths may contain many more symbols.
+  std::string converted = absl::StrReplaceAll(*name, {{"/", "_"}, {"\\", "_"}});
+  std::string_view extension;
+  if (kFileExtensionPattern->PartialMatchArgs(converted, &extension)) {
+    converted.erase(converted.size() - extension.size());
+  }
+  absl::AsciiStrToUpper(&converted);
+  return absl::StrCat("__TSDB2_", converted, "_PB_H__");
+}
+
+absl::StatusOr<std::string> Generator::GetCppPackage() {
+  DEFINE_CONST_OR_RETURN(package, RequireField<kFileDescriptorProtoPackageField>(file_descriptor_));
+  if (!kPackagePattern->Test(*package)) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("package name \"", *package, "\" has an invalid format"));
+  }
+  return absl::StrReplaceAll(*package, {{".", "::"}});
+}
+
 }  // namespace proto
 }  // namespace tsdb2

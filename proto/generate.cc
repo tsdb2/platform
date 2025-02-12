@@ -37,9 +37,8 @@ using ::google::protobuf::FileDescriptorProto;
 using ::google::protobuf::FileDescriptorSet;
 using ::google::protobuf::kFileDescriptorProtoNameField;
 using ::google::protobuf::kFileDescriptorSetFileField;
+using ::tsdb2::proto::Generator;
 using ::tsdb2::proto::RequireField;
-using ::tsdb2::proto::generator::GenerateHeaderFileContent;
-using ::tsdb2::proto::generator::GenerateSourceFileContent;
 using ::tsdb2::proto::generator::MakeHeaderFileName;
 using ::tsdb2::proto::generator::MakeSourceFileName;
 using ::tsdb2::proto::generator::ReadFile;
@@ -120,15 +119,16 @@ std::string GetFilePath(std::string_view const file_name) {
 absl::Status GenerateFilePair(FileDescriptorProto const& descriptor) {
   DEFINE_CONST_OR_RETURN(name, RequireField<kFileDescriptorProtoNameField>(descriptor));
   LOG(INFO) << "generating header/source pair for " << name;
+  Generator generator{descriptor};
   {
-    DEFINE_CONST_OR_RETURN(header, GenerateHeaderFileContent(descriptor));
+    DEFINE_CONST_OR_RETURN(header, generator.GenerateHeaderFileContent());
     auto const file_path = GetFilePath(MakeHeaderFileName(*name));
     LOG(INFO) << "writing " << file_path;
     DEFINE_VAR_OR_RETURN(header_file, File::Create(file_path));
     RETURN_IF_ERROR(header_file.Write(header));
   }
   {
-    DEFINE_CONST_OR_RETURN(source, GenerateSourceFileContent(descriptor));
+    DEFINE_CONST_OR_RETURN(source, generator.GenerateSourceFileContent());
     auto const file_path = GetFilePath(MakeSourceFileName(*name));
     LOG(INFO) << "writing " << file_path;
     DEFINE_VAR_OR_RETURN(source_file, File::Create(file_path));

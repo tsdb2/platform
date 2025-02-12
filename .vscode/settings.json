@@ -97,5 +97,6 @@
     "${workspaceFolder}/bazel-platform/external/googletest+/googlemock/include",
     "${workspaceFolder}/bazel-platform/external/googletest+/googletest/include"
   ],
-  "clangd.path": "/usr/bin/clangd-18"
+  "clangd.path": "/usr/bin/clangd-18",
+  "editor.tabSize": 2
 }

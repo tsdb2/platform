@@ -21,8 +21,7 @@ using ::google::protobuf::compiler::CodeGeneratorResponse_Feature;
 using ::google::protobuf::compiler::kCodeGeneratorRequestProtoFileField;
 using ::google::protobuf::compiler::kCodeGeneratorResponseFileField;
 using ::google::protobuf::compiler::kCodeGeneratorResponseSupportedFeaturesField;
-using ::tsdb2::proto::generator::GenerateHeaderFile;
-using ::tsdb2::proto::generator::GenerateSourceFile;
+using ::tsdb2::proto::Generator;
 using ::tsdb2::proto::generator::ReadFile;
 using ::tsdb2::proto::generator::WriteFile;
 
@@ -31,9 +30,10 @@ absl::StatusOr<CodeGeneratorResponse> Run(CodeGeneratorRequest const& request) {
   response.get<kCodeGeneratorResponseSupportedFeaturesField>() =
       tsdb2::util::to_underlying(CodeGeneratorResponse_Feature::FEATURE_NONE);
   for (auto const& proto_file : request.get<kCodeGeneratorRequestProtoFileField>()) {
-    DEFINE_VAR_OR_RETURN(header_file, GenerateHeaderFile(proto_file));
+    Generator generator{proto_file};
+    DEFINE_VAR_OR_RETURN(header_file, generator.GenerateHeaderFile());
     response.get<kCodeGeneratorResponseFileField>().emplace_back(std::move(header_file));
-    DEFINE_VAR_OR_RETURN(source_file, GenerateSourceFile(proto_file));
+    DEFINE_VAR_OR_RETURN(source_file, generator.GenerateSourceFile());
     response.get<kCodeGeneratorResponseFileField>().emplace_back(std::move(source_file));
   }
   return std::move(response);
