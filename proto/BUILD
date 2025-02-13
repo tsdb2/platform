@@ -108,6 +108,7 @@ proto_library(
 cc_proto_library(
     name = "descriptor_cc_proto",
     proto = ":descriptor_proto",
+    visibility = ["//visibility:public"],
 )
 
 cc_library(
@@ -119,9 +120,11 @@ cc_library(
         ":file_writer",
         ":object",
         ":temp_descriptor",
+        "//common:flat_map",
         "//common:no_destructor",
         "//common:re",
         "//common:utilities",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

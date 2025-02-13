@@ -145,22 +145,22 @@ absl::StatusOr<FileDescriptorSet> ReadFileDescriptorSet(std::string_view const f
 absl::Status ProcessFileDescriptorSet(std::string_view const file_path) {
   LOG(INFO) << "processing " << file_path;
   DEFINE_CONST_OR_RETURN(descriptor_set, ReadFileDescriptorSet(file_path));
+  absl::Status status = absl::OkStatus();
   for (auto const& descriptor : descriptor_set.get<kFileDescriptorSetFileField>()) {
-    auto const status = GenerateFilePair(descriptor);
-    LOG_IF(ERROR, !status.ok()) << "" << status;
+    status.Update(GenerateFilePair(descriptor));
   }
-  return absl::OkStatus();
+  return status;
 }
 
 absl::Status Run() {
   LOG(INFO) << "current working directory: " << ::get_current_dir_name();
   LOG(INFO) << "root path: " << absl::GetFlag(FLAGS_root_path).value_or("<none>");
+  absl::Status status = absl::OkStatus();
   for (auto const& file_path : absl::GetFlag(FLAGS_file_descriptor_sets)) {
-    auto const status = ProcessFileDescriptorSet(file_path);
-    LOG_IF(ERROR, !status.ok()) << "" << status;
+    status.Update(ProcessFileDescriptorSet(file_path));
   }
   LOG(INFO) << "done";
-  return absl::OkStatus();
+  return status;
 }
 
 }  // namespace

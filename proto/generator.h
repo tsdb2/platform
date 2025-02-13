@@ -13,6 +13,7 @@
 #include "absl/types/span.h"
 #include "proto/dependencies.h"
 #include "proto/descriptor.h"
+#include "proto/file_writer.h"
 
 namespace tsdb2 {
 namespace proto {
@@ -39,6 +40,12 @@ class Generator {
   absl::StatusOr<google::protobuf::compiler::CodeGeneratorResponse_File> GenerateSourceFile();
 
  private:
+  static internal::DependencyManager::Path GetPackagePath(
+      google::protobuf::FileDescriptorProto const& file_descriptor);
+
+  static absl::StatusOr<internal::DependencyManager::Path> GetTypePath(
+      internal::DependencyManager::PathView package_path, std::string_view type_name);
+
   explicit Generator(google::protobuf::FileDescriptorProto const& file_descriptor,
                      internal::DependencyManager dependencies)
       : file_descriptor_(file_descriptor), dependencies_(std::move(dependencies)) {}
@@ -46,6 +53,18 @@ class Generator {
   absl::StatusOr<std::string> GetHeaderPath();
   absl::StatusOr<std::string> GetHeaderGuardName();
   absl::StatusOr<std::string> GetCppPackage();
+
+  static absl::Status AppendEnum(internal::FileWriter* writer,
+                                 google::protobuf::EnumDescriptorProto const& enum_descriptor);
+
+  static absl::StatusOr<std::string> GetFieldType(
+      google::protobuf::FieldDescriptorProto const& descriptor);
+
+  static absl::Status AppendMessage(internal::FileWriter* writer,
+                                    google::protobuf::DescriptorProto const& descriptor);
+
+  absl::Status AppendMessages(internal::FileWriter* writer,
+                              absl::Span<google::protobuf::DescriptorProto const> descriptors);
 
   google::protobuf::FileDescriptorProto const& file_descriptor_;
   internal::DependencyManager dependencies_;

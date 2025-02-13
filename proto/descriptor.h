@@ -167,11 +167,13 @@ using FieldDescriptorProto = tsdb2::proto::Object<
 char constexpr kDescriptorProtoNameField[] = "name";
 char constexpr kDescriptorProtoFieldField[] = "field";
 char constexpr kDescriptorProtoExtensionField[] = "extension";
+char constexpr kDescriptorProtoEnumTypeField[] = "enum_type";
 
 using DescriptorProto = tsdb2::proto::Object<
     tsdb2::proto::Field<std::optional<std::string>, kDescriptorProtoNameField, 1>,
     tsdb2::proto::Field<std::vector<FieldDescriptorProto>, kDescriptorProtoFieldField, 2>,
-    tsdb2::proto::Field<std::vector<FieldDescriptorProto>, kDescriptorProtoExtensionField, 6>>;
+    tsdb2::proto::Field<std::vector<FieldDescriptorProto>, kDescriptorProtoExtensionField, 6>,
+    tsdb2::proto::Field<std::vector<EnumDescriptorProto>, kDescriptorProtoEnumTypeField, 4>>;
 
 char constexpr kFileDescriptorProtoNameField[] = "name";
 char constexpr kFileDescriptorProtoPackageField[] = "package";

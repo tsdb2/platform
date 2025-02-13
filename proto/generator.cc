@@ -9,12 +9,16 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
+#include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_replace.h"
+#include "absl/strings/str_split.h"
 #include "absl/types/span.h"
+#include "common/flat_map.h"
 #include "common/no_destructor.h"
 #include "common/re.h"
 #include "common/utilities.h"
@@ -28,11 +32,20 @@ namespace proto {
 
 namespace {
 
+using ::google::protobuf::FieldDescriptorProto_Label;
+using ::google::protobuf::FieldDescriptorProto_Type;
 using ::google::protobuf::FileDescriptorProto;
+using ::google::protobuf::kDescriptorProtoEnumTypeField;
+using ::google::protobuf::kDescriptorProtoFieldField;
+using ::google::protobuf::kDescriptorProtoNameField;
 using ::google::protobuf::kEnumDescriptorProtoNameField;
 using ::google::protobuf::kEnumDescriptorProtoValueField;
 using ::google::protobuf::kEnumValueDescriptorProtoNameField;
 using ::google::protobuf::kEnumValueDescriptorProtoNumberField;
+using ::google::protobuf::kFieldDescriptorProtoLabelField;
+using ::google::protobuf::kFieldDescriptorProtoNameField;
+using ::google::protobuf::kFieldDescriptorProtoTypeField;
+using ::google::protobuf::kFieldDescriptorProtoTypeNameField;
 using ::google::protobuf::kFileDescriptorProtoEnumTypeField;
 using ::google::protobuf::kFileDescriptorProtoMessageTypeField;
 using ::google::protobuf::kFileDescriptorProtoNameField;
@@ -49,13 +62,34 @@ using ::google::protobuf::compiler::kCodeGeneratorResponseSupportedFeaturesField
 using ::tsdb2::proto::kInitialize;
 using ::tsdb2::proto::RequireField;
 using ::tsdb2::proto::internal::DependencyManager;
-using ::tsdb2::proto::internal::FileWriter;
+
+tsdb2::common::NoDestructor<tsdb2::common::RE> const kIdentifierPattern{
+    tsdb2::common::RE::CreateOrDie("^[_A-Za-z][_A-Za-z0-9]*$")};
 
 tsdb2::common::NoDestructor<tsdb2::common::RE> const kPackagePattern{
-    tsdb2::common::RE::CreateOrDie("^[A-Za-z][A-Za-z0-9]*(?:\\.[A-Za-z][A-Za-z0-9]*)*$")};
+    tsdb2::common::RE::CreateOrDie("^[_A-Za-z][_A-Za-z0-9]*(?:\\.[_A-Za-z][_A-Za-z0-9]*)*$")};
 
 tsdb2::common::NoDestructor<tsdb2::common::RE> const kFileExtensionPattern{
     tsdb2::common::RE::CreateOrDie("(\\.[^./\\\\]*)$")};
+
+auto constexpr kFieldTypeNames =
+    tsdb2::common::fixed_flat_map_of<FieldDescriptorProto_Type, std::string_view>({
+        {FieldDescriptorProto_Type::TYPE_DOUBLE, "double"},
+        {FieldDescriptorProto_Type::TYPE_FLOAT, "float"},
+        {FieldDescriptorProto_Type::TYPE_INT64, "int64_t"},
+        {FieldDescriptorProto_Type::TYPE_UINT64, "uint64_t"},
+        {FieldDescriptorProto_Type::TYPE_INT32, "int32_t"},
+        {FieldDescriptorProto_Type::TYPE_FIXED64, "uint64_t"},
+        {FieldDescriptorProto_Type::TYPE_FIXED32, "uint32_t"},
+        {FieldDescriptorProto_Type::TYPE_BOOL, "bool"},
+        {FieldDescriptorProto_Type::TYPE_STRING, "std::string"},
+        {FieldDescriptorProto_Type::TYPE_BYTES, "std::vector<uint8_t>"},
+        {FieldDescriptorProto_Type::TYPE_UINT32, "uint32_t"},
+        {FieldDescriptorProto_Type::TYPE_SFIXED32, "int32_t"},
+        {FieldDescriptorProto_Type::TYPE_SFIXED64, "int64_t"},
+        {FieldDescriptorProto_Type::TYPE_SINT32, "int32_t"},
+        {FieldDescriptorProto_Type::TYPE_SINT64, "int64_t"},
+    });
 
 }  // namespace
 
@@ -100,11 +134,30 @@ std::string MakeSourceFileName(std::string_view proto_file_name) {
 
 absl::StatusOr<Generator> Generator::Create(
     google::protobuf::FileDescriptorProto const& file_descriptor) {
-  internal::DependencyManager dependencies;
-  for (auto const& message_type : file_descriptor.get<kFileDescriptorProtoMessageTypeField>()) {
-    DEFINE_CONST_OR_RETURN(name, RequireField<kEnumDescriptorProtoNameField>(message_type));
+  auto const package_path = GetPackagePath(file_descriptor);
+  DependencyManager dependencies;
+  for (auto const& enum_type : file_descriptor.get<kFileDescriptorProtoEnumTypeField>()) {
+    DEFINE_CONST_OR_RETURN(name, RequireField<kEnumDescriptorProtoNameField>(enum_type));
     dependencies.AddNode({*name});
-    // TODO: add dependencies.
+  }
+  for (auto const& message_type : file_descriptor.get<kFileDescriptorProtoMessageTypeField>()) {
+    DEFINE_CONST_OR_RETURN(message_name, RequireField<kEnumDescriptorProtoNameField>(message_type));
+    dependencies.AddNode({*message_name});
+    for (auto const& enum_type : message_type.get<kDescriptorProtoEnumTypeField>()) {
+      DEFINE_CONST_OR_RETURN(enum_name, RequireField<kEnumDescriptorProtoNameField>(enum_type));
+      dependencies.AddNode({*message_name, *enum_name});
+    }
+  }
+  for (auto const& message_type : file_descriptor.get<kFileDescriptorProtoMessageTypeField>()) {
+    DEFINE_CONST_OR_RETURN(message_name, RequireField<kEnumDescriptorProtoNameField>(message_type));
+    for (auto const& field : message_type.get<kDescriptorProtoFieldField>()) {
+      auto const& maybe_type_name = field.get<kFieldDescriptorProtoTypeNameField>();
+      if (maybe_type_name.has_value()) {
+        DEFINE_CONST_OR_RETURN(type_path, GetTypePath(package_path, maybe_type_name.value()));
+        DEFINE_CONST_OR_RETURN(field_name, RequireField<kFieldDescriptorProtoNameField>(field));
+        dependencies.AddDependency({*message_name}, type_path, *field_name);
+      }
+    }
   }
   auto const cycles = dependencies.FindCycles({});
   if (!cycles.empty()) {
@@ -114,56 +167,55 @@ absl::StatusOr<Generator> Generator::Create(
 }
 
 absl::StatusOr<std::string> Generator::GenerateHeaderFileContent() {
-  DependencyManager dm;
-  FileWriter fw;
+  internal::FileWriter fw;
   DEFINE_CONST_OR_RETURN(header_guard_name, GetHeaderGuardName());
   fw.AppendUnindentedLine(absl::StrCat("#ifndef ", header_guard_name));
   fw.AppendUnindentedLine(absl::StrCat("#define ", header_guard_name));
   fw.AppendEmptyLine();
+  fw.AppendUnindentedLine("#include <cstdint>");
   fw.AppendUnindentedLine("#include <optional>");
   fw.AppendUnindentedLine("#include <string>");
   fw.AppendUnindentedLine("#include <vector>");
   fw.AppendEmptyLine();
   fw.AppendUnindentedLine("#include \"proto/wire_format.h\"");
-  fw.AppendEmptyLine();
   DEFINE_CONST_OR_RETURN(package, GetCppPackage());
-  fw.AppendLine(absl::StrCat("namespace ", package, " {"));
+  if (!package.empty()) {
+    fw.AppendEmptyLine();
+    fw.AppendLine(absl::StrCat("namespace ", package, " {"));
+  }
   for (auto const& enum_type : file_descriptor_.get<kFileDescriptorProtoEnumTypeField>()) {
     fw.AppendEmptyLine();
-    DEFINE_CONST_OR_RETURN(name, RequireField<kEnumDescriptorProtoNameField>(enum_type));
-    fw.AppendLine(absl::StrCat("enum class ", *name, " {"));
-    {
-      FileWriter::IndentedScope is{&fw};
-      for (auto const& value : enum_type.get<kEnumDescriptorProtoValueField>()) {
-        DEFINE_CONST_OR_RETURN(name, RequireField<kEnumValueDescriptorProtoNameField>(value));
-        DEFINE_CONST_OR_RETURN(number, RequireField<kEnumValueDescriptorProtoNumberField>(value));
-        fw.AppendLine(absl::StrCat(*name, " = ", *number, ","));
-      }
-    }
-    fw.AppendLine("};");
+    RETURN_IF_ERROR(AppendEnum(&fw, enum_type));
   }
   for (auto const& message_type : file_descriptor_.get<kFileDescriptorProtoMessageTypeField>()) {
-    // TODO
+    fw.AppendEmptyLine();
+    RETURN_IF_ERROR(AppendMessage(&fw, message_type));
   }
   fw.AppendEmptyLine();
-  fw.AppendLine(absl::StrCat("}  // namespace ", package));
-  fw.AppendEmptyLine();
+  if (!package.empty()) {
+    fw.AppendLine(absl::StrCat("}  // namespace ", package));
+    fw.AppendEmptyLine();
+  }
   fw.AppendUnindentedLine(absl::StrCat("#endif  // ", header_guard_name));
   return std::move(fw).Finish();
 }
 
 absl::StatusOr<std::string> Generator::GenerateSourceFileContent() {
-  FileWriter fw;
+  internal::FileWriter fw;
   DEFINE_CONST_OR_RETURN(header_path, GetHeaderPath());
   fw.AppendUnindentedLine(absl::StrCat("#include \"", header_path, "\""));
-  fw.AppendEmptyLine();
   DEFINE_CONST_OR_RETURN(package, GetCppPackage());
-  fw.AppendLine(absl::StrCat("namespace ", package, " {"));
+  if (!package.empty()) {
+    fw.AppendEmptyLine();
+    fw.AppendLine(absl::StrCat("namespace ", package, " {"));
+  }
   for (auto const& message_type : file_descriptor_.get<kFileDescriptorProtoMessageTypeField>()) {
     // TODO
   }
-  fw.AppendEmptyLine();
-  fw.AppendLine(absl::StrCat("}  // namespace ", package));
+  if (!package.empty()) {
+    fw.AppendEmptyLine();
+    fw.AppendLine(absl::StrCat("}  // namespace ", package));
+  }
   return std::move(fw).Finish();
 }
 
@@ -183,6 +235,53 @@ absl::StatusOr<CodeGeneratorResponse_File> Generator::GenerateSourceFile() {
   file.get<kCodeGeneratorResponseFileNameField>() = generator::MakeSourceFileName(*name);
   file.get<kCodeGeneratorResponseFileContentField>() = std::move(content);
   return std::move(file);
+}
+
+DependencyManager::Path Generator::GetPackagePath(
+    google::protobuf::FileDescriptorProto const& file_descriptor) {
+  auto const& maybe_package_name = file_descriptor.get<kFileDescriptorProtoPackageField>();
+  if (!maybe_package_name.has_value()) {
+    return DependencyManager::Path();
+  }
+  auto const& package_name = maybe_package_name.value();
+  if (package_name.empty()) {
+    return DependencyManager::Path();
+  }
+  DependencyManager::Path path;
+  for (auto const component : absl::StrSplit(package_name, '.')) {
+    path.emplace_back(component);
+  }
+  return path;
+}
+
+absl::StatusOr<DependencyManager::Path> Generator::GetTypePath(
+    DependencyManager::PathView const package_path, std::string_view const type_name) {
+  auto const splitter = absl::StrSplit(type_name, '.');
+  std::vector<std::string> const components{splitter.begin(), splitter.end()};
+  if (components.empty()) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("invalid type name: \"", absl::CEscape(type_name), "\""));
+  }
+  if (components.front().empty()) {
+    // TODO: implement references to external types.
+    if (components.size() < package_path.size() + 2) {
+      return absl::UnimplementedError(absl::StrCat("cannot resolve \"", absl::CEscape(type_name),
+                                                   "\": external types not yet implemented"));
+    }
+    size_t offset = 1;
+    for (; offset <= package_path.size(); ++offset) {
+      if (components[offset] != package_path[offset - 1]) {
+        return absl::UnimplementedError(absl::StrCat("cannot resolve \"", absl::CEscape(type_name),
+                                                     "\": external types not yet implemented"));
+      }
+    }
+    return DependencyManager::Path{components.begin() + offset, components.end()};
+  } else {
+    // TODO: C++ semantics search algorithm
+    return absl::UnimplementedError(
+        absl::StrCat("cannot resolve \"", absl::CEscape(type_name),
+                     "\": partially qualified types not yet implemented"));
+  }
 }
 
 absl::StatusOr<std::string> Generator::GetHeaderPath() {
@@ -208,12 +307,107 @@ absl::StatusOr<std::string> Generator::GetHeaderGuardName() {
 }
 
 absl::StatusOr<std::string> Generator::GetCppPackage() {
-  DEFINE_CONST_OR_RETURN(package, RequireField<kFileDescriptorProtoPackageField>(file_descriptor_));
-  if (!kPackagePattern->Test(*package)) {
-    return absl::InvalidArgumentError(
-        absl::StrCat("package name \"", *package, "\" has an invalid format"));
+  auto const& maybe_package = file_descriptor_.get<kFileDescriptorProtoPackageField>();
+  if (!maybe_package.has_value()) {
+    return "";
   }
-  return absl::StrReplaceAll(*package, {{".", "::"}});
+  auto const& package_name = maybe_package.value();
+  if (!kPackagePattern->Test(package_name)) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("package name \"", absl::CEscape(package_name), "\" has an invalid format"));
+  }
+  return absl::StrReplaceAll(package_name, {{".", "::"}});
+}
+
+absl::Status Generator::AppendEnum(internal::FileWriter* const writer,
+                                   google::protobuf::EnumDescriptorProto const& enum_descriptor) {
+  DEFINE_CONST_OR_RETURN(name, RequireField<kEnumDescriptorProtoNameField>(enum_descriptor));
+  if (!kIdentifierPattern->Test(*name)) {
+    return absl::InvalidArgumentError(absl::StrCat("invalid enum name: \"", *name, "\""));
+  }
+  writer->AppendLine(absl::StrCat("enum class ", *name, " {"));
+  {
+    internal::FileWriter::IndentedScope is{writer};
+    for (auto const& value : enum_descriptor.get<kEnumDescriptorProtoValueField>()) {
+      DEFINE_CONST_OR_RETURN(name, RequireField<kEnumValueDescriptorProtoNameField>(value));
+      if (!kIdentifierPattern->Test(*name)) {
+        return absl::InvalidArgumentError(absl::StrCat("invalid enum value name: \"", *name, "\""));
+      }
+      DEFINE_CONST_OR_RETURN(number, RequireField<kEnumValueDescriptorProtoNumberField>(value));
+      writer->AppendLine(absl::StrCat(*name, " = ", *number, ","));
+    }
+  }
+  writer->AppendLine("};");
+  return absl::OkStatus();
+}
+
+absl::StatusOr<std::string> Generator::GetFieldType(
+    google::protobuf::FieldDescriptorProto const& descriptor) {
+  auto const& maybe_type_name = descriptor.get<kFieldDescriptorProtoTypeNameField>();
+  if (maybe_type_name.has_value()) {
+    return absl::StrReplaceAll(maybe_type_name.value(), {{".", "::"}});
+  }
+  DEFINE_CONST_OR_RETURN(type, RequireField<kFieldDescriptorProtoTypeField>(descriptor));
+  auto const it = kFieldTypeNames.find(*type);
+  if (it == kFieldTypeNames.end()) {
+    return absl::InvalidArgumentError("invalid field type");
+  }
+  return std::string(it->second);
+}
+
+absl::Status Generator::AppendMessage(internal::FileWriter* const writer,
+                                      google::protobuf::DescriptorProto const& descriptor) {
+  DEFINE_CONST_OR_RETURN(name, RequireField<kDescriptorProtoNameField>(descriptor));
+  if (!kIdentifierPattern->Test(*name)) {
+    return absl::InvalidArgumentError(absl::StrCat("invalid message name: \"", *name, "\""));
+  }
+  writer->AppendLine(absl::StrCat("struct ", *name, " {"));
+  {
+    internal::FileWriter::IndentedScope is{writer};
+    for (auto const& enum_type : descriptor.get<kDescriptorProtoEnumTypeField>()) {
+      RETURN_IF_ERROR(AppendEnum(writer, enum_type));
+      writer->AppendEmptyLine();
+    }
+    for (auto const& field : descriptor.get<kDescriptorProtoFieldField>()) {
+      DEFINE_CONST_OR_RETURN(name, RequireField<kFieldDescriptorProtoNameField>(field));
+      if (!kIdentifierPattern->Test(*name)) {
+        return absl::InvalidArgumentError(absl::StrCat("invalid field name: \"", *name, "\""));
+      }
+      DEFINE_CONST_OR_RETURN(label, RequireField<kFieldDescriptorProtoLabelField>(field));
+      DEFINE_CONST_OR_RETURN(type, GetFieldType(field));
+      switch (*label) {
+        case FieldDescriptorProto_Label::LABEL_OPTIONAL:
+          writer->AppendLine(absl::StrCat("std::optional<", type, "> ", *name, ";"));
+          break;
+        case FieldDescriptorProto_Label::LABEL_REPEATED:
+          writer->AppendLine(absl::StrCat("std::vector<", type, "> ", *name, ";"));
+          break;
+        case FieldDescriptorProto_Label::LABEL_REQUIRED:
+          writer->AppendLine(absl::StrCat(type, " ", *name, ";"));
+          break;
+        default:
+          return absl::InvalidArgumentError("unknown value for field label");
+      }
+    }
+  }
+  writer->AppendLine("};");
+  return absl::OkStatus();
+}
+
+absl::Status Generator::AppendMessages(
+    internal::FileWriter* const writer,
+    absl::Span<google::protobuf::DescriptorProto const> const descriptors) {
+  absl::flat_hash_map<std::string, google::protobuf::DescriptorProto const*> descriptors_by_name;
+  descriptors_by_name.reserve(descriptors.size());
+  for (auto const& descriptor : descriptors) {
+    DEFINE_CONST_OR_RETURN(name, RequireField<kDescriptorProtoNameField>(descriptor));
+    descriptors_by_name.try_emplace(*name, &descriptor);
+  }
+  for (auto const& name : dependencies_.MakeOrder({})) {
+    writer->AppendEmptyLine();
+    RETURN_IF_ERROR(AppendMessage(writer, *descriptors_by_name[name]));
+  }
+  return absl::OkStatus();
 }
 
 }  // namespace proto
