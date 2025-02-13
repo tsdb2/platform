@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -28,7 +29,8 @@ std::string MakeSourceFileName(std::string_view proto_file_name);
 
 class Generator {
  public:
-  explicit Generator(google::protobuf::FileDescriptorProto const& file_descriptor);
+  static absl::StatusOr<Generator> Create(
+      google::protobuf::FileDescriptorProto const& file_descriptor);
 
   absl::StatusOr<std::string> GenerateHeaderFileContent();
   absl::StatusOr<std::string> GenerateSourceFileContent();
@@ -37,6 +39,10 @@ class Generator {
   absl::StatusOr<google::protobuf::compiler::CodeGeneratorResponse_File> GenerateSourceFile();
 
  private:
+  explicit Generator(google::protobuf::FileDescriptorProto const& file_descriptor,
+                     internal::DependencyManager dependencies)
+      : file_descriptor_(file_descriptor), dependencies_(std::move(dependencies)) {}
+
   absl::StatusOr<std::string> GetHeaderPath();
   absl::StatusOr<std::string> GetHeaderGuardName();
   absl::StatusOr<std::string> GetCppPackage();

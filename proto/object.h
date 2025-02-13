@@ -218,6 +218,19 @@ struct FieldDecoder<FieldImpl<uint64_t, Name, tag>> {
   }
 };
 
+template <typename Enum, typename Name, size_t tag>
+struct FieldDecoder<FieldImpl<Enum, Name, tag>, std::enable_if_t<std::is_enum_v<Enum>>> {
+  absl::Status operator()(Decoder *const decoder, WireType const wire_type,
+                          Enum *const value) const {
+    if (wire_type == WireType::kVarInt) {
+      return absl::InvalidArgumentError("invalid wire type for enum");
+    }
+    DEFINE_CONST_OR_RETURN(decoded, decoder->DecodeInteger<std::underlying_type_t<Enum>>());
+    *value = static_cast<Enum>(decoded);
+    return absl::OkStatus();
+  }
+};
+
 template <typename Name, size_t tag>
 struct FieldDecoder<FieldImpl<float, Name, tag>> {
   absl::Status operator()(Decoder *const decoder, WireType const wire_type,
@@ -796,9 +809,6 @@ struct Object<internal::FieldImpl<Type, Name, tag>,
       : Object<OtherFields...>::template ConstGetter<
             tsdb2::common::TypeStringMatcher<field_name...>>(obj) {}
 };
-
-template <typename... Fields>
-class ObjectDecoder;
 
 namespace internal {
 

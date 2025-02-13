@@ -29,6 +29,12 @@ namespace proto {
 namespace {
 
 using ::google::protobuf::FileDescriptorProto;
+using ::google::protobuf::kEnumDescriptorProtoNameField;
+using ::google::protobuf::kEnumDescriptorProtoValueField;
+using ::google::protobuf::kEnumValueDescriptorProtoNameField;
+using ::google::protobuf::kEnumValueDescriptorProtoNumberField;
+using ::google::protobuf::kFileDescriptorProtoEnumTypeField;
+using ::google::protobuf::kFileDescriptorProtoMessageTypeField;
 using ::google::protobuf::kFileDescriptorProtoNameField;
 using ::google::protobuf::kFileDescriptorProtoPackageField;
 using ::google::protobuf::compiler::CodeGeneratorRequest;
@@ -92,9 +98,19 @@ std::string MakeSourceFileName(std::string_view proto_file_name) {
 
 }  // namespace generator
 
-Generator::Generator(google::protobuf::FileDescriptorProto const& file_descriptor)
-    : file_descriptor_(file_descriptor) {
-  // TODO
+absl::StatusOr<Generator> Generator::Create(
+    google::protobuf::FileDescriptorProto const& file_descriptor) {
+  internal::DependencyManager dependencies;
+  for (auto const& message_type : file_descriptor.get<kFileDescriptorProtoMessageTypeField>()) {
+    DEFINE_CONST_OR_RETURN(name, RequireField<kEnumDescriptorProtoNameField>(message_type));
+    dependencies.AddNode({*name});
+    // TODO: add dependencies.
+  }
+  auto const cycles = dependencies.FindCycles({});
+  if (!cycles.empty()) {
+    return absl::InvalidArgumentError("message dependency cycle detected");
+  }
+  return Generator(file_descriptor, std::move(dependencies));
 }
 
 absl::StatusOr<std::string> Generator::GenerateHeaderFileContent() {
@@ -112,8 +128,23 @@ absl::StatusOr<std::string> Generator::GenerateHeaderFileContent() {
   fw.AppendEmptyLine();
   DEFINE_CONST_OR_RETURN(package, GetCppPackage());
   fw.AppendLine(absl::StrCat("namespace ", package, " {"));
-  fw.AppendEmptyLine();
-  // TODO
+  for (auto const& enum_type : file_descriptor_.get<kFileDescriptorProtoEnumTypeField>()) {
+    fw.AppendEmptyLine();
+    DEFINE_CONST_OR_RETURN(name, RequireField<kEnumDescriptorProtoNameField>(enum_type));
+    fw.AppendLine(absl::StrCat("enum class ", *name, " {"));
+    {
+      FileWriter::IndentedScope is{&fw};
+      for (auto const& value : enum_type.get<kEnumDescriptorProtoValueField>()) {
+        DEFINE_CONST_OR_RETURN(name, RequireField<kEnumValueDescriptorProtoNameField>(value));
+        DEFINE_CONST_OR_RETURN(number, RequireField<kEnumValueDescriptorProtoNumberField>(value));
+        fw.AppendLine(absl::StrCat(*name, " = ", *number, ","));
+      }
+    }
+    fw.AppendLine("};");
+  }
+  for (auto const& message_type : file_descriptor_.get<kFileDescriptorProtoMessageTypeField>()) {
+    // TODO
+  }
   fw.AppendEmptyLine();
   fw.AppendLine(absl::StrCat("}  // namespace ", package));
   fw.AppendEmptyLine();
@@ -128,8 +159,9 @@ absl::StatusOr<std::string> Generator::GenerateSourceFileContent() {
   fw.AppendEmptyLine();
   DEFINE_CONST_OR_RETURN(package, GetCppPackage());
   fw.AppendLine(absl::StrCat("namespace ", package, " {"));
-  fw.AppendEmptyLine();
-  // TODO
+  for (auto const& message_type : file_descriptor_.get<kFileDescriptorProtoMessageTypeField>()) {
+    // TODO
+  }
   fw.AppendEmptyLine();
   fw.AppendLine(absl::StrCat("}  // namespace ", package));
   return std::move(fw).Finish();

@@ -30,7 +30,7 @@ absl::StatusOr<CodeGeneratorResponse> Run(CodeGeneratorRequest const& request) {
   response.get<kCodeGeneratorResponseSupportedFeaturesField>() =
       tsdb2::util::to_underlying(CodeGeneratorResponse_Feature::FEATURE_NONE);
   for (auto const& proto_file : request.get<kCodeGeneratorRequestProtoFileField>()) {
-    Generator generator{proto_file};
+    DEFINE_VAR_OR_RETURN(generator, Generator::Create(proto_file));
     DEFINE_VAR_OR_RETURN(header_file, generator.GenerateHeaderFile());
     response.get<kCodeGeneratorResponseFileField>().emplace_back(std::move(header_file));
     DEFINE_VAR_OR_RETURN(source_file, generator.GenerateSourceFile());

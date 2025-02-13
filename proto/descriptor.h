@@ -80,6 +80,27 @@ char constexpr kSourceCodeInfoLocationField[] = "location";
 using SourceCodeInfo = tsdb2::proto::Object<
     tsdb2::proto::Field<std::vector<SourceCodeInfo_Location>, kSourceCodeInfoLocationField, 1>>;
 
+char constexpr kEnumValueOptionsDeprecatedField[] = "deprecated";
+
+using EnumValueOptions = tsdb2::proto::Object<
+    tsdb2::proto::Field<std::optional<bool>, kEnumValueOptionsDeprecatedField, 1>>;
+
+char constexpr kEnumValueDescriptorProtoNameField[] = "name";
+char constexpr kEnumValueDescriptorProtoNumberField[] = "number";
+char constexpr kEnumValueDescriptorProtoOptionsField[] = "options";
+
+using EnumValueDescriptorProto = tsdb2::proto::Object<
+    tsdb2::proto::Field<std::optional<std::string>, kEnumValueDescriptorProtoNameField, 1>,
+    tsdb2::proto::Field<std::optional<int32_t>, kEnumValueDescriptorProtoNumberField, 2>,
+    tsdb2::proto::Field<std::optional<EnumValueOptions>, kEnumValueDescriptorProtoOptionsField, 3>>;
+
+char constexpr kEnumDescriptorProtoNameField[] = "name";
+char constexpr kEnumDescriptorProtoValueField[] = "value";
+
+using EnumDescriptorProto = tsdb2::proto::Object<
+    tsdb2::proto::Field<std::optional<std::string>, kEnumDescriptorProtoNameField, 1>,
+    tsdb2::proto::Field<std::vector<EnumValueDescriptorProto>, kEnumDescriptorProtoValueField, 2>>;
+
 enum class FieldDescriptorProto_Type {
   TYPE_DOUBLE = 1,
   TYPE_FLOAT = 2,
@@ -156,12 +177,16 @@ char constexpr kFileDescriptorProtoNameField[] = "name";
 char constexpr kFileDescriptorProtoPackageField[] = "package";
 char constexpr kFileDescriptorProtoDependencyField[] = "dependency";
 char constexpr kFileDescriptorProtoPublicDependencyField[] = "public_dependency";
+char constexpr kFileDescriptorProtoMessageTypeField[] = "message_type";
+char constexpr kFileDescriptorProtoEnumTypeField[] = "enum_type";
 
 using FileDescriptorProto = tsdb2::proto::Object<
     tsdb2::proto::Field<std::optional<std::string>, kFileDescriptorProtoNameField, 1>,
     tsdb2::proto::Field<std::optional<std::string>, kFileDescriptorProtoPackageField, 2>,
     tsdb2::proto::Field<std::vector<std::string>, kFileDescriptorProtoDependencyField, 3>,
-    tsdb2::proto::Field<std::vector<int32_t>, kFileDescriptorProtoPublicDependencyField, 10>>;
+    tsdb2::proto::Field<std::vector<int32_t>, kFileDescriptorProtoPublicDependencyField, 10>,
+    tsdb2::proto::Field<std::vector<DescriptorProto>, kFileDescriptorProtoMessageTypeField, 4>,
+    tsdb2::proto::Field<std::vector<EnumDescriptorProto>, kFileDescriptorProtoEnumTypeField, 5>>;
 
 char constexpr kFileDescriptorSetFileField[] = "file";
 

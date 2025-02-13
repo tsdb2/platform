@@ -119,7 +119,7 @@ std::string GetFilePath(std::string_view const file_name) {
 absl::Status GenerateFilePair(FileDescriptorProto const& descriptor) {
   DEFINE_CONST_OR_RETURN(name, RequireField<kFileDescriptorProtoNameField>(descriptor));
   LOG(INFO) << "generating header/source pair for " << name;
-  Generator generator{descriptor};
+  DEFINE_VAR_OR_RETURN(generator, Generator::Create(descriptor));
   {
     DEFINE_CONST_OR_RETURN(header, generator.GenerateHeaderFileContent());
     auto const file_path = GetFilePath(MakeHeaderFileName(*name));
