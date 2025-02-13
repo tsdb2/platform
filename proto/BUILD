@@ -107,9 +107,8 @@ proto_library(
 
 cc_proto_library(
     name = "descriptor_cc_proto",
-    deps = [
-        ":descriptor_proto",
-    ],
+    proto = ":descriptor_proto",
+    deps = [":wire_format"],
 )
 
 cc_library(

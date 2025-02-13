@@ -104,6 +104,10 @@ absl::StatusOr<std::string> Generator::GenerateHeaderFileContent() {
   fw.AppendUnindentedLine(absl::StrCat("#ifndef ", header_guard_name));
   fw.AppendUnindentedLine(absl::StrCat("#define ", header_guard_name));
   fw.AppendEmptyLine();
+  fw.AppendUnindentedLine("#include <optional>");
+  fw.AppendUnindentedLine("#include <string>");
+  fw.AppendUnindentedLine("#include <vector>");
+  fw.AppendEmptyLine();
   fw.AppendUnindentedLine("#include \"proto/wire_format.h\"");
   fw.AppendEmptyLine();
   DEFINE_CONST_OR_RETURN(package, GetCppPackage());
