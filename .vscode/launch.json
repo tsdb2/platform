@@ -10,8 +10,7 @@
       "request": "launch",
       "program": "${fileWorkspaceFolder}/bazel-bin/${relativeFileDirname}/${fileBasenameNoExtension}",
       "args": [
-        "--port=8080",
-        "--http2_io_timeout=1h",
+        "--file_descriptor_sets=/home/jim/tsdb2/platform/bazel-bin/proto/descriptor_proto-descriptor-set.proto.bin",
       ],
       "cwd": "${fileWorkspaceFolder}",
       "sourceMap": [

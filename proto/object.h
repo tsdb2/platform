@@ -86,7 +86,7 @@ template <typename Name, size_t tag>
 struct FieldDecoder<FieldImpl<int8_t, Name, tag>> {
   absl::Status operator()(Decoder *const decoder, WireType const wire_type,
                           int8_t *const value) const {
-    if (wire_type == WireType::kVarInt) {
+    if (wire_type != WireType::kVarInt) {
       return absl::InvalidArgumentError("invalid wire type for int8_t");
     }
     DEFINE_CONST_OR_RETURN(decoded, decoder->DecodeInteger<int8_t>());
@@ -99,7 +99,7 @@ template <typename Name, size_t tag>
 struct FieldDecoder<FieldImpl<uint8_t, Name, tag>> {
   absl::Status operator()(Decoder *const decoder, WireType const wire_type,
                           uint8_t *const value) const {
-    if (wire_type == WireType::kVarInt) {
+    if (wire_type != WireType::kVarInt) {
       return absl::InvalidArgumentError("invalid wire type for uint8_t");
     }
     DEFINE_CONST_OR_RETURN(decoded, decoder->DecodeInteger<uint8_t>());
@@ -112,7 +112,7 @@ template <typename Name, size_t tag>
 struct FieldDecoder<FieldImpl<int16_t, Name, tag>> {
   absl::Status operator()(Decoder *const decoder, WireType const wire_type,
                           int16_t *const value) const {
-    if (wire_type == WireType::kVarInt) {
+    if (wire_type != WireType::kVarInt) {
       return absl::InvalidArgumentError("invalid wire type for int16_t");
     }
     DEFINE_CONST_OR_RETURN(decoded, decoder->DecodeInteger<int16_t>());
@@ -125,7 +125,7 @@ template <typename Name, size_t tag>
 struct FieldDecoder<FieldImpl<uint16_t, Name, tag>> {
   absl::Status operator()(Decoder *const decoder, WireType const wire_type,
                           uint16_t *const value) const {
-    if (wire_type == WireType::kVarInt) {
+    if (wire_type != WireType::kVarInt) {
       return absl::InvalidArgumentError("invalid wire type for uint16_t");
     }
     DEFINE_CONST_OR_RETURN(decoded, decoder->DecodeInteger<uint16_t>());
@@ -222,7 +222,7 @@ template <typename Enum, typename Name, size_t tag>
 struct FieldDecoder<FieldImpl<Enum, Name, tag>, std::enable_if_t<std::is_enum_v<Enum>>> {
   absl::Status operator()(Decoder *const decoder, WireType const wire_type,
                           Enum *const value) const {
-    if (wire_type == WireType::kVarInt) {
+    if (wire_type != WireType::kVarInt) {
       return absl::InvalidArgumentError("invalid wire type for enum");
     }
     DEFINE_CONST_OR_RETURN(decoded, decoder->DecodeInteger<std::underlying_type_t<Enum>>());
