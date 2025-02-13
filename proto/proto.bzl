@@ -14,7 +14,13 @@ def _join_path(*paths):
 
 def _cc_proto_library_impl(ctx):
     proto_info = ctx.attr.proto[ProtoInfo]
-    cc_infos = [dep[CcInfo] for dep in ctx.attr.deps]
+    cc_infos = [
+        dep[CcInfo]
+        for dep in ctx.attr._runtime_deps
+    ] + [
+        dep[CcInfo]
+        for dep in ctx.attr.deps
+    ]
     generated_header_files = []
     generated_source_files = []
     generated_files = []
@@ -76,6 +82,7 @@ cc_proto_library = rule(
         "proto": attr.label(mandatory = True, providers = [ProtoInfo]),
         "deps": attr.label_list(providers = [CcInfo]),
         "_generator": attr.label(default = "//proto:generate", executable = True, cfg = "exec"),
+        "_runtime_deps": attr.label_list(default = ["//proto:wire_format"], providers = [CcInfo]),
 
         # TODO: remove this attribute when https://github.com/bazelbuild/bazel/issues/7260 is
         # resolved. See instructions at
