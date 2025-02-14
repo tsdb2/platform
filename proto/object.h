@@ -508,10 +508,7 @@ template <typename... Fields, typename Name, size_t tag>
 struct FieldDecoder<FieldImpl<Object<Fields...>, Name, tag>> {
   absl::Status operator()(Decoder *const decoder, WireType const wire_type,
                           Object<Fields...> *const value) const {
-    if (wire_type != WireType::kLength) {
-      return absl::InvalidArgumentError("invalid wire type for submessage");
-    }
-    DEFINE_CONST_OR_RETURN(child_span, decoder->GetChildSpan());
+    DEFINE_CONST_OR_RETURN(child_span, decoder->GetChildSpan(wire_type));
     DEFINE_VAR_OR_RETURN(decoded, Object<Fields...>::Decode(child_span));
     value->Merge(std::move(decoded));
     return absl::OkStatus();

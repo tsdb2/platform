@@ -98,8 +98,9 @@ class Decoder {
   absl::StatusOr<float> DecodeFloat(WireType wire_type);
   absl::StatusOr<double> DecodeDouble(WireType wire_type);
   absl::StatusOr<std::string> DecodeString(WireType wire_type);
+  absl::StatusOr<std::vector<uint8_t>> DecodeBytes(WireType wire_type);
 
-  absl::StatusOr<absl::Span<uint8_t const>> GetChildSpan();
+  absl::StatusOr<absl::Span<uint8_t const>> GetChildSpan(WireType wire_type);
 
   template <typename Integer,
             std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>, bool> = true>

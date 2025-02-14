@@ -496,6 +496,74 @@ TEST(DecoderTest, WrongWireTypeForString) {
   EXPECT_THAT(decoder.DecodeString(WireType::kInt32), StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
+TEST(DecoderTest, DecodeEmptyBytes) {
+  std::vector<uint8_t> const data{0x00};
+  Decoder decoder{data};
+  EXPECT_THAT(decoder.DecodeBytes(WireType::kLength), IsOkAndHolds(IsEmpty()));
+}
+
+TEST(DecoderTest, DecodeBytes) {
+  std::vector<uint8_t> const data{0x03, 12, 34, 56};
+  Decoder decoder{data};
+  EXPECT_THAT(decoder.DecodeBytes(WireType::kLength), IsOkAndHolds(ElementsAre(12, 34, 56)));
+  EXPECT_TRUE(decoder.at_end());
+}
+
+TEST(DecoderTest, MoreDataAfterBytes) {
+  std::vector<uint8_t> const data{0x02, 12, 34, 56, 78};
+  Decoder decoder{data};
+  EXPECT_THAT(decoder.DecodeBytes(WireType::kLength), IsOkAndHolds(ElementsAre(12, 34)));
+  EXPECT_FALSE(decoder.at_end());
+}
+
+TEST(DecoderTest, BytesOverflow) {
+  std::vector<uint8_t> const data{0x03, 12, 34};
+  Decoder decoder{data};
+  EXPECT_THAT(decoder.DecodeBytes(WireType::kLength), StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(DecoderTest, IncorrectWireTypeForBytes) {
+  std::vector<uint8_t> const data{0x02, 12, 34};
+  Decoder decoder{data};
+  EXPECT_THAT(decoder.DecodeBytes(WireType::kVarInt), StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(DecoderTest, GetSingleByteChildSpan) {
+  std::vector<uint8_t> const data{0x01, 0x42};
+  Decoder decoder{data};
+  EXPECT_THAT(decoder.GetChildSpan(WireType::kLength), IsOkAndHolds(ElementsAre(0x42)));
+  EXPECT_TRUE(decoder.at_end());
+}
+
+TEST(DecoderTest, GetTwoByteChildSpan) {
+  std::vector<uint8_t> const data{0x02, 0x12, 0x34};
+  Decoder decoder{data};
+  EXPECT_THAT(decoder.GetChildSpan(WireType::kLength), IsOkAndHolds(ElementsAre(0x12, 0x34)));
+  EXPECT_TRUE(decoder.at_end());
+}
+
+TEST(DecoderTest, MoreDataAfterChildSpan) {
+  std::vector<uint8_t> const data{0x01, 0x12, 0x34};
+  Decoder decoder{data};
+  EXPECT_THAT(decoder.GetChildSpan(WireType::kLength), IsOkAndHolds(ElementsAre(0x12)));
+  EXPECT_FALSE(decoder.at_end());
+}
+
+TEST(DecoderTest, ChildSpanTooLong) {
+  std::vector<uint8_t> const data{0x03, 0x12, 0x34};
+  Decoder decoder{data};
+  EXPECT_THAT(decoder.GetChildSpan(WireType::kVarInt),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(DecoderTest, WrongWireTypeForChildSpan) {
+  std::vector<uint8_t> const data{0x01, 0x42};
+  Decoder decoder{data};
+  EXPECT_THAT(decoder.GetChildSpan(WireType::kVarInt),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_FALSE(decoder.at_end());
+}
+
 TEST(DecoderTest, DecodeEmptyPackedInt32s) {
   std::vector<uint8_t> const data{0x00};
   Decoder decoder{data};

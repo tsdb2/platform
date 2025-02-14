@@ -148,7 +148,23 @@ absl::StatusOr<std::string> Decoder::DecodeString(WireType const wire_type) {
   return std::move(value);
 }
 
-absl::StatusOr<absl::Span<uint8_t const>> Decoder::GetChildSpan() {
+absl::StatusOr<std::vector<uint8_t>> Decoder::DecodeBytes(WireType const wire_type) {
+  if (wire_type != WireType::kLength) {
+    return absl::InvalidArgumentError("invalid wire type for bytes");
+  }
+  DEFINE_CONST_OR_RETURN(length, DecodeInteger<size_t>());
+  if (data_.size() < length) {
+    return EndOfInputError();
+  }
+  std::vector<uint8_t> value{data_.begin(), data_.begin() + length};
+  data_.remove_prefix(length);
+  return std::move(value);
+}
+
+absl::StatusOr<absl::Span<uint8_t const>> Decoder::GetChildSpan(WireType const wire_type) {
+  if (wire_type != WireType::kLength) {
+    return absl::InvalidArgumentError("invalid wire type for submessage");
+  }
   DEFINE_CONST_OR_RETURN(length, DecodeInteger<size_t>());
   if (data_.size() < length) {
     return EndOfInputError();

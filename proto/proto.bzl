@@ -82,7 +82,16 @@ cc_proto_library = rule(
         "proto": attr.label(mandatory = True, providers = [ProtoInfo]),
         "deps": attr.label_list(providers = [CcInfo]),
         "_generator": attr.label(default = "//proto:generate", executable = True, cfg = "exec"),
-        "_runtime_deps": attr.label_list(default = ["//proto:wire_format"], providers = [CcInfo]),
+        "_runtime_deps": attr.label_list(
+            default = [
+                "//common:utilities",
+                "//io:cord",
+                "//proto:wire_format",
+                "@com_google_absl//absl/status:statusor",
+                "@com_google_absl//absl/types:span",
+            ],
+            providers = [CcInfo],
+        ),
 
         # TODO: remove this attribute when https://github.com/bazelbuild/bazel/issues/7260 is
         # resolved. See instructions at

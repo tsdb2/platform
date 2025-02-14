@@ -63,11 +63,21 @@ class Generator {
   static absl::Status AppendForwardDeclaration(internal::FileWriter* writer,
                                                google::protobuf::DescriptorProto const& descriptor);
 
-  static absl::Status AppendMessage(internal::FileWriter* writer,
-                                    google::protobuf::DescriptorProto const& descriptor);
+  static absl::Status AppendMessageHeader(internal::FileWriter* writer,
+                                          google::protobuf::DescriptorProto const& descriptor);
 
-  absl::Status AppendMessages(internal::FileWriter* writer,
-                              absl::Span<google::protobuf::DescriptorProto const> descriptors);
+  absl::Status AppendMessageHeaders(
+      internal::FileWriter* writer,
+      absl::Span<google::protobuf::DescriptorProto const> descriptors);
+
+  static absl::Status EmitFieldDecoding(internal::FileWriter* writer,
+                                        google::protobuf::FieldDescriptorProto const& descriptor);
+
+  static absl::Status EmitFieldEncoding(internal::FileWriter* writer,
+                                        google::protobuf::FieldDescriptorProto const& descriptor);
+
+  static absl::Status EmitMessageImplementation(
+      internal::FileWriter* writer, google::protobuf::DescriptorProto const& descriptor);
 
   google::protobuf::FileDescriptorProto const& file_descriptor_;
   internal::DependencyManager dependencies_;
