@@ -60,6 +60,9 @@ class Generator {
   static absl::StatusOr<std::string> GetFieldType(
       google::protobuf::FieldDescriptorProto const& descriptor);
 
+  static absl::Status AppendForwardDeclaration(internal::FileWriter* writer,
+                                               google::protobuf::DescriptorProto const& descriptor);
+
   static absl::Status AppendMessage(internal::FileWriter* writer,
                                     google::protobuf::DescriptorProto const& descriptor);
 

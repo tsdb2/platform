@@ -15,6 +15,7 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
@@ -91,6 +92,23 @@ auto constexpr kFieldTypeNames =
         {FieldDescriptorProto_Type::TYPE_SINT64, "int64_t"},
     });
 
+std::string StringifyCycleItem(std::pair<DependencyManager::Path, std::string> const& item) {
+  return absl::StrCat(absl::StrJoin(item.first, "."), ".", item.second);
+}
+
+std::string MakeCycleMessage(DependencyManager::Cycle const& cycle) {
+  std::vector<std::string> entries;
+  entries.reserve(cycle.size() + 1);
+  for (auto const& item : cycle) {
+    entries.emplace_back(StringifyCycleItem(item));
+  }
+  if (!cycle.empty()) {
+    auto const& first_path = cycle.front().first;
+    entries.emplace_back(absl::StrJoin(first_path, "."));
+  }
+  return absl::StrJoin(entries, " -> ");
+}
+
 }  // namespace
 
 namespace generator {
@@ -161,7 +179,8 @@ absl::StatusOr<Generator> Generator::Create(
   }
   auto const cycles = dependencies.FindCycles({});
   if (!cycles.empty()) {
-    return absl::InvalidArgumentError("message dependency cycle detected");
+    return absl::InvalidArgumentError(
+        absl::StrCat("message dependency cycle detected: ", MakeCycleMessage(cycles.front())));
   }
   return Generator(file_descriptor, std::move(dependencies));
 }
@@ -183,11 +202,18 @@ absl::StatusOr<std::string> Generator::GenerateHeaderFileContent() {
     fw.AppendEmptyLine();
     fw.AppendLine(absl::StrCat("namespace ", package, " {"));
   }
+  auto const& messages = file_descriptor_.get<kFileDescriptorProtoMessageTypeField>();
+  if (!messages.empty()) {
+    fw.AppendEmptyLine();
+    for (auto const& message_type : messages) {
+      RETURN_IF_ERROR(AppendForwardDeclaration(&fw, message_type));
+    }
+  }
   for (auto const& enum_type : file_descriptor_.get<kFileDescriptorProtoEnumTypeField>()) {
     fw.AppendEmptyLine();
     RETURN_IF_ERROR(AppendEnum(&fw, enum_type));
   }
-  for (auto const& message_type : file_descriptor_.get<kFileDescriptorProtoMessageTypeField>()) {
+  for (auto const& message_type : messages) {
     fw.AppendEmptyLine();
     RETURN_IF_ERROR(AppendMessage(&fw, message_type));
   }
@@ -353,6 +379,16 @@ absl::StatusOr<std::string> Generator::GetFieldType(
     return absl::InvalidArgumentError("invalid field type");
   }
   return std::string(it->second);
+}
+
+absl::Status Generator::AppendForwardDeclaration(
+    internal::FileWriter* const writer, google::protobuf::DescriptorProto const& descriptor) {
+  DEFINE_CONST_OR_RETURN(name, RequireField<kDescriptorProtoNameField>(descriptor));
+  if (!kIdentifierPattern->Test(*name)) {
+    return absl::InvalidArgumentError(absl::StrCat("invalid message name: \"", *name, "\""));
+  }
+  writer->AppendLine(absl::StrCat("struct ", *name, ";"));
+  return absl::OkStatus();
 }
 
 absl::Status Generator::AppendMessage(internal::FileWriter* const writer,

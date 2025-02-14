@@ -61,6 +61,30 @@ option cc_enable_arenas = true;
 // algorithms don't work during bootstrapping.
 option optimize_for = SPEED;
 
+// =================================================================================================
+//
+// START TSDB2-SPECIFIC
+//
+// TODO: Move this part to a separate file and move it to a package called `tsdb2`.
+//
+// =================================================================================================
+
+enum IndirectionType {
+  INDIRECTION_DIRECT = 0;
+  INDIRECTION_UNIQUE = 1;
+  INDIRECTION_SHARED = 2;
+}
+
+extend google.protobuf.FieldOptions {
+  optional IndirectionType indirect = 71104;
+}
+
+// =================================================================================================
+//
+// END TSDB2-SPECIFIC
+//
+// =================================================================================================
+
 // The protocol compiler can output a FileDescriptorSet containing the .proto
 // files it parses.
 message FileDescriptorSet {
