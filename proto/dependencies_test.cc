@@ -394,6 +394,9 @@ TEST_F(DependencyManagerTest, SelfCycleWithNestedDependencyAllowed) {
   EXPECT_THAT(dependencies_.FindCycles({}), IsEmpty());
   EXPECT_THAT(dependencies_.FindCycles({"sator"}), IsEmpty());
   EXPECT_THAT(dependencies_.FindCycles({"sator", "arepo"}), IsEmpty());
+  EXPECT_THAT(dependencies_.MakeOrder({}), ElementsAre("sator"));
+  EXPECT_THAT(dependencies_.MakeOrder({"sator"}), ElementsAre("arepo"));
+  EXPECT_THAT(dependencies_.MakeOrder({"sator", "arepo"}), IsEmpty());
 }
 
 TEST_F(DependencyManagerTest, MutualNestedDependencyNotAllowed) {
