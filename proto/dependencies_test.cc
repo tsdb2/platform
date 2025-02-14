@@ -388,4 +388,26 @@ TEST_F(DependencyManagerTest, CrossScopeCycleWithCommonAncestor) {
   EXPECT_THAT(dependencies_.FindCycles({"sator", "tenet", "opera"}), IsEmpty());
 }
 
+TEST_F(DependencyManagerTest, SelfCycleWithNestedDependencyAllowed) {
+  dependencies_.AddNode({"sator", "arepo"});
+  dependencies_.AddDependency({"sator"}, {"sator", "arepo"}, "foo");
+  EXPECT_THAT(dependencies_.FindCycles({}), IsEmpty());
+  EXPECT_THAT(dependencies_.FindCycles({"sator"}), IsEmpty());
+  EXPECT_THAT(dependencies_.FindCycles({"sator", "arepo"}), IsEmpty());
+}
+
+TEST_F(DependencyManagerTest, MutualNestedDependencyNotAllowed) {
+  dependencies_.AddNode({"sator", "tenet"});
+  dependencies_.AddNode({"arepo", "opera"});
+  dependencies_.AddDependency({"sator"}, {"arepo", "opera"}, "foo");
+  dependencies_.AddDependency({"arepo"}, {"sator", "tenet"}, "bar");
+  EXPECT_THAT(dependencies_.FindCycles({}),
+              ElementsAre(ElementsAre(Pair(ElementsAre("arepo"), "bar"),
+                                      Pair(ElementsAre("sator"), "foo"))));
+  EXPECT_THAT(dependencies_.FindCycles({"sator"}), IsEmpty());
+  EXPECT_THAT(dependencies_.FindCycles({"sator", "tenet"}), IsEmpty());
+  EXPECT_THAT(dependencies_.FindCycles({"arepo"}), IsEmpty());
+  EXPECT_THAT(dependencies_.FindCycles({"arepo", "opera"}), IsEmpty());
+}
+
 }  // namespace

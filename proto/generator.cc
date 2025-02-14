@@ -171,9 +171,12 @@ absl::StatusOr<Generator> Generator::Create(
     for (auto const& field : message_type.get<kDescriptorProtoFieldField>()) {
       auto const& maybe_type_name = field.get<kFieldDescriptorProtoTypeNameField>();
       if (maybe_type_name.has_value()) {
-        DEFINE_CONST_OR_RETURN(type_path, GetTypePath(package_path, maybe_type_name.value()));
-        DEFINE_CONST_OR_RETURN(field_name, RequireField<kFieldDescriptorProtoNameField>(field));
-        dependencies.AddDependency({*message_name}, type_path, *field_name);
+        DEFINE_CONST_OR_RETURN(label, RequireField<kFieldDescriptorProtoLabelField>(field));
+        if (*label != FieldDescriptorProto_Label::LABEL_REPEATED) {
+          DEFINE_CONST_OR_RETURN(type_path, GetTypePath(package_path, maybe_type_name.value()));
+          DEFINE_CONST_OR_RETURN(field_name, RequireField<kFieldDescriptorProtoNameField>(field));
+          dependencies.AddDependency({*message_name}, type_path, *field_name);
+        }
       }
     }
   }
@@ -213,10 +216,7 @@ absl::StatusOr<std::string> Generator::GenerateHeaderFileContent() {
     fw.AppendEmptyLine();
     RETURN_IF_ERROR(AppendEnum(&fw, enum_type));
   }
-  for (auto const& message_type : messages) {
-    fw.AppendEmptyLine();
-    RETURN_IF_ERROR(AppendMessage(&fw, message_type));
-  }
+  RETURN_IF_ERROR(AppendMessages(&fw, messages));
   fw.AppendEmptyLine();
   if (!package.empty()) {
     fw.AppendLine(absl::StrCat("}  // namespace ", package));
@@ -441,7 +441,13 @@ absl::Status Generator::AppendMessages(
   }
   for (auto const& name : dependencies_.MakeOrder({})) {
     writer->AppendEmptyLine();
-    RETURN_IF_ERROR(AppendMessage(writer, *descriptors_by_name[name]));
+    auto const it = descriptors_by_name.find(name);
+    if (it != descriptors_by_name.end()) {
+      // If not found it means `name` refers to an enum, otherwise it's a regular message. We don't
+      // need to process enums here because they're always defined at the start of every lexical
+      // scope.
+      RETURN_IF_ERROR(AppendMessage(writer, *it->second));
+    }
   }
   return absl::OkStatus();
 }
