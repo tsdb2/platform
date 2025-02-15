@@ -196,6 +196,12 @@ class Encoder {
   void EncodeStringField(size_t number, std::string_view value);
   void EncodeBytesField(size_t number, absl::Span<uint8_t const> value);
 
+  template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+  void EncodeEnumField(size_t const number, Enum const value) {
+    EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kVarInt});
+    EncodeIntegerInternal(tsdb2::util::to_underlying(value));
+  }
+
   void EncodeSubMessage(Encoder &&child_encoder);
   void EncodeSubMessage(tsdb2::io::Cord cord);
 
@@ -224,6 +230,16 @@ class Encoder {
   void EncodePackedBools(absl::Span<bool const> values);
   void EncodePackedFloats(absl::Span<float const> values);
   void EncodePackedDoubles(absl::Span<double const> values);
+
+  template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+  void EncodePackedEnums(size_t const field_number, absl::Span<Enum const> const values) {
+    EncodeTag(FieldTag{.field_number = field_number, .wire_type = WireType::kLength});
+    Encoder child;
+    for (Enum const value : values) {
+      child.EncodeIntegerInternal(tsdb2::util::to_underlying(value));
+    }
+    EncodeSubMessage(std::move(child));
+  }
 
   tsdb2::io::Cord Finish() && { return std::move(cord_); }
   tsdb2::io::Buffer Flatten() && { return std::move(cord_).Flatten(); }

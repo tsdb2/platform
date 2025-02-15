@@ -25,6 +25,12 @@ using ::tsdb2::proto::FieldTag;
 using ::tsdb2::proto::WireType;
 using ::tsdb2::testing::io::BufferAsBytes;
 
+enum class TestEnum {
+  kRed = 10,
+  kGreen = 20,
+  kBlue = 30,
+};
+
 TEST(DecoderTest, InitialState) {
   std::vector<uint8_t> const data{0x82, 0x24, 0x83, 0x92, 0x01};
   Decoder decoder{data};
@@ -1398,6 +1404,11 @@ TEST_F(EncoderTest, EncodeBytes) {
               BufferAsBytes(ElementsAre(0xD2, 0x02, 0x04, 0x12, 0x34, 0x56, 0x78)));
 }
 
+TEST_F(EncoderTest, EncodeEnum) {
+  encoder_.EncodeEnumField(42, TestEnum::kGreen);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0xD0, 0x02, 0x14)));
+}
+
 TEST_F(EncoderTest, EncodeEmptyPackedInt32s) {
   encoder_.EncodePackedInt32s({});
   EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x00)));
@@ -1610,6 +1621,22 @@ TEST_F(EncoderTest, EncodeTwoPackedDoubles) {
   EXPECT_THAT(std::move(encoder_).Flatten(),
               BufferAsBytes(ElementsAre(0x10, 0x90, 0xF7, 0xAA, 0x95, 0x09, 0xBF, 0x05, 0x40, 0x6E,
                                         0x86, 0x1B, 0xF0, 0xF9, 0x21, 0x09, 0x40)));
+}
+
+TEST_F(EncoderTest, EncodeEmptyPackedEnums) {
+  encoder_.EncodePackedEnums<TestEnum>(42, {});
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0xD2, 0x02, 0x00)));
+}
+
+TEST_F(EncoderTest, EncodeOnePackedEnums) {
+  encoder_.EncodePackedEnums<TestEnum>(42, {TestEnum::kBlue});
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0xD2, 0x02, 0x01, 0x1E)));
+}
+
+TEST_F(EncoderTest, EncodeTwoPackedEnums) {
+  encoder_.EncodePackedEnums<TestEnum>(42, {TestEnum::kRed, TestEnum::kBlue});
+  EXPECT_THAT(std::move(encoder_).Flatten(),
+              BufferAsBytes(ElementsAre(0xD2, 0x02, 0x02, 0x0A, 0x1E)));
 }
 
 TEST_F(EncoderTest, EncodeFields) {

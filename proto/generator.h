@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -44,11 +45,14 @@ class Generator {
       google::protobuf::FileDescriptorProto const& file_descriptor);
 
   static absl::StatusOr<internal::DependencyManager::Path> GetTypePath(
-      internal::DependencyManager::PathView package_path, std::string_view type_name);
+      google::protobuf::FileDescriptorProto const& descriptor, std::string_view proto_type_name);
 
   explicit Generator(google::protobuf::FileDescriptorProto const& file_descriptor,
+                     absl::flat_hash_set<internal::DependencyManager::Path> enums,
                      internal::DependencyManager dependencies)
-      : file_descriptor_(file_descriptor), dependencies_(std::move(dependencies)) {}
+      : file_descriptor_(file_descriptor),
+        enums_(std::move(enums)),
+        dependencies_(std::move(dependencies)) {}
 
   absl::StatusOr<std::string> GetHeaderPath();
   absl::StatusOr<std::string> GetHeaderGuardName();
@@ -70,8 +74,8 @@ class Generator {
       internal::FileWriter* writer,
       absl::Span<google::protobuf::DescriptorProto const> descriptors);
 
-  static absl::Status EmitFieldDecoding(internal::FileWriter* writer,
-                                        google::protobuf::FieldDescriptorProto const& descriptor);
+  absl::Status EmitFieldDecoding(internal::FileWriter* writer,
+                                 google::protobuf::FieldDescriptorProto const& descriptor) const;
 
   static absl::Status EmitOptionalFieldEncoding(internal::FileWriter* writer, std::string_view name,
                                                 size_t number,
@@ -86,18 +90,31 @@ class Generator {
                                                 size_t number,
                                                 google::protobuf::FieldDescriptorProto_Type type);
 
+  static absl::Status EmitEnumEncoding(internal::FileWriter* writer, std::string_view name,
+                                       size_t number,
+                                       google::protobuf::FieldDescriptorProto_Label label,
+                                       std::string_view proto_type_name, bool packed);
+
   static absl::Status EmitObjectEncoding(internal::FileWriter* writer, std::string_view name,
                                          size_t number,
                                          google::protobuf::FieldDescriptorProto_Label label,
                                          std::string_view proto_type_name);
 
-  static absl::Status EmitFieldEncoding(internal::FileWriter* writer,
-                                        google::protobuf::FieldDescriptorProto const& descriptor);
+  absl::Status EmitFieldEncoding(internal::FileWriter* writer,
+                                 google::protobuf::FieldDescriptorProto const& descriptor) const;
 
-  static absl::Status EmitMessageImplementation(
-      internal::FileWriter* writer, google::protobuf::DescriptorProto const& descriptor);
+  absl::Status EmitMessageImplementation(internal::FileWriter* writer,
+                                         google::protobuf::DescriptorProto const& descriptor) const;
+
+  absl::StatusOr<internal::DependencyManager::Path> GetTypePath(
+      std::string_view proto_type_name) const {
+    return GetTypePath(file_descriptor_, proto_type_name);
+  }
+
+  absl::StatusOr<bool> IsMessage(std::string_view proto_type_name) const;
 
   google::protobuf::FileDescriptorProto const& file_descriptor_;
+  absl::flat_hash_set<internal::DependencyManager::Path> enums_;
   internal::DependencyManager const dependencies_;
 };
 
