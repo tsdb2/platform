@@ -248,9 +248,6 @@ absl::StatusOr<std::string> Generator::GenerateSourceFileContent() {
     fw.AppendEmptyLine();
     fw.AppendLine(absl::StrCat("namespace ", package, " {"));
   }
-  fw.AppendEmptyLine();
-  fw.AppendLine("using ::tsdb2::proto::Encoder;");
-  fw.AppendLine("using ::tsdb2::proto::Decoder;");
   for (auto const& message_type : file_descriptor_.get<kFileDescriptorProtoMessageTypeField>()) {
     fw.AppendEmptyLine();
     RETURN_IF_ERROR(EmitMessageImplementation(&fw, message_type));
@@ -421,9 +418,9 @@ absl::Status Generator::AppendMessageHeader(FileWriter* const writer,
       RETURN_IF_ERROR(AppendEnum(writer, enum_type));
       writer->AppendEmptyLine();
     }
-    writer->AppendLine(
-        absl::StrCat("static absl::StatusOr<", *name, "> Decode(absl::Span<uint8_t const> data);"));
-    writer->AppendLine(absl::StrCat("static tsdb2::io::Cord Encode(", *name, " const& proto);"));
+    writer->AppendLine(absl::StrCat("static ::absl::StatusOr<", *name,
+                                    "> Decode(::absl::Span<uint8_t const> data);"));
+    writer->AppendLine(absl::StrCat("static ::tsdb2::io::Cord Encode(", *name, " const& proto);"));
     writer->AppendEmptyLine();
     for (auto const& field : descriptor.get<kDescriptorProtoFieldField>()) {
       DEFINE_CONST_OR_RETURN(name, RequireField<kFieldDescriptorProtoNameField>(field));
@@ -483,21 +480,44 @@ absl::Status Generator::EmitFieldDecoding(
   if (maybe_type_name.has_value()) {
     std::string const type_name = absl::StrReplaceAll(maybe_type_name.value(), {{".", "::"}});
     FileWriter::IndentedScope is{writer};
-    writer->AppendLine("DEFINE_CONST_OR_RETURN(child_span, decoder.GetChildSpan(tag.wire_type));");
-    writer->AppendLine(
-        absl::StrCat("DEFINE_VAR_OR_RETURN(value, ", type_name, "::Decode(child_span));"));
-    switch (*label) {
-      case FieldDescriptorProto_Label::LABEL_OPTIONAL:
-        writer->AppendLine(absl::StrCat("proto.", *name, ".emplace(std::move(value));"));
-        break;
-      case FieldDescriptorProto_Label::LABEL_REQUIRED:
-        writer->AppendLine(absl::StrCat("proto.", *name, " = std::move(value);"));
-        break;
-      case FieldDescriptorProto_Label::LABEL_REPEATED:
-        writer->AppendLine(absl::StrCat("proto.", *name, ".emplace_back(std::move(value));"));
-        break;
-      default:
-        return absl::InvalidArgumentError("invalid field label");
+    auto const& maybe_type = descriptor.get<kFieldDescriptorProtoTypeField>();
+    if (!maybe_type.has_value() || maybe_type.value() != FieldDescriptorProto_Type::TYPE_ENUM) {
+      writer->AppendLine(
+          "DEFINE_CONST_OR_RETURN(child_span, decoder.GetChildSpan(tag.wire_type));");
+      writer->AppendLine(
+          absl::StrCat("DEFINE_VAR_OR_RETURN(value, ", type_name, "::Decode(child_span));"));
+      switch (*label) {
+        case FieldDescriptorProto_Label::LABEL_OPTIONAL:
+          writer->AppendLine(absl::StrCat("proto.", *name, ".emplace(std::move(value));"));
+          break;
+        case FieldDescriptorProto_Label::LABEL_REQUIRED:
+          writer->AppendLine(absl::StrCat("proto.", *name, " = std::move(value);"));
+          break;
+        case FieldDescriptorProto_Label::LABEL_REPEATED:
+          writer->AppendLine(absl::StrCat("proto.", *name, ".emplace_back(std::move(value));"));
+          break;
+        default:
+          return absl::InvalidArgumentError("invalid field label");
+      }
+    } else {
+      writer->AppendLine(
+          absl::StrCat("DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));"));
+      switch (*label) {
+        case FieldDescriptorProto_Label::LABEL_OPTIONAL:
+          writer->AppendLine(
+              absl::StrCat("proto.", *name, ".emplace(static_cast<", type_name, ">(value));"));
+          break;
+        case FieldDescriptorProto_Label::LABEL_REQUIRED:
+          writer->AppendLine(
+              absl::StrCat("proto.", *name, " = static_cast<", type_name, ">(value);"));
+          break;
+        case FieldDescriptorProto_Label::LABEL_REPEATED:
+          writer->AppendLine(
+              absl::StrCat("proto.", *name, ".emplace_back(static_cast<", type_name, ">(value));"));
+          break;
+        default:
+          return absl::InvalidArgumentError("invalid field label");
+      }
     }
   } else {
     DEFINE_CONST_OR_RETURN(type, RequireField<kFieldDescriptorProtoTypeField>(descriptor));
@@ -606,12 +626,12 @@ absl::Status Generator::EmitFieldEncoding(
 absl::Status Generator::EmitMessageImplementation(
     FileWriter* const writer, google::protobuf::DescriptorProto const& descriptor) {
   DEFINE_CONST_OR_RETURN(name, RequireField<kDescriptorProtoNameField>(descriptor));
-  writer->AppendLine(absl::StrCat("absl::StatusOr<", *name, "> ", *name,
-                                  "::Decode(absl::Span<uint8_t const> const data) {"));
+  writer->AppendLine(absl::StrCat("::absl::StatusOr<", *name, "> ", *name,
+                                  "::Decode(::absl::Span<uint8_t const> const data) {"));
   {
     FileWriter::IndentedScope is{writer};
     writer->AppendLine(absl::StrCat(*name, " proto;"));
-    writer->AppendLine("Decoder decoder{data};");
+    writer->AppendLine("::tsdb2::proto::Decoder decoder{data};");
     writer->AppendLine("while (!decoder.at_end()) {");
     {
       FileWriter::IndentedScope is{writer};
@@ -637,10 +657,10 @@ absl::Status Generator::EmitMessageImplementation(
   writer->AppendLine("}");
   writer->AppendEmptyLine();
   writer->AppendLine(
-      absl::StrCat("tsdb2::io::Cord ", *name, "::Encode(", *name, " const& proto) {"));
+      absl::StrCat("::tsdb2::io::Cord ", *name, "::Encode(", *name, " const& proto) {"));
   {
     FileWriter::IndentedScope is{writer};
-    writer->AppendLine("Encoder encoder;");
+    writer->AppendLine("::tsdb2::proto::Encoder encoder;");
     for (auto const& field : descriptor.get<kDescriptorProtoFieldField>()) {
       RETURN_IF_ERROR(EmitFieldEncoding(writer, field));
     }
