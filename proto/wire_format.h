@@ -81,13 +81,13 @@ class Decoder {
   }
 
   absl::StatusOr<uint64_t> DecodeVarInt() { return DecodeInteger<uint64_t>(); }
-  absl::StatusOr<int32_t> DecodeInt32() { return DecodeInteger<int32_t>(); }
-  absl::StatusOr<int64_t> DecodeInt64() { return DecodeInteger<int64_t>(); }
-  absl::StatusOr<uint32_t> DecodeUInt32() { return DecodeInteger<uint32_t>(); }
-  absl::StatusOr<uint64_t> DecodeUInt64() { return DecodeInteger<uint64_t>(); }
+  absl::StatusOr<int32_t> DecodeInt32(WireType wire_type);
+  absl::StatusOr<int64_t> DecodeInt64(WireType wire_type);
+  absl::StatusOr<uint32_t> DecodeUInt32(WireType wire_type);
+  absl::StatusOr<uint64_t> DecodeUInt64(WireType wire_type);
 
-  absl::StatusOr<int32_t> DecodeSInt32();
-  absl::StatusOr<int64_t> DecodeSInt64();
+  absl::StatusOr<int32_t> DecodeSInt32(WireType wire_type);
+  absl::StatusOr<int64_t> DecodeSInt64(WireType wire_type);
 
   absl::StatusOr<int32_t> DecodeFixedInt32(WireType wire_type);
   absl::StatusOr<uint32_t> DecodeFixedUInt32(WireType wire_type);

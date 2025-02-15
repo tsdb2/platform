@@ -110,205 +110,249 @@ TEST(DecoderTest, DecodeThreeByteInteger) {
 TEST(DecoderTest, DecodeMaxInteger) {
   std::vector<uint8_t> const data{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeUInt64(), IsOkAndHolds(0xFFFFFFFFFFFFFFFF));
+  EXPECT_THAT(decoder.DecodeUInt64(WireType::kVarInt), IsOkAndHolds(0xFFFFFFFFFFFFFFFF));
 }
 
 TEST(DecoderTest, IntegerOverflow) {
   std::vector<uint8_t> const data{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x02};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeUInt64(), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeUInt64(WireType::kVarInt),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(DecoderTest, WrongWireTypeForInteger) {
+  std::vector<uint8_t> const data{0x42};
+  Decoder decoder{data};
+  EXPECT_THAT(decoder.DecodeUInt64(WireType::kLength),
+              StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(DecoderTest, DecodeNegativeInteger1) {
   std::vector<uint8_t> const data{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeInt64(), IsOkAndHolds(-1));
+  EXPECT_THAT(decoder.DecodeInt64(WireType::kVarInt), IsOkAndHolds(-1));
 }
 
 TEST(DecoderTest, DecodeNegativeInteger2) {
   std::vector<uint8_t> const data{0xD6, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeInt64(), IsOkAndHolds(-42));
+  EXPECT_THAT(decoder.DecodeInt64(WireType::kVarInt), IsOkAndHolds(-42));
+}
+
+TEST(DecoderTest, WrongWireTypeForSignedInteger) {
+  std::vector<uint8_t> const data{0x42};
+  Decoder decoder{data};
+  EXPECT_THAT(decoder.DecodeInt64(WireType::kLength), StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(DecoderTest, DecodeMaxUInt32) {
   std::vector<uint8_t> const data{0xFF, 0xFF, 0xFF, 0xFF, 0x0F};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeUInt32(), IsOkAndHolds(0xFFFFFFFF));
+  EXPECT_THAT(decoder.DecodeUInt32(WireType::kVarInt), IsOkAndHolds(0xFFFFFFFF));
 }
 
 TEST(DecoderTest, UInt32Overflow) {
   std::vector<uint8_t> const data{0xFF, 0xFF, 0xFF, 0xFF, 0x10};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeUInt32(), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeUInt32(WireType::kVarInt),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(DecoderTest, WrongWireTypeForUInt32) {
+  std::vector<uint8_t> const data{0x42};
+  Decoder decoder{data};
+  EXPECT_THAT(decoder.DecodeUInt32(WireType::kLength),
+              StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(DecoderTest, DecodeMaxInt32) {
   std::vector<uint8_t> const data{0xFF, 0xFF, 0xFF, 0xFF, 0x0F};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeInt32(), IsOkAndHolds(-1));
+  EXPECT_THAT(decoder.DecodeInt32(WireType::kVarInt), IsOkAndHolds(-1));
 }
 
 TEST(DecoderTest, Int32Overflow) {
   std::vector<uint8_t> const data{0xFF, 0xFF, 0xFF, 0xFF, 0x10};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeInt32(), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeInt32(WireType::kVarInt), StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(DecoderTest, WrongWireTypeForInt32) {
+  std::vector<uint8_t> const data{0x42};
+  Decoder decoder{data};
+  EXPECT_THAT(decoder.DecodeInt32(WireType::kLength), StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(DecoderTest, DecodeSingleBytePositiveEvenSInt64) {
   std::vector<uint8_t> const data{0x54};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeSInt64(), IsOkAndHolds(42));
+  EXPECT_THAT(decoder.DecodeSInt64(WireType::kVarInt), IsOkAndHolds(42));
 }
 
 TEST(DecoderTest, DecodeSingleBytePositiveOddSInt64) {
   std::vector<uint8_t> const data{0x56};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeSInt64(), IsOkAndHolds(43));
+  EXPECT_THAT(decoder.DecodeSInt64(WireType::kVarInt), IsOkAndHolds(43));
 }
 
 TEST(DecoderTest, DecodeSingleByteNegativeEvenSInt64) {
   std::vector<uint8_t> const data{0x53};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeSInt64(), IsOkAndHolds(-42));
+  EXPECT_THAT(decoder.DecodeSInt64(WireType::kVarInt), IsOkAndHolds(-42));
 }
 
 TEST(DecoderTest, DecodeSingleByteNegativeOddSInt64) {
   std::vector<uint8_t> const data{0x55};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeSInt64(), IsOkAndHolds(-43));
+  EXPECT_THAT(decoder.DecodeSInt64(WireType::kVarInt), IsOkAndHolds(-43));
 }
 
 TEST(DecoderTest, DecodeTwoBytePositiveEvenSInt64) {
   std::vector<uint8_t> const data{0x84, 0x48};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeSInt64(), IsOkAndHolds(4610));
+  EXPECT_THAT(decoder.DecodeSInt64(WireType::kVarInt), IsOkAndHolds(4610));
 }
 
 TEST(DecoderTest, DecodeTwoBytePositiveOddSInt64) {
   std::vector<uint8_t> const data{0x86, 0x48};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeSInt64(), IsOkAndHolds(4611));
+  EXPECT_THAT(decoder.DecodeSInt64(WireType::kVarInt), IsOkAndHolds(4611));
 }
 
 TEST(DecoderTest, DecodeTwoByteNegativeEvenSInt64) {
   std::vector<uint8_t> const data{0x83, 0x48};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeSInt64(), IsOkAndHolds(-4610));
+  EXPECT_THAT(decoder.DecodeSInt64(WireType::kVarInt), IsOkAndHolds(-4610));
 }
 
 TEST(DecoderTest, DecodeTwoByteNegativeOddSInt64) {
   std::vector<uint8_t> const data{0x85, 0x48};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeSInt64(), IsOkAndHolds(-4611));
+  EXPECT_THAT(decoder.DecodeSInt64(WireType::kVarInt), IsOkAndHolds(-4611));
 }
 
 TEST(DecoderTest, DecodeMaxPositiveEvenSInt64) {
   std::vector<uint8_t> const data{0xFC, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeSInt64(), IsOkAndHolds(0x7FFFFFFFFFFFFFFELL));
+  EXPECT_THAT(decoder.DecodeSInt64(WireType::kVarInt), IsOkAndHolds(0x7FFFFFFFFFFFFFFELL));
 }
 
 TEST(DecoderTest, DecodeMaxNegativeOddSInt64) {
   std::vector<uint8_t> const data{0xFD, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeSInt64(), IsOkAndHolds(-0x7FFFFFFFFFFFFFFFLL));
+  EXPECT_THAT(decoder.DecodeSInt64(WireType::kVarInt), IsOkAndHolds(-0x7FFFFFFFFFFFFFFFLL));
 }
 
 TEST(DecoderTest, DecodeMaxPositiveOddSInt64) {
   std::vector<uint8_t> const data{0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeSInt64(), IsOkAndHolds(0x7FFFFFFFFFFFFFFFLL));
+  EXPECT_THAT(decoder.DecodeSInt64(WireType::kVarInt), IsOkAndHolds(0x7FFFFFFFFFFFFFFFLL));
 }
 
 TEST(DecoderTest, DecodeMaxNegativeEvenSInt64) {
   std::vector<uint8_t> const data{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeSInt64(), IsOkAndHolds(-0x8000000000000000LL));
+  EXPECT_THAT(decoder.DecodeSInt64(WireType::kVarInt), IsOkAndHolds(-0x8000000000000000LL));
 }
 
 TEST(DecoderTest, SInt64Overflow) {
   std::vector<uint8_t> const data{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x02};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeSInt64(), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeSInt64(WireType::kVarInt),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(DecoderTest, WrongWireTypeForSInt64) {
+  std::vector<uint8_t> const data{0x42};
+  Decoder decoder{data};
+  EXPECT_THAT(decoder.DecodeSInt64(WireType::kLength),
+              StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(DecoderTest, DecodeSingleBytePositiveEvenSInt32) {
   std::vector<uint8_t> const data{0x54};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeSInt32(), IsOkAndHolds(42));
+  EXPECT_THAT(decoder.DecodeSInt32(WireType::kVarInt), IsOkAndHolds(42));
 }
 
 TEST(DecoderTest, DecodeSingleBytePositiveOddSInt32) {
   std::vector<uint8_t> const data{0x56};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeSInt32(), IsOkAndHolds(43));
+  EXPECT_THAT(decoder.DecodeSInt32(WireType::kVarInt), IsOkAndHolds(43));
 }
 
 TEST(DecoderTest, DecodeSingleByteNegativeEvenSInt32) {
   std::vector<uint8_t> const data{0x53};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeSInt32(), IsOkAndHolds(-42));
+  EXPECT_THAT(decoder.DecodeSInt32(WireType::kVarInt), IsOkAndHolds(-42));
 }
 
 TEST(DecoderTest, DecodeSingleByteNegativeOddSInt32) {
   std::vector<uint8_t> const data{0x55};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeSInt32(), IsOkAndHolds(-43));
+  EXPECT_THAT(decoder.DecodeSInt32(WireType::kVarInt), IsOkAndHolds(-43));
 }
 
 TEST(DecoderTest, DecodeTwoBytePositiveEvenSInt32) {
   std::vector<uint8_t> const data{0x84, 0x48};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeSInt32(), IsOkAndHolds(4610));
+  EXPECT_THAT(decoder.DecodeSInt32(WireType::kVarInt), IsOkAndHolds(4610));
 }
 
 TEST(DecoderTest, DecodeTwoBytePositiveOddSInt32) {
   std::vector<uint8_t> const data{0x86, 0x48};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeSInt32(), IsOkAndHolds(4611));
+  EXPECT_THAT(decoder.DecodeSInt32(WireType::kVarInt), IsOkAndHolds(4611));
 }
 
 TEST(DecoderTest, DecodeTwoByteNegativeEvenSInt32) {
   std::vector<uint8_t> const data{0x83, 0x48};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeSInt32(), IsOkAndHolds(-4610));
+  EXPECT_THAT(decoder.DecodeSInt32(WireType::kVarInt), IsOkAndHolds(-4610));
 }
 
 TEST(DecoderTest, DecodeTwoByteNegativeOddSInt32) {
   std::vector<uint8_t> const data{0x85, 0x48};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeSInt32(), IsOkAndHolds(-4611));
+  EXPECT_THAT(decoder.DecodeSInt32(WireType::kVarInt), IsOkAndHolds(-4611));
 }
 
 TEST(DecoderTest, DecodeMaxPositiveEvenSInt32) {
   std::vector<uint8_t> const data{0xFC, 0xFF, 0xFF, 0xFF, 0x0F};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeSInt32(), IsOkAndHolds(0x7FFFFFFE));
+  EXPECT_THAT(decoder.DecodeSInt32(WireType::kVarInt), IsOkAndHolds(0x7FFFFFFE));
 }
 
 TEST(DecoderTest, DecodeMaxNegativeEvenSInt32) {
   std::vector<uint8_t> const data{0xFD, 0xFF, 0xFF, 0xFF, 0x0F};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeSInt32(), IsOkAndHolds(-0x7FFFFFFF));
+  EXPECT_THAT(decoder.DecodeSInt32(WireType::kVarInt), IsOkAndHolds(-0x7FFFFFFF));
 }
 
 TEST(DecoderTest, DecodeMaxPositiveOddSInt32) {
   std::vector<uint8_t> const data{0xFE, 0xFF, 0xFF, 0xFF, 0x0F};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeSInt32(), IsOkAndHolds(0x7FFFFFFF));
+  EXPECT_THAT(decoder.DecodeSInt32(WireType::kVarInt), IsOkAndHolds(0x7FFFFFFF));
 }
 
 TEST(DecoderTest, DecodeMaxNegativeOddSInt32) {
   std::vector<uint8_t> const data{0xFF, 0xFF, 0xFF, 0xFF, 0x0F};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeSInt32(), IsOkAndHolds(-0x80000000));
+  EXPECT_THAT(decoder.DecodeSInt32(WireType::kVarInt), IsOkAndHolds(-0x80000000));
 }
 
 TEST(DecoderTest, SInt32Overflow) {
   std::vector<uint8_t> const data{0xFF, 0xFF, 0xFF, 0xFF, 0x10};
   Decoder decoder{data};
-  EXPECT_THAT(decoder.DecodeSInt32(), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(decoder.DecodeSInt32(WireType::kVarInt),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(DecoderTest, WrongWireTypeForSInt32) {
+  std::vector<uint8_t> const data{0x42};
+  Decoder decoder{data};
+  EXPECT_THAT(decoder.DecodeSInt32(WireType::kLength),
+              StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(DecoderTest, DecodeFixedInt32) {
@@ -1022,7 +1066,7 @@ TEST(DecoderTest, DecodeFields) {
   Decoder decoder{data};
   EXPECT_THAT(decoder.DecodeTag(),
               IsOkAndHolds(FieldTag{.field_number = 1, .wire_type = WireType::kVarInt}));
-  EXPECT_THAT(decoder.DecodeUInt64(), IsOkAndHolds(123456));
+  EXPECT_THAT(decoder.DecodeUInt64(WireType::kVarInt), IsOkAndHolds(123456));
   EXPECT_THAT(decoder.DecodeTag(),
               IsOkAndHolds(FieldTag{.field_number = 2, .wire_type = WireType::kLength}));
   EXPECT_THAT(decoder.DecodeString(WireType::kLength), IsOkAndHolds("sator arepo"));

@@ -80,7 +80,7 @@ class Generator {
       internal::FileWriter* writer, google::protobuf::DescriptorProto const& descriptor);
 
   google::protobuf::FileDescriptorProto const& file_descriptor_;
-  internal::DependencyManager dependencies_;
+  internal::DependencyManager const dependencies_;
 };
 
 }  // namespace proto

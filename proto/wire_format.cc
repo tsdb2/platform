@@ -47,13 +47,47 @@ absl::StatusOr<FieldTag> Decoder::DecodeTag() {
   };
 }
 
-absl::StatusOr<int32_t> Decoder::DecodeSInt32() {
-  DEFINE_CONST_OR_RETURN(value, DecodeUInt32());
+absl::StatusOr<int32_t> Decoder::DecodeInt32(WireType const wire_type) {
+  if (wire_type != WireType::kVarInt) {
+    return absl::InvalidArgumentError("invalid wire type for int32");
+  }
+  return DecodeInteger<int32_t>();
+}
+
+absl::StatusOr<int64_t> Decoder::DecodeInt64(WireType const wire_type) {
+  if (wire_type != WireType::kVarInt) {
+    return absl::InvalidArgumentError("invalid wire type for int64");
+  }
+  return DecodeInteger<int64_t>();
+}
+
+absl::StatusOr<uint32_t> Decoder::DecodeUInt32(WireType const wire_type) {
+  if (wire_type != WireType::kVarInt) {
+    return absl::InvalidArgumentError("invalid wire type for uint32");
+  }
+  return DecodeInteger<uint32_t>();
+}
+
+absl::StatusOr<uint64_t> Decoder::DecodeUInt64(WireType const wire_type) {
+  if (wire_type != WireType::kVarInt) {
+    return absl::InvalidArgumentError("invalid wire type for uint64");
+  }
+  return DecodeInteger<uint64_t>();
+}
+
+absl::StatusOr<int32_t> Decoder::DecodeSInt32(WireType const wire_type) {
+  if (wire_type != WireType::kVarInt) {
+    return absl::InvalidArgumentError("invalid wire type for sint32");
+  }
+  DEFINE_CONST_OR_RETURN(value, DecodeInteger<uint32_t>());
   return (value >> 1) ^ -(value & 1);
 }
 
-absl::StatusOr<int64_t> Decoder::DecodeSInt64() {
-  DEFINE_CONST_OR_RETURN(value, DecodeUInt64());
+absl::StatusOr<int64_t> Decoder::DecodeSInt64(WireType const wire_type) {
+  if (wire_type != WireType::kVarInt) {
+    return absl::InvalidArgumentError("invalid wire type for sint64");
+  }
+  DEFINE_CONST_OR_RETURN(value, DecodeInteger<uint64_t>());
   return (value >> 1) ^ -(value & 1);
 }
 
@@ -178,7 +212,7 @@ absl::StatusOr<std::vector<int32_t>> Decoder::DecodePackedSInt32s() {
   DEFINE_VAR_OR_RETURN(child, DecodeChildSpan());
   std::vector<int32_t> values;
   while (!child.at_end()) {
-    DEFINE_CONST_OR_RETURN(value, child.DecodeSInt32());
+    DEFINE_CONST_OR_RETURN(value, child.DecodeSInt32(WireType::kVarInt));
     values.push_back(value);
   }
   return std::move(values);
@@ -188,7 +222,7 @@ absl::StatusOr<std::vector<int64_t>> Decoder::DecodePackedSInt64s() {
   DEFINE_VAR_OR_RETURN(child, DecodeChildSpan());
   std::vector<int64_t> values;
   while (!child.at_end()) {
-    DEFINE_CONST_OR_RETURN(value, child.DecodeSInt64());
+    DEFINE_CONST_OR_RETURN(value, child.DecodeSInt64(WireType::kVarInt));
     values.push_back(value);
   }
   return std::move(values);

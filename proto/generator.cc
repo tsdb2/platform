@@ -481,7 +481,24 @@ absl::Status Generator::EmitFieldDecoding(
   writer->AppendLine(absl::StrCat("case ", *number, ": {"));
   auto const& maybe_type_name = descriptor.get<kFieldDescriptorProtoTypeNameField>();
   if (maybe_type_name.has_value()) {
-    // TODO
+    std::string const type_name = absl::StrReplaceAll(maybe_type_name.value(), {{".", "::"}});
+    FileWriter::IndentedScope is{writer};
+    writer->AppendLine("DEFINE_CONST_OR_RETURN(child_span, decoder.GetChildSpan(tag.wire_type));");
+    writer->AppendLine(
+        absl::StrCat("DEFINE_VAR_OR_RETURN(value, ", type_name, "::Decode(child_span));"));
+    switch (*label) {
+      case FieldDescriptorProto_Label::LABEL_OPTIONAL:
+        writer->AppendLine(absl::StrCat("proto.", *name, ".emplace(std::move(value));"));
+        break;
+      case FieldDescriptorProto_Label::LABEL_REQUIRED:
+        writer->AppendLine(absl::StrCat("proto.", *name, " = std::move(value);"));
+        break;
+      case FieldDescriptorProto_Label::LABEL_REPEATED:
+        writer->AppendLine(absl::StrCat("proto.", *name, ".emplace_back(std::move(value));"));
+        break;
+      default:
+        return absl::InvalidArgumentError("invalid field label");
+    }
   } else {
     DEFINE_CONST_OR_RETURN(type, RequireField<kFieldDescriptorProtoTypeField>(descriptor));
     FileWriter::IndentedScope is{writer};
@@ -493,13 +510,13 @@ absl::Status Generator::EmitFieldDecoding(
         writer->AppendLine("DEFINE_CONST_OR_RETURN(value, decoder.DecodeFloat(tag.wire_type));");
         break;
       case FieldDescriptorProto_Type::TYPE_INT64:
-        writer->AppendLine("DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt64());");
+        writer->AppendLine("DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt64(tag.wire_type));");
         break;
       case FieldDescriptorProto_Type::TYPE_UINT64:
-        writer->AppendLine("DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64());");
+        writer->AppendLine("DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));");
         break;
       case FieldDescriptorProto_Type::TYPE_INT32:
-        writer->AppendLine("DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32());");
+        writer->AppendLine("DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32(tag.wire_type));");
         break;
       case FieldDescriptorProto_Type::TYPE_FIXED64:
         writer->AppendLine(
@@ -519,7 +536,7 @@ absl::Status Generator::EmitFieldDecoding(
         writer->AppendLine("DEFINE_VAR_OR_RETURN(value, decoder.DecodeBytes(tag.wire_type));");
         break;
       case FieldDescriptorProto_Type::TYPE_UINT32:
-        writer->AppendLine("DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt32());");
+        writer->AppendLine("DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt32(tag.wire_type));");
         break;
       case FieldDescriptorProto_Type::TYPE_SFIXED32:
         writer->AppendLine(
@@ -530,10 +547,10 @@ absl::Status Generator::EmitFieldDecoding(
             "DEFINE_CONST_OR_RETURN(value, decoder.DecodeFixedInt64(tag.wire_type));");
         break;
       case FieldDescriptorProto_Type::TYPE_SINT32:
-        writer->AppendLine("DEFINE_CONST_OR_RETURN(value, decoder.DecodeSInt32());");
+        writer->AppendLine("DEFINE_CONST_OR_RETURN(value, decoder.DecodeSInt32(tag.wire_type));");
         break;
       case FieldDescriptorProto_Type::TYPE_SINT64:
-        writer->AppendLine("DEFINE_CONST_OR_RETURN(value, decoder.DecodeSInt64());");
+        writer->AppendLine("DEFINE_CONST_OR_RETURN(value, decoder.DecodeSInt64(tag.wire_type));");
         break;
       default:
         return absl::InvalidArgumentError("invalid field type");
