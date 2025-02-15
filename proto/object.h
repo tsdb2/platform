@@ -381,25 +381,6 @@ struct ValueEncoder<Enum, std::enable_if_t<std::is_enum_v<Enum>>> {
   }
 };
 
-template <>
-struct ValueEncoder<float> {
-  void operator()(Encoder *const encoder, float const value) const { encoder->EncodeFloat(value); }
-};
-
-template <>
-struct ValueEncoder<double> {
-  void operator()(Encoder *const encoder, double const value) const {
-    encoder->EncodeDouble(value);
-  }
-};
-
-template <>
-struct ValueEncoder<std::string> {
-  void operator()(Encoder *const encoder, std::string_view const value) const {
-    encoder->EncodeString(value);
-  }
-};
-
 template <typename Type, size_t tag, typename Enable = void>
 struct FieldEncoder;
 
@@ -422,24 +403,21 @@ struct FieldEncoder<Enum, tag, std::enable_if_t<std::is_enum_v<Enum>>> {
 template <size_t tag>
 struct FieldEncoder<float, tag> {
   void operator()(Encoder *const encoder, float const value) const {
-    encoder->EncodeTag(FieldTag{.field_number = tag, .wire_type = WireType::kInt32});
-    ValueEncoder<float>{}(encoder, value);
+    encoder->EncodeFloatField(tag, value);
   }
 };
 
 template <size_t tag>
 struct FieldEncoder<double, tag> {
   void operator()(Encoder *const encoder, double const value) const {
-    encoder->EncodeTag(FieldTag{.field_number = tag, .wire_type = WireType::kInt64});
-    ValueEncoder<double>{}(encoder, value);
+    encoder->EncodeDoubleField(tag, value);
   }
 };
 
 template <size_t tag>
 struct FieldEncoder<std::string, tag> {
   void operator()(Encoder *const encoder, std::string_view const value) const {
-    encoder->EncodeTag(FieldTag{.field_number = tag, .wire_type = WireType::kLength});
-    ValueEncoder<std::string>{}(encoder, value);
+    encoder->EncodeStringField(tag, value);
   }
 };
 

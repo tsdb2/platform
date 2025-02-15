@@ -394,60 +394,62 @@ void Encoder::EncodeTag(FieldTag const &tag) {
   EncodeIntegerInternal((tag.field_number << 3) | static_cast<uint64_t>(tag.wire_type));
 }
 
-void Encoder::EncodeSInt32(int32_t const value) { EncodeUInt32((value << 1) ^ (value >> 31)); }
-void Encoder::EncodeSInt64(int64_t const value) { EncodeUInt64((value << 1) ^ (value >> 63)); }
+void Encoder::EncodeSInt32Field(size_t const number, int32_t const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kVarInt});
+  EncodeSInt32(value);
+}
 
-void Encoder::EncodeFixedInt32(int32_t value) {
-#ifdef ABSL_IS_BIG_ENDIAN
-  value = ByteSwap32(value);
-#endif  // ABSL_IS_BIG_ENDIAN
-  tsdb2::io::Buffer buffer{4};
-  buffer.as<int32_t>() = value;
-  buffer.Advance(4);
+void Encoder::EncodeSInt64Field(size_t const number, int64_t const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kVarInt});
+  EncodeSInt64(value);
+}
+
+void Encoder::EncodeFixedInt32Field(size_t const number, int32_t const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kInt32});
+  EncodeFixedInt32(value);
+}
+
+void Encoder::EncodeFixedUInt32Field(size_t const number, uint32_t const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kInt32});
+  EncodeFixedUInt32(value);
+}
+
+void Encoder::EncodeFixedInt64Field(size_t const number, int64_t const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kInt64});
+  EncodeFixedInt64(value);
+}
+
+void Encoder::EncodeFixedUInt64Field(size_t const number, uint64_t const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kInt64});
+  EncodeFixedUInt64(value);
+}
+
+void Encoder::EncodeBoolField(size_t const number, bool const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kVarInt});
+  EncodeBool(value);
+}
+
+void Encoder::EncodeFloatField(size_t const number, float const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kInt32});
+  EncodeFloat(value);
+}
+
+void Encoder::EncodeDoubleField(size_t const number, double const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kInt64});
+  EncodeDouble(value);
+}
+
+void Encoder::EncodeStringField(size_t const number, std::string_view const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kLength});
+  size_t const length = value.size();
+  EncodeIntegerInternal(length);
+  tsdb2::io::Buffer buffer{length};
+  buffer.MemCpy(value.data(), length);
   cord_.Append(std::move(buffer));
 }
 
-void Encoder::EncodeFixedUInt32(uint32_t value) {
-#ifdef ABSL_IS_BIG_ENDIAN
-  value = ByteSwap32(value);
-#endif  // ABSL_IS_BIG_ENDIAN
-  tsdb2::io::Buffer buffer{4};
-  buffer.as<uint32_t>() = value;
-  buffer.Advance(4);
-  cord_.Append(std::move(buffer));
-}
-
-void Encoder::EncodeFixedInt64(int64_t value) {
-#ifdef ABSL_IS_BIG_ENDIAN
-  value = ByteSwap64(value);
-#endif  // ABSL_IS_BIG_ENDIAN
-  tsdb2::io::Buffer buffer{8};
-  buffer.as<int64_t>() = value;
-  buffer.Advance(8);
-  cord_.Append(std::move(buffer));
-}
-
-void Encoder::EncodeFixedUInt64(uint64_t value) {
-#ifdef ABSL_IS_BIG_ENDIAN
-  value = ByteSwap64(value);
-#endif  // ABSL_IS_BIG_ENDIAN
-  tsdb2::io::Buffer buffer{8};
-  buffer.as<uint64_t>() = value;
-  buffer.Advance(8);
-  cord_.Append(std::move(buffer));
-}
-
-void Encoder::EncodeBool(bool const value) { EncodeIntegerInternal(static_cast<uint8_t>(!!value)); }
-
-void Encoder::EncodeFloat(float const value) {
-  EncodeFixedUInt32(*reinterpret_cast<uint32_t const *>(&value));
-}
-
-void Encoder::EncodeDouble(double const value) {
-  EncodeFixedUInt64(*reinterpret_cast<uint64_t const *>(&value));
-}
-
-void Encoder::EncodeString(std::string_view const value) {
+void Encoder::EncodeBytesField(size_t const number, absl::Span<uint8_t const> const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kLength});
   size_t const length = value.size();
   EncodeIntegerInternal(length);
   tsdb2::io::Buffer buffer{length};
@@ -544,6 +546,50 @@ void Encoder::EncodeIntegerInternal(uint64_t value) {
     value >>= 7;
   }
   buffer.Append<uint8_t>(value & 0x7F);
+  cord_.Append(std::move(buffer));
+}
+
+void Encoder::EncodeSInt32(int32_t const value) { EncodeUInt32((value << 1) ^ (value >> 31)); }
+
+void Encoder::EncodeSInt64(int64_t const value) { EncodeUInt64((value << 1) ^ (value >> 63)); }
+
+void Encoder::EncodeFixedInt32(int32_t value) {
+#ifdef ABSL_IS_BIG_ENDIAN
+  value = ByteSwap32(value);
+#endif  // ABSL_IS_BIG_ENDIAN
+  tsdb2::io::Buffer buffer{4};
+  buffer.as<int32_t>() = value;
+  buffer.Advance(4);
+  cord_.Append(std::move(buffer));
+}
+
+void Encoder::EncodeFixedUInt32(uint32_t value) {
+#ifdef ABSL_IS_BIG_ENDIAN
+  value = ByteSwap32(value);
+#endif  // ABSL_IS_BIG_ENDIAN
+  tsdb2::io::Buffer buffer{4};
+  buffer.as<uint32_t>() = value;
+  buffer.Advance(4);
+  cord_.Append(std::move(buffer));
+}
+
+void Encoder::EncodeFixedInt64(int64_t value) {
+#ifdef ABSL_IS_BIG_ENDIAN
+  value = ByteSwap64(value);
+#endif  // ABSL_IS_BIG_ENDIAN
+  tsdb2::io::Buffer buffer{8};
+  buffer.as<int64_t>() = value;
+  buffer.Advance(8);
+  cord_.Append(std::move(buffer));
+}
+
+void Encoder::EncodeFixedUInt64(uint64_t value) {
+#ifdef ABSL_IS_BIG_ENDIAN
+  value = ByteSwap64(value);
+#endif  // ABSL_IS_BIG_ENDIAN
+  tsdb2::io::Buffer buffer{8};
+  buffer.as<uint64_t>() = value;
+  buffer.Advance(8);
   cord_.Append(std::move(buffer));
 }
 

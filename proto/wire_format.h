@@ -181,18 +181,19 @@ class Encoder {
   void EncodeInt64(int64_t const value) { return EncodeIntegerInternal(value); }
   void EncodeUInt64(uint64_t const value) { return EncodeIntegerInternal(value); }
 
-  void EncodeSInt32(int32_t value);
-  void EncodeSInt64(int64_t value);
+  void EncodeSInt32Field(size_t number, int32_t value);
+  void EncodeSInt64Field(size_t number, int64_t value);
 
-  void EncodeFixedInt32(int32_t value);
-  void EncodeFixedUInt32(uint32_t value);
-  void EncodeFixedInt64(int64_t value);
-  void EncodeFixedUInt64(uint64_t value);
+  void EncodeFixedInt32Field(size_t number, int32_t value);
+  void EncodeFixedUInt32Field(size_t number, uint32_t value);
+  void EncodeFixedInt64Field(size_t number, int64_t value);
+  void EncodeFixedUInt64Field(size_t number, uint64_t value);
 
-  void EncodeBool(bool value);
-  void EncodeFloat(float value);
-  void EncodeDouble(double value);
-  void EncodeString(std::string_view value);
+  void EncodeBoolField(size_t number, bool value);
+  void EncodeFloatField(size_t number, float value);
+  void EncodeDoubleField(size_t number, double value);
+  void EncodeStringField(size_t number, std::string_view value);
+  void EncodeBytesField(size_t number, absl::Span<uint8_t const> value);
 
   void EncodeSubMessage(Encoder &&child_encoder);
   void EncodeSubMessage(tsdb2::io::Cord cord);
@@ -228,6 +229,24 @@ class Encoder {
 
  private:
   void EncodeIntegerInternal(uint64_t value);
+
+  void EncodeSInt32(int32_t value);
+  void EncodeSInt64(int64_t value);
+
+  void EncodeFixedInt32(int32_t value);
+  void EncodeFixedUInt32(uint32_t value);
+  void EncodeFixedInt64(int64_t value);
+  void EncodeFixedUInt64(uint64_t value);
+
+  void EncodeBool(bool const value) { EncodeIntegerInternal(static_cast<uint8_t>(!!value)); }
+
+  void EncodeFloat(float const value) {
+    EncodeFixedUInt32(*reinterpret_cast<uint32_t const *>(&value));
+  }
+
+  void EncodeDouble(double const value) {
+    EncodeFixedUInt64(*reinterpret_cast<uint64_t const *>(&value));
+  }
 
   template <typename Integer,
             std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>, bool> = true>
