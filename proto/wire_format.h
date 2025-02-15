@@ -205,31 +205,35 @@ class Encoder {
   void EncodeSubMessage(Encoder &&child_encoder);
   void EncodeSubMessage(tsdb2::io::Cord cord);
 
-  void EncodePackedVarInts(absl::Span<uint64_t const> const values) {
-    EncodePackedIntegers(values);
+  void EncodePackedVarInts(size_t const field_number, absl::Span<uint64_t const> const values) {
+    EncodePackedIntegers(field_number, values);
   }
 
-  void EncodePackedInt32s(absl::Span<uint64_t const> const values) { EncodePackedIntegers(values); }
-
-  void EncodePackedUInt32s(absl::Span<uint64_t const> const values) {
-    EncodePackedIntegers(values);
+  void EncodePackedInt32s(size_t const field_number, absl::Span<uint64_t const> const values) {
+    EncodePackedIntegers(field_number, values);
   }
 
-  void EncodePackedInt64s(absl::Span<uint64_t const> const values) { EncodePackedIntegers(values); }
-
-  void EncodePackedUInt64s(absl::Span<uint64_t const> const values) {
-    EncodePackedIntegers(values);
+  void EncodePackedUInt32s(size_t const field_number, absl::Span<uint64_t const> const values) {
+    EncodePackedIntegers(field_number, values);
   }
 
-  void EncodePackedSInt32s(absl::Span<int32_t const> values);
-  void EncodePackedSInt64s(absl::Span<int64_t const> values);
-  void EncodePackedFixedInt32s(absl::Span<int32_t const> values);
-  void EncodePackedFixedUInt32s(absl::Span<uint32_t const> values);
-  void EncodePackedFixedInt64s(absl::Span<int64_t const> values);
-  void EncodePackedFixedUInt64s(absl::Span<uint64_t const> values);
-  void EncodePackedBools(absl::Span<bool const> values);
-  void EncodePackedFloats(absl::Span<float const> values);
-  void EncodePackedDoubles(absl::Span<double const> values);
+  void EncodePackedInt64s(size_t const field_number, absl::Span<uint64_t const> const values) {
+    EncodePackedIntegers(field_number, values);
+  }
+
+  void EncodePackedUInt64s(size_t const field_number, absl::Span<uint64_t const> const values) {
+    EncodePackedIntegers(field_number, values);
+  }
+
+  void EncodePackedSInt32s(size_t field_number, absl::Span<int32_t const> values);
+  void EncodePackedSInt64s(size_t field_number, absl::Span<int64_t const> values);
+  void EncodePackedFixedInt32s(size_t field_number, absl::Span<int32_t const> values);
+  void EncodePackedFixedUInt32s(size_t field_number, absl::Span<uint32_t const> values);
+  void EncodePackedFixedInt64s(size_t field_number, absl::Span<int64_t const> values);
+  void EncodePackedFixedUInt64s(size_t field_number, absl::Span<uint64_t const> values);
+  void EncodePackedBools(size_t field_number, absl::Span<bool const> values);
+  void EncodePackedFloats(size_t field_number, absl::Span<float const> values);
+  void EncodePackedDoubles(size_t field_number, absl::Span<double const> values);
 
   template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
   void EncodePackedEnums(size_t const field_number, absl::Span<Enum const> const values) {
@@ -272,7 +276,8 @@ class Encoder {
 
   template <typename Integer,
             std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>, bool> = true>
-  void EncodePackedIntegers(absl::Span<Integer const> values) {
+  void EncodePackedIntegers(size_t const field_number, absl::Span<Integer const> values) {
+    EncodeTag(FieldTag{.field_number = field_number, .wire_type = WireType::kLength});
     Encoder child;
     for (Integer const value : values) {
       child.EncodeIntegerInternal(value);

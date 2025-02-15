@@ -1410,217 +1410,230 @@ TEST_F(EncoderTest, EncodeEnum) {
 }
 
 TEST_F(EncoderTest, EncodeEmptyPackedInt32s) {
-  encoder_.EncodePackedInt32s({});
-  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x00)));
+  encoder_.EncodePackedInt32s(42, {});
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0xD2, 0x02, 0x00)));
 }
 
 TEST_F(EncoderTest, EncodeOnePackedInt32) {
-  encoder_.EncodePackedInt32s({18691});
-  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x03, 0x83, 0x92, 0x01)));
+  encoder_.EncodePackedInt32s(42, {18691});
+  EXPECT_THAT(std::move(encoder_).Flatten(),
+              BufferAsBytes(ElementsAre(0xD2, 0x02, 0x03, 0x83, 0x92, 0x01)));
 }
 
 TEST_F(EncoderTest, EncodeTwoPackedInt32s) {
-  encoder_.EncodePackedInt32s({4610, 18691});
+  encoder_.EncodePackedInt32s(42, {4610, 18691});
   EXPECT_THAT(std::move(encoder_).Flatten(),
-              BufferAsBytes(ElementsAre(0x05, 0x82, 0x24, 0x83, 0x92, 0x01)));
+              BufferAsBytes(ElementsAre(0xD2, 0x02, 0x05, 0x82, 0x24, 0x83, 0x92, 0x01)));
 }
 
 TEST_F(EncoderTest, EncodeEmptyPackedInt64s) {
-  encoder_.EncodePackedInt64s({});
-  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x00)));
+  encoder_.EncodePackedInt64s(42, {});
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0xD2, 0x02, 0x00)));
 }
 
 TEST_F(EncoderTest, EncodeOnePackedInt64) {
-  encoder_.EncodePackedInt64s({18691});
-  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x03, 0x83, 0x92, 0x01)));
+  encoder_.EncodePackedInt64s(42, {18691});
+  EXPECT_THAT(std::move(encoder_).Flatten(),
+              BufferAsBytes(ElementsAre(0xD2, 0x02, 0x03, 0x83, 0x92, 0x01)));
 }
 
 TEST_F(EncoderTest, EncodeTwoPackedInt64s) {
-  encoder_.EncodePackedInt64s({4610, 18691});
+  encoder_.EncodePackedInt64s(42, {4610, 18691});
   EXPECT_THAT(std::move(encoder_).Flatten(),
-              BufferAsBytes(ElementsAre(0x05, 0x82, 0x24, 0x83, 0x92, 0x01)));
+              BufferAsBytes(ElementsAre(0xD2, 0x02, 0x05, 0x82, 0x24, 0x83, 0x92, 0x01)));
 }
 
 TEST_F(EncoderTest, EncodeEmptyPackedUInt32s) {
-  encoder_.EncodePackedUInt32s({});
-  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x00)));
+  encoder_.EncodePackedUInt32s(42, {});
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0xD2, 0x02, 0x00)));
 }
 
 TEST_F(EncoderTest, EncodeOnePackedUInt32) {
-  encoder_.EncodePackedUInt32s({18691});
-  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x03, 0x83, 0x92, 0x01)));
+  encoder_.EncodePackedUInt32s(42, {18691});
+  EXPECT_THAT(std::move(encoder_).Flatten(),
+              BufferAsBytes(ElementsAre(0xD2, 0x02, 0x03, 0x83, 0x92, 0x01)));
 }
 
 TEST_F(EncoderTest, EncodeTwoPackedUInt32s) {
-  encoder_.EncodePackedUInt32s({4610, 18691});
+  encoder_.EncodePackedUInt32s(42, {4610, 18691});
   EXPECT_THAT(std::move(encoder_).Flatten(),
-              BufferAsBytes(ElementsAre(0x05, 0x82, 0x24, 0x83, 0x92, 0x01)));
+              BufferAsBytes(ElementsAre(0xD2, 0x02, 0x05, 0x82, 0x24, 0x83, 0x92, 0x01)));
 }
 
 TEST_F(EncoderTest, EncodeEmptyPackedUInt64s) {
-  encoder_.EncodePackedUInt64s({});
-  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x00)));
+  encoder_.EncodePackedUInt64s(42, {});
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0xD2, 0x02, 0x00)));
 }
 
 TEST_F(EncoderTest, EncodeOnePackedUInt64) {
-  encoder_.EncodePackedUInt64s({18691});
-  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x03, 0x83, 0x92, 0x01)));
+  encoder_.EncodePackedUInt64s(42, {18691});
+  EXPECT_THAT(std::move(encoder_).Flatten(),
+              BufferAsBytes(ElementsAre(0xD2, 0x02, 0x03, 0x83, 0x92, 0x01)));
 }
 
 TEST_F(EncoderTest, EncodeTwoPackedUInt64s) {
-  encoder_.EncodePackedUInt64s({4610, 18691});
+  encoder_.EncodePackedUInt64s(42, {4610, 18691});
   EXPECT_THAT(std::move(encoder_).Flatten(),
-              BufferAsBytes(ElementsAre(0x05, 0x82, 0x24, 0x83, 0x92, 0x01)));
+              BufferAsBytes(ElementsAre(0xD2, 0x02, 0x05, 0x82, 0x24, 0x83, 0x92, 0x01)));
 }
 
 TEST_F(EncoderTest, EncodeEmptyPackedSInt32s) {
-  encoder_.EncodePackedSInt32s({});
-  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x00)));
+  encoder_.EncodePackedSInt32s(42, {});
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0xD2, 0x02, 0x00)));
 }
 
 TEST_F(EncoderTest, EncodeOnePackedSInt32) {
-  encoder_.EncodePackedSInt32s({42});
-  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x01, 0x54)));
+  encoder_.EncodePackedSInt32s(42, {42});
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0xD2, 0x02, 0x01, 0x54)));
 }
 
 TEST_F(EncoderTest, EncodeTwoPackedSInt32s) {
-  encoder_.EncodePackedSInt32s({4610, -42});
-  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x03, 0x84, 0x48, 0x53)));
+  encoder_.EncodePackedSInt32s(42, {4610, -42});
+  EXPECT_THAT(std::move(encoder_).Flatten(),
+              BufferAsBytes(ElementsAre(0xD2, 0x02, 0x03, 0x84, 0x48, 0x53)));
 }
 
 TEST_F(EncoderTest, EncodeEmptyPackedSInt64s) {
-  encoder_.EncodePackedSInt64s({});
-  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x00)));
+  encoder_.EncodePackedSInt64s(42, {});
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0xD2, 0x02, 0x00)));
 }
 
 TEST_F(EncoderTest, EncodeOnePackedSInt64) {
-  encoder_.EncodePackedSInt64s({42});
-  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x01, 0x54)));
+  encoder_.EncodePackedSInt64s(42, {42});
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0xD2, 0x02, 0x01, 0x54)));
 }
 
 TEST_F(EncoderTest, EncodeTwoPackedSInt64s) {
-  encoder_.EncodePackedSInt64s({4610, -42});
-  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x03, 0x84, 0x48, 0x53)));
+  encoder_.EncodePackedSInt64s(42, {4610, -42});
+  EXPECT_THAT(std::move(encoder_).Flatten(),
+              BufferAsBytes(ElementsAre(0xD2, 0x02, 0x03, 0x84, 0x48, 0x53)));
 }
 
 TEST_F(EncoderTest, EncodeEmptyPackedFixedInt32s) {
-  encoder_.EncodePackedFixedInt32s({});
-  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x00)));
+  encoder_.EncodePackedFixedInt32s(42, {});
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0xD2, 0x02, 0x00)));
 }
 
 TEST_F(EncoderTest, EncodeOnePackedFixedInt32) {
-  encoder_.EncodePackedFixedInt32s({42});
+  encoder_.EncodePackedFixedInt32s(42, {42});
   EXPECT_THAT(std::move(encoder_).Flatten(),
-              BufferAsBytes(ElementsAre(0x04, 0x2A, 0x00, 0x00, 0x00)));
+              BufferAsBytes(ElementsAre(0xD2, 0x02, 0x04, 0x2A, 0x00, 0x00, 0x00)));
 }
 
 TEST_F(EncoderTest, EncodeTwoPackedFixedInt32s) {
-  encoder_.EncodePackedFixedInt32s({18564, -42});
-  EXPECT_THAT(std::move(encoder_).Flatten(),
-              BufferAsBytes(ElementsAre(0x08, 0x84, 0x48, 0x00, 0x00, 0xD6, 0xFF, 0xFF, 0xFF)));
+  encoder_.EncodePackedFixedInt32s(42, {18564, -42});
+  EXPECT_THAT(
+      std::move(encoder_).Flatten(),
+      BufferAsBytes(ElementsAre(0xD2, 0x02, 0x08, 0x84, 0x48, 0x00, 0x00, 0xD6, 0xFF, 0xFF, 0xFF)));
 }
 
 TEST_F(EncoderTest, EncodeEmptyPackedFixedInt64s) {
-  encoder_.EncodePackedFixedInt64s({});
-  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x00)));
+  encoder_.EncodePackedFixedInt64s(42, {});
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0xD2, 0x02, 0x00)));
 }
 
 TEST_F(EncoderTest, EncodeOnePackedFixedInt64) {
-  encoder_.EncodePackedFixedInt64s({42});
-  EXPECT_THAT(std::move(encoder_).Flatten(),
-              BufferAsBytes(ElementsAre(0x08, 0x2A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)));
+  encoder_.EncodePackedFixedInt64s(42, {42});
+  EXPECT_THAT(
+      std::move(encoder_).Flatten(),
+      BufferAsBytes(ElementsAre(0xD2, 0x02, 0x08, 0x2A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)));
 }
 
 TEST_F(EncoderTest, EncodeTwoPackedFixedInt64s) {
-  encoder_.EncodePackedFixedInt64s({18564, -42});
+  encoder_.EncodePackedFixedInt64s(42, {18564, -42});
   EXPECT_THAT(std::move(encoder_).Flatten(),
-              BufferAsBytes(ElementsAre(0x10, 0x84, 0x48, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xD6,
-                                        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF)));
+              BufferAsBytes(ElementsAre(0xD2, 0x02, 0x10, 0x84, 0x48, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                        0x00, 0xD6, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF)));
 }
 
 TEST_F(EncoderTest, EncodeEmptyPackedFixedUInt32s) {
-  encoder_.EncodePackedFixedUInt32s({});
-  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x00)));
+  encoder_.EncodePackedFixedUInt32s(42, {});
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0xD2, 0x02, 0x00)));
 }
 
 TEST_F(EncoderTest, EncodeOnePackedFixedUInt32) {
-  encoder_.EncodePackedFixedUInt32s({42});
+  encoder_.EncodePackedFixedUInt32s(42, {42});
   EXPECT_THAT(std::move(encoder_).Flatten(),
-              BufferAsBytes(ElementsAre(0x04, 0x2A, 0x00, 0x00, 0x00)));
+              BufferAsBytes(ElementsAre(0xD2, 0x02, 0x04, 0x2A, 0x00, 0x00, 0x00)));
 }
 
 TEST_F(EncoderTest, EncodeTwoPackedFixedUInt32s) {
-  encoder_.EncodePackedFixedUInt32s({18564, 42});
-  EXPECT_THAT(std::move(encoder_).Flatten(),
-              BufferAsBytes(ElementsAre(0x08, 0x84, 0x48, 0x00, 0x00, 0x2A, 0x00, 0x00, 0x00)));
+  encoder_.EncodePackedFixedUInt32s(42, {18564, 42});
+  EXPECT_THAT(
+      std::move(encoder_).Flatten(),
+      BufferAsBytes(ElementsAre(0xD2, 0x02, 0x08, 0x84, 0x48, 0x00, 0x00, 0x2A, 0x00, 0x00, 0x00)));
 }
 
 TEST_F(EncoderTest, EncodeEmptyPackedFixedUInt64s) {
-  encoder_.EncodePackedFixedUInt64s({});
-  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x00)));
+  encoder_.EncodePackedFixedUInt64s(42, {});
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0xD2, 0x02, 0x00)));
 }
 
 TEST_F(EncoderTest, EncodeOnePackedFixedUInt64) {
-  encoder_.EncodePackedFixedUInt64s({42});
-  EXPECT_THAT(std::move(encoder_).Flatten(),
-              BufferAsBytes(ElementsAre(0x08, 0x2A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)));
+  encoder_.EncodePackedFixedUInt64s(42, {42});
+  EXPECT_THAT(
+      std::move(encoder_).Flatten(),
+      BufferAsBytes(ElementsAre(0xD2, 0x02, 0x08, 0x2A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)));
 }
 
 TEST_F(EncoderTest, EncodeTwoPackedFixedUInt64s) {
-  encoder_.EncodePackedFixedUInt64s({18564, 42});
+  encoder_.EncodePackedFixedUInt64s(42, {18564, 42});
   EXPECT_THAT(std::move(encoder_).Flatten(),
-              BufferAsBytes(ElementsAre(0x10, 0x84, 0x48, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2A,
-                                        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)));
+              BufferAsBytes(ElementsAre(0xD2, 0x02, 0x10, 0x84, 0x48, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                        0x00, 0x2A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)));
 }
 
 TEST_F(EncoderTest, EncodeEmptyPackedBools) {
-  encoder_.EncodePackedBools({});
-  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x00)));
+  encoder_.EncodePackedBools(42, {});
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0xD2, 0x02, 0x00)));
 }
 
 TEST_F(EncoderTest, EncodeOnePackedBool) {
-  encoder_.EncodePackedBools({false});
-  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x01, 0x00)));
+  encoder_.EncodePackedBools(42, {false});
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0xD2, 0x02, 0x01, 0x00)));
 }
 
 TEST_F(EncoderTest, EncodeTwoPackedBools) {
-  encoder_.EncodePackedBools({true, false});
-  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x02, 0x01, 0x00)));
+  encoder_.EncodePackedBools(42, {true, false});
+  EXPECT_THAT(std::move(encoder_).Flatten(),
+              BufferAsBytes(ElementsAre(0xD2, 0x02, 0x02, 0x01, 0x00)));
 }
 
 TEST_F(EncoderTest, EncodeEmptyPackedFloats) {
-  encoder_.EncodePackedFloats({});
-  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x00)));
+  encoder_.EncodePackedFloats(42, {});
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0xD2, 0x02, 0x00)));
 }
 
 TEST_F(EncoderTest, EncodeOnePackedFloat) {
-  encoder_.EncodePackedFloats({3.14159f});
+  encoder_.EncodePackedFloats(42, {3.14159f});
   EXPECT_THAT(std::move(encoder_).Flatten(),
-              BufferAsBytes(ElementsAre(0x04, 0xD0, 0x0F, 0x49, 0x40)));
+              BufferAsBytes(ElementsAre(0xD2, 0x02, 0x04, 0xD0, 0x0F, 0x49, 0x40)));
 }
 
 TEST_F(EncoderTest, EncodeTwoPackedFloats) {
-  encoder_.EncodePackedFloats({2.71828f, 3.14159f});
-  EXPECT_THAT(std::move(encoder_).Flatten(),
-              BufferAsBytes(ElementsAre(0x08, 0x4D, 0xF8, 0x2D, 0x40, 0xD0, 0x0F, 0x49, 0x40)));
+  encoder_.EncodePackedFloats(42, {2.71828f, 3.14159f});
+  EXPECT_THAT(
+      std::move(encoder_).Flatten(),
+      BufferAsBytes(ElementsAre(0xD2, 0x02, 0x08, 0x4D, 0xF8, 0x2D, 0x40, 0xD0, 0x0F, 0x49, 0x40)));
 }
 
 TEST_F(EncoderTest, EncodeEmptyPackedDouble) {
-  encoder_.EncodePackedDoubles({});
-  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x00)));
+  encoder_.EncodePackedDoubles(42, {});
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0xD2, 0x02, 0x00)));
 }
 
 TEST_F(EncoderTest, EncodeOnePackedDouble) {
-  encoder_.EncodePackedDoubles({3.14159});
-  EXPECT_THAT(std::move(encoder_).Flatten(),
-              BufferAsBytes(ElementsAre(0x08, 0x6E, 0x86, 0x1B, 0xF0, 0xF9, 0x21, 0x09, 0x40)));
+  encoder_.EncodePackedDoubles(42, {3.14159});
+  EXPECT_THAT(
+      std::move(encoder_).Flatten(),
+      BufferAsBytes(ElementsAre(0xD2, 0x02, 0x08, 0x6E, 0x86, 0x1B, 0xF0, 0xF9, 0x21, 0x09, 0x40)));
 }
 
 TEST_F(EncoderTest, EncodeTwoPackedDoubles) {
-  encoder_.EncodePackedDoubles({2.71828, 3.14159});
+  encoder_.EncodePackedDoubles(42, {2.71828, 3.14159});
   EXPECT_THAT(std::move(encoder_).Flatten(),
-              BufferAsBytes(ElementsAre(0x10, 0x90, 0xF7, 0xAA, 0x95, 0x09, 0xBF, 0x05, 0x40, 0x6E,
-                                        0x86, 0x1B, 0xF0, 0xF9, 0x21, 0x09, 0x40)));
+              BufferAsBytes(ElementsAre(0xD2, 0x02, 0x10, 0x90, 0xF7, 0xAA, 0x95, 0x09, 0xBF, 0x05,
+                                        0x40, 0x6E, 0x86, 0x1B, 0xF0, 0xF9, 0x21, 0x09, 0x40)));
 }
 
 TEST_F(EncoderTest, EncodeEmptyPackedEnums) {

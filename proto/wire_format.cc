@@ -487,7 +487,9 @@ void Encoder::EncodeSubMessage(tsdb2::io::Cord cord) {
   cord_.Append(std::move(cord));
 }
 
-void Encoder::EncodePackedSInt32s(absl::Span<int32_t const> const values) {
+void Encoder::EncodePackedSInt32s(size_t const field_number,
+                                  absl::Span<int32_t const> const values) {
+  EncodeTag(FieldTag{.field_number = field_number, .wire_type = WireType::kLength});
   Encoder child;
   for (int32_t const value : values) {
     child.EncodeSInt32(value);
@@ -495,7 +497,9 @@ void Encoder::EncodePackedSInt32s(absl::Span<int32_t const> const values) {
   EncodeSubMessage(std::move(child));
 }
 
-void Encoder::EncodePackedSInt64s(absl::Span<int64_t const> const values) {
+void Encoder::EncodePackedSInt64s(size_t const field_number,
+                                  absl::Span<int64_t const> const values) {
+  EncodeTag(FieldTag{.field_number = field_number, .wire_type = WireType::kLength});
   Encoder child;
   for (int64_t const value : values) {
     child.EncodeSInt64(value);
@@ -503,7 +507,9 @@ void Encoder::EncodePackedSInt64s(absl::Span<int64_t const> const values) {
   EncodeSubMessage(std::move(child));
 }
 
-void Encoder::EncodePackedFixedInt32s(absl::Span<int32_t const> const values) {
+void Encoder::EncodePackedFixedInt32s(size_t const field_number,
+                                      absl::Span<int32_t const> const values) {
+  EncodeTag(FieldTag{.field_number = field_number, .wire_type = WireType::kLength});
   Encoder child;
   for (int32_t const value : values) {
     child.EncodeFixedInt32(value);
@@ -511,7 +517,9 @@ void Encoder::EncodePackedFixedInt32s(absl::Span<int32_t const> const values) {
   EncodeSubMessage(std::move(child));
 }
 
-void Encoder::EncodePackedFixedUInt32s(absl::Span<uint32_t const> const values) {
+void Encoder::EncodePackedFixedUInt32s(size_t const field_number,
+                                       absl::Span<uint32_t const> const values) {
+  EncodeTag(FieldTag{.field_number = field_number, .wire_type = WireType::kLength});
   Encoder child;
   for (uint32_t const value : values) {
     child.EncodeFixedUInt32(value);
@@ -519,7 +527,9 @@ void Encoder::EncodePackedFixedUInt32s(absl::Span<uint32_t const> const values) 
   EncodeSubMessage(std::move(child));
 }
 
-void Encoder::EncodePackedFixedInt64s(absl::Span<int64_t const> const values) {
+void Encoder::EncodePackedFixedInt64s(size_t const field_number,
+                                      absl::Span<int64_t const> const values) {
+  EncodeTag(FieldTag{.field_number = field_number, .wire_type = WireType::kLength});
   Encoder child;
   for (int64_t const value : values) {
     child.EncodeFixedInt64(value);
@@ -527,7 +537,9 @@ void Encoder::EncodePackedFixedInt64s(absl::Span<int64_t const> const values) {
   EncodeSubMessage(std::move(child));
 }
 
-void Encoder::EncodePackedFixedUInt64s(absl::Span<uint64_t const> const values) {
+void Encoder::EncodePackedFixedUInt64s(size_t const field_number,
+                                       absl::Span<uint64_t const> const values) {
+  EncodeTag(FieldTag{.field_number = field_number, .wire_type = WireType::kLength});
   Encoder child;
   for (uint64_t const value : values) {
     child.EncodeFixedUInt64(value);
@@ -535,7 +547,8 @@ void Encoder::EncodePackedFixedUInt64s(absl::Span<uint64_t const> const values) 
   EncodeSubMessage(std::move(child));
 }
 
-void Encoder::EncodePackedBools(absl::Span<bool const> const values) {
+void Encoder::EncodePackedBools(size_t const field_number, absl::Span<bool const> const values) {
+  EncodeTag(FieldTag{.field_number = field_number, .wire_type = WireType::kLength});
   Encoder child;
   for (bool const value : values) {
     child.EncodeBool(value);
@@ -543,7 +556,8 @@ void Encoder::EncodePackedBools(absl::Span<bool const> const values) {
   EncodeSubMessage(std::move(child));
 }
 
-void Encoder::EncodePackedFloats(absl::Span<float const> const values) {
+void Encoder::EncodePackedFloats(size_t const field_number, absl::Span<float const> const values) {
+  EncodeTag(FieldTag{.field_number = field_number, .wire_type = WireType::kLength});
   Encoder child;
   for (float const value : values) {
     child.EncodeFloat(value);
@@ -551,7 +565,9 @@ void Encoder::EncodePackedFloats(absl::Span<float const> const values) {
   EncodeSubMessage(std::move(child));
 }
 
-void Encoder::EncodePackedDoubles(absl::Span<double const> const values) {
+void Encoder::EncodePackedDoubles(size_t const field_number,
+                                  absl::Span<double const> const values) {
+  EncodeTag(FieldTag{.field_number = field_number, .wire_type = WireType::kLength});
   Encoder child;
   for (double const value : values) {
     child.EncodeDouble(value);

@@ -689,7 +689,7 @@ absl::Status Generator::EmitRepeatedFieldEncoding(
     auto const packed_encoder_it = kPackedFieldEncoderNames.find(type);
     if (packed_encoder_it != kPackedFieldEncoderNames.end()) {
       writer->AppendLine(
-          absl::StrCat("encoder.", packed_encoder_it->second, "(proto.", name, ");"));
+          absl::StrCat("encoder.", packed_encoder_it->second, "(", number, ", proto.", name, ");"));
       return absl::OkStatus();
     }
   }
@@ -735,7 +735,8 @@ absl::Status Generator::EmitEnumEncoding(internal::FileWriter* const writer,
       break;
     case google::protobuf::FieldDescriptorProto_Label::LABEL_REPEATED: {
       if (packed) {
-        writer->AppendLine(absl::StrCat("encoder.EncodePackedEnums(proto.", name, ");"));
+        writer->AppendLine(
+            absl::StrCat("encoder.EncodePackedEnums(", number, ", proto.", name, ");"));
       } else {
         writer->AppendLine(absl::StrCat("for (auto const& value : proto.", name, ") {"));
         {
