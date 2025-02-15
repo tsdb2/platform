@@ -96,6 +96,42 @@ auto constexpr kFieldTypeNames =
         {FieldDescriptorProto_Type::TYPE_SINT64, "int64_t"},
     });
 
+auto constexpr kFieldEncoderNames =
+    tsdb2::common::fixed_flat_map_of<FieldDescriptorProto_Type, std::string_view>({
+        {FieldDescriptorProto_Type::TYPE_DOUBLE, "EncodeDoubleField"},
+        {FieldDescriptorProto_Type::TYPE_FLOAT, "EncodeFloatField"},
+        {FieldDescriptorProto_Type::TYPE_INT64, "EncodeInt64Field"},
+        {FieldDescriptorProto_Type::TYPE_UINT64, "EncodeUInt64Field"},
+        {FieldDescriptorProto_Type::TYPE_INT32, "EncodeInt32Field"},
+        {FieldDescriptorProto_Type::TYPE_FIXED64, "EncodeFixedUInt64Field"},
+        {FieldDescriptorProto_Type::TYPE_FIXED32, "EncodeFixedUInt32Field"},
+        {FieldDescriptorProto_Type::TYPE_BOOL, "EncodeBoolField"},
+        {FieldDescriptorProto_Type::TYPE_STRING, "EncodeStringField"},
+        {FieldDescriptorProto_Type::TYPE_BYTES, "EncodeBytesField"},
+        {FieldDescriptorProto_Type::TYPE_UINT32, "EncodeUInt32Field"},
+        {FieldDescriptorProto_Type::TYPE_SFIXED32, "EncodeFixedInt32Field"},
+        {FieldDescriptorProto_Type::TYPE_SFIXED64, "EncodeFixedInt64Field"},
+        {FieldDescriptorProto_Type::TYPE_SINT32, "EncodeSInt32Field"},
+        {FieldDescriptorProto_Type::TYPE_SINT64, "EncodeSInt64Field"},
+    });
+
+auto constexpr kPackedFieldEncoderNames =
+    tsdb2::common::fixed_flat_map_of<FieldDescriptorProto_Type, std::string_view>({
+        {FieldDescriptorProto_Type::TYPE_DOUBLE, "EncodePackedDoubles"},
+        {FieldDescriptorProto_Type::TYPE_FLOAT, "EncodePackedFloats"},
+        {FieldDescriptorProto_Type::TYPE_INT64, "EncodePackedInt64s"},
+        {FieldDescriptorProto_Type::TYPE_UINT64, "EncodePackedUInt64s"},
+        {FieldDescriptorProto_Type::TYPE_INT32, "EncodePackedInt32s"},
+        {FieldDescriptorProto_Type::TYPE_FIXED64, "EncodePackedFixedUInt64s"},
+        {FieldDescriptorProto_Type::TYPE_FIXED32, "EncodePackedFixedUInt32s"},
+        {FieldDescriptorProto_Type::TYPE_BOOL, "EncodePackedBools"},
+        {FieldDescriptorProto_Type::TYPE_UINT32, "EncodePackedUInt32s"},
+        {FieldDescriptorProto_Type::TYPE_SFIXED32, "EncodePackedFixedInt32s"},
+        {FieldDescriptorProto_Type::TYPE_SFIXED64, "EncodePackedFixedInt64s"},
+        {FieldDescriptorProto_Type::TYPE_SINT32, "EncodePackedSInt32s"},
+        {FieldDescriptorProto_Type::TYPE_SINT64, "EncodePackedSInt64s"},
+    });
+
 std::string StringifyCycleItem(std::pair<DependencyManager::Path, std::string> const& item) {
   return absl::StrCat(absl::StrJoin(item.first, "."), ".", item.second);
 }
@@ -624,75 +660,13 @@ absl::Status Generator::EmitOptionalFieldEncoding(
     google::protobuf::FieldDescriptorProto_Type const type) {
   writer->AppendLine(absl::StrCat("if (proto.", name, ".has_value()) {"));
   {
-    FileWriter::IndentedScope is{writer};
-    switch (type) {
-      case FieldDescriptorProto_Type::TYPE_DOUBLE:
-        writer->AppendLine(
-            absl::StrCat("encoder.EncodeDoubleField(", number, ", proto.", name, ".value());"));
-        break;
-      case FieldDescriptorProto_Type::TYPE_FLOAT:
-        writer->AppendLine(
-            absl::StrCat("encoder.EncodeFloatField(", number, ", proto.", name, ".value());"));
-        break;
-      case FieldDescriptorProto_Type::TYPE_INT64:
-        writer->AppendLine(absl::StrCat("encoder.EncodeTag({ .field_number = ", number,
-                                        ", .wire_type = ::tsdb2::proto::WireType::kVarInt });"));
-        writer->AppendLine(absl::StrCat("encoder.EncodeInt64(proto.", name, ".value());"));
-        break;
-      case FieldDescriptorProto_Type::TYPE_UINT64:
-        writer->AppendLine(absl::StrCat("encoder.EncodeTag({ .field_number = ", number,
-                                        ", .wire_type = ::tsdb2::proto::WireType::kVarInt });"));
-        writer->AppendLine(absl::StrCat("encoder.EncodeUInt64(proto.", name, ".value());"));
-        break;
-      case FieldDescriptorProto_Type::TYPE_INT32:
-        writer->AppendLine(absl::StrCat("encoder.EncodeTag({ .field_number = ", number,
-                                        ", .wire_type = ::tsdb2::proto::WireType::kVarInt });"));
-        writer->AppendLine(absl::StrCat("encoder.EncodeInt32(proto.", name, ".value());"));
-        break;
-      case FieldDescriptorProto_Type::TYPE_FIXED64:
-        writer->AppendLine(absl::StrCat("encoder.EncodeFixedUInt64Field(", number, ", proto.", name,
-                                        ".value());"));
-        break;
-      case FieldDescriptorProto_Type::TYPE_FIXED32:
-        writer->AppendLine(absl::StrCat("encoder.EncodeFixedUInt32Field(", number, ", proto.", name,
-                                        ".value());"));
-        break;
-      case FieldDescriptorProto_Type::TYPE_BOOL:
-        writer->AppendLine(
-            absl::StrCat("encoder.EncodeBoolField(", number, ", proto.", name, ".value());"));
-        break;
-      case FieldDescriptorProto_Type::TYPE_STRING:
-        writer->AppendLine(
-            absl::StrCat("encoder.EncodeStringField(", number, ", proto.", name, ".value());"));
-        break;
-      case FieldDescriptorProto_Type::TYPE_BYTES:
-        writer->AppendLine(
-            absl::StrCat("encoder.EncodeBytesField(", number, ", proto.", name, ".value());"));
-        break;
-      case FieldDescriptorProto_Type::TYPE_UINT32:
-        writer->AppendLine(absl::StrCat("encoder.EncodeTag({ .field_number = ", number,
-                                        ", .wire_type = ::tsdb2::proto::WireType::kVarInt });"));
-        writer->AppendLine(absl::StrCat("encoder.EncodeUInt32(proto.", name, ".value());"));
-        break;
-      case FieldDescriptorProto_Type::TYPE_SFIXED32:
-        writer->AppendLine(
-            absl::StrCat("encoder.EncodeFixedInt32Field(", number, ", proto.", name, ".value());"));
-        break;
-      case FieldDescriptorProto_Type::TYPE_SFIXED64:
-        writer->AppendLine(
-            absl::StrCat("encoder.EncodeFixedInt64Field(", number, ", proto.", name, ".value());"));
-        break;
-      case FieldDescriptorProto_Type::TYPE_SINT32:
-        writer->AppendLine(
-            absl::StrCat("encoder.EncodeSInt32Field(", number, ", proto.", name, ".value());"));
-        break;
-      case FieldDescriptorProto_Type::TYPE_SINT64:
-        writer->AppendLine(
-            absl::StrCat("encoder.EncodeSInt64Field(", number, ", proto.", name, ".value());"));
-        break;
-      default:
-        return absl::InvalidArgumentError("invalid field type");
+    auto const it = kFieldEncoderNames.find(type);
+    if (it == kFieldEncoderNames.end()) {
+      return absl::InvalidArgumentError("invalid field type");
     }
+    FileWriter::IndentedScope is{writer};
+    writer->AppendLine(
+        absl::StrCat("encoder.", it->second, "(", number, ", proto.", name, ".value());"));
   }
   writer->AppendLine("}");
   return absl::OkStatus();
@@ -701,261 +675,37 @@ absl::Status Generator::EmitOptionalFieldEncoding(
 absl::Status Generator::EmitRepeatedFieldEncoding(
     internal::FileWriter* const writer, std::string_view const name, size_t const number,
     google::protobuf::FieldDescriptorProto_Type const type, bool const packed) {
-  switch (type) {
-    case FieldDescriptorProto_Type::TYPE_DOUBLE:
-      if (packed) {
-        writer->AppendLine(absl::StrCat("encoder.EncodePackedDoubles(proto.", name, ");"));
-      } else {
-        writer->AppendLine(absl::StrCat("for (auto const& value : proto.", name, ") {"));
-        {
-          FileWriter::IndentedScope is{writer};
-          writer->AppendLine(absl::StrCat("encoder.EncodeDoubleField(", number, ", value);"));
-        }
-        writer->AppendLine("}");
-      }
-      break;
-    case FieldDescriptorProto_Type::TYPE_FLOAT:
-      if (packed) {
-        writer->AppendLine(absl::StrCat("encoder.EncodePackedFloats(proto.", name, ");"));
-      } else {
-        writer->AppendLine(absl::StrCat("for (auto const& value : proto.", name, ") {"));
-        {
-          FileWriter::IndentedScope is{writer};
-          writer->AppendLine(absl::StrCat("encoder.EncodeFloatField(", number, ", value);"));
-        }
-        writer->AppendLine("}");
-      }
-      break;
-    case FieldDescriptorProto_Type::TYPE_INT64:
-      if (packed) {
-        writer->AppendLine(absl::StrCat("encoder.EncodePackedInt64s(proto.", name, ");"));
-      } else {
-        writer->AppendLine(absl::StrCat("for (auto const& value : proto.", name, ") {"));
-        {
-          FileWriter::IndentedScope is{writer};
-          writer->AppendLine(absl::StrCat("encoder.EncodeTag({ .field_number = ", number,
-                                          ", .wire_type = ::tsdb2::proto::WireType::kVarInt });"));
-          writer->AppendLine("encoder.EncodeInt64(value);");
-        }
-        writer->AppendLine("}");
-      }
-      break;
-    case FieldDescriptorProto_Type::TYPE_UINT64:
-      if (packed) {
-        writer->AppendLine(absl::StrCat("encoder.EncodePackedUInt64s(proto.", name, ");"));
-      } else {
-        writer->AppendLine(absl::StrCat("for (auto const& value : proto.", name, ") {"));
-        {
-          FileWriter::IndentedScope is{writer};
-          writer->AppendLine(absl::StrCat("encoder.EncodeTag({ .field_number = ", number,
-                                          ", .wire_type = ::tsdb2::proto::WireType::kVarInt });"));
-          writer->AppendLine("encoder.EncodeUInt64(value);");
-        }
-        writer->AppendLine("}");
-      }
-      break;
-    case FieldDescriptorProto_Type::TYPE_INT32:
-      if (packed) {
-        writer->AppendLine(absl::StrCat("encoder.EncodePackedInt32s(proto.", name, ");"));
-      } else {
-        writer->AppendLine(absl::StrCat("for (auto const& value : proto.", name, ") {"));
-        {
-          FileWriter::IndentedScope is{writer};
-          writer->AppendLine(absl::StrCat("encoder.EncodeTag({ .field_number = ", number,
-                                          ", .wire_type = ::tsdb2::proto::WireType::kVarInt });"));
-          writer->AppendLine("encoder.EncodeInt32(value);");
-        }
-        writer->AppendLine("}");
-      }
-      break;
-    case FieldDescriptorProto_Type::TYPE_FIXED64:
-      if (packed) {
-        writer->AppendLine(absl::StrCat("encoder.EncodePackedFixedUInt64s(proto.", name, ");"));
-      } else {
-        writer->AppendLine(absl::StrCat("for (auto const& value : proto.", name, ") {"));
-        {
-          FileWriter::IndentedScope is{writer};
-          writer->AppendLine(absl::StrCat("encoder.EncodeFixedUInt64Field(", number, ", value);"));
-        }
-        writer->AppendLine("}");
-      }
-      break;
-    case FieldDescriptorProto_Type::TYPE_FIXED32:
-      if (packed) {
-        writer->AppendLine(absl::StrCat("encoder.EncodePackedFixedUInt32s(proto.", name, ");"));
-      } else {
-        writer->AppendLine(absl::StrCat("for (auto const& value : proto.", name, ") {"));
-        {
-          FileWriter::IndentedScope is{writer};
-          writer->AppendLine(absl::StrCat("encoder.EncodeFixedUInt32Field(", number, ", value);"));
-        }
-        writer->AppendLine("}");
-      }
-      break;
-    case FieldDescriptorProto_Type::TYPE_BOOL:
-      if (packed) {
-        writer->AppendLine(absl::StrCat("encoder.EncodePackedBools(proto.", name, ");"));
-      } else {
-        writer->AppendLine(absl::StrCat("for (auto const& value : proto.", name, ") {"));
-        {
-          FileWriter::IndentedScope is{writer};
-          writer->AppendLine(absl::StrCat("encoder.EncodeBoolField(", number, ", value);"));
-        }
-        writer->AppendLine("}");
-      }
-      break;
-    case FieldDescriptorProto_Type::TYPE_STRING:
-      writer->AppendLine(absl::StrCat("for (auto const& value : proto.", name, ") {"));
-      {
-        FileWriter::IndentedScope is{writer};
-        writer->AppendLine(absl::StrCat("encoder.EncodeStringField(", number, ", value);"));
-      }
-      writer->AppendLine("}");
-      break;
-    case FieldDescriptorProto_Type::TYPE_BYTES:
-      writer->AppendLine(absl::StrCat("for (auto const& value : proto.", name, ") {"));
-      {
-        FileWriter::IndentedScope is{writer};
-        writer->AppendLine(absl::StrCat("encoder.EncodeBytesField(", number, ", value);"));
-      }
-      writer->AppendLine("}");
-      break;
-    case FieldDescriptorProto_Type::TYPE_UINT32:
-      if (packed) {
-        writer->AppendLine(absl::StrCat("encoder.EncodePackedUInt32s(proto.", name, ");"));
-      } else {
-        writer->AppendLine(absl::StrCat("for (auto const& value : proto.", name, ") {"));
-        {
-          FileWriter::IndentedScope is{writer};
-          writer->AppendLine(absl::StrCat("encoder.EncodeTag({ .field_number = ", number,
-                                          ", .wire_type = ::tsdb2::proto::WireType::kVarInt });"));
-          writer->AppendLine("encoder.EncodeUInt32(value);");
-        }
-        writer->AppendLine("}");
-      }
-      break;
-    case FieldDescriptorProto_Type::TYPE_SFIXED32:
-      if (packed) {
-        writer->AppendLine(absl::StrCat("encoder.EncodePackedFixedInt32s(proto.", name, ");"));
-      } else {
-        writer->AppendLine(absl::StrCat("for (auto const& value : proto.", name, ") {"));
-        {
-          FileWriter::IndentedScope is{writer};
-          writer->AppendLine(absl::StrCat("encoder.EncodeFixedInt32Field(", number, ", value);"));
-        }
-        writer->AppendLine("}");
-      }
-      break;
-    case FieldDescriptorProto_Type::TYPE_SFIXED64:
-      if (packed) {
-        writer->AppendLine(absl::StrCat("encoder.EncodePackedFixedInt64s(proto.", name, ");"));
-      } else {
-        writer->AppendLine(absl::StrCat("for (auto const& value : proto.", name, ") {"));
-        {
-          FileWriter::IndentedScope is{writer};
-          writer->AppendLine(absl::StrCat("encoder.EncodeFixedInt64Field(", number, ", value);"));
-        }
-        writer->AppendLine("}");
-      }
-      break;
-    case FieldDescriptorProto_Type::TYPE_SINT32:
-      if (packed) {
-        writer->AppendLine(absl::StrCat("encoder.EncodePackedSInt32s(proto.", name, ");"));
-      } else {
-        writer->AppendLine(absl::StrCat("for (auto const& value : proto.", name, ") {"));
-        {
-          FileWriter::IndentedScope is{writer};
-          writer->AppendLine(absl::StrCat("encoder.EncodeSInt32Field(", number, ", value);"));
-        }
-        writer->AppendLine("}");
-      }
-      break;
-    case FieldDescriptorProto_Type::TYPE_SINT64:
-      if (packed) {
-        writer->AppendLine(absl::StrCat("encoder.EncodePackedSInt64s(proto.", name, ");"));
-      } else {
-        writer->AppendLine(absl::StrCat("for (auto const& value : proto.", name, ") {"));
-        {
-          FileWriter::IndentedScope is{writer};
-          writer->AppendLine(absl::StrCat("encoder.EncodeSInt64Field(", number, ", value);"));
-        }
-        writer->AppendLine("}");
-      }
-      break;
-    default:
-      return absl::InvalidArgumentError("invalid field type");
+  if (packed) {
+    auto const packed_encoder_it = kPackedFieldEncoderNames.find(type);
+    if (packed_encoder_it != kPackedFieldEncoderNames.end()) {
+      writer->AppendLine(
+          absl::StrCat("encoder.", packed_encoder_it->second, "(proto.", name, ");"));
+      return absl::OkStatus();
+    }
   }
-  return absl::OkStatus();
+  auto const encoder_it = kFieldEncoderNames.find(type);
+  if (encoder_it != kFieldEncoderNames.end()) {
+    writer->AppendLine(absl::StrCat("for (auto const& value : proto.", name, ") {"));
+    {
+      FileWriter::IndentedScope is{writer};
+      writer->AppendLine(absl::StrCat("encoder.", encoder_it->second, "(", number, ", value);"));
+    }
+    writer->AppendLine("}");
+    return absl::OkStatus();
+  }
+  return absl::InvalidArgumentError("invalid field type");
 }
 
 absl::Status Generator::EmitRequiredFieldEncoding(
     internal::FileWriter* const writer, std::string_view const name, size_t const number,
     google::protobuf::FieldDescriptorProto_Type const type) {
-  switch (type) {
-    case FieldDescriptorProto_Type::TYPE_DOUBLE:
-      writer->AppendLine(
-          absl::StrCat("encoder.EncodeDoubleField(", number, ", proto.", name, ");"));
-      break;
-    case FieldDescriptorProto_Type::TYPE_FLOAT:
-      writer->AppendLine(absl::StrCat("encoder.EncodeFloatField(", number, ", proto.", name, ");"));
-      break;
-    case FieldDescriptorProto_Type::TYPE_INT64:
-      writer->AppendLine(absl::StrCat("encoder.EncodeTag({ .field_number = ", number,
-                                      ", .wire_type = ::tsdb2::proto::WireType::kVarInt });"));
-      writer->AppendLine(absl::StrCat("encoder.EncodeInt64(proto.", name, ");"));
-      break;
-    case FieldDescriptorProto_Type::TYPE_UINT64:
-      writer->AppendLine(absl::StrCat("encoder.EncodeTag({ .field_number = ", number,
-                                      ", .wire_type = ::tsdb2::proto::WireType::kVarInt });"));
-      writer->AppendLine(absl::StrCat("encoder.EncodeUInt64(proto.", name, ");"));
-      break;
-    case FieldDescriptorProto_Type::TYPE_INT32:
-      writer->AppendLine(absl::StrCat("encoder.EncodeTag({ .field_number = ", number,
-                                      ", .wire_type = ::tsdb2::proto::WireType::kVarInt });"));
-      writer->AppendLine(absl::StrCat("encoder.EncodeInt32(proto.", name, ");"));
-      break;
-    case FieldDescriptorProto_Type::TYPE_FIXED64:
-      writer->AppendLine(
-          absl::StrCat("encoder.EncodeFixedUInt64Field(", number, ", proto.", name, ");"));
-      break;
-    case FieldDescriptorProto_Type::TYPE_FIXED32:
-      writer->AppendLine(
-          absl::StrCat("encoder.EncodeFixedUInt32Field(", number, ", proto.", name, ");"));
-      break;
-    case FieldDescriptorProto_Type::TYPE_BOOL:
-      writer->AppendLine(absl::StrCat("encoder.EncodeBoolField(", number, ", proto.", name, ");"));
-      break;
-    case FieldDescriptorProto_Type::TYPE_STRING:
-      writer->AppendLine(
-          absl::StrCat("encoder.EncodeStringField(", number, ", proto.", name, ");"));
-      break;
-    case FieldDescriptorProto_Type::TYPE_BYTES:
-      writer->AppendLine(absl::StrCat("encoder.EncodeBytesField(", number, ", proto.", name, ");"));
-      break;
-    case FieldDescriptorProto_Type::TYPE_UINT32:
-      writer->AppendLine(absl::StrCat("encoder.EncodeTag({ .field_number = ", number,
-                                      ", .wire_type = ::tsdb2::proto::WireType::kVarInt });"));
-      writer->AppendLine(absl::StrCat("encoder.EncodeUInt32(proto.", name, ");"));
-      break;
-    case FieldDescriptorProto_Type::TYPE_SFIXED32:
-      writer->AppendLine(
-          absl::StrCat("encoder.EncodeFixedInt32Field(", number, ", proto.", name, ");"));
-      break;
-    case FieldDescriptorProto_Type::TYPE_SFIXED64:
-      writer->AppendLine(
-          absl::StrCat("encoder.EncodeFixedInt64Field(", number, ", proto.", name, ");"));
-      break;
-    case FieldDescriptorProto_Type::TYPE_SINT32:
-      writer->AppendLine(
-          absl::StrCat("encoder.EncodeSInt32Field(", number, ", proto.", name, ");"));
-      break;
-    case FieldDescriptorProto_Type::TYPE_SINT64:
-      writer->AppendLine(absl::StrCat("encoder.EncodeSInt64(", number, ", proto.", name, ");"));
-      break;
-    default:
-      return absl::InvalidArgumentError("invalid field type");
+  auto const it = kFieldEncoderNames.find(type);
+  if (it != kFieldEncoderNames.end()) {
+    writer->AppendLine(absl::StrCat("encoder.", it->second, "(", number, ", proto.", name, ");"));
+    return absl::OkStatus();
+  } else {
+    return absl::InvalidArgumentError("invalid field type");
   }
-  return absl::OkStatus();
 }
 
 absl::Status Generator::EmitObjectEncoding(internal::FileWriter* const writer,

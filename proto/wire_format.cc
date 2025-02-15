@@ -394,6 +394,26 @@ void Encoder::EncodeTag(FieldTag const &tag) {
   EncodeIntegerInternal((tag.field_number << 3) | static_cast<uint64_t>(tag.wire_type));
 }
 
+void Encoder::EncodeInt32Field(size_t const number, int32_t const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kVarInt});
+  EncodeInt32(value);
+}
+
+void Encoder::EncodeUInt32Field(size_t const number, uint32_t const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kVarInt});
+  EncodeUInt32(value);
+}
+
+void Encoder::EncodeInt64Field(size_t const number, int64_t const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kVarInt});
+  EncodeInt64(value);
+}
+
+void Encoder::EncodeUInt64Field(size_t const number, uint64_t const value) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kVarInt});
+  EncodeUInt64(value);
+}
+
 void Encoder::EncodeSInt32Field(size_t const number, int32_t const value) {
   EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kVarInt});
   EncodeSInt32(value);

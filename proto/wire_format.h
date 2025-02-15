@@ -176,10 +176,11 @@ class Encoder {
   void EncodeTag(FieldTag const &tag);
 
   void EncodeVarInt(uint64_t const value) { return EncodeIntegerInternal(value); }
-  void EncodeInt32(int32_t const value) { return EncodeIntegerInternal(value); }
-  void EncodeUInt32(uint32_t const value) { return EncodeIntegerInternal(value); }
-  void EncodeInt64(int64_t const value) { return EncodeIntegerInternal(value); }
-  void EncodeUInt64(uint64_t const value) { return EncodeIntegerInternal(value); }
+
+  void EncodeInt32Field(size_t number, int32_t value);
+  void EncodeUInt32Field(size_t number, uint32_t value);
+  void EncodeInt64Field(size_t number, int64_t value);
+  void EncodeUInt64Field(size_t number, uint64_t value);
 
   void EncodeSInt32Field(size_t number, int32_t value);
   void EncodeSInt64Field(size_t number, int64_t value);
@@ -229,6 +230,11 @@ class Encoder {
 
  private:
   void EncodeIntegerInternal(uint64_t value);
+
+  void EncodeInt32(int32_t const value) { EncodeIntegerInternal(value); }
+  void EncodeUInt32(uint32_t const value) { EncodeIntegerInternal(value); }
+  void EncodeInt64(int64_t const value) { EncodeIntegerInternal(value); }
+  void EncodeUInt64(uint64_t const value) { EncodeIntegerInternal(value); }
 
   void EncodeSInt32(int32_t value);
   void EncodeSInt64(int64_t value);

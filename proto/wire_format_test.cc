@@ -1153,51 +1153,51 @@ TEST_F(EncoderTest, EncodeThreeByteInteger) {
   EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x83, 0x92, 0x01)));
 }
 
-TEST_F(EncoderTest, EncodeInt32) {
-  encoder_.EncodeInt32(123);
-  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x7B)));
+TEST_F(EncoderTest, EncodeInt32Field) {
+  encoder_.EncodeInt32Field(42, 123);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0xD0, 0x02, 0x7B)));
 }
 
-TEST_F(EncoderTest, EncodeNegativeInt32) {
-  encoder_.EncodeInt32(-123);
-  EXPECT_THAT(
-      std::move(encoder_).Flatten(),
-      BufferAsBytes(ElementsAre(0x85, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01)));
-}
-
-TEST_F(EncoderTest, EncodeUInt32) {
-  encoder_.EncodeUInt32(123);
-  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x7B)));
-}
-
-TEST_F(EncoderTest, EncodeBigUInt32) {
-  encoder_.EncodeUInt32(0xFFFFFFFF);
+TEST_F(EncoderTest, EncodeNegativeInt32Field) {
+  encoder_.EncodeInt32Field(42, -123);
   EXPECT_THAT(std::move(encoder_).Flatten(),
-              BufferAsBytes(ElementsAre(0xFF, 0xFF, 0xFF, 0xFF, 0x0F)));
+              BufferAsBytes(ElementsAre(0xD0, 0x02, 0x85, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+                                        0xFF, 0x01)));
 }
 
-TEST_F(EncoderTest, EncodeInt64) {
-  encoder_.EncodeInt64(123);
-  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x7B)));
+TEST_F(EncoderTest, EncodeUInt32Field) {
+  encoder_.EncodeUInt32Field(42, 123);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0xD0, 0x02, 0x7B)));
 }
 
-TEST_F(EncoderTest, EncodeNegativeInt64) {
-  encoder_.EncodeInt64(-123);
-  EXPECT_THAT(
-      std::move(encoder_).Flatten(),
-      BufferAsBytes(ElementsAre(0x85, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01)));
+TEST_F(EncoderTest, EncodeBigUInt32Field) {
+  encoder_.EncodeUInt32Field(42, 0xFFFFFFFF);
+  EXPECT_THAT(std::move(encoder_).Flatten(),
+              BufferAsBytes(ElementsAre(0xD0, 0x02, 0xFF, 0xFF, 0xFF, 0xFF, 0x0F)));
 }
 
-TEST_F(EncoderTest, EncodeUInt64) {
-  encoder_.EncodeUInt64(123);
-  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0x7B)));
+TEST_F(EncoderTest, EncodeInt64Field) {
+  encoder_.EncodeInt64Field(42, 123);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0xD0, 0x02, 0x7B)));
 }
 
-TEST_F(EncoderTest, EncodeBigUInt64) {
-  encoder_.EncodeUInt64(0xFFFFFFFFFFFFFFFFULL);
-  EXPECT_THAT(
-      std::move(encoder_).Flatten(),
-      BufferAsBytes(ElementsAre(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01)));
+TEST_F(EncoderTest, EncodeNegativeInt64Field) {
+  encoder_.EncodeInt64Field(42, -123);
+  EXPECT_THAT(std::move(encoder_).Flatten(),
+              BufferAsBytes(ElementsAre(0xD0, 0x02, 0x85, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+                                        0xFF, 0x01)));
+}
+
+TEST_F(EncoderTest, EncodeUInt64Field) {
+  encoder_.EncodeUInt64Field(42, 123);
+  EXPECT_THAT(std::move(encoder_).Flatten(), BufferAsBytes(ElementsAre(0xD0, 0x02, 0x7B)));
+}
+
+TEST_F(EncoderTest, EncodeBigUInt64Field) {
+  encoder_.EncodeUInt64Field(42, 0xFFFFFFFFFFFFFFFFULL);
+  EXPECT_THAT(std::move(encoder_).Flatten(),
+              BufferAsBytes(ElementsAre(0xD0, 0x02, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+                                        0xFF, 0x01)));
 }
 
 TEST_F(EncoderTest, EncodeSingleBytePositiveEvenSInt32) {
@@ -1613,8 +1613,7 @@ TEST_F(EncoderTest, EncodeTwoPackedDoubles) {
 }
 
 TEST_F(EncoderTest, EncodeFields) {
-  encoder_.EncodeTag(FieldTag{.field_number = 1, .wire_type = WireType::kVarInt});
-  encoder_.EncodeUInt64(123456);
+  encoder_.EncodeUInt64Field(1, 123456);
   encoder_.EncodeStringField(2, "sator arepo");
   encoder_.EncodeDoubleField(3, 2.71828);
   EXPECT_THAT(std::move(encoder_).Flatten(),
