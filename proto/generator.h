@@ -73,6 +73,24 @@ class Generator {
   static absl::Status EmitFieldDecoding(internal::FileWriter* writer,
                                         google::protobuf::FieldDescriptorProto const& descriptor);
 
+  static absl::Status EmitOptionalFieldEncoding(internal::FileWriter* writer, std::string_view name,
+                                                size_t number,
+                                                google::protobuf::FieldDescriptorProto_Type type);
+
+  static absl::Status EmitRepeatedFieldEncoding(internal::FileWriter* writer, std::string_view name,
+                                                size_t number,
+                                                google::protobuf::FieldDescriptorProto_Type type,
+                                                bool packed);
+
+  static absl::Status EmitRequiredFieldEncoding(internal::FileWriter* writer, std::string_view name,
+                                                size_t number,
+                                                google::protobuf::FieldDescriptorProto_Type type);
+
+  static absl::Status EmitObjectEncoding(internal::FileWriter* writer, std::string_view name,
+                                         size_t number,
+                                         google::protobuf::FieldDescriptorProto_Label label,
+                                         std::string_view proto_type_name);
+
   static absl::Status EmitFieldEncoding(internal::FileWriter* writer,
                                         google::protobuf::FieldDescriptorProto const& descriptor);
 

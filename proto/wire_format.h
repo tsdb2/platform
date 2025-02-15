@@ -195,6 +195,7 @@ class Encoder {
   void EncodeString(std::string_view value);
 
   void EncodeSubMessage(Encoder &&child_encoder);
+  void EncodeSubMessage(tsdb2::io::Cord cord);
 
   void EncodePackedVarInts(absl::Span<uint64_t const> const values) {
     EncodePackedIntegers(values);

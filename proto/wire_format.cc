@@ -460,6 +460,11 @@ void Encoder::EncodeSubMessage(Encoder &&child_encoder) {
   cord_.Append(std::move(child_encoder.cord_));
 }
 
+void Encoder::EncodeSubMessage(tsdb2::io::Cord cord) {
+  EncodeIntegerInternal(cord.size());
+  cord_.Append(std::move(cord));
+}
+
 void Encoder::EncodePackedSInt32s(absl::Span<int32_t const> const values) {
   Encoder child;
   for (int32_t const value : values) {

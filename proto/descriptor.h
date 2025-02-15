@@ -138,6 +138,15 @@ enum class FieldDescriptorProto_Label {
   LABEL_REQUIRED = 2,
 };
 
+char constexpr kFieldOptionsPackedField[] = "packed";
+char constexpr kFieldOptionsLazyField[] = "lazy";
+char constexpr kFieldOptionsDeprecatedField[] = "deprecated";
+
+using FieldOptions =
+    tsdb2::proto::Object<tsdb2::proto::Field<std::optional<bool>, kFieldOptionsPackedField, 2>,
+                         tsdb2::proto::Field<std::optional<bool>, kFieldOptionsLazyField, 5>,
+                         tsdb2::proto::Field<std::optional<bool>, kFieldOptionsDeprecatedField, 3>>;
+
 char constexpr kFieldDescriptorProtoNameField[] = "name";
 char constexpr kFieldDescriptorProtoNumberField[] = "number";
 char constexpr kFieldDescriptorProtoLabelField[] = "label";
@@ -162,6 +171,7 @@ using FieldDescriptorProto = tsdb2::proto::Object<
     tsdb2::proto::Field<std::optional<std::string>, kFieldDescriptorProtoDefaultValueField, 7>,
     tsdb2::proto::Field<std::optional<int32_t>, kFieldDescriptorProtoOneOfIndexField, 9>,
     tsdb2::proto::Field<std::optional<std::string>, kFieldDescriptorProtoJsonNameField, 10>,
+    tsdb2::proto::Field<std::optional<FieldOptions>, kFieldDescriptorProtoOptionsField, 8>,
     tsdb2::proto::Field<std::optional<bool>, kFieldDescriptorProtoProto3OptionalField, 17>>;
 
 char constexpr kDescriptorProtoNameField[] = "name";

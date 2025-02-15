@@ -18,12 +18,16 @@ class DependencyManagerTest : public ::testing::Test {
 };
 
 TEST_F(DependencyManagerTest, Empty) {
+  EXPECT_FALSE(dependencies_.HasNode({"lorem"}));
   EXPECT_THAT(dependencies_.FindCycles({}), IsEmpty());
   EXPECT_THAT(dependencies_.MakeOrder({}), IsEmpty());
 }
 
 TEST_F(DependencyManagerTest, OneNode) {
   dependencies_.AddNode({"lorem"});
+  EXPECT_TRUE(dependencies_.HasNode({"lorem"}));
+  EXPECT_FALSE(dependencies_.HasNode({"ipsum"}));
+  EXPECT_FALSE(dependencies_.HasNode({"lorem", "ipsum"}));
   EXPECT_THAT(dependencies_.FindCycles({}), IsEmpty());
   EXPECT_THAT(dependencies_.FindCycles({"lorem"}), IsEmpty());
   EXPECT_THAT(dependencies_.FindCycles({"ipsum"}), IsEmpty());
@@ -36,6 +40,10 @@ TEST_F(DependencyManagerTest, OneNode) {
 
 TEST_F(DependencyManagerTest, NestedNode) {
   dependencies_.AddNode({"lorem", "ipsum"});
+  EXPECT_TRUE(dependencies_.HasNode({"lorem"}));
+  EXPECT_FALSE(dependencies_.HasNode({"ipsum"}));
+  EXPECT_TRUE(dependencies_.HasNode({"lorem", "ipsum"}));
+  EXPECT_FALSE(dependencies_.HasNode({"lorem", "dolor"}));
   EXPECT_THAT(dependencies_.FindCycles({}), IsEmpty());
   EXPECT_THAT(dependencies_.FindCycles({"lorem"}), IsEmpty());
   EXPECT_THAT(dependencies_.FindCycles({"ipsum"}), IsEmpty());
@@ -49,6 +57,10 @@ TEST_F(DependencyManagerTest, NestedNode) {
 TEST_F(DependencyManagerTest, NestedNodes) {
   dependencies_.AddNode({"lorem", "ipsum"});
   dependencies_.AddNode({"lorem", "dolor"});
+  EXPECT_TRUE(dependencies_.HasNode({"lorem"}));
+  EXPECT_FALSE(dependencies_.HasNode({"ipsum"}));
+  EXPECT_TRUE(dependencies_.HasNode({"lorem", "ipsum"}));
+  EXPECT_TRUE(dependencies_.HasNode({"lorem", "dolor"}));
   EXPECT_THAT(dependencies_.FindCycles({}), IsEmpty());
   EXPECT_THAT(dependencies_.FindCycles({"lorem"}), IsEmpty());
   EXPECT_THAT(dependencies_.FindCycles({"ipsum"}), IsEmpty());
@@ -66,6 +78,10 @@ TEST_F(DependencyManagerTest, NestedNodes) {
 TEST_F(DependencyManagerTest, TwoNodes) {
   dependencies_.AddNode({"lorem"});
   dependencies_.AddNode({"ipsum"});
+  EXPECT_TRUE(dependencies_.HasNode({"lorem"}));
+  EXPECT_TRUE(dependencies_.HasNode({"ipsum"}));
+  EXPECT_FALSE(dependencies_.HasNode({"lorem", "ipsum"}));
+  EXPECT_FALSE(dependencies_.HasNode({"ipsum", "lorem"}));
   EXPECT_THAT(dependencies_.FindCycles({}), IsEmpty());
   EXPECT_THAT(dependencies_.FindCycles({"lorem"}), IsEmpty());
   EXPECT_THAT(dependencies_.FindCycles({"ipsum"}), IsEmpty());

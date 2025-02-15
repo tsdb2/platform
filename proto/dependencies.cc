@@ -29,6 +29,21 @@ void DependencyManager::AddNode(PathView const path) {
   }
 }
 
+bool DependencyManager::HasNode(PathView const path) const {
+  if (path.size() > 1) {
+    auto const it = inner_dependencies_.find(path.front());
+    if (it != inner_dependencies_.end()) {
+      return it->second.HasNode(path.subspan(1));
+    } else {
+      return false;
+    }
+  } else if (path.empty()) {
+    return false;
+  } else {
+    return dependencies_.contains(path.front());
+  }
+}
+
 void DependencyManager::AddDependency(PathView const dependent, PathView const dependee,
                                       std::string_view const edge_name) {
   CHECK(!dependent.empty());
