@@ -429,6 +429,9 @@ absl::StatusOr<TempNFA> Parser::ParseEscape(int const capture_group) {
     case '{':
     case '}':
     case '|':
+    case '?':
+    case '*':
+    case '+':
       return MakeSingleCharacterNFA(capture_group, ch);
     case 'd':
       return MakeCharacterClassNFA(capture_group, "0123456789");

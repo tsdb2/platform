@@ -61,14 +61,20 @@ class Generator {
   static absl::Status AppendEnum(internal::FileWriter* writer,
                                  google::protobuf::EnumDescriptorProto const& enum_descriptor);
 
-  static absl::StatusOr<std::string> GetFieldType(
-      google::protobuf::FieldDescriptorProto const& descriptor);
+  absl::StatusOr<std::pair<std::string, bool>> GetFieldType(
+      google::protobuf::FieldDescriptorProto const& descriptor) const;
 
   static absl::Status AppendForwardDeclaration(internal::FileWriter* writer,
                                                google::protobuf::DescriptorProto const& descriptor);
 
-  static absl::Status AppendMessageHeader(internal::FileWriter* writer,
-                                          google::protobuf::DescriptorProto const& descriptor);
+  static absl::StatusOr<std::string> GetFieldInitializer(
+      google::protobuf::FieldDescriptorProto const& descriptor, std::string_view default_value);
+
+  absl::StatusOr<bool> FieldIsWrappedInOptional(
+      google::protobuf::FieldDescriptorProto const& descriptor) const;
+
+  absl::Status AppendMessageHeader(internal::FileWriter* writer,
+                                   google::protobuf::DescriptorProto const& descriptor);
 
   absl::Status AppendMessageHeaders(
       internal::FileWriter* writer,
@@ -93,7 +99,8 @@ class Generator {
   static absl::Status EmitEnumEncoding(internal::FileWriter* writer, std::string_view name,
                                        size_t number,
                                        google::protobuf::FieldDescriptorProto_Label label,
-                                       std::string_view proto_type_name, bool packed);
+                                       std::string_view proto_type_name, bool packed,
+                                       bool is_optional);
 
   static absl::Status EmitObjectEncoding(internal::FileWriter* writer, std::string_view name,
                                          size_t number,

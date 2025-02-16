@@ -44,6 +44,7 @@ using ::google::protobuf::kEnumDescriptorProtoNameField;
 using ::google::protobuf::kEnumDescriptorProtoValueField;
 using ::google::protobuf::kEnumValueDescriptorProtoNameField;
 using ::google::protobuf::kEnumValueDescriptorProtoNumberField;
+using ::google::protobuf::kFieldDescriptorProtoDefaultValueField;
 using ::google::protobuf::kFieldDescriptorProtoLabelField;
 using ::google::protobuf::kFieldDescriptorProtoNameField;
 using ::google::protobuf::kFieldDescriptorProtoNumberField;
@@ -95,6 +96,36 @@ auto constexpr kFieldTypeNames =
         {FieldDescriptorProto_Type::TYPE_SFIXED64, "int64_t"},
         {FieldDescriptorProto_Type::TYPE_SINT32, "int32_t"},
         {FieldDescriptorProto_Type::TYPE_SINT64, "int64_t"},
+    });
+
+tsdb2::common::NoDestructor<tsdb2::common::RE> const kBooleanPattern{
+    tsdb2::common::RE::CreateOrDie("^true|false$")};
+
+tsdb2::common::NoDestructor<tsdb2::common::RE> const kSignedIntegerPattern{
+    tsdb2::common::RE::CreateOrDie("^[+-]?(?:0|[1-9][0-9]*)$")};
+
+tsdb2::common::NoDestructor<tsdb2::common::RE> const kUnsignedIntegerPattern{
+    tsdb2::common::RE::CreateOrDie("^\\+?(?:0|[1-9][0-9]*)$")};
+
+tsdb2::common::NoDestructor<tsdb2::common::RE> const kFloatNumberPattern{
+    tsdb2::common::RE::CreateOrDie("^[+-]?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$")};
+
+auto const kFieldInitializerPatterns =
+    tsdb2::common::fixed_flat_map_of<FieldDescriptorProto_Type, tsdb2::common::RE const*>({
+        {FieldDescriptorProto_Type::TYPE_DOUBLE, kFloatNumberPattern.Get()},
+        {FieldDescriptorProto_Type::TYPE_FLOAT, kFloatNumberPattern.Get()},
+        {FieldDescriptorProto_Type::TYPE_INT64, kSignedIntegerPattern.Get()},
+        {FieldDescriptorProto_Type::TYPE_UINT64, kUnsignedIntegerPattern.Get()},
+        {FieldDescriptorProto_Type::TYPE_INT32, kSignedIntegerPattern.Get()},
+        {FieldDescriptorProto_Type::TYPE_FIXED64, kUnsignedIntegerPattern.Get()},
+        {FieldDescriptorProto_Type::TYPE_FIXED32, kUnsignedIntegerPattern.Get()},
+        {FieldDescriptorProto_Type::TYPE_BOOL, kBooleanPattern.Get()},
+        {FieldDescriptorProto_Type::TYPE_UINT32, kUnsignedIntegerPattern.Get()},
+        {FieldDescriptorProto_Type::TYPE_ENUM, kIdentifierPattern.Get()},
+        {FieldDescriptorProto_Type::TYPE_SFIXED32, kSignedIntegerPattern.Get()},
+        {FieldDescriptorProto_Type::TYPE_SFIXED64, kSignedIntegerPattern.Get()},
+        {FieldDescriptorProto_Type::TYPE_SINT32, kSignedIntegerPattern.Get()},
+        {FieldDescriptorProto_Type::TYPE_SINT64, kSignedIntegerPattern.Get()},
     });
 
 auto constexpr kFieldEncoderNames =
@@ -244,6 +275,7 @@ absl::StatusOr<std::string> Generator::GenerateHeaderFileContent() {
   fw.AppendUnindentedLine("#include <string>");
   fw.AppendUnindentedLine("#include <vector>");
   fw.AppendEmptyLine();
+  fw.AppendUnindentedLine("#include \"absl/base/attributes.h\"");
   fw.AppendUnindentedLine("#include \"absl/status/statusor.h\"");
   fw.AppendUnindentedLine("#include \"absl/types/span.h\"");
   fw.AppendUnindentedLine("#include \"io/cord.h\"");
@@ -428,18 +460,21 @@ absl::Status Generator::AppendEnum(FileWriter* const writer,
   return absl::OkStatus();
 }
 
-absl::StatusOr<std::string> Generator::GetFieldType(
-    google::protobuf::FieldDescriptorProto const& descriptor) {
+absl::StatusOr<std::pair<std::string, bool>> Generator::GetFieldType(
+    google::protobuf::FieldDescriptorProto const& descriptor) const {
   auto const& maybe_type_name = descriptor.get<kFieldDescriptorProtoTypeNameField>();
   if (maybe_type_name.has_value()) {
-    return absl::StrReplaceAll(maybe_type_name.value(), {{".", "::"}});
+    auto const& type_name = maybe_type_name.value();
+    DEFINE_CONST_OR_RETURN(is_message, IsMessage(type_name));
+    return std::make_pair(absl::StrReplaceAll(type_name, {{".", "::"}}),
+                          /*primitive=*/!is_message);
   }
   DEFINE_CONST_OR_RETURN(type, RequireField<kFieldDescriptorProtoTypeField>(descriptor));
   auto const it = kFieldTypeNames.find(*type);
   if (it == kFieldTypeNames.end()) {
     return absl::InvalidArgumentError("invalid field type");
   }
-  return std::string(it->second);
+  return std::make_pair(std::string(it->second), /*primitive=*/true);
 }
 
 absl::Status Generator::AppendForwardDeclaration(
@@ -450,6 +485,34 @@ absl::Status Generator::AppendForwardDeclaration(
   }
   writer->AppendLine(absl::StrCat("struct ", *name, ";"));
   return absl::OkStatus();
+}
+
+absl::StatusOr<std::string> Generator::GetFieldInitializer(
+    google::protobuf::FieldDescriptorProto const& descriptor,
+    std::string_view const default_value) {
+  DEFINE_CONST_OR_RETURN(type, RequireField<kFieldDescriptorProtoTypeField>(descriptor));
+  if (*type == FieldDescriptorProto_Type::TYPE_STRING) {
+    return absl::StrCat("\"", absl::CEscape(default_value), "\"");
+  }
+  auto const it = kFieldInitializerPatterns.find(*type);
+  if (it == kFieldInitializerPatterns.end()) {
+    return absl::InvalidArgumentError("invalid type for initialized field");
+  }
+  if (!it->second->Test(default_value)) {
+    return absl::InvalidArgumentError("invalid field initializer");
+  }
+  return std::string(default_value);
+}
+
+absl::StatusOr<bool> Generator::FieldIsWrappedInOptional(
+    google::protobuf::FieldDescriptorProto const& descriptor) const {
+  DEFINE_CONST_OR_RETURN(label, RequireField<kFieldDescriptorProtoLabelField>(descriptor));
+  if (*label != FieldDescriptorProto_Label::LABEL_OPTIONAL) {
+    return false;
+  }
+  DEFINE_CONST_OR_RETURN(type_pair, GetFieldType(descriptor));
+  auto const& [type, primitive] = type_pair;
+  return !primitive || !descriptor.get<kFieldDescriptorProtoDefaultValueField>().has_value();
 }
 
 absl::Status Generator::AppendMessageHeader(FileWriter* const writer,
@@ -475,16 +538,32 @@ absl::Status Generator::AppendMessageHeader(FileWriter* const writer,
         return absl::InvalidArgumentError(absl::StrCat("invalid field name: \"", *name, "\""));
       }
       DEFINE_CONST_OR_RETURN(label, RequireField<kFieldDescriptorProtoLabelField>(field));
-      DEFINE_CONST_OR_RETURN(type, GetFieldType(field));
+      DEFINE_CONST_OR_RETURN(type_pair, GetFieldType(field));
+      auto const& [type, primitive] = type_pair;
+      auto const& maybe_default_value = field.get<kFieldDescriptorProtoDefaultValueField>();
       switch (*label) {
         case FieldDescriptorProto_Label::LABEL_OPTIONAL:
-          writer->AppendLine(absl::StrCat("std::optional<", type, "> ", *name, ";"));
+          if (primitive && maybe_default_value.has_value()) {
+            DEFINE_CONST_OR_RETURN(initializer,
+                                   GetFieldInitializer(field, maybe_default_value.value()));
+            writer->AppendLine(absl::StrCat(type, " ", *name, "{", initializer, "};"));
+          } else {
+            writer->AppendLine(absl::StrCat("std::optional<", type, "> ", *name, ";"));
+          }
           break;
         case FieldDescriptorProto_Label::LABEL_REPEATED:
           writer->AppendLine(absl::StrCat("std::vector<", type, "> ", *name, ";"));
           break;
         case FieldDescriptorProto_Label::LABEL_REQUIRED:
-          writer->AppendLine(absl::StrCat(type, " ", *name, ";"));
+          if (maybe_default_value.has_value()) {
+            DEFINE_CONST_OR_RETURN(initializer,
+                                   GetFieldInitializer(field, maybe_default_value.value()));
+            writer->AppendLine(absl::StrCat(type, " ", *name, "{", initializer, "};"));
+          } else if (primitive) {
+            writer->AppendLine(absl::StrCat(type, " ", *name, "{};"));
+          } else {
+            writer->AppendLine(absl::StrCat(type, " ", *name, ";"));
+          }
           break;
         default:
           return absl::InvalidArgumentError("unknown value for field label");
@@ -523,6 +602,7 @@ absl::Status Generator::EmitFieldDecoding(
   DEFINE_CONST_OR_RETURN(name, RequireField<kFieldDescriptorProtoNameField>(descriptor));
   DEFINE_CONST_OR_RETURN(number, RequireField<kFieldDescriptorProtoNumberField>(descriptor));
   DEFINE_CONST_OR_RETURN(label, RequireField<kFieldDescriptorProtoLabelField>(descriptor));
+  DEFINE_CONST_OR_RETURN(is_optional, FieldIsWrappedInOptional(descriptor));
   writer->AppendLine(absl::StrCat("case ", *number, ": {"));
   auto const& maybe_type_name = descriptor.get<kFieldDescriptorProtoTypeNameField>();
   if (maybe_type_name.has_value()) {
@@ -552,8 +632,13 @@ absl::Status Generator::EmitFieldDecoding(
           absl::StrCat("DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));"));
       switch (*label) {
         case FieldDescriptorProto_Label::LABEL_OPTIONAL:
-          writer->AppendLine(
-              absl::StrCat("proto.", *name, ".emplace(static_cast<", type_name, ">(value));"));
+          if (is_optional) {
+            writer->AppendLine(
+                absl::StrCat("proto.", *name, ".emplace(static_cast<", type_name, ">(value));"));
+          } else {
+            writer->AppendLine(
+                absl::StrCat("proto.", *name, " = static_cast<", type_name, ">(value);"));
+          }
           break;
         case FieldDescriptorProto_Label::LABEL_REQUIRED:
           writer->AppendLine(
@@ -625,14 +710,26 @@ absl::Status Generator::EmitFieldDecoding(
     }
     switch (*label) {
       case FieldDescriptorProto_Label::LABEL_OPTIONAL:
-        switch (*type) {
-          case FieldDescriptorProto_Type::TYPE_STRING:
-          case FieldDescriptorProto_Type::TYPE_BYTES:
-            writer->AppendLine(absl::StrCat("proto.", *name, ".emplace(std::move(value));"));
-            break;
-          default:
-            writer->AppendLine(absl::StrCat("proto.", *name, ".emplace(value);"));
-            break;
+        if (is_optional) {
+          switch (*type) {
+            case FieldDescriptorProto_Type::TYPE_STRING:
+            case FieldDescriptorProto_Type::TYPE_BYTES:
+              writer->AppendLine(absl::StrCat("proto.", *name, ".emplace(std::move(value));"));
+              break;
+            default:
+              writer->AppendLine(absl::StrCat("proto.", *name, ".emplace(value);"));
+              break;
+          }
+        } else {
+          switch (*type) {
+            case FieldDescriptorProto_Type::TYPE_STRING:
+            case FieldDescriptorProto_Type::TYPE_BYTES:
+              writer->AppendLine(absl::StrCat("proto.", *name, " = std::move(value);"));
+              break;
+            default:
+              writer->AppendLine(absl::StrCat("proto.", *name, " = value;"));
+              break;
+          }
         }
         break;
       case FieldDescriptorProto_Label::LABEL_REQUIRED:
@@ -721,17 +818,22 @@ absl::Status Generator::EmitRequiredFieldEncoding(
 absl::Status Generator::EmitEnumEncoding(internal::FileWriter* const writer,
                                          std::string_view const name, size_t const number,
                                          google::protobuf::FieldDescriptorProto_Label const label,
-                                         std::string_view const proto_type_name,
-                                         bool const packed) {
+                                         std::string_view const proto_type_name, bool const packed,
+                                         bool const is_optional) {
   switch (label) {
     case google::protobuf::FieldDescriptorProto_Label::LABEL_OPTIONAL:
-      writer->AppendLine(absl::StrCat("if (proto.", name, ".has_value()) {"));
-      {
-        FileWriter::IndentedScope is{writer};
+      if (is_optional) {
+        writer->AppendLine(absl::StrCat("if (proto.", name, ".has_value()) {"));
+        {
+          FileWriter::IndentedScope is{writer};
+          writer->AppendLine(
+              absl::StrCat("encoder.EncodeEnumField(", number, ", proto.", name, ".value());"));
+        }
+        writer->AppendLine("}");
+      } else {
         writer->AppendLine(
-            absl::StrCat("encoder.EncodeEnumField(", number, ", proto.", name, ".value());"));
+            absl::StrCat("encoder.EncodeEnumField(", number, ", proto.", name, ");"));
       }
-      writer->AppendLine("}");
       break;
     case google::protobuf::FieldDescriptorProto_Label::LABEL_REPEATED: {
       if (packed) {
@@ -801,6 +903,7 @@ absl::Status Generator::EmitFieldEncoding(
   DEFINE_CONST_OR_RETURN(name, RequireField<kFieldDescriptorProtoNameField>(descriptor));
   DEFINE_CONST_OR_RETURN(number, RequireField<kFieldDescriptorProtoNumberField>(descriptor));
   DEFINE_CONST_OR_RETURN(label, RequireField<kFieldDescriptorProtoLabelField>(descriptor));
+  DEFINE_CONST_OR_RETURN(is_optional, FieldIsWrappedInOptional(descriptor));
   auto const& maybe_type_name = descriptor.get<kFieldDescriptorProtoTypeNameField>();
   if (maybe_type_name.has_value()) {
     DEFINE_CONST_OR_RETURN(is_message, IsMessage(maybe_type_name.value()));
@@ -808,14 +911,20 @@ absl::Status Generator::EmitFieldEncoding(
       return EmitObjectEncoding(writer, *name, *number, *label, maybe_type_name.value());
     } else {
       auto const& maybe_options = descriptor.get<kFieldDescriptorProtoOptionsField>();
-      bool const packed = maybe_options && maybe_options->get<kFieldOptionsPackedField>();
-      return EmitEnumEncoding(writer, *name, *number, *label, maybe_type_name.value(), packed);
+      bool const packed =
+          maybe_options && maybe_options->get<kFieldOptionsPackedField>().value_or(true);
+      return EmitEnumEncoding(writer, *name, *number, *label, maybe_type_name.value(), packed,
+                              is_optional);
     }
   } else {
     DEFINE_CONST_OR_RETURN(type, RequireField<kFieldDescriptorProtoTypeField>(descriptor));
     switch (*label) {
       case FieldDescriptorProto_Label::LABEL_OPTIONAL:
-        return EmitOptionalFieldEncoding(writer, *name, *number, *type);
+        if (is_optional) {
+          return EmitOptionalFieldEncoding(writer, *name, *number, *type);
+        } else {
+          return EmitRequiredFieldEncoding(writer, *name, *number, *type);
+        }
       case FieldDescriptorProto_Label::LABEL_REPEATED: {
         auto const& maybe_options = descriptor.get<kFieldDescriptorProtoOptionsField>();
         bool const packed = maybe_options && maybe_options->get<kFieldOptionsPackedField>();

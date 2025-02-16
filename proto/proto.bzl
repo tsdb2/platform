@@ -87,6 +87,7 @@ cc_proto_library = rule(
                 "//common:utilities",
                 "//io:cord",
                 "//proto:wire_format",
+                "@com_google_absl//absl/base",
                 "@com_google_absl//absl/status:statusor",
                 "@com_google_absl//absl/types:span",
             ],
