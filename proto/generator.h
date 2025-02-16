@@ -15,8 +15,8 @@
 #include "common/utilities.h"
 #include "proto/dependencies.h"
 #include "proto/descriptor.h"
-#include "proto/file_writer.h"
 #include "proto/object.h"
+#include "proto/text_writer.h"
 
 namespace tsdb2 {
 namespace proto {
@@ -116,13 +116,13 @@ class Generator {
   absl::StatusOr<std::string> GetHeaderGuardName();
   absl::StatusOr<std::string> GetCppPackage();
 
-  static absl::Status AppendEnum(internal::FileWriter* writer,
+  static absl::Status AppendEnum(internal::TextWriter* writer,
                                  google::protobuf::EnumDescriptorProto const& enum_descriptor);
 
   absl::StatusOr<std::pair<std::string, bool>> GetFieldType(
       google::protobuf::FieldDescriptorProto const& descriptor) const;
 
-  static absl::Status AppendForwardDeclaration(internal::FileWriter* writer,
+  static absl::Status AppendForwardDeclaration(internal::TextWriter* writer,
                                                google::protobuf::DescriptorProto const& descriptor);
 
   absl::StatusOr<std::string> GetFieldInitializer(
@@ -132,44 +132,44 @@ class Generator {
   absl::StatusOr<bool> FieldIsWrappedInOptional(
       google::protobuf::FieldDescriptorProto const& descriptor) const;
 
-  absl::Status AppendMessageHeader(internal::FileWriter* writer,
+  absl::Status AppendMessageHeader(internal::TextWriter* writer,
                                    google::protobuf::DescriptorProto const& descriptor);
 
   absl::Status AppendMessageHeaders(
-      internal::FileWriter* writer,
+      internal::TextWriter* writer,
       absl::Span<google::protobuf::DescriptorProto const> descriptors);
 
-  absl::Status EmitFieldDecoding(internal::FileWriter* writer,
+  absl::Status EmitFieldDecoding(internal::TextWriter* writer,
                                  google::protobuf::FieldDescriptorProto const& descriptor) const;
 
-  static absl::Status EmitOptionalFieldEncoding(internal::FileWriter* writer, std::string_view name,
+  static absl::Status EmitOptionalFieldEncoding(internal::TextWriter* writer, std::string_view name,
                                                 size_t number,
                                                 google::protobuf::FieldDescriptorProto_Type type);
 
-  static absl::Status EmitRepeatedFieldEncoding(internal::FileWriter* writer, std::string_view name,
+  static absl::Status EmitRepeatedFieldEncoding(internal::TextWriter* writer, std::string_view name,
                                                 size_t number,
                                                 google::protobuf::FieldDescriptorProto_Type type,
                                                 bool packed);
 
-  static absl::Status EmitRequiredFieldEncoding(internal::FileWriter* writer, std::string_view name,
+  static absl::Status EmitRequiredFieldEncoding(internal::TextWriter* writer, std::string_view name,
                                                 size_t number,
                                                 google::protobuf::FieldDescriptorProto_Type type);
 
-  static absl::Status EmitEnumEncoding(internal::FileWriter* writer, std::string_view name,
+  static absl::Status EmitEnumEncoding(internal::TextWriter* writer, std::string_view name,
                                        size_t number,
                                        google::protobuf::FieldDescriptorProto_Label label,
                                        std::string_view proto_type_name, bool packed,
                                        bool is_optional);
 
-  static absl::Status EmitObjectEncoding(internal::FileWriter* writer, std::string_view name,
+  static absl::Status EmitObjectEncoding(internal::TextWriter* writer, std::string_view name,
                                          size_t number,
                                          google::protobuf::FieldDescriptorProto_Label label,
                                          std::string_view proto_type_name);
 
-  absl::Status EmitFieldEncoding(internal::FileWriter* writer,
+  absl::Status EmitFieldEncoding(internal::TextWriter* writer,
                                  google::protobuf::FieldDescriptorProto const& descriptor) const;
 
-  absl::Status EmitMessageImplementation(internal::FileWriter* writer,
+  absl::Status EmitMessageImplementation(internal::TextWriter* writer,
                                          google::protobuf::DescriptorProto const& descriptor) const;
 
   absl::StatusOr<internal::DependencyManager::Path> GetTypePath(

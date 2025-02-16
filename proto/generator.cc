@@ -26,8 +26,8 @@
 #include "common/utilities.h"
 #include "proto/dependencies.h"
 #include "proto/descriptor.h"
-#include "proto/file_writer.h"
 #include "proto/object.h"
+#include "proto/text_writer.h"
 
 namespace tsdb2 {
 namespace proto {
@@ -69,7 +69,7 @@ using ::google::protobuf::compiler::kCodeGeneratorResponseSupportedFeaturesField
 using ::tsdb2::proto::kInitialize;
 using ::tsdb2::proto::RequireField;
 using ::tsdb2::proto::internal::DependencyManager;
-using ::tsdb2::proto::internal::FileWriter;
+using ::tsdb2::proto::internal::TextWriter;
 
 tsdb2::common::NoDestructor<tsdb2::common::RE> const kIdentifierPattern{
     tsdb2::common::RE::CreateOrDie("^[_A-Za-z][_A-Za-z0-9]*$")};
@@ -225,7 +225,7 @@ std::string MakeSourceFileName(std::string_view proto_file_name) {
 
 absl::StatusOr<Generator> Generator::Create(
     google::protobuf::FileDescriptorProto const& file_descriptor) {
-  absl::flat_hash_set<internal::DependencyManager::Path> enums;
+  absl::flat_hash_set<DependencyManager::Path> enums;
   DependencyManager dependencies;
   RETURN_IF_ERROR(AddScopeDependencies(
       {}, &enums, &dependencies, file_descriptor,
@@ -240,7 +240,7 @@ absl::StatusOr<Generator> Generator::Create(
 }
 
 absl::StatusOr<std::string> Generator::GenerateHeaderFileContent() {
-  FileWriter fw;
+  TextWriter fw;
   DEFINE_CONST_OR_RETURN(header_guard_name, GetHeaderGuardName());
   fw.AppendUnindentedLine(absl::StrCat("#ifndef ", header_guard_name));
   fw.AppendUnindentedLine(absl::StrCat("#define ", header_guard_name));
@@ -281,7 +281,7 @@ absl::StatusOr<std::string> Generator::GenerateHeaderFileContent() {
 }
 
 absl::StatusOr<std::string> Generator::GenerateSourceFileContent() {
-  FileWriter fw;
+  TextWriter fw;
   DEFINE_CONST_OR_RETURN(header_path, GetHeaderPath());
   fw.AppendUnindentedLine(absl::StrCat("#include \"", header_path, "\""));
   fw.AppendEmptyLine();
@@ -422,7 +422,7 @@ absl::StatusOr<std::string> Generator::GetCppPackage() {
   return absl::StrReplaceAll(package_name, {{".", "::"}});
 }
 
-absl::Status Generator::AppendEnum(FileWriter* const writer,
+absl::Status Generator::AppendEnum(TextWriter* const writer,
                                    google::protobuf::EnumDescriptorProto const& enum_descriptor) {
   DEFINE_CONST_OR_RETURN(name, RequireField<kEnumDescriptorProtoNameField>(enum_descriptor));
   if (!kIdentifierPattern->Test(*name)) {
@@ -430,7 +430,7 @@ absl::Status Generator::AppendEnum(FileWriter* const writer,
   }
   writer->AppendLine(absl::StrCat("enum class ", *name, " {"));
   {
-    FileWriter::IndentedScope is{writer};
+    TextWriter::IndentedScope is{writer};
     for (auto const& value : enum_descriptor.get<kEnumDescriptorProtoValueField>()) {
       DEFINE_CONST_OR_RETURN(name, RequireField<kEnumValueDescriptorProtoNameField>(value));
       if (!kIdentifierPattern->Test(*name)) {
@@ -461,7 +461,7 @@ absl::StatusOr<std::pair<std::string, bool>> Generator::GetFieldType(
 }
 
 absl::Status Generator::AppendForwardDeclaration(
-    FileWriter* const writer, google::protobuf::DescriptorProto const& descriptor) {
+    TextWriter* const writer, google::protobuf::DescriptorProto const& descriptor) {
   DEFINE_CONST_OR_RETURN(name, RequireField<kDescriptorProtoNameField>(descriptor));
   if (!kIdentifierPattern->Test(*name)) {
     return absl::InvalidArgumentError(absl::StrCat("invalid message name: \"", *name, "\""));
@@ -507,7 +507,7 @@ absl::StatusOr<bool> Generator::FieldIsWrappedInOptional(
   return !primitive || !descriptor.get<kFieldDescriptorProtoDefaultValueField>().has_value();
 }
 
-absl::Status Generator::AppendMessageHeader(FileWriter* const writer,
+absl::Status Generator::AppendMessageHeader(TextWriter* const writer,
                                             google::protobuf::DescriptorProto const& descriptor) {
   DEFINE_CONST_OR_RETURN(name, RequireField<kDescriptorProtoNameField>(descriptor));
   if (!kIdentifierPattern->Test(*name)) {
@@ -515,7 +515,7 @@ absl::Status Generator::AppendMessageHeader(FileWriter* const writer,
   }
   writer->AppendLine(absl::StrCat("struct ", *name, " {"));
   {
-    FileWriter::IndentedScope is{writer};
+    TextWriter::IndentedScope is{writer};
     for (auto const& nested_type : descriptor.get<kDescriptorProtoNestedTypeField>()) {
       DEFINE_CONST_OR_RETURN(nested_name, RequireField<kDescriptorProtoNameField>(nested_type));
       writer->AppendLine(absl::StrCat("struct ", *nested_name, ";"));
@@ -574,7 +574,7 @@ absl::Status Generator::AppendMessageHeader(FileWriter* const writer,
 }
 
 absl::Status Generator::AppendMessageHeaders(
-    FileWriter* const writer,
+    TextWriter* const writer,
     absl::Span<google::protobuf::DescriptorProto const> const descriptors) {
   absl::flat_hash_map<std::string, google::protobuf::DescriptorProto const*> descriptors_by_name;
   descriptors_by_name.reserve(descriptors.size());
@@ -596,8 +596,7 @@ absl::Status Generator::AppendMessageHeaders(
 }
 
 absl::Status Generator::EmitFieldDecoding(
-    internal::FileWriter* const writer,
-    google::protobuf::FieldDescriptorProto const& descriptor) const {
+    TextWriter* const writer, google::protobuf::FieldDescriptorProto const& descriptor) const {
   DEFINE_CONST_OR_RETURN(name, RequireField<kFieldDescriptorProtoNameField>(descriptor));
   DEFINE_CONST_OR_RETURN(number, RequireField<kFieldDescriptorProtoNumberField>(descriptor));
   DEFINE_CONST_OR_RETURN(label, RequireField<kFieldDescriptorProtoLabelField>(descriptor));
@@ -607,7 +606,7 @@ absl::Status Generator::EmitFieldDecoding(
   if (maybe_type_name.has_value()) {
     DEFINE_CONST_OR_RETURN(is_message, IsMessage(maybe_type_name.value()));
     std::string const type_name = absl::StrReplaceAll(maybe_type_name.value(), {{".", "::"}});
-    FileWriter::IndentedScope is{writer};
+    TextWriter::IndentedScope is{writer};
     if (is_message) {
       writer->AppendLine(
           "DEFINE_CONST_OR_RETURN(child_span, decoder.GetChildSpan(tag.wire_type));");
@@ -653,7 +652,7 @@ absl::Status Generator::EmitFieldDecoding(
     }
   } else {
     DEFINE_CONST_OR_RETURN(type, RequireField<kFieldDescriptorProtoTypeField>(descriptor));
-    FileWriter::IndentedScope is{writer};
+    TextWriter::IndentedScope is{writer};
     switch (*type) {
       case FieldDescriptorProto_Type::TYPE_DOUBLE:
         writer->AppendLine("DEFINE_CONST_OR_RETURN(value, decoder.DecodeDouble(tag.wire_type));");
@@ -762,7 +761,7 @@ absl::Status Generator::EmitFieldDecoding(
 }
 
 absl::Status Generator::EmitOptionalFieldEncoding(
-    internal::FileWriter* const writer, std::string_view const name, size_t const number,
+    TextWriter* const writer, std::string_view const name, size_t const number,
     google::protobuf::FieldDescriptorProto_Type const type) {
   writer->AppendLine(absl::StrCat("if (proto.", name, ".has_value()) {"));
   {
@@ -770,7 +769,7 @@ absl::Status Generator::EmitOptionalFieldEncoding(
     if (it == kFieldEncoderNames.end()) {
       return absl::InvalidArgumentError("invalid field type");
     }
-    FileWriter::IndentedScope is{writer};
+    TextWriter::IndentedScope is{writer};
     writer->AppendLine(
         absl::StrCat("encoder.", it->second, "(", number, ", proto.", name, ".value());"));
   }
@@ -779,7 +778,7 @@ absl::Status Generator::EmitOptionalFieldEncoding(
 }
 
 absl::Status Generator::EmitRepeatedFieldEncoding(
-    internal::FileWriter* const writer, std::string_view const name, size_t const number,
+    TextWriter* const writer, std::string_view const name, size_t const number,
     google::protobuf::FieldDescriptorProto_Type const type, bool const packed) {
   if (packed) {
     auto const packed_encoder_it = kPackedFieldEncoderNames.find(type);
@@ -793,7 +792,7 @@ absl::Status Generator::EmitRepeatedFieldEncoding(
   if (encoder_it != kFieldEncoderNames.end()) {
     writer->AppendLine(absl::StrCat("for (auto const& value : proto.", name, ") {"));
     {
-      FileWriter::IndentedScope is{writer};
+      TextWriter::IndentedScope is{writer};
       writer->AppendLine(absl::StrCat("encoder.", encoder_it->second, "(", number, ", value);"));
     }
     writer->AppendLine("}");
@@ -803,7 +802,7 @@ absl::Status Generator::EmitRepeatedFieldEncoding(
 }
 
 absl::Status Generator::EmitRequiredFieldEncoding(
-    internal::FileWriter* const writer, std::string_view const name, size_t const number,
+    TextWriter* const writer, std::string_view const name, size_t const number,
     google::protobuf::FieldDescriptorProto_Type const type) {
   auto const it = kFieldEncoderNames.find(type);
   if (it != kFieldEncoderNames.end()) {
@@ -814,8 +813,8 @@ absl::Status Generator::EmitRequiredFieldEncoding(
   }
 }
 
-absl::Status Generator::EmitEnumEncoding(internal::FileWriter* const writer,
-                                         std::string_view const name, size_t const number,
+absl::Status Generator::EmitEnumEncoding(TextWriter* const writer, std::string_view const name,
+                                         size_t const number,
                                          google::protobuf::FieldDescriptorProto_Label const label,
                                          std::string_view const proto_type_name, bool const packed,
                                          bool const is_optional) {
@@ -824,7 +823,7 @@ absl::Status Generator::EmitEnumEncoding(internal::FileWriter* const writer,
       if (is_optional) {
         writer->AppendLine(absl::StrCat("if (proto.", name, ".has_value()) {"));
         {
-          FileWriter::IndentedScope is{writer};
+          TextWriter::IndentedScope is{writer};
           writer->AppendLine(
               absl::StrCat("encoder.EncodeEnumField(", number, ", proto.", name, ".value());"));
         }
@@ -841,7 +840,7 @@ absl::Status Generator::EmitEnumEncoding(internal::FileWriter* const writer,
       } else {
         writer->AppendLine(absl::StrCat("for (auto const& value : proto.", name, ") {"));
         {
-          FileWriter::IndentedScope is{writer};
+          TextWriter::IndentedScope is{writer};
           writer->AppendLine(absl::StrCat("encoder.EncodeEnumField(", number, ", value);"));
         }
         writer->AppendLine("}");
@@ -856,8 +855,8 @@ absl::Status Generator::EmitEnumEncoding(internal::FileWriter* const writer,
   return absl::OkStatus();
 }
 
-absl::Status Generator::EmitObjectEncoding(internal::FileWriter* const writer,
-                                           std::string_view const name, size_t const number,
+absl::Status Generator::EmitObjectEncoding(TextWriter* const writer, std::string_view const name,
+                                           size_t const number,
                                            FieldDescriptorProto_Label const label,
                                            std::string_view const proto_type_name) {
   auto const type_name = absl::StrReplaceAll(proto_type_name, {{".", "::"}});
@@ -865,7 +864,7 @@ absl::Status Generator::EmitObjectEncoding(internal::FileWriter* const writer,
     case FieldDescriptorProto_Label::LABEL_OPTIONAL:
       writer->AppendLine(absl::StrCat("if (proto.", name, ".has_value()) {"));
       {
-        FileWriter::IndentedScope is{writer};
+        TextWriter::IndentedScope is{writer};
         writer->AppendLine(absl::StrCat("encoder.EncodeTag({ .field_number = ", number,
                                         ", .wire_type = ::tsdb2::proto::WireType::kLength });"));
         writer->AppendLine(absl::StrCat("encoder.EncodeSubMessage(", type_name, "::Encode(proto.",
@@ -876,7 +875,7 @@ absl::Status Generator::EmitObjectEncoding(internal::FileWriter* const writer,
     case FieldDescriptorProto_Label::LABEL_REPEATED:
       writer->AppendLine(absl::StrCat("for (auto const& value : proto.", name, ") {"));
       {
-        FileWriter::IndentedScope is{writer};
+        TextWriter::IndentedScope is{writer};
         writer->AppendLine(absl::StrCat("encoder.EncodeTag({ .field_number = ", number,
                                         ", .wire_type = ::tsdb2::proto::WireType::kLength });"));
         writer->AppendLine(
@@ -897,8 +896,7 @@ absl::Status Generator::EmitObjectEncoding(internal::FileWriter* const writer,
 }
 
 absl::Status Generator::EmitFieldEncoding(
-    internal::FileWriter* const writer,
-    google::protobuf::FieldDescriptorProto const& descriptor) const {
+    TextWriter* const writer, google::protobuf::FieldDescriptorProto const& descriptor) const {
   DEFINE_CONST_OR_RETURN(name, RequireField<kFieldDescriptorProtoNameField>(descriptor));
   DEFINE_CONST_OR_RETURN(number, RequireField<kFieldDescriptorProtoNumberField>(descriptor));
   DEFINE_CONST_OR_RETURN(label, RequireField<kFieldDescriptorProtoLabelField>(descriptor));
@@ -938,27 +936,27 @@ absl::Status Generator::EmitFieldEncoding(
 }
 
 absl::Status Generator::EmitMessageImplementation(
-    FileWriter* const writer, google::protobuf::DescriptorProto const& descriptor) const {
+    TextWriter* const writer, google::protobuf::DescriptorProto const& descriptor) const {
   DEFINE_CONST_OR_RETURN(name, RequireField<kDescriptorProtoNameField>(descriptor));
   writer->AppendLine(absl::StrCat("::absl::StatusOr<", *name, "> ", *name,
                                   "::Decode(::absl::Span<uint8_t const> const data) {"));
   {
-    FileWriter::IndentedScope is{writer};
+    TextWriter::IndentedScope is{writer};
     writer->AppendLine(absl::StrCat(*name, " proto;"));
     writer->AppendLine("::tsdb2::proto::Decoder decoder{data};");
     writer->AppendLine("while (!decoder.at_end()) {");
     {
-      FileWriter::IndentedScope is{writer};
+      TextWriter::IndentedScope is{writer};
       writer->AppendLine("DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());");
       writer->AppendLine("switch (tag.field_number) {");
       {
-        FileWriter::IndentedScope is{writer};
+        TextWriter::IndentedScope is{writer};
         for (auto const& field : descriptor.get<kDescriptorProtoFieldField>()) {
           RETURN_IF_ERROR(EmitFieldDecoding(writer, field));
         }
         writer->AppendLine("default:");
         {
-          FileWriter::IndentedScope is{writer};
+          TextWriter::IndentedScope is{writer};
           writer->AppendLine("RETURN_IF_ERROR(decoder.SkipRecord(tag.wire_type));");
           writer->AppendLine("break;");
         }
@@ -973,7 +971,7 @@ absl::Status Generator::EmitMessageImplementation(
   writer->AppendLine(
       absl::StrCat("::tsdb2::io::Cord ", *name, "::Encode(", *name, " const& proto) {"));
   {
-    FileWriter::IndentedScope is{writer};
+    TextWriter::IndentedScope is{writer};
     writer->AppendLine("::tsdb2::proto::Encoder encoder;");
     for (auto const& field : descriptor.get<kDescriptorProtoFieldField>()) {
       RETURN_IF_ERROR(EmitFieldEncoding(writer, field));

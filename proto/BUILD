@@ -74,19 +74,19 @@ cc_test(
 )
 
 cc_library(
-    name = "file_writer",
-    srcs = ["file_writer.cc"],
-    hdrs = ["file_writer.h"],
+    name = "text_writer",
+    srcs = ["text_writer.cc"],
+    hdrs = ["text_writer.h"],
     deps = [
         "@com_google_absl//absl/strings:cord",
     ],
 )
 
 cc_test(
-    name = "file_writer_test",
-    srcs = ["file_writer_test.cc"],
+    name = "text_writer_test",
+    srcs = ["text_writer_test.cc"],
     deps = [
-        ":file_writer",
+        ":text_writer",
         "//common:testing",
         "@com_google_googletest//:gtest_main",
     ],
@@ -100,16 +100,16 @@ cc_library(
     ],
 )
 
-proto_library(
-    name = "descriptor_proto",
-    srcs = ["descriptor.proto"],
-)
+# proto_library(
+#     name = "descriptor_proto",
+#     srcs = ["descriptor.proto"],
+# )
 
-cc_proto_library(
-    name = "descriptor_cc_proto",
-    proto = ":descriptor_proto",
-    visibility = ["//visibility:public"],
-)
+# cc_proto_library(
+#     name = "descriptor_cc_proto",
+#     proto = ":descriptor_proto",
+#     visibility = ["//visibility:public"],
+# )
 
 cc_library(
     name = "generator",
@@ -117,9 +117,9 @@ cc_library(
     hdrs = ["generator.h"],
     deps = [
         ":dependencies",
-        ":file_writer",
         ":object",
         ":temp_descriptor",
+        ":text_writer",
         "//common:flat_map",
         "//common:no_destructor",
         "//common:re",
