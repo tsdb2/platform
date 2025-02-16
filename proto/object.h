@@ -574,11 +574,12 @@ class Object<> {
   ABSL_ATTRIBUTE_ALWAYS_INLINE bool CompareEqualInternal(Object const &other) const { return true; }
   ABSL_ATTRIBUTE_ALWAYS_INLINE bool CompareLessInternal(Object const &other) const { return false; }
 
-  absl::Status ReadField(Decoder *const decoder, FieldTag const &field_tag) {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE absl::Status ReadField(Decoder *const decoder,
+                                                      FieldTag const &field_tag) {
     return decoder->SkipRecord(field_tag.wire_type);
   }
 
-  void EncodeInternal(Encoder *const encoder) const {}
+  ABSL_ATTRIBUTE_ALWAYS_INLINE void EncodeInternal(Encoder *const encoder) const {}
 
   // NOLINTEND(readability-convert-member-functions-to-static)
 };
@@ -703,7 +704,8 @@ class Object<internal::FieldImpl<Type, Name, tag>, OtherFields...> : public Obje
            (!(other.value_ < value_) && Object<OtherFields...>::CompareLessInternal(other));
   }
 
-  absl::Status ReadField(Decoder *const decoder, FieldTag const &field_tag) {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE absl::Status ReadField(Decoder *const decoder,
+                                                      FieldTag const &field_tag) {
     if (field_tag.field_number != tag) {
       return Object<OtherFields...>::ReadField(decoder, field_tag);
     } else {
@@ -712,7 +714,7 @@ class Object<internal::FieldImpl<Type, Name, tag>, OtherFields...> : public Obje
     }
   }
 
-  void EncodeInternal(Encoder *const encoder) const {
+  ABSL_ATTRIBUTE_ALWAYS_INLINE void EncodeInternal(Encoder *const encoder) const {
     internal::FieldEncoder<Type, tag>{}(encoder, value_);
     Object<OtherFields...>::EncodeInternal(encoder);
   }

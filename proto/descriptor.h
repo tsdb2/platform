@@ -177,12 +177,25 @@ using FieldDescriptorProto = tsdb2::proto::Object<
 char constexpr kDescriptorProtoNameField[] = "name";
 char constexpr kDescriptorProtoFieldField[] = "field";
 char constexpr kDescriptorProtoExtensionField[] = "extension";
+char constexpr kDescriptorProtoNestedTypeField[] = "nested_type";
 char constexpr kDescriptorProtoEnumTypeField[] = "enum_type";
+
+using NestedNestedDescriptorProto = tsdb2::proto::Object<
+    tsdb2::proto::Field<std::optional<std::string>, kDescriptorProtoNameField, 1>>;
+
+using NestedDescriptorProto = tsdb2::proto::Object<
+    tsdb2::proto::Field<std::optional<std::string>, kDescriptorProtoNameField, 1>,
+    tsdb2::proto::Field<std::vector<FieldDescriptorProto>, kDescriptorProtoFieldField, 2>,
+    tsdb2::proto::Field<std::vector<FieldDescriptorProto>, kDescriptorProtoExtensionField, 6>,
+    tsdb2::proto::Field<std::vector<NestedNestedDescriptorProto>, kDescriptorProtoNestedTypeField,
+                        3>,
+    tsdb2::proto::Field<std::vector<EnumDescriptorProto>, kDescriptorProtoEnumTypeField, 4>>;
 
 using DescriptorProto = tsdb2::proto::Object<
     tsdb2::proto::Field<std::optional<std::string>, kDescriptorProtoNameField, 1>,
     tsdb2::proto::Field<std::vector<FieldDescriptorProto>, kDescriptorProtoFieldField, 2>,
     tsdb2::proto::Field<std::vector<FieldDescriptorProto>, kDescriptorProtoExtensionField, 6>,
+    tsdb2::proto::Field<std::vector<NestedDescriptorProto>, kDescriptorProtoNestedTypeField, 3>,
     tsdb2::proto::Field<std::vector<EnumDescriptorProto>, kDescriptorProtoEnumTypeField, 4>>;
 
 char constexpr kFileDescriptorProtoNameField[] = "name";
