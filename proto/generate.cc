@@ -18,9 +18,9 @@
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "common/utilities.h"
-#include "proto/descriptor.h"
+#include "proto/descriptor.pb.sync.h"
 #include "proto/generator.h"
-#include "proto/object.h"
+#include "proto/proto.h"
 
 ABSL_FLAG(std::optional<std::string>, root_path, "",
           "The root directory all the file descriptor names are relative to. Defaults to the "
@@ -35,8 +35,6 @@ namespace {
 
 using ::google::protobuf::FileDescriptorProto;
 using ::google::protobuf::FileDescriptorSet;
-using ::google::protobuf::kFileDescriptorProtoNameField;
-using ::google::protobuf::kFileDescriptorSetFileField;
 using ::tsdb2::proto::Generator;
 using ::tsdb2::proto::RequireField;
 using ::tsdb2::proto::generator::MakeHeaderFileName;
@@ -117,7 +115,7 @@ std::string GetFilePath(std::string_view const file_name) {
 }
 
 absl::Status GenerateFilePair(FileDescriptorProto const& descriptor) {
-  DEFINE_CONST_OR_RETURN(name, RequireField<kFileDescriptorProtoNameField>(descriptor));
+  DEFINE_CONST_OR_RETURN(name, RequireField(descriptor.name));
   LOG(INFO) << "generating header/source pair for " << name;
   DEFINE_VAR_OR_RETURN(generator, Generator::Create(descriptor));
   {
@@ -146,7 +144,7 @@ absl::Status ProcessFileDescriptorSet(std::string_view const file_path) {
   LOG(INFO) << "processing " << file_path;
   DEFINE_CONST_OR_RETURN(descriptor_set, ReadFileDescriptorSet(file_path));
   absl::Status status = absl::OkStatus();
-  for (auto const& descriptor : descriptor_set.get<kFileDescriptorSetFileField>()) {
+  for (auto const& descriptor : descriptor_set.file) {
     status.Update(GenerateFilePair(descriptor));
   }
   return status;

@@ -1,6 +1,5 @@
 #include <cerrno>
 #include <cstdio>
-#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -9,32 +8,27 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "common/utilities.h"
-#include "proto/descriptor.h"
 #include "proto/generator.h"
-#include "proto/object.h"
+#include "proto/plugin.pb.sync.h"
 
 namespace {
 
 using ::google::protobuf::compiler::CodeGeneratorRequest;
 using ::google::protobuf::compiler::CodeGeneratorResponse;
-using ::google::protobuf::compiler::CodeGeneratorResponse_Feature;
-using ::google::protobuf::compiler::kCodeGeneratorRequestProtoFileField;
-using ::google::protobuf::compiler::kCodeGeneratorResponseFileField;
-using ::google::protobuf::compiler::kCodeGeneratorResponseSupportedFeaturesField;
 using ::tsdb2::proto::Generator;
 using ::tsdb2::proto::generator::ReadFile;
 using ::tsdb2::proto::generator::WriteFile;
 
 absl::StatusOr<CodeGeneratorResponse> Run(CodeGeneratorRequest const& request) {
   CodeGeneratorResponse response;
-  response.get<kCodeGeneratorResponseSupportedFeaturesField>() =
-      tsdb2::util::to_underlying(CodeGeneratorResponse_Feature::FEATURE_NONE);
-  for (auto const& proto_file : request.get<kCodeGeneratorRequestProtoFileField>()) {
+  response.supported_features =
+      tsdb2::util::to_underlying(CodeGeneratorResponse::Feature::FEATURE_NONE);
+  for (auto const& proto_file : request.proto_file) {
     DEFINE_VAR_OR_RETURN(generator, Generator::Create(proto_file));
     DEFINE_VAR_OR_RETURN(header_file, generator.GenerateHeaderFile());
-    response.get<kCodeGeneratorResponseFileField>().emplace_back(std::move(header_file));
+    response.file.emplace_back(std::move(header_file));
     DEFINE_VAR_OR_RETURN(source_file, generator.GenerateSourceFile());
-    response.get<kCodeGeneratorResponseFileField>().emplace_back(std::move(source_file));
+    response.file.emplace_back(std::move(source_file));
   }
   return std::move(response);
 }
@@ -43,7 +37,7 @@ absl::Status Run() {
   DEFINE_CONST_OR_RETURN(input, ReadFile(stdin));
   DEFINE_CONST_OR_RETURN(request, CodeGeneratorRequest::Decode(input));
   DEFINE_CONST_OR_RETURN(response, Run(request));
-  auto const output = response.Encode().Flatten();
+  auto const output = CodeGeneratorResponse::Encode(response).Flatten();
   return WriteFile(stdout, output.span());
 }
 

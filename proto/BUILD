@@ -1,5 +1,5 @@
 load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
-load("//proto:proto.bzl", "cc_proto_library")
+load("//proto:proto.bzl", "tsdb2_cc_proto_library")
 
 package(default_visibility = ["//visibility:private"])
 
@@ -30,21 +30,6 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_library(
-    name = "object",
-    hdrs = ["object.h"],
-    deps = [
-        ":wire_format",
-        "//common:type_string",
-        "//common:utilities",
-        "//io:cord",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -93,23 +78,71 @@ cc_test(
 )
 
 cc_library(
-    name = "temp_descriptor",
-    hdrs = ["descriptor.h"],
+    name = "proto",
+    hdrs = ["proto.h"],
+    visibility = ["//visibility:public"],
     deps = [
-        ":object",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 
-# proto_library(
-#     name = "descriptor_proto",
-#     srcs = ["descriptor.proto"],
-# )
+proto_library(
+    name = "descriptor_proto",
+    srcs = ["descriptor.proto"],
+    visibility = ["//visibility:public"],
+)
 
-# cc_proto_library(
-#     name = "descriptor_cc_proto",
-#     proto = ":descriptor_proto",
-#     visibility = ["//visibility:public"],
-# )
+tsdb2_cc_proto_library(
+    name = "descriptor_cc_proto",
+    proto = ":descriptor_proto",
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "descriptor",
+    srcs = ["descriptor.pb.sync.cc"],
+    hdrs = ["descriptor.pb.sync.h"],
+    deps = [
+        ":proto",
+        "//common:utilities",
+        "//io:cord",
+        "//proto:wire_format",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+proto_library(
+    name = "plugin_proto",
+    srcs = ["plugin.proto"],
+    visibility = ["//visibility:public"],
+    deps = [":descriptor_proto"],
+)
+
+tsdb2_cc_proto_library(
+    name = "plugin_cc_proto",
+    proto = ":plugin_proto",
+    visibility = ["//visibility:public"],
+    deps = [":descriptor_cc_proto"],
+)
+
+cc_library(
+    name = "plugin",
+    srcs = ["plugin.pb.sync.cc"],
+    hdrs = ["plugin.pb.sync.h"],
+    deps = [
+        ":descriptor",
+        ":proto",
+        "//common:utilities",
+        "//io:cord",
+        "//proto:wire_format",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+    ],
+)
 
 cc_library(
     name = "generator",
@@ -117,10 +150,12 @@ cc_library(
     hdrs = ["generator.h"],
     deps = [
         ":dependencies",
-        ":object",
-        ":temp_descriptor",
+        ":descriptor",
+        ":plugin",
+        ":proto",
         ":text_writer",
         "//common:flat_map",
+        "//common:flat_set",
         "//common:no_destructor",
         "//common:re",
         "//common:utilities",
@@ -148,8 +183,9 @@ cc_binary(
     srcs = ["generate.cc"],
     visibility = ["//visibility:public"],
     deps = [
+        ":descriptor",
         ":generator",
-        ":object",
+        ":proto",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/log",
@@ -161,13 +197,12 @@ cc_binary(
 )
 
 cc_binary(
-    name = "plugin",
+    name = "protoc_plugin",
     srcs = ["plugin.cc"],
     visibility = ["//visibility:public"],
     deps = [
         ":generator",
-        ":object",
-        ":temp_descriptor",
+        ":plugin",
         "//common:utilities",
         "@com_google_absl//absl/log:initialize",
         "@com_google_absl//absl/status",

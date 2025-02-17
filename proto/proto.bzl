@@ -76,7 +76,7 @@ def _cc_proto_library_impl(ctx):
         ),
     ]
 
-cc_proto_library = rule(
+tsdb2_cc_proto_library = rule(
     implementation = _cc_proto_library_impl,
     attrs = {
         "proto": attr.label(mandatory = True, providers = [ProtoInfo]),
@@ -86,6 +86,7 @@ cc_proto_library = rule(
             default = [
                 "//common:utilities",
                 "//io:cord",
+                "//proto",
                 "//proto:wire_format",
                 "@com_google_absl//absl/base",
                 "@com_google_absl//absl/status:statusor",

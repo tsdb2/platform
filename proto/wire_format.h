@@ -209,15 +209,15 @@ class Encoder {
     EncodePackedIntegers(field_number, values);
   }
 
-  void EncodePackedInt32s(size_t const field_number, absl::Span<uint64_t const> const values) {
+  void EncodePackedInt32s(size_t const field_number, absl::Span<int32_t const> const values) {
     EncodePackedIntegers(field_number, values);
   }
 
-  void EncodePackedUInt32s(size_t const field_number, absl::Span<uint64_t const> const values) {
+  void EncodePackedUInt32s(size_t const field_number, absl::Span<uint32_t const> const values) {
     EncodePackedIntegers(field_number, values);
   }
 
-  void EncodePackedInt64s(size_t const field_number, absl::Span<uint64_t const> const values) {
+  void EncodePackedInt64s(size_t const field_number, absl::Span<int64_t const> const values) {
     EncodePackedIntegers(field_number, values);
   }
 
