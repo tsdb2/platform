@@ -37,7 +37,10 @@ which needs a few settings via environment variables. For example if you cloned 
 the `/home/user/platform/` directory then you can run:
 
 ```sh
-/home/user/platform$ bazel build --action_env=COMP_DB_HOOK_COMPILER=clang++-18 --action_env=COMP_DB_HOOK_WORKSPACE_DIR=/home/user/platform ...
+/home/user/platform$ bazel build \
+    --action_env=COMP_DB_HOOK_WORKSPACE_DIR=/home/user/platform \
+    --host_action_env=COMP_DB_HOOK_WORKSPACE_DIR=/home/user/platform \
+    ...
 ```
 
 Tests can be run with `bazel test`, but you might need to override the `TEST_TMPDIR` because its
@@ -46,7 +49,12 @@ of our network tests from running. Specifying an explicit test timeout is also r
 of our tests actively rely on avoiding timeouts to be considered successful. Example:
 
 ```sh
-/home/user/platform$ bazel test --test_tmpdir=/tmp/ --test_timeout=15s ...
+/home/user/platform$ bazel test \
+    --action_env=COMP_DB_HOOK_WORKSPACE_DIR=/home/user/platform \
+    --host_action_env=COMP_DB_HOOK_WORKSPACE_DIR=/home/user/platform \
+    --test_tmpdir=/tmp/ \
+    --test_timeout=15s \
+    ...
 ```
 
 ## Creating a Platform-Based Project
