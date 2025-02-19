@@ -84,11 +84,13 @@ tsdb2_cc_proto_library = rule(
         "_generator": attr.label(default = "//proto:generate", executable = True, cfg = "exec"),
         "_runtime_deps": attr.label_list(
             default = [
+                "//common:flat_set",
                 "//common:utilities",
                 "//io:cord",
                 "//proto",
                 "//proto:wire_format",
                 "@com_google_absl//absl/base",
+                "@com_google_absl//absl/status",
                 "@com_google_absl//absl/status:statusor",
                 "@com_google_absl//absl/types:span",
             ],

@@ -1,10 +1,13 @@
 #include "proto/descriptor.pb.sync.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <utility>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "common/flat_set.h"
 #include "common/utilities.h"
 #include "io/cord.h"
 #include "proto/wire_format.h"
@@ -48,24 +51,22 @@ namespace google::protobuf {
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 1: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.name.emplace(std::move(value));
       } break;
       case 2: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.package.emplace(std::move(value));
       } break;
       case 3: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.dependency.emplace_back(std::move(value));
       } break;
       case 10: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32(tag.wire_type));
-        proto.public_dependency.emplace_back(value);
+        RETURN_IF_ERROR(decoder.DecodeRepeatedInt32s(tag.wire_type, &proto.public_dependency));
       } break;
       case 11: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32(tag.wire_type));
-        proto.weak_dependency.emplace_back(value);
+        RETURN_IF_ERROR(decoder.DecodeRepeatedInt32s(tag.wire_type, &proto.weak_dependency));
       } break;
       case 4: {
         DEFINE_CONST_OR_RETURN(child_span, decoder.GetChildSpan(tag.wire_type));
@@ -98,12 +99,13 @@ namespace google::protobuf {
         proto.source_code_info.emplace(std::move(value));
       } break;
       case 12: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.syntax.emplace(std::move(value));
       } break;
       case 14: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));
-        proto.edition.emplace(static_cast<::google::protobuf::Edition>(value));
+        DEFINE_CONST_OR_RETURN(value,
+                               decoder.DecodeEnumField<::google::protobuf::Edition>(tag.wire_type));
+        proto.edition.emplace(value);
       } break;
       default:
         RETURN_IF_ERROR(decoder.SkipRecord(tag.wire_type));
@@ -172,11 +174,11 @@ namespace google::protobuf {
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 1: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32Field(tag.wire_type));
         proto.start.emplace(value);
       } break;
       case 2: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32Field(tag.wire_type));
         proto.end.emplace(value);
       } break;
       case 3: {
@@ -217,11 +219,11 @@ namespace google::protobuf {
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 1: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32Field(tag.wire_type));
         proto.start.emplace(value);
       } break;
       case 2: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32Field(tag.wire_type));
         proto.end.emplace(value);
       } break;
       default:
@@ -251,7 +253,7 @@ namespace google::protobuf {
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 1: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.name.emplace(std::move(value));
       } break;
       case 2: {
@@ -297,7 +299,7 @@ namespace google::protobuf {
         proto.reserved_range.emplace_back(std::move(value));
       } break;
       case 10: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.reserved_name.emplace_back(std::move(value));
       } break;
       default:
@@ -359,23 +361,23 @@ namespace google::protobuf {
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 1: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32Field(tag.wire_type));
         proto.number.emplace(value);
       } break;
       case 2: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.full_name.emplace(std::move(value));
       } break;
       case 3: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.type.emplace(std::move(value));
       } break;
       case 5: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.reserved.emplace(value);
       } break;
       case 6: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.repeated.emplace(value);
       } break;
       default:
@@ -431,9 +433,11 @@ namespace google::protobuf {
         proto.features.emplace(std::move(value));
       } break;
       case 3: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));
-        proto.verification =
-            static_cast<::google::protobuf::ExtensionRangeOptions::VerificationState>(value);
+        DEFINE_CONST_OR_RETURN(
+            value,
+            decoder.DecodeEnumField<::google::protobuf::ExtensionRangeOptions::VerificationState>(
+                tag.wire_type));
+        proto.verification = value;
       } break;
       default:
         RETURN_IF_ERROR(decoder.SkipRecord(tag.wire_type));
@@ -469,39 +473,43 @@ namespace google::protobuf {
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 1: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.name.emplace(std::move(value));
       } break;
       case 3: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32Field(tag.wire_type));
         proto.number.emplace(value);
       } break;
       case 4: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));
-        proto.label.emplace(static_cast<::google::protobuf::FieldDescriptorProto::Label>(value));
+        DEFINE_CONST_OR_RETURN(
+            value, decoder.DecodeEnumField<::google::protobuf::FieldDescriptorProto::Label>(
+                       tag.wire_type));
+        proto.label.emplace(value);
       } break;
       case 5: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));
-        proto.type.emplace(static_cast<::google::protobuf::FieldDescriptorProto::Type>(value));
+        DEFINE_CONST_OR_RETURN(
+            value,
+            decoder.DecodeEnumField<::google::protobuf::FieldDescriptorProto::Type>(tag.wire_type));
+        proto.type.emplace(value);
       } break;
       case 6: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.type_name.emplace(std::move(value));
       } break;
       case 2: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.extendee.emplace(std::move(value));
       } break;
       case 7: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.default_value.emplace(std::move(value));
       } break;
       case 9: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32Field(tag.wire_type));
         proto.oneof_index.emplace(value);
       } break;
       case 10: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.json_name.emplace(std::move(value));
       } break;
       case 8: {
@@ -510,7 +518,7 @@ namespace google::protobuf {
         proto.options.emplace(std::move(value));
       } break;
       case 17: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.proto3_optional.emplace(value);
       } break;
       default:
@@ -568,7 +576,7 @@ namespace google::protobuf {
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 1: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.name.emplace(std::move(value));
       } break;
       case 2: {
@@ -604,11 +612,11 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 1: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32Field(tag.wire_type));
         proto.start.emplace(value);
       } break;
       case 2: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32Field(tag.wire_type));
         proto.end.emplace(value);
       } break;
       default:
@@ -639,7 +647,7 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 1: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.name.emplace(std::move(value));
       } break;
       case 2: {
@@ -660,7 +668,7 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
         proto.reserved_range.emplace_back(std::move(value));
       } break;
       case 5: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.reserved_name.emplace_back(std::move(value));
       } break;
       default:
@@ -703,11 +711,11 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 1: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.name.emplace(std::move(value));
       } break;
       case 2: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32Field(tag.wire_type));
         proto.number.emplace(value);
       } break;
       case 3: {
@@ -746,7 +754,7 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 1: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.name.emplace(std::move(value));
       } break;
       case 2: {
@@ -791,15 +799,15 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 1: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.name.emplace(std::move(value));
       } break;
       case 2: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.input_type.emplace(std::move(value));
       } break;
       case 3: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.output_type.emplace(std::move(value));
       } break;
       case 4: {
@@ -808,11 +816,11 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
         proto.options.emplace(std::move(value));
       } break;
       case 5: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.client_streaming = value;
       } break;
       case 6: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.server_streaming = value;
       } break;
       default:
@@ -850,79 +858,81 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 1: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.java_package.emplace(std::move(value));
       } break;
       case 8: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.java_outer_classname.emplace(std::move(value));
       } break;
       case 10: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.java_multiple_files = value;
       } break;
       case 20: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.java_generate_equals_and_hash.emplace(value);
       } break;
       case 27: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.java_string_check_utf8 = value;
       } break;
       case 9: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));
-        proto.optimize_for = static_cast<::google::protobuf::FileOptions::OptimizeMode>(value);
+        DEFINE_CONST_OR_RETURN(
+            value,
+            decoder.DecodeEnumField<::google::protobuf::FileOptions::OptimizeMode>(tag.wire_type));
+        proto.optimize_for = value;
       } break;
       case 11: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.go_package.emplace(std::move(value));
       } break;
       case 16: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.cc_generic_services = value;
       } break;
       case 17: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.java_generic_services = value;
       } break;
       case 18: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.py_generic_services = value;
       } break;
       case 23: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.deprecated = value;
       } break;
       case 31: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.cc_enable_arenas = value;
       } break;
       case 36: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.objc_class_prefix.emplace(std::move(value));
       } break;
       case 37: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.csharp_namespace.emplace(std::move(value));
       } break;
       case 39: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.swift_prefix.emplace(std::move(value));
       } break;
       case 40: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.php_class_prefix.emplace(std::move(value));
       } break;
       case 41: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.php_namespace.emplace(std::move(value));
       } break;
       case 44: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.php_metadata_namespace.emplace(std::move(value));
       } break;
       case 45: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.ruby_package.emplace(std::move(value));
       } break;
       case 50: {
@@ -1004,23 +1014,23 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 1: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.message_set_wire_format = value;
       } break;
       case 2: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.no_standard_descriptor_accessor = value;
       } break;
       case 3: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.deprecated = value;
       } break;
       case 7: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.map_entry.emplace(value);
       } break;
       case 11: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.deprecated_legacy_json_field_conflicts.emplace(value);
       } break;
       case 12: {
@@ -1071,11 +1081,12 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 3: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));
-        proto.edition.emplace(static_cast<::google::protobuf::Edition>(value));
+        DEFINE_CONST_OR_RETURN(value,
+                               decoder.DecodeEnumField<::google::protobuf::Edition>(tag.wire_type));
+        proto.edition.emplace(value);
       } break;
       case 2: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.value.emplace(std::move(value));
       } break;
       default:
@@ -1105,20 +1116,23 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 1: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));
-        proto.edition_introduced.emplace(static_cast<::google::protobuf::Edition>(value));
+        DEFINE_CONST_OR_RETURN(value,
+                               decoder.DecodeEnumField<::google::protobuf::Edition>(tag.wire_type));
+        proto.edition_introduced.emplace(value);
       } break;
       case 2: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));
-        proto.edition_deprecated.emplace(static_cast<::google::protobuf::Edition>(value));
+        DEFINE_CONST_OR_RETURN(value,
+                               decoder.DecodeEnumField<::google::protobuf::Edition>(tag.wire_type));
+        proto.edition_deprecated.emplace(value);
       } break;
       case 3: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.deprecation_warning.emplace(std::move(value));
       } break;
       case 4: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));
-        proto.edition_removed.emplace(static_cast<::google::protobuf::Edition>(value));
+        DEFINE_CONST_OR_RETURN(value,
+                               decoder.DecodeEnumField<::google::protobuf::Edition>(tag.wire_type));
+        proto.edition_removed.emplace(value);
       } break;
       default:
         RETURN_IF_ERROR(decoder.SkipRecord(tag.wire_type));
@@ -1152,46 +1166,50 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 1: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));
-        proto.ctype = static_cast<::google::protobuf::FieldOptions::CType>(value);
+        DEFINE_CONST_OR_RETURN(
+            value, decoder.DecodeEnumField<::google::protobuf::FieldOptions::CType>(tag.wire_type));
+        proto.ctype = value;
       } break;
       case 2: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.packed.emplace(value);
       } break;
       case 6: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));
-        proto.jstype = static_cast<::google::protobuf::FieldOptions::JSType>(value);
+        DEFINE_CONST_OR_RETURN(
+            value,
+            decoder.DecodeEnumField<::google::protobuf::FieldOptions::JSType>(tag.wire_type));
+        proto.jstype = value;
       } break;
       case 5: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.lazy = value;
       } break;
       case 15: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.unverified_lazy = value;
       } break;
       case 3: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.deprecated = value;
       } break;
       case 10: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.weak = value;
       } break;
       case 16: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.debug_redact = value;
       } break;
       case 17: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));
-        proto.retention.emplace(
-            static_cast<::google::protobuf::FieldOptions::OptionRetention>(value));
+        DEFINE_CONST_OR_RETURN(
+            value, decoder.DecodeEnumField<::google::protobuf::FieldOptions::OptionRetention>(
+                       tag.wire_type));
+        proto.retention.emplace(value);
       } break;
       case 19: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));
-        proto.targets.emplace_back(
-            static_cast<::google::protobuf::FieldOptions::OptionTargetType>(value));
+        RETURN_IF_ERROR(
+            decoder.DecodeRepeatedEnums<::google::protobuf::FieldOptions::OptionTargetType>(
+                tag.wire_type, &proto.targets));
       } break;
       case 20: {
         DEFINE_CONST_OR_RETURN(child_span, decoder.GetChildSpan(tag.wire_type));
@@ -1305,15 +1323,15 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 2: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.allow_alias.emplace(value);
       } break;
       case 3: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.deprecated = value;
       } break;
       case 6: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.deprecated_legacy_json_field_conflicts.emplace(value);
       } break;
       case 7: {
@@ -1362,7 +1380,7 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 1: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.deprecated = value;
       } break;
       case 2: {
@@ -1371,7 +1389,7 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
         proto.features.emplace(std::move(value));
       } break;
       case 3: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.debug_redact = value;
       } break;
       case 4: {
@@ -1425,7 +1443,7 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
         proto.features.emplace(std::move(value));
       } break;
       case 33: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.deprecated = value;
       } break;
       case 999: {
@@ -1462,13 +1480,14 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 33: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.deprecated = value;
       } break;
       case 34: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));
-        proto.idempotency_level =
-            static_cast<::google::protobuf::MethodOptions::IdempotencyLevel>(value);
+        DEFINE_CONST_OR_RETURN(
+            value, decoder.DecodeEnumField<::google::protobuf::MethodOptions::IdempotencyLevel>(
+                       tag.wire_type));
+        proto.idempotency_level = value;
       } break;
       case 35: {
         DEFINE_CONST_OR_RETURN(child_span, decoder.GetChildSpan(tag.wire_type));
@@ -1506,22 +1525,31 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
 ::absl::StatusOr<UninterpretedOption::NamePart> UninterpretedOption::NamePart::Decode(
     ::absl::Span<uint8_t const> const data) {
   UninterpretedOption::NamePart proto;
+  ::tsdb2::common::flat_set<size_t> decoded;
   ::tsdb2::proto::Decoder decoder{data};
   while (!decoder.at_end()) {
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 1: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.name_part = std::move(value);
+        decoded.emplace(1);
       } break;
       case 2: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBool(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
         proto.is_extension = value;
+        decoded.emplace(2);
       } break;
       default:
         RETURN_IF_ERROR(decoder.SkipRecord(tag.wire_type));
         break;
     }
+  }
+  if (!decoded.contains(1)) {
+    return absl::InvalidArgumentError("missing required field \"name_part\"");
+  }
+  if (!decoded.contains(2)) {
+    return absl::InvalidArgumentError("missing required field \"is_extension\"");
   }
   return std::move(proto);
 }
@@ -1548,27 +1576,27 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
         proto.name.emplace_back(std::move(value));
       } break;
       case 3: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.identifier_value.emplace(std::move(value));
       } break;
       case 4: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64Field(tag.wire_type));
         proto.positive_int_value.emplace(value);
       } break;
       case 5: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt64(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt64Field(tag.wire_type));
         proto.negative_int_value.emplace(value);
       } break;
       case 6: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeDouble(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeDoubleField(tag.wire_type));
         proto.double_value.emplace(value);
       } break;
       case 7: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeBytes(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeBytesField(tag.wire_type));
         proto.string_value.emplace(std::move(value));
       } break;
       case 8: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.aggregate_value.emplace(std::move(value));
       } break;
       default:
@@ -1613,32 +1641,40 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 1: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));
-        proto.field_presence.emplace(
-            static_cast<::google::protobuf::FeatureSet::FieldPresence>(value));
+        DEFINE_CONST_OR_RETURN(
+            value,
+            decoder.DecodeEnumField<::google::protobuf::FeatureSet::FieldPresence>(tag.wire_type));
+        proto.field_presence.emplace(value);
       } break;
       case 2: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));
-        proto.enum_type.emplace(static_cast<::google::protobuf::FeatureSet::EnumType>(value));
+        DEFINE_CONST_OR_RETURN(
+            value,
+            decoder.DecodeEnumField<::google::protobuf::FeatureSet::EnumType>(tag.wire_type));
+        proto.enum_type.emplace(value);
       } break;
       case 3: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));
-        proto.repeated_field_encoding.emplace(
-            static_cast<::google::protobuf::FeatureSet::RepeatedFieldEncoding>(value));
+        DEFINE_CONST_OR_RETURN(
+            value, decoder.DecodeEnumField<::google::protobuf::FeatureSet::RepeatedFieldEncoding>(
+                       tag.wire_type));
+        proto.repeated_field_encoding.emplace(value);
       } break;
       case 4: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));
-        proto.utf8_validation.emplace(
-            static_cast<::google::protobuf::FeatureSet::Utf8Validation>(value));
+        DEFINE_CONST_OR_RETURN(
+            value,
+            decoder.DecodeEnumField<::google::protobuf::FeatureSet::Utf8Validation>(tag.wire_type));
+        proto.utf8_validation.emplace(value);
       } break;
       case 5: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));
-        proto.message_encoding.emplace(
-            static_cast<::google::protobuf::FeatureSet::MessageEncoding>(value));
+        DEFINE_CONST_OR_RETURN(
+            value, decoder.DecodeEnumField<::google::protobuf::FeatureSet::MessageEncoding>(
+                       tag.wire_type));
+        proto.message_encoding.emplace(value);
       } break;
       case 6: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));
-        proto.json_format.emplace(static_cast<::google::protobuf::FeatureSet::JsonFormat>(value));
+        DEFINE_CONST_OR_RETURN(
+            value,
+            decoder.DecodeEnumField<::google::protobuf::FeatureSet::JsonFormat>(tag.wire_type));
+        proto.json_format.emplace(value);
       } break;
       default:
         RETURN_IF_ERROR(decoder.SkipRecord(tag.wire_type));
@@ -1679,8 +1715,9 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 3: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));
-        proto.edition.emplace(static_cast<::google::protobuf::Edition>(value));
+        DEFINE_CONST_OR_RETURN(value,
+                               decoder.DecodeEnumField<::google::protobuf::Edition>(tag.wire_type));
+        proto.edition.emplace(value);
       } break;
       case 4: {
         DEFINE_CONST_OR_RETURN(child_span, decoder.GetChildSpan(tag.wire_type));
@@ -1733,12 +1770,14 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
         proto.defaults.emplace_back(std::move(value));
       } break;
       case 4: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));
-        proto.minimum_edition.emplace(static_cast<::google::protobuf::Edition>(value));
+        DEFINE_CONST_OR_RETURN(value,
+                               decoder.DecodeEnumField<::google::protobuf::Edition>(tag.wire_type));
+        proto.minimum_edition.emplace(value);
       } break;
       case 5: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));
-        proto.maximum_edition.emplace(static_cast<::google::protobuf::Edition>(value));
+        DEFINE_CONST_OR_RETURN(value,
+                               decoder.DecodeEnumField<::google::protobuf::Edition>(tag.wire_type));
+        proto.maximum_edition.emplace(value);
       } break;
       default:
         RETURN_IF_ERROR(decoder.SkipRecord(tag.wire_type));
@@ -1772,23 +1811,21 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 1: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32(tag.wire_type));
-        proto.path.emplace_back(value);
+        RETURN_IF_ERROR(decoder.DecodeRepeatedInt32s(tag.wire_type, &proto.path));
       } break;
       case 2: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32(tag.wire_type));
-        proto.span.emplace_back(value);
+        RETURN_IF_ERROR(decoder.DecodeRepeatedInt32s(tag.wire_type, &proto.span));
       } break;
       case 3: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.leading_comments.emplace(std::move(value));
       } break;
       case 4: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.trailing_comments.emplace(std::move(value));
       } break;
       case 6: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.leading_detached_comments.emplace_back(std::move(value));
       } break;
       default:
@@ -1852,25 +1889,26 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 1: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32(tag.wire_type));
-        proto.path.emplace_back(value);
+        RETURN_IF_ERROR(decoder.DecodeRepeatedInt32s(tag.wire_type, &proto.path));
       } break;
       case 2: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.source_file.emplace(std::move(value));
       } break;
       case 3: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32Field(tag.wire_type));
         proto.begin.emplace(value);
       } break;
       case 4: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32Field(tag.wire_type));
         proto.end.emplace(value);
       } break;
       case 5: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));
-        proto.semantic.emplace(
-            static_cast<::google::protobuf::GeneratedCodeInfo::Annotation::Semantic>(value));
+        DEFINE_CONST_OR_RETURN(
+            value,
+            decoder.DecodeEnumField<::google::protobuf::GeneratedCodeInfo::Annotation::Semantic>(
+                tag.wire_type));
+        proto.semantic.emplace(value);
       } break;
       default:
         RETURN_IF_ERROR(decoder.SkipRecord(tag.wire_type));

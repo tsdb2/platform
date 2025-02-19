@@ -52,6 +52,7 @@ class Generator {
  private:
   struct LexicalScope {
     Path base_path;
+    bool global;
     absl::Span<google::protobuf::DescriptorProto const> message_types;
     absl::Span<google::protobuf::EnumDescriptorProto const> enum_types;
   };
@@ -110,6 +111,9 @@ class Generator {
   absl::StatusOr<bool> IsMessage(std::string_view proto_type_name) const;
   absl::StatusOr<bool> IsEnum(std::string_view proto_type_name) const;
 
+  static absl::StatusOr<bool> HasRequiredFields(
+      google::protobuf::DescriptorProto const& descriptor);
+
   void EmitHeaderIncludes(internal::TextWriter* writer) const;
   void EmitSourceIncludes(internal::TextWriter* writer) const;
 
@@ -125,8 +129,25 @@ class Generator {
 
   absl::Status EmitHeaderForScope(internal::TextWriter* writer, LexicalScope const& scope) const;
 
+  static absl::Status EmitOptionalFieldDecoding(
+      internal::TextWriter* writer, google::protobuf::FieldDescriptorProto const& descriptor);
+
+  static absl::Status EmitRepeatedFieldDecoding(
+      internal::TextWriter* writer, google::protobuf::FieldDescriptorProto const& descriptor);
+
+  static absl::Status EmitRawFieldDecoding(internal::TextWriter* writer,
+                                           google::protobuf::FieldDescriptorProto const& descriptor,
+                                           bool required);
+
+  static absl::Status EmitObjectDecoding(internal::TextWriter* writer,
+                                         google::protobuf::FieldDescriptorProto const& descriptor);
+
+  absl::Status EmitEnumDecoding(internal::TextWriter* writer,
+                                google::protobuf::FieldDescriptorProto const& descriptor) const;
+
   absl::Status EmitFieldDecoding(internal::TextWriter* writer,
-                                 google::protobuf::FieldDescriptorProto const& descriptor) const;
+                                 google::protobuf::FieldDescriptorProto const& descriptor,
+                                 bool track_decoded_fields) const;
 
   static absl::Status EmitOptionalFieldEncoding(
       internal::TextWriter* writer, google::protobuf::FieldDescriptorProto const& descriptor);

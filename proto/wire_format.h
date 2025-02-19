@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -80,27 +81,141 @@ class Decoder {
     return static_cast<Integer>(value);
   }
 
-  absl::StatusOr<uint64_t> DecodeVarInt() { return DecodeInteger<uint64_t>(); }
-  absl::StatusOr<int32_t> DecodeInt32(WireType wire_type);
-  absl::StatusOr<int64_t> DecodeInt64(WireType wire_type);
-  absl::StatusOr<uint32_t> DecodeUInt32(WireType wire_type);
-  absl::StatusOr<uint64_t> DecodeUInt64(WireType wire_type);
+  template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+  absl::StatusOr<Enum> DecodeEnumField(WireType const wire_type) {
+    if (wire_type != WireType::kVarInt) {
+      return absl::InvalidArgumentError("invalid wire type for enum");
+    }
+    return DecodeEnum<Enum>();
+  }
 
-  absl::StatusOr<int32_t> DecodeSInt32(WireType wire_type);
-  absl::StatusOr<int64_t> DecodeSInt64(WireType wire_type);
+  absl::StatusOr<int32_t> DecodeInt32Field(WireType wire_type);
+  absl::StatusOr<int64_t> DecodeInt64Field(WireType wire_type);
+  absl::StatusOr<uint32_t> DecodeUInt32Field(WireType wire_type);
+  absl::StatusOr<uint64_t> DecodeUInt64Field(WireType wire_type);
 
-  absl::StatusOr<int32_t> DecodeFixedInt32(WireType wire_type);
-  absl::StatusOr<uint32_t> DecodeFixedUInt32(WireType wire_type);
-  absl::StatusOr<int64_t> DecodeFixedInt64(WireType wire_type);
-  absl::StatusOr<uint64_t> DecodeFixedUInt64(WireType wire_type);
+  absl::StatusOr<int32_t> DecodeSInt32Field(WireType wire_type);
+  absl::StatusOr<int64_t> DecodeSInt64Field(WireType wire_type);
 
-  absl::StatusOr<bool> DecodeBool(WireType wire_type);
-  absl::StatusOr<float> DecodeFloat(WireType wire_type);
-  absl::StatusOr<double> DecodeDouble(WireType wire_type);
-  absl::StatusOr<std::string> DecodeString(WireType wire_type);
-  absl::StatusOr<std::vector<uint8_t>> DecodeBytes(WireType wire_type);
+  absl::StatusOr<int32_t> DecodeFixedInt32Field(WireType wire_type);
+  absl::StatusOr<uint32_t> DecodeFixedUInt32Field(WireType wire_type);
+  absl::StatusOr<int64_t> DecodeFixedInt64Field(WireType wire_type);
+  absl::StatusOr<uint64_t> DecodeFixedUInt64Field(WireType wire_type);
+
+  absl::StatusOr<bool> DecodeBoolField(WireType wire_type);
+  absl::StatusOr<float> DecodeFloatField(WireType wire_type);
+  absl::StatusOr<double> DecodeDoubleField(WireType wire_type);
+  absl::StatusOr<std::string> DecodeStringField(WireType wire_type);
+  absl::StatusOr<std::vector<uint8_t>> DecodeBytesField(WireType wire_type);
 
   absl::StatusOr<absl::Span<uint8_t const>> GetChildSpan(WireType wire_type);
+
+  template <typename Integer,
+            std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>, bool> = true>
+  absl::Status DecodeRepeatedIntegers(WireType const wire_type,
+                                      std::vector<Integer> *const values) {
+    switch (wire_type) {
+      case WireType::kVarInt: {
+        DEFINE_CONST_OR_RETURN(value, DecodeInteger<Integer>());
+        values->emplace_back(value);
+      } break;
+      case WireType::kLength: {
+        DEFINE_VAR_OR_RETURN(decoded, DecodePackedIntegers<Integer>());
+        if (values->empty()) {
+          *values = std::move(decoded);
+        } else {
+          values->insert(values->end(), decoded.begin(), decoded.end());
+        }
+      } break;
+      default:
+        return absl::InvalidArgumentError("invalid wire type for repeated integer field");
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status DecodeRepeatedInt32s(WireType const wire_type, std::vector<int32_t> *const values) {
+    return DecodeRepeatedIntegers(wire_type, values);
+  }
+
+  absl::Status DecodeRepeatedInt64s(WireType const wire_type, std::vector<int64_t> *const values) {
+    return DecodeRepeatedIntegers(wire_type, values);
+  }
+
+  absl::Status DecodeRepeatedUInt32s(WireType const wire_type,
+                                     std::vector<uint32_t> *const values) {
+    return DecodeRepeatedIntegers(wire_type, values);
+  }
+
+  absl::Status DecodeRepeatedUInt64s(WireType const wire_type,
+                                     std::vector<uint64_t> *const values) {
+    return DecodeRepeatedIntegers(wire_type, values);
+  }
+
+  absl::Status DecodeRepeatedSInt32s(WireType wire_type, std::vector<int32_t> *values);
+  absl::Status DecodeRepeatedSInt64s(WireType wire_type, std::vector<int64_t> *values);
+
+  absl::Status DecodeRepeatedFixedInt32s(WireType wire_type, std::vector<int32_t> *values);
+  absl::Status DecodeRepeatedFixedInt64s(WireType wire_type, std::vector<int64_t> *values);
+  absl::Status DecodeRepeatedFixedUInt32s(WireType wire_type, std::vector<uint32_t> *values);
+  absl::Status DecodeRepeatedFixedUInt64s(WireType wire_type, std::vector<uint64_t> *values);
+
+  template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+  absl::Status DecodeRepeatedEnums(WireType const wire_type, std::vector<Enum> *const values) {
+    switch (wire_type) {
+      case WireType::kVarInt: {
+        DEFINE_CONST_OR_RETURN(value, DecodeEnum<Enum>());
+        values->emplace_back(value);
+      } break;
+      case WireType::kLength: {
+        DEFINE_VAR_OR_RETURN(decoded, DecodePackedEnums<Enum>());
+        values->reserve(values->size() + decoded.size());
+        for (auto const value : decoded) {
+          values->emplace_back(value);
+        }
+      } break;
+      default:
+        return absl::InvalidArgumentError("invalid wire type for repeated enum field");
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status DecodeRepeatedBools(WireType wire_type, std::vector<bool> *values);
+  absl::Status DecodeRepeatedFloats(WireType wire_type, std::vector<float> *values);
+  absl::Status DecodeRepeatedDoubles(WireType wire_type, std::vector<double> *values);
+
+  absl::Status SkipRecord(WireType wire_type);
+
+ private:
+  static absl::Status EndOfInputError();
+
+  absl::StatusOr<uint64_t> DecodeIntegerInternal(size_t max_bits);
+
+  template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+  absl::StatusOr<Enum> DecodeEnum() {
+    DEFINE_CONST_OR_RETURN(value, DecodeInteger<int64_t>());
+    using Underlying = std::underlying_type_t<Enum>;
+    if (value < std::numeric_limits<Underlying>::min()) {
+      return absl::FailedPreconditionError(
+          "the decoded enum value is lower than the minimum allowed");
+    }
+    if (value > std::numeric_limits<Underlying>::max()) {
+      return absl::FailedPreconditionError(
+          "the decoded enum value is greater than the maximum allowed");
+    }
+    return static_cast<Enum>(value);
+  }
+
+  absl::StatusOr<int32_t> DecodeSInt32();
+  absl::StatusOr<int64_t> DecodeSInt64();
+
+  absl::StatusOr<int32_t> DecodeFixedInt32();
+  absl::StatusOr<uint32_t> DecodeFixedUInt32();
+  absl::StatusOr<int64_t> DecodeFixedInt64();
+  absl::StatusOr<uint64_t> DecodeFixedUInt64();
+
+  absl::StatusOr<bool> DecodeBool();
+  absl::StatusOr<float> DecodeFloat();
+  absl::StatusOr<double> DecodeDouble();
 
   template <typename Integer,
             std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>, bool> = true>
@@ -140,16 +255,21 @@ class Decoder {
   absl::StatusOr<std::vector<int64_t>> DecodePackedFixedInt64s();
   absl::StatusOr<std::vector<uint32_t>> DecodePackedFixedUInt32s();
   absl::StatusOr<std::vector<uint64_t>> DecodePackedFixedUInt64s();
+
+  template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+  absl::StatusOr<std::vector<Enum>> DecodePackedEnums() {
+    DEFINE_VAR_OR_RETURN(child, DecodeChildSpan());
+    std::vector<Enum> values;
+    while (!child.at_end()) {
+      DEFINE_CONST_OR_RETURN(value, child.DecodeEnum<Enum>());
+      values.push_back(value);
+    }
+    return std::move(values);
+  }
+
   absl::StatusOr<std::vector<bool>> DecodePackedBools();
   absl::StatusOr<std::vector<float>> DecodePackedFloats();
   absl::StatusOr<std::vector<double>> DecodePackedDoubles();
-
-  absl::Status SkipRecord(WireType wire_type);
-
- private:
-  static absl::Status EndOfInputError();
-
-  absl::StatusOr<uint64_t> DecodeIntegerInternal(size_t max_bits);
 
  public:  // TODO: make private
   absl::StatusOr<Decoder> DecodeChildSpan();

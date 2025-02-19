@@ -47,111 +47,77 @@ absl::StatusOr<FieldTag> Decoder::DecodeTag() {
   };
 }
 
-absl::StatusOr<int32_t> Decoder::DecodeInt32(WireType const wire_type) {
+absl::StatusOr<int32_t> Decoder::DecodeInt32Field(WireType const wire_type) {
   if (wire_type != WireType::kVarInt) {
     return absl::InvalidArgumentError("invalid wire type for int32");
   }
   return DecodeInteger<int32_t>();
 }
 
-absl::StatusOr<int64_t> Decoder::DecodeInt64(WireType const wire_type) {
+absl::StatusOr<int64_t> Decoder::DecodeInt64Field(WireType const wire_type) {
   if (wire_type != WireType::kVarInt) {
     return absl::InvalidArgumentError("invalid wire type for int64");
   }
   return DecodeInteger<int64_t>();
 }
 
-absl::StatusOr<uint32_t> Decoder::DecodeUInt32(WireType const wire_type) {
+absl::StatusOr<uint32_t> Decoder::DecodeUInt32Field(WireType const wire_type) {
   if (wire_type != WireType::kVarInt) {
     return absl::InvalidArgumentError("invalid wire type for uint32");
   }
   return DecodeInteger<uint32_t>();
 }
 
-absl::StatusOr<uint64_t> Decoder::DecodeUInt64(WireType const wire_type) {
+absl::StatusOr<uint64_t> Decoder::DecodeUInt64Field(WireType const wire_type) {
   if (wire_type != WireType::kVarInt) {
     return absl::InvalidArgumentError("invalid wire type for uint64");
   }
   return DecodeInteger<uint64_t>();
 }
 
-absl::StatusOr<int32_t> Decoder::DecodeSInt32(WireType const wire_type) {
+absl::StatusOr<int32_t> Decoder::DecodeSInt32Field(WireType const wire_type) {
   if (wire_type != WireType::kVarInt) {
     return absl::InvalidArgumentError("invalid wire type for sint32");
   }
-  DEFINE_CONST_OR_RETURN(value, DecodeInteger<uint32_t>());
-  return (value >> 1) ^ -(value & 1);
+  return DecodeSInt32();
 }
 
-absl::StatusOr<int64_t> Decoder::DecodeSInt64(WireType const wire_type) {
+absl::StatusOr<int64_t> Decoder::DecodeSInt64Field(WireType const wire_type) {
   if (wire_type != WireType::kVarInt) {
     return absl::InvalidArgumentError("invalid wire type for sint64");
   }
-  DEFINE_CONST_OR_RETURN(value, DecodeInteger<uint64_t>());
-  return (value >> 1) ^ -(value & 1);
+  return DecodeSInt64();
 }
 
-absl::StatusOr<int32_t> Decoder::DecodeFixedInt32(WireType const wire_type) {
+absl::StatusOr<int32_t> Decoder::DecodeFixedInt32Field(WireType const wire_type) {
   if (wire_type != WireType::kInt32) {
     return absl::InvalidArgumentError("invalid wire type for sfixed32");
   }
-  if (data_.size() < 4) {
-    return EndOfInputError();
-  }
-  uint32_t value = *reinterpret_cast<uint32_t const *>(data_.data());
-  data_.remove_prefix(4);
-#ifdef ABSL_IS_BIG_ENDIAN
-  value = ByteSwap32(value);
-#endif  // ABSL_IS_BIG_ENDIAN
-  return static_cast<int32_t>(value);
+  return DecodeFixedInt32();
 }
 
-absl::StatusOr<uint32_t> Decoder::DecodeFixedUInt32(WireType const wire_type) {
+absl::StatusOr<uint32_t> Decoder::DecodeFixedUInt32Field(WireType const wire_type) {
   if (wire_type != WireType::kInt32) {
     return absl::InvalidArgumentError("invalid wire type for fixed32");
   }
-  if (data_.size() < 4) {
-    return EndOfInputError();
-  }
-  uint32_t value = *reinterpret_cast<uint32_t const *>(data_.data());
-  data_.remove_prefix(4);
-#ifdef ABSL_IS_BIG_ENDIAN
-  value = ByteSwap32(value);
-#endif  // ABSL_IS_BIG_ENDIAN
-  return value;
+  return DecodeFixedUInt32();
 }
 
-absl::StatusOr<int64_t> Decoder::DecodeFixedInt64(WireType const wire_type) {
+absl::StatusOr<int64_t> Decoder::DecodeFixedInt64Field(WireType const wire_type) {
   if (wire_type != WireType::kInt64) {
     return absl::InvalidArgumentError("invalid wire type for sfixed64");
   }
-  if (data_.size() < 8) {
-    return EndOfInputError();
-  }
-  uint64_t value = *reinterpret_cast<uint64_t const *>(data_.data());
-  data_.remove_prefix(8);
-#ifdef ABSL_IS_BIG_ENDIAN
-  value = ByteSwap64(value);
-#endif  // ABSL_IS_BIG_ENDIAN
-  return static_cast<int64_t>(value);
+  return DecodeFixedInt64();
 }
 
-absl::StatusOr<uint64_t> Decoder::DecodeFixedUInt64(WireType const wire_type) {
+absl::StatusOr<uint64_t> Decoder::DecodeFixedUInt64Field(WireType const wire_type) {
   if (wire_type != WireType::kInt64) {
     return absl::InvalidArgumentError("invalid wire type for fixed64");
   }
-  if (data_.size() < 8) {
-    return EndOfInputError();
-  }
-  uint64_t value = *reinterpret_cast<uint64_t const *>(data_.data());
-  data_.remove_prefix(8);
-#ifdef ABSL_IS_BIG_ENDIAN
-  value = ByteSwap64(value);
-#endif  // ABSL_IS_BIG_ENDIAN
-  return value;
+  return DecodeFixedUInt64();
 }
 
-absl::StatusOr<bool> Decoder::DecodeBool(WireType const wire_type) {
+absl::StatusOr<bool> Decoder::DecodeBoolField(WireType const wire_type) {
   if (wire_type != WireType::kVarInt) {
     return absl::InvalidArgumentError("invalid wire type for bool");
   }
@@ -159,17 +125,17 @@ absl::StatusOr<bool> Decoder::DecodeBool(WireType const wire_type) {
   return value != 0;
 }
 
-absl::StatusOr<float> Decoder::DecodeFloat(WireType const wire_type) {
-  DEFINE_VAR_OR_RETURN(value, DecodeFixedUInt32(wire_type));
+absl::StatusOr<float> Decoder::DecodeFloatField(WireType const wire_type) {
+  DEFINE_VAR_OR_RETURN(value, DecodeFixedUInt32Field(wire_type));
   return *reinterpret_cast<float const *>(&value);
 }
 
-absl::StatusOr<double> Decoder::DecodeDouble(WireType const wire_type) {
-  DEFINE_VAR_OR_RETURN(value, DecodeFixedUInt64(wire_type));
+absl::StatusOr<double> Decoder::DecodeDoubleField(WireType const wire_type) {
+  DEFINE_VAR_OR_RETURN(value, DecodeFixedUInt64Field(wire_type));
   return *reinterpret_cast<double const *>(&value);
 }
 
-absl::StatusOr<std::string> Decoder::DecodeString(WireType const wire_type) {
+absl::StatusOr<std::string> Decoder::DecodeStringField(WireType const wire_type) {
   if (wire_type != WireType::kLength) {
     return absl::InvalidArgumentError("invalid wire type for string");
   }
@@ -182,7 +148,7 @@ absl::StatusOr<std::string> Decoder::DecodeString(WireType const wire_type) {
   return std::move(value);
 }
 
-absl::StatusOr<std::vector<uint8_t>> Decoder::DecodeBytes(WireType const wire_type) {
+absl::StatusOr<std::vector<uint8_t>> Decoder::DecodeBytesField(WireType const wire_type) {
   if (wire_type != WireType::kLength) {
     return absl::InvalidArgumentError("invalid wire type for bytes");
   }
@@ -212,7 +178,7 @@ absl::StatusOr<std::vector<int32_t>> Decoder::DecodePackedSInt32s() {
   DEFINE_VAR_OR_RETURN(child, DecodeChildSpan());
   std::vector<int32_t> values;
   while (!child.at_end()) {
-    DEFINE_CONST_OR_RETURN(value, child.DecodeSInt32(WireType::kVarInt));
+    DEFINE_CONST_OR_RETURN(value, child.DecodeSInt32());
     values.push_back(value);
   }
   return std::move(values);
@@ -222,7 +188,7 @@ absl::StatusOr<std::vector<int64_t>> Decoder::DecodePackedSInt64s() {
   DEFINE_VAR_OR_RETURN(child, DecodeChildSpan());
   std::vector<int64_t> values;
   while (!child.at_end()) {
-    DEFINE_CONST_OR_RETURN(value, child.DecodeSInt64(WireType::kVarInt));
+    DEFINE_CONST_OR_RETURN(value, child.DecodeSInt64());
     values.push_back(value);
   }
   return std::move(values);
@@ -232,7 +198,7 @@ absl::StatusOr<std::vector<int32_t>> Decoder::DecodePackedFixedInt32s() {
   DEFINE_VAR_OR_RETURN(child, DecodeChildSpan(/*record_size=*/4));
   std::vector<int32_t> values;
   while (!child.at_end()) {
-    DEFINE_CONST_OR_RETURN(value, child.DecodeFixedInt32(WireType::kInt32));
+    DEFINE_CONST_OR_RETURN(value, child.DecodeFixedInt32());
     values.push_back(value);
   }
   return std::move(values);
@@ -242,7 +208,7 @@ absl::StatusOr<std::vector<int64_t>> Decoder::DecodePackedFixedInt64s() {
   DEFINE_VAR_OR_RETURN(child, DecodeChildSpan(/*record_size=*/8));
   std::vector<int64_t> values;
   while (!child.at_end()) {
-    DEFINE_CONST_OR_RETURN(value, child.DecodeFixedInt64(WireType::kInt64));
+    DEFINE_CONST_OR_RETURN(value, child.DecodeFixedInt64());
     values.push_back(value);
   }
   return std::move(values);
@@ -252,7 +218,7 @@ absl::StatusOr<std::vector<uint32_t>> Decoder::DecodePackedFixedUInt32s() {
   DEFINE_VAR_OR_RETURN(child, DecodeChildSpan(/*record_size=*/4));
   std::vector<uint32_t> values;
   while (!child.at_end()) {
-    DEFINE_CONST_OR_RETURN(value, child.DecodeFixedUInt32(WireType::kInt32));
+    DEFINE_CONST_OR_RETURN(value, child.DecodeFixedUInt32());
     values.push_back(value);
   }
   return std::move(values);
@@ -262,7 +228,7 @@ absl::StatusOr<std::vector<uint64_t>> Decoder::DecodePackedFixedUInt64s() {
   DEFINE_VAR_OR_RETURN(child, DecodeChildSpan(/*record_size=*/8));
   std::vector<uint64_t> values;
   while (!child.at_end()) {
-    DEFINE_CONST_OR_RETURN(value, child.DecodeFixedUInt64(WireType::kInt64));
+    DEFINE_CONST_OR_RETURN(value, child.DecodeFixedUInt64());
     values.push_back(value);
   }
   return std::move(values);
@@ -272,7 +238,7 @@ absl::StatusOr<std::vector<bool>> Decoder::DecodePackedBools() {
   DEFINE_VAR_OR_RETURN(child, DecodeChildSpan());
   std::vector<bool> values;
   while (!child.at_end()) {
-    DEFINE_CONST_OR_RETURN(value, child.DecodeBool(WireType::kVarInt));
+    DEFINE_CONST_OR_RETURN(value, child.DecodeBool());
     values.push_back(value);
   }
   return std::move(values);
@@ -282,7 +248,7 @@ absl::StatusOr<std::vector<float>> Decoder::DecodePackedFloats() {
   DEFINE_VAR_OR_RETURN(child, DecodeChildSpan(/*record_size=*/4));
   std::vector<float> values;
   while (!child.at_end()) {
-    DEFINE_CONST_OR_RETURN(value, child.DecodeFloat(WireType::kInt32));
+    DEFINE_CONST_OR_RETURN(value, child.DecodeFloat());
     values.push_back(value);
   }
   return std::move(values);
@@ -292,10 +258,199 @@ absl::StatusOr<std::vector<double>> Decoder::DecodePackedDoubles() {
   DEFINE_VAR_OR_RETURN(child, DecodeChildSpan(/*record_size=*/8));
   std::vector<double> values;
   while (!child.at_end()) {
-    DEFINE_CONST_OR_RETURN(value, child.DecodeDouble(WireType::kInt64));
+    DEFINE_CONST_OR_RETURN(value, child.DecodeDouble());
     values.push_back(value);
   }
   return std::move(values);
+}
+
+absl::Status Decoder::DecodeRepeatedSInt32s(WireType const wire_type,
+                                            std::vector<int32_t> *const values) {
+  switch (wire_type) {
+    case WireType::kVarInt: {
+      DEFINE_CONST_OR_RETURN(value, DecodeSInt32());
+      values->emplace_back(value);
+    } break;
+    case WireType::kLength: {
+      DEFINE_VAR_OR_RETURN(decoded, DecodePackedSInt32s());
+      if (values->empty()) {
+        *values = std::move(decoded);
+      } else {
+        values->insert(values->end(), decoded.begin(), decoded.end());
+      }
+    } break;
+    default:
+      return absl::InvalidArgumentError("invalid wire type for repeated integer field");
+  }
+  return absl::OkStatus();
+}
+
+absl::Status Decoder::DecodeRepeatedSInt64s(WireType const wire_type,
+                                            std::vector<int64_t> *const values) {
+  switch (wire_type) {
+    case WireType::kVarInt: {
+      DEFINE_CONST_OR_RETURN(value, DecodeSInt64());
+      values->emplace_back(value);
+    } break;
+    case WireType::kLength: {
+      DEFINE_VAR_OR_RETURN(decoded, DecodePackedSInt64s());
+      if (values->empty()) {
+        *values = std::move(decoded);
+      } else {
+        values->insert(values->end(), decoded.begin(), decoded.end());
+      }
+    } break;
+    default:
+      return absl::InvalidArgumentError("invalid wire type for repeated integer field");
+  }
+  return absl::OkStatus();
+}
+
+absl::Status Decoder::DecodeRepeatedFixedInt32s(WireType const wire_type,
+                                                std::vector<int32_t> *const values) {
+  switch (wire_type) {
+    case WireType::kInt32: {
+      DEFINE_CONST_OR_RETURN(value, DecodeFixedInt32());
+      values->emplace_back(value);
+    } break;
+    case WireType::kLength: {
+      DEFINE_VAR_OR_RETURN(decoded, DecodePackedFixedInt32s());
+      if (values->empty()) {
+        *values = std::move(decoded);
+      } else {
+        values->insert(values->end(), decoded.begin(), decoded.end());
+      }
+    } break;
+    default:
+      return absl::InvalidArgumentError("invalid wire type for repeated sfixed32 field");
+  }
+  return absl::OkStatus();
+}
+
+absl::Status Decoder::DecodeRepeatedFixedInt64s(WireType const wire_type,
+                                                std::vector<int64_t> *const values) {
+  switch (wire_type) {
+    case WireType::kInt64: {
+      DEFINE_CONST_OR_RETURN(value, DecodeFixedInt64());
+      values->emplace_back(value);
+    } break;
+    case WireType::kLength: {
+      DEFINE_VAR_OR_RETURN(decoded, DecodePackedFixedInt64s());
+      if (values->empty()) {
+        *values = std::move(decoded);
+      } else {
+        values->insert(values->end(), decoded.begin(), decoded.end());
+      }
+    } break;
+    default:
+      return absl::InvalidArgumentError("invalid wire type for repeated sfixed64 field");
+  }
+  return absl::OkStatus();
+}
+
+absl::Status Decoder::DecodeRepeatedFixedUInt32s(WireType const wire_type,
+                                                 std::vector<uint32_t> *const values) {
+  switch (wire_type) {
+    case WireType::kInt32: {
+      DEFINE_CONST_OR_RETURN(value, DecodeFixedUInt32());
+      values->emplace_back(value);
+    } break;
+    case WireType::kLength: {
+      DEFINE_VAR_OR_RETURN(decoded, DecodePackedFixedUInt32s());
+      if (values->empty()) {
+        *values = std::move(decoded);
+      } else {
+        values->insert(values->end(), decoded.begin(), decoded.end());
+      }
+    } break;
+    default:
+      return absl::InvalidArgumentError("invalid wire type for repeated fixed32 field");
+  }
+  return absl::OkStatus();
+}
+
+absl::Status Decoder::DecodeRepeatedFixedUInt64s(WireType const wire_type,
+                                                 std::vector<uint64_t> *const values) {
+  switch (wire_type) {
+    case WireType::kInt64: {
+      DEFINE_CONST_OR_RETURN(value, DecodeFixedUInt64());
+      values->emplace_back(value);
+    } break;
+    case WireType::kLength: {
+      DEFINE_VAR_OR_RETURN(decoded, DecodePackedFixedUInt64s());
+      if (values->empty()) {
+        *values = std::move(decoded);
+      } else {
+        values->insert(values->end(), decoded.begin(), decoded.end());
+      }
+    } break;
+    default:
+      return absl::InvalidArgumentError("invalid wire type for repeated fixed64 field");
+  }
+  return absl::OkStatus();
+}
+
+absl::Status Decoder::DecodeRepeatedBools(WireType const wire_type,
+                                          std::vector<bool> *const values) {
+  switch (wire_type) {
+    case WireType::kVarInt: {
+      DEFINE_CONST_OR_RETURN(value, DecodeBool());
+      values->emplace_back(value);
+    } break;
+    case WireType::kLength: {
+      DEFINE_VAR_OR_RETURN(decoded, DecodePackedBools());
+      if (values->empty()) {
+        *values = std::move(decoded);
+      } else {
+        values->insert(values->end(), decoded.begin(), decoded.end());
+      }
+    } break;
+    default:
+      return absl::InvalidArgumentError("invalid wire type for repeated bool field");
+  }
+  return absl::OkStatus();
+}
+
+absl::Status Decoder::DecodeRepeatedFloats(WireType const wire_type,
+                                           std::vector<float> *const values) {
+  switch (wire_type) {
+    case WireType::kInt32: {
+      DEFINE_CONST_OR_RETURN(value, DecodeFloat());
+      values->emplace_back(value);
+    } break;
+    case WireType::kLength: {
+      DEFINE_VAR_OR_RETURN(decoded, DecodePackedFloats());
+      if (values->empty()) {
+        *values = std::move(decoded);
+      } else {
+        values->insert(values->end(), decoded.begin(), decoded.end());
+      }
+    } break;
+    default:
+      return absl::InvalidArgumentError("invalid wire type for repeated float field");
+  }
+  return absl::OkStatus();
+}
+
+absl::Status Decoder::DecodeRepeatedDoubles(WireType const wire_type,
+                                            std::vector<double> *const values) {
+  switch (wire_type) {
+    case WireType::kInt64: {
+      DEFINE_CONST_OR_RETURN(value, DecodeDouble());
+      values->emplace_back(value);
+    } break;
+    case WireType::kLength: {
+      DEFINE_VAR_OR_RETURN(decoded, DecodePackedDoubles());
+      if (values->empty()) {
+        *values = std::move(decoded);
+      } else {
+        values->insert(values->end(), decoded.begin(), decoded.end());
+      }
+    } break;
+    default:
+      return absl::InvalidArgumentError("invalid wire type for repeated double field");
+  }
+  return absl::OkStatus();
 }
 
 absl::Status Decoder::SkipRecord(WireType const wire_type) {
@@ -365,6 +520,79 @@ absl::StatusOr<uint64_t> Decoder::DecodeIntegerInternal(size_t const max_bits) {
     m += 7;
   } while ((byte & 0x80) != 0);
   return value;
+}
+
+absl::StatusOr<int32_t> Decoder::DecodeSInt32() {
+  DEFINE_CONST_OR_RETURN(value, DecodeInteger<uint32_t>());
+  return (value >> 1) ^ -(value & 1);
+}
+
+absl::StatusOr<int64_t> Decoder::DecodeSInt64() {
+  DEFINE_CONST_OR_RETURN(value, DecodeInteger<uint64_t>());
+  return (value >> 1) ^ -(value & 1);
+}
+
+absl::StatusOr<int32_t> Decoder::DecodeFixedInt32() {
+  if (data_.size() < 4) {
+    return EndOfInputError();
+  }
+  uint32_t value = *reinterpret_cast<uint32_t const *>(data_.data());
+  data_.remove_prefix(4);
+#ifdef ABSL_IS_BIG_ENDIAN
+  value = ByteSwap32(value);
+#endif  // ABSL_IS_BIG_ENDIAN
+  return static_cast<int32_t>(value);
+}
+
+absl::StatusOr<uint32_t> Decoder::DecodeFixedUInt32() {
+  if (data_.size() < 4) {
+    return EndOfInputError();
+  }
+  uint32_t value = *reinterpret_cast<uint32_t const *>(data_.data());
+  data_.remove_prefix(4);
+#ifdef ABSL_IS_BIG_ENDIAN
+  value = ByteSwap32(value);
+#endif  // ABSL_IS_BIG_ENDIAN
+  return value;
+}
+
+absl::StatusOr<int64_t> Decoder::DecodeFixedInt64() {
+  if (data_.size() < 8) {
+    return EndOfInputError();
+  }
+  uint64_t value = *reinterpret_cast<uint64_t const *>(data_.data());
+  data_.remove_prefix(8);
+#ifdef ABSL_IS_BIG_ENDIAN
+  value = ByteSwap64(value);
+#endif  // ABSL_IS_BIG_ENDIAN
+  return static_cast<int64_t>(value);
+}
+
+absl::StatusOr<uint64_t> Decoder::DecodeFixedUInt64() {
+  if (data_.size() < 8) {
+    return EndOfInputError();
+  }
+  uint64_t value = *reinterpret_cast<uint64_t const *>(data_.data());
+  data_.remove_prefix(8);
+#ifdef ABSL_IS_BIG_ENDIAN
+  value = ByteSwap64(value);
+#endif  // ABSL_IS_BIG_ENDIAN
+  return value;
+}
+
+absl::StatusOr<bool> Decoder::DecodeBool() {
+  DEFINE_CONST_OR_RETURN(value, DecodeInteger<uint8_t>());
+  return value != 0;
+}
+
+absl::StatusOr<float> Decoder::DecodeFloat() {
+  DEFINE_VAR_OR_RETURN(value, DecodeFixedUInt32());
+  return *reinterpret_cast<float const *>(&value);
+}
+
+absl::StatusOr<double> Decoder::DecodeDouble() {
+  DEFINE_VAR_OR_RETURN(value, DecodeFixedUInt64());
+  return *reinterpret_cast<double const *>(&value);
 }
 
 absl::StatusOr<Decoder> Decoder::DecodeChildSpan() {

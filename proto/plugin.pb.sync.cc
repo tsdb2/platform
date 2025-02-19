@@ -1,10 +1,13 @@
 #include "proto/plugin.pb.sync.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <utility>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "common/flat_set.h"
 #include "common/utilities.h"
 #include "io/cord.h"
 #include "proto/descriptor.pb.sync.h"
@@ -19,19 +22,19 @@ namespace google::protobuf::compiler {
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 1: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32Field(tag.wire_type));
         proto.major.emplace(value);
       } break;
       case 2: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32Field(tag.wire_type));
         proto.minor.emplace(value);
       } break;
       case 3: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32Field(tag.wire_type));
         proto.patch.emplace(value);
       } break;
       case 4: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.suffix.emplace(std::move(value));
       } break;
       default:
@@ -67,11 +70,11 @@ namespace google::protobuf::compiler {
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 1: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.file_to_generate.emplace_back(std::move(value));
       } break;
       case 2: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.parameter.emplace(std::move(value));
       } break;
       case 15: {
@@ -129,15 +132,15 @@ namespace google::protobuf::compiler {
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 1: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.name.emplace(std::move(value));
       } break;
       case 2: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.insertion_point.emplace(std::move(value));
       } break;
       case 15: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.content.emplace(std::move(value));
       } break;
       case 16: {
@@ -180,19 +183,19 @@ namespace google::protobuf::compiler {
     DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
     switch (tag.field_number) {
       case 1: {
-        DEFINE_VAR_OR_RETURN(value, decoder.DecodeString(tag.wire_type));
+        DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
         proto.error.emplace(std::move(value));
       } break;
       case 2: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeUInt64Field(tag.wire_type));
         proto.supported_features.emplace(value);
       } break;
       case 3: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32Field(tag.wire_type));
         proto.minimum_edition.emplace(value);
       } break;
       case 4: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32(tag.wire_type));
+        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32Field(tag.wire_type));
         proto.maximum_edition.emplace(value);
       } break;
       case 15: {
