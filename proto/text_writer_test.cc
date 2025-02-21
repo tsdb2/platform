@@ -20,6 +20,11 @@ TEST_F(TextWriterTest, AppendLine) {
   EXPECT_EQ(std::move(writer_).Finish(), "lorem ipsum\n");
 }
 
+TEST_F(TextWriterTest, AppendMultiPartLine) {
+  writer_.AppendLine("lorem ", 42, " ipsum");
+  EXPECT_EQ(std::move(writer_).Finish(), "lorem 42 ipsum\n");
+}
+
 TEST_F(TextWriterTest, AppendTwoLines) {
   writer_.AppendLine("dolor amet");
   writer_.AppendLine("lorem ipsum");
@@ -65,6 +70,12 @@ TEST_F(TextWriterTest, AppendUnindentedLine) {
   writer_.Indent();
   writer_.AppendUnindentedLine("lorem ipsum");
   EXPECT_EQ(std::move(writer_).Finish(), "lorem ipsum\n");
+}
+
+TEST_F(TextWriterTest, AppendMultiPartUnindentedLine) {
+  writer_.Indent();
+  writer_.AppendUnindentedLine("lorem ", 42, " ipsum");
+  EXPECT_EQ(std::move(writer_).Finish(), "lorem 42 ipsum\n");
 }
 
 TEST_F(TextWriterTest, IndentedAndUnindentedLines) {

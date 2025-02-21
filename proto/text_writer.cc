@@ -1,7 +1,6 @@
 #include "proto/text_writer.h"
 
 #include <string>
-#include <string_view>
 
 namespace tsdb2 {
 namespace proto {
@@ -14,17 +13,6 @@ void TextWriter::Indent() {
 }
 
 void TextWriter::Dedent() { --indentation_level_; }
-
-void TextWriter::AppendLine(std::string_view const line) {
-  AppendIndentation();
-  content_.Append(line);
-  content_.Append("\n");
-}
-
-void TextWriter::AppendUnindentedLine(std::string_view const line) {
-  content_.Append(line);
-  content_.Append("\n");
-}
 
 void TextWriter::AppendEmptyLine() { content_.Append("\n"); }
 

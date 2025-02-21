@@ -3,10 +3,11 @@
 
 #include <cstddef>
 #include <string>
-#include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/strings/cord.h"
+#include "absl/strings/str_cat.h"
 
 namespace tsdb2 {
 namespace proto {
@@ -31,8 +32,17 @@ class TextWriter {
   void Indent();
   void Dedent();
 
-  void AppendLine(std::string_view line);
-  void AppendUnindentedLine(std::string_view line);
+  template <typename... Args>
+  void AppendLine(Args&&... args) {
+    AppendIndentation();
+    content_.Append(absl::StrCat(std::forward<Args>(args)..., "\n"));
+  }
+
+  template <typename... Args>
+  void AppendUnindentedLine(Args&&... args) {
+    content_.Append(absl::StrCat(std::forward<Args>(args)..., "\n"));
+  }
+
   void AppendEmptyLine();
 
   std::string Finish() &&;
