@@ -14,6 +14,8 @@
 
 namespace google::protobuf {
 
+TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
+
 ::absl::StatusOr<FileDescriptorSet> FileDescriptorSet::Decode(
     ::absl::Span<uint8_t const> const data) {
   FileDescriptorSet proto;
@@ -1966,5 +1968,7 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
   }
   return std::move(encoder).Finish();
 }
+
+TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING();
 
 }  // namespace google::protobuf

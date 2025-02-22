@@ -17,6 +17,8 @@
 
 namespace google::protobuf::compiler {
 
+TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
+
 struct Version;
 struct CodeGeneratorRequest;
 struct CodeGeneratorResponse;
@@ -190,6 +192,8 @@ struct CodeGeneratorResponse : public ::tsdb2::proto::Message {
   std::optional<int32_t> maximum_edition;
   std::vector<::google::protobuf::compiler::CodeGeneratorResponse::File> file;
 };
+
+TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING();
 
 }  // namespace google::protobuf::compiler
 

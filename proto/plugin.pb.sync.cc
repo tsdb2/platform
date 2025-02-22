@@ -15,6 +15,8 @@
 
 namespace google::protobuf::compiler {
 
+TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
+
 ::absl::StatusOr<Version> Version::Decode(::absl::Span<uint8_t const> const data) {
   Version proto;
   ::tsdb2::proto::Decoder decoder{data};
@@ -233,5 +235,7 @@ namespace google::protobuf::compiler {
   }
   return std::move(encoder).Finish();
 }
+
+TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING();
 
 }  // namespace google::protobuf::compiler

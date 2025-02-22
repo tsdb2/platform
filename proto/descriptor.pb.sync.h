@@ -16,6 +16,8 @@
 
 namespace google::protobuf {
 
+TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
+
 struct FileDescriptorSet;
 struct FileDescriptorProto;
 struct DescriptorProto;
@@ -357,7 +359,7 @@ struct MessageOptions : public ::tsdb2::proto::Message {
   bool no_standard_descriptor_accessor{false};
   bool deprecated{false};
   std::optional<bool> map_entry;
-  std::optional<bool> deprecated_legacy_json_field_conflicts;
+  ABSL_DEPRECATED("") std::optional<bool> deprecated_legacy_json_field_conflicts;
   std::optional<::google::protobuf::FeatureSet> features;
   std::vector<::google::protobuf::UninterpretedOption> uninterpreted_option;
 };
@@ -538,7 +540,7 @@ struct EnumOptions : public ::tsdb2::proto::Message {
 
   std::optional<bool> allow_alias;
   bool deprecated{false};
-  std::optional<bool> deprecated_legacy_json_field_conflicts;
+  ABSL_DEPRECATED("") std::optional<bool> deprecated_legacy_json_field_conflicts;
   std::optional<::google::protobuf::FeatureSet> features;
   std::vector<::google::protobuf::UninterpretedOption> uninterpreted_option;
 };
@@ -1184,7 +1186,7 @@ struct FileOptions : public ::tsdb2::proto::Message {
   std::optional<std::string> java_package;
   std::optional<std::string> java_outer_classname;
   bool java_multiple_files{false};
-  std::optional<bool> java_generate_equals_and_hash;
+  ABSL_DEPRECATED("") std::optional<bool> java_generate_equals_and_hash;
   bool java_string_check_utf8{false};
   ::google::protobuf::FileOptions::OptimizeMode optimize_for{
       ::google::protobuf::FileOptions::OptimizeMode::SPEED};
@@ -1834,6 +1836,8 @@ struct UninterpretedOption : public ::tsdb2::proto::Message {
   std::optional<std::vector<uint8_t>> string_value;
   std::optional<std::string> aggregate_value;
 };
+
+TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING();
 
 }  // namespace google::protobuf
 

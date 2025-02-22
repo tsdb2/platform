@@ -297,6 +297,8 @@ absl::StatusOr<std::string> Generator::GenerateHeaderFileContent() {
     writer.AppendLine("namespace ", package, " {");
     writer.AppendEmptyLine();
   }
+  writer.AppendLine("TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();");
+  writer.AppendEmptyLine();
   LexicalScope const global_scope{
       .base_path = base_path_,
       .global = true,
@@ -304,6 +306,8 @@ absl::StatusOr<std::string> Generator::GenerateHeaderFileContent() {
       .enum_types = file_descriptor_->enum_type,
   };
   RETURN_IF_ERROR(EmitHeaderForScope(&writer, global_scope));
+  writer.AppendLine("TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING();");
+  writer.AppendEmptyLine();
   if (!package.empty()) {
     writer.AppendLine("}  // namespace ", package);
     writer.AppendEmptyLine();
@@ -328,6 +332,8 @@ absl::StatusOr<std::string> Generator::GenerateSourceFileContent() {
     writer.AppendEmptyLine();
     writer.AppendLine("namespace ", package, " {");
   }
+  writer.AppendEmptyLine();
+  writer.AppendLine("TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();");
   LexicalScope const global_scope{
       .base_path = base_path_,
       .global = true,
@@ -335,6 +341,8 @@ absl::StatusOr<std::string> Generator::GenerateSourceFileContent() {
       .enum_types = file_descriptor_->enum_type,
   };
   RETURN_IF_ERROR(EmitImplementationForScope(&writer, /*prefix=*/{}, global_scope));
+  writer.AppendEmptyLine();
+  writer.AppendLine("TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING();");
   if (!package.empty()) {
     writer.AppendEmptyLine();
     writer.AppendLine("}  // namespace ", package);
@@ -607,6 +615,9 @@ absl::Status Generator::EmitHeaderForScope(TextWriter* const writer,
   }
   for (auto const& enum_type : scope.enum_types) {
     REQUIRE_FIELD_OR_RETURN(name, enum_type, name);
+    if (enum_type.options && enum_type.options->deprecated) {
+      writer->AppendLine("ABSL_DEPRECATED(\"\")");
+    }
     writer->AppendLine("enum class ", name, " {");
     {
       TextWriter::IndentedScope is{writer};
@@ -617,7 +628,11 @@ absl::Status Generator::EmitHeaderForScope(TextWriter* const writer,
               absl::StrCat("invalid enum value name: \"", name, "\""));
         }
         REQUIRE_FIELD_OR_RETURN(number, value, number);
-        writer->AppendLine(name, " = ", number, ",");
+        std::string deprecation;
+        if (value.options && value.options->deprecated) {
+          deprecation = " ABSL_DEPRECATED(\"\")";
+        }
+        writer->AppendLine(name, deprecation, " = ", number, ",");
       }
     }
     writer->AppendLine("};");
@@ -665,6 +680,9 @@ absl::Status Generator::EmitHeaderForScope(TextWriter* const writer,
       continue;
     }
     auto const& message_type = *(it->second);
+    if (message_type.options && message_type.options->deprecated) {
+      writer->AppendLine("ABSL_DEPRECATED(\"\")");
+    }
     writer->AppendLine("struct ", name, " : public ::tsdb2::proto::Message {");
     {
       TextWriter::IndentedScope is{writer};
@@ -720,28 +738,32 @@ absl::Status Generator::EmitHeaderForScope(TextWriter* const writer,
         REQUIRE_FIELD_OR_RETURN(label, field, label);
         DEFINE_CONST_OR_RETURN(type_pair, GetFieldType(field));
         auto const& [type, primitive] = type_pair;
+        std::string deprecation;
+        if (field.options && field.options->deprecated) {
+          deprecation = "ABSL_DEPRECATED(\"\") ";
+        }
         switch (label) {
           case FieldDescriptorProto::Label::LABEL_OPTIONAL:
             if (primitive && field.default_value.has_value()) {
               DEFINE_CONST_OR_RETURN(initializer,
                                      GetFieldInitializer(field, type, field.default_value.value()));
-              writer->AppendLine(type, " ", name, "{", initializer, "};");
+              writer->AppendLine(deprecation, type, " ", name, "{", initializer, "};");
             } else {
-              writer->AppendLine("std::optional<", type, "> ", name, ";");
+              writer->AppendLine(deprecation, "std::optional<", type, "> ", name, ";");
             }
             break;
           case FieldDescriptorProto::Label::LABEL_REPEATED:
-            writer->AppendLine("std::vector<", type, "> ", name, ";");
+            writer->AppendLine(deprecation, "std::vector<", type, "> ", name, ";");
             break;
           case FieldDescriptorProto::Label::LABEL_REQUIRED:
             if (field.default_value.has_value()) {
               DEFINE_CONST_OR_RETURN(initializer,
                                      GetFieldInitializer(field, type, field.default_value.value()));
-              writer->AppendLine(type, " ", name, "{", initializer, "};");
+              writer->AppendLine(deprecation, type, " ", name, "{", initializer, "};");
             } else if (primitive) {
-              writer->AppendLine(type, " ", name, "{};");
+              writer->AppendLine(deprecation, type, " ", name, "{};");
             } else {
-              writer->AppendLine(type, " ", name, ";");
+              writer->AppendLine(deprecation, type, " ", name, ";");
             }
             break;
           default:
@@ -856,10 +878,10 @@ absl::Status Generator::EmitObjectDecoding(TextWriter* const writer,
       case FieldDescriptorProto::Label::LABEL_OPTIONAL:
         writer->AppendLine("proto.", name, ".emplace(std::move(value));");
         break;
-      case FieldDescriptorProto::Label::LABEL_REQUIRED:
+      case FieldDescriptorProto::Label::LABEL_REQUIRED: {
         writer->AppendLine("proto.", name, " = std::move(value);");
         writer->AppendLine("decoded.emplace(", number, ");");
-        break;
+      } break;
       case FieldDescriptorProto::Label::LABEL_REPEATED:
         writer->AppendLine("proto.", name, ".emplace_back(std::move(value));");
         break;
@@ -1052,8 +1074,8 @@ absl::Status Generator::EmitObjectEncoding(TextWriter* const writer,
       writer->AppendLine("if (proto.", name, ".has_value()) {");
       {
         TextWriter::IndentedScope is{writer};
-        writer->AppendLine("encoder.EncodeTag({ .field_number = ", number,
-                           ", .wire_type = ::tsdb2::proto::WireType::kLength });");
+        writer->AppendLine("encoder.EncodeTag({.field_number = ", number,
+                           ", .wire_type = ::tsdb2::proto::WireType::kLength});");
         writer->AppendLine("encoder.EncodeSubMessage(", type_name, "::Encode(proto.", name,
                            ".value()));");
       }
@@ -1063,15 +1085,15 @@ absl::Status Generator::EmitObjectEncoding(TextWriter* const writer,
       writer->AppendLine("for (auto const& value : proto.", name, ") {");
       {
         TextWriter::IndentedScope is{writer};
-        writer->AppendLine("encoder.EncodeTag({ .field_number = ", number,
-                           ", .wire_type = ::tsdb2::proto::WireType::kLength });");
+        writer->AppendLine("encoder.EncodeTag({.field_number = ", number,
+                           ", .wire_type = ::tsdb2::proto::WireType::kLength});");
         writer->AppendLine("encoder.EncodeSubMessage(", type_name, "::Encode(value));");
       }
       writer->AppendLine("}");
       break;
     case FieldDescriptorProto::Label::LABEL_REQUIRED:
-      writer->AppendLine("encoder.EncodeTag({ .field_number = ", number,
-                         ", .wire_type = ::tsdb2::proto::WireType::kLength });");
+      writer->AppendLine("encoder.EncodeTag({.field_number = ", number,
+                         ", .wire_type = ::tsdb2::proto::WireType::kLength});");
       writer->AppendLine("encoder.EncodeSubMessage(", type_name, "::Encode(proto.", name, "));");
       break;
     default:

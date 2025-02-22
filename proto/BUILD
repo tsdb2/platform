@@ -7,7 +7,6 @@ cc_library(
     name = "wire_format",
     srcs = ["wire_format.cc"],
     hdrs = ["wire_format.h"],
-    visibility = ["//visibility:public"],
     deps = [
         "//common:utilities",
         "//io:buffer",

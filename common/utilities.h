@@ -13,6 +13,24 @@ template <typename T, std::enable_if_t<std::is_pointer_v<T>, bool> = true>
 using owner = T;
 }  // namespace gsl
 
+// Forked from Abseil's implementation of `ABSL_INTERNAL_DISABLE_DEPRECATED_DECLARATION_WARNING`.
+// Sometimes we also need to disable deprecation warnings.
+#if defined(__GNUC__) || defined(__clang__)
+// Clang also supports these GCC pragmas.
+#define TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING() \
+  _Pragma("GCC diagnostic push");                      \
+  _Pragma("GCC diagnostic ignored \"-Wdeprecated-declarations\"");
+#define TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING() _Pragma("GCC diagnostic pop");
+#elif defined(_MSC_VER)
+#define TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING() \
+  _Pragma("warning(push)");                            \
+  _Pragma("warning(disable: 4996)");
+#define TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING() _Pragma("warning(pop)");
+#else
+#define TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING()
+#define TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING()
+#endif  // defined(__GNUC__) || defined(__clang__)
+
 namespace tsdb2 {
 namespace util {
 
