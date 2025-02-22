@@ -1628,8 +1628,7 @@ TEST_F(EncoderTest, EncodeInt32Field) {
 TEST_F(EncoderTest, EncodeNegativeInt32Field) {
   encoder_.EncodeInt32Field(42, -123);
   EXPECT_THAT(std::move(encoder_).Flatten(),
-              BufferAsBytes(ElementsAre(0xD0, 0x02, 0x85, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-                                        0xFF, 0x01)));
+              BufferAsBytes(ElementsAre(0xD0, 0x02, 0x85, 0xFF, 0xFF, 0xFF, 0x0F)));
 }
 
 TEST_F(EncoderTest, EncodeUInt32Field) {

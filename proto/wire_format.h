@@ -369,7 +369,20 @@ class Encoder {
   tsdb2::io::Buffer Flatten() && { return std::move(cord_).Flatten(); }
 
  private:
-  void EncodeIntegerInternal(uint64_t value);
+  static inline size_t constexpr kMaxVarIntLength = 10;
+
+  template <typename Integer,
+            std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>, bool> = true>
+  void EncodeIntegerInternal(Integer const value) {
+    std::make_unsigned_t<Integer> bits = value;
+    tsdb2::io::Buffer buffer{kMaxVarIntLength};
+    while (bits > 0x7F) {
+      buffer.Append<uint8_t>(0x80 | static_cast<uint8_t>(bits & 0x7F));
+      bits >>= 7;
+    }
+    buffer.Append<uint8_t>(bits & 0x7F);
+    cord_.Append(std::move(buffer));
+  }
 
   void EncodeInt32(int32_t const value) { EncodeIntegerInternal(value); }
   void EncodeUInt32(uint32_t const value) { EncodeIntegerInternal(value); }

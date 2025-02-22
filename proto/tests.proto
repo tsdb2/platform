@@ -1,0 +1,52 @@
+syntax = "proto2";
+
+package tsdb2.proto.test;
+
+message EmptyMessage {}
+
+message OptionalField {
+  optional int32 field = 1;
+}
+
+message DefaultedField {
+  optional int32 field = 2 [default = 42];
+}
+
+message RepeatedField {
+  repeated int32 field = 3;
+}
+
+message RequiredField {
+  required int32 field = 4;
+}
+
+message ManyFields {
+  optional int32 int32_field = 5;
+  optional uint32 uint32_field = 6;
+  optional int64 int64_field = 7;
+  optional uint64 uint64_field = 8;
+  optional sint32 sint32_field = 9;
+  optional sint64 sint64_field = 10;
+  optional fixed32 fixed32_field = 11;
+  optional sfixed32 sfixed32_field = 12;
+  optional fixed64 fixed64_field = 13;
+  optional sfixed64 sfixed64_field = 14;
+}
+
+message OptionalStringField {
+  optional string field = 15;
+}
+
+message DefaultedStringField {
+  optional string field = 16 [default = "lorem"];
+}
+
+message RepeatedStringField {
+  repeated string field = 17;
+}
+
+message RequiredStringField {
+  required string field = 18;
+}
+
+// TODO

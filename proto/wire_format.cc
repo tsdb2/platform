@@ -21,8 +21,6 @@ namespace proto {
 
 namespace {
 
-inline size_t constexpr kMaxVarIntLength = 10;
-
 #ifdef ABSL_IS_BIG_ENDIAN
 constexpr uint32_t ByteSwap32(uint32_t const value) {
   return ((value >> 24) & 0x000000FF) | ((value >> 8) & 0x0000FF00) | ((value << 8) & 0x00FF0000) |
@@ -619,7 +617,7 @@ absl::StatusOr<Decoder> Decoder::DecodeChildSpan(size_t const record_size) {
 }
 
 void Encoder::EncodeTag(FieldTag const &tag) {
-  EncodeIntegerInternal((tag.field_number << 3) | static_cast<uint64_t>(tag.wire_type));
+  EncodeIntegerInternal<uint64_t>((tag.field_number << 3) | static_cast<uint64_t>(tag.wire_type));
 }
 
 void Encoder::EncodeInt32Field(size_t const number, int32_t const value) {
@@ -801,16 +799,6 @@ void Encoder::EncodePackedDoubles(size_t const field_number,
     child.EncodeDouble(value);
   }
   EncodeSubMessage(std::move(child));
-}
-
-void Encoder::EncodeIntegerInternal(uint64_t value) {
-  tsdb2::io::Buffer buffer{kMaxVarIntLength};
-  while (value > 0x7F) {
-    buffer.Append<uint8_t>(0x80 | static_cast<uint8_t>(value & 0x7F));
-    value >>= 7;
-  }
-  buffer.Append<uint8_t>(value & 0x7F);
-  cord_.Append(std::move(buffer));
 }
 
 void Encoder::EncodeSInt32(int32_t const value) { EncodeUInt32((value << 1) ^ (value >> 31)); }

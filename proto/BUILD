@@ -171,12 +171,28 @@ cc_library(
     ],
 )
 
+proto_library(
+    name = "tests_proto",
+    testonly = True,
+    srcs = ["tests.proto"],
+)
+
+tsdb2_cc_proto_library(
+    name = "tests_cc_proto",
+    testonly = True,
+    proto = ":tests_proto",
+)
+
 cc_test(
     name = "generator_test",
     srcs = ["generator_test.cc"],
     deps = [
         ":generator",
+        ":tests_cc_proto",
+        "//common:fingerprint",
         "//common:testing",
+        "@com_google_absl//absl/hash",
+        "@com_google_absl//absl/status:status_matchers",
         "@com_google_googletest//:gtest_main",
     ],
 )
