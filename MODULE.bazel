@@ -2,7 +2,7 @@
 
 module(
     name = "tsdb2_platform",
-    version = "0.0.8",
+    version = "0.0.9",
     repo_name = "com_tsdb2_platform",
 )
 
