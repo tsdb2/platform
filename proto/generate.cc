@@ -22,7 +22,7 @@
 #include "proto/generator.h"
 #include "proto/proto.h"
 
-ABSL_FLAG(std::optional<std::string>, root_path, "",
+ABSL_FLAG(std::optional<std::string>, root_path, std::nullopt,
           "The root directory all the file descriptor names are relative to. Defaults to the "
           "current working directory if unspecified.");
 

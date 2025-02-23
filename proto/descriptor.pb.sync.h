@@ -1,5 +1,5 @@
-#ifndef __TSDB2_PROTO_DESCRIPTOR_PB_H__
-#define __TSDB2_PROTO_DESCRIPTOR_PB_H__
+#ifndef __TSDB2_PROTO_DESCRIPTOR_PB_SYNC_H__
+#define __TSDB2_PROTO_DESCRIPTOR_PB_SYNC_H__
 
 #include <cstdint>
 #include <optional>
@@ -57,6 +57,8 @@ enum class Edition {
   EDITION_MAX = 2147483647,
 };
 
+extern ::tsdb2::proto::EnumDescriptor<Edition, 12> const Edition_ENUM_DESCRIPTOR;
+
 template <typename H>
 inline H AbslHashValue(H h, Edition const& value) {
   return H::combine(std::move(h), ::tsdb2::util::to_underlying(value));
@@ -68,12 +70,16 @@ inline State Tsdb2FingerprintValue(State state, Edition const& value) {
 }
 
 struct FeatureSet : public ::tsdb2::proto::Message {
+  static ::tsdb2::proto::MessageDescriptor<FeatureSet, 6> const MESSAGE_DESCRIPTOR;
+
   enum class FieldPresence {
     FIELD_PRESENCE_UNKNOWN = 0,
     EXPLICIT = 1,
     IMPLICIT = 2,
     LEGACY_REQUIRED = 3,
   };
+
+  static ::tsdb2::proto::EnumDescriptor<FieldPresence, 4> const FieldPresence_ENUM_DESCRIPTOR;
 
   template <typename H>
   friend H AbslHashValue(H h, FieldPresence const& value) {
@@ -91,6 +97,8 @@ struct FeatureSet : public ::tsdb2::proto::Message {
     CLOSED = 2,
   };
 
+  static ::tsdb2::proto::EnumDescriptor<EnumType, 3> const EnumType_ENUM_DESCRIPTOR;
+
   template <typename H>
   friend H AbslHashValue(H h, EnumType const& value) {
     return H::combine(std::move(h), ::tsdb2::util::to_underlying(value));
@@ -106,6 +114,9 @@ struct FeatureSet : public ::tsdb2::proto::Message {
     PACKED = 1,
     EXPANDED = 2,
   };
+
+  static ::tsdb2::proto::EnumDescriptor<RepeatedFieldEncoding, 3> const
+      RepeatedFieldEncoding_ENUM_DESCRIPTOR;
 
   template <typename H>
   friend H AbslHashValue(H h, RepeatedFieldEncoding const& value) {
@@ -123,6 +134,8 @@ struct FeatureSet : public ::tsdb2::proto::Message {
     NONE = 3,
   };
 
+  static ::tsdb2::proto::EnumDescriptor<Utf8Validation, 3> const Utf8Validation_ENUM_DESCRIPTOR;
+
   template <typename H>
   friend H AbslHashValue(H h, Utf8Validation const& value) {
     return H::combine(std::move(h), ::tsdb2::util::to_underlying(value));
@@ -139,6 +152,8 @@ struct FeatureSet : public ::tsdb2::proto::Message {
     DELIMITED = 2,
   };
 
+  static ::tsdb2::proto::EnumDescriptor<MessageEncoding, 3> const MessageEncoding_ENUM_DESCRIPTOR;
+
   template <typename H>
   friend H AbslHashValue(H h, MessageEncoding const& value) {
     return H::combine(std::move(h), ::tsdb2::util::to_underlying(value));
@@ -154,6 +169,8 @@ struct FeatureSet : public ::tsdb2::proto::Message {
     ALLOW = 1,
     LEGACY_BEST_EFFORT = 2,
   };
+
+  static ::tsdb2::proto::EnumDescriptor<JsonFormat, 3> const JsonFormat_ENUM_DESCRIPTOR;
 
   template <typename H>
   friend H AbslHashValue(H h, JsonFormat const& value) {
@@ -211,12 +228,17 @@ struct FeatureSet : public ::tsdb2::proto::Message {
 };
 
 struct ExtensionRangeOptions : public ::tsdb2::proto::Message {
+  static ::tsdb2::proto::MessageDescriptor<ExtensionRangeOptions, 4> const MESSAGE_DESCRIPTOR;
+
   struct Declaration;
 
   enum class VerificationState {
     DECLARATION = 0,
     UNVERIFIED = 1,
   };
+
+  static ::tsdb2::proto::EnumDescriptor<VerificationState, 2> const
+      VerificationState_ENUM_DESCRIPTOR;
 
   template <typename H>
   friend H AbslHashValue(H h, VerificationState const& value) {
@@ -229,6 +251,8 @@ struct ExtensionRangeOptions : public ::tsdb2::proto::Message {
   }
 
   struct Declaration : public ::tsdb2::proto::Message {
+    static ::tsdb2::proto::MessageDescriptor<Declaration, 5> const MESSAGE_DESCRIPTOR;
+
     static ::absl::StatusOr<Declaration> Decode(::absl::Span<uint8_t const> data);
     static ::tsdb2::io::Cord Encode(Declaration const& proto);
 
@@ -317,6 +341,8 @@ struct ExtensionRangeOptions : public ::tsdb2::proto::Message {
 };
 
 struct MessageOptions : public ::tsdb2::proto::Message {
+  static ::tsdb2::proto::MessageDescriptor<MessageOptions, 7> const MESSAGE_DESCRIPTOR;
+
   static ::absl::StatusOr<MessageOptions> Decode(::absl::Span<uint8_t const> data);
   static ::tsdb2::io::Cord Encode(MessageOptions const& proto);
 
@@ -365,10 +391,14 @@ struct MessageOptions : public ::tsdb2::proto::Message {
 };
 
 struct DescriptorProto : public ::tsdb2::proto::Message {
+  static ::tsdb2::proto::MessageDescriptor<DescriptorProto, 10> const MESSAGE_DESCRIPTOR;
+
   struct ExtensionRange;
   struct ReservedRange;
 
   struct ExtensionRange : public ::tsdb2::proto::Message {
+    static ::tsdb2::proto::MessageDescriptor<ExtensionRange, 3> const MESSAGE_DESCRIPTOR;
+
     static ::absl::StatusOr<ExtensionRange> Decode(::absl::Span<uint8_t const> data);
     static ::tsdb2::io::Cord Encode(ExtensionRange const& proto);
 
@@ -411,6 +441,8 @@ struct DescriptorProto : public ::tsdb2::proto::Message {
   };
 
   struct ReservedRange : public ::tsdb2::proto::Message {
+    static ::tsdb2::proto::MessageDescriptor<ReservedRange, 2> const MESSAGE_DESCRIPTOR;
+
     static ::absl::StatusOr<ReservedRange> Decode(::absl::Span<uint8_t const> data);
     static ::tsdb2::io::Cord Encode(ReservedRange const& proto);
 
@@ -500,6 +532,8 @@ struct DescriptorProto : public ::tsdb2::proto::Message {
 };
 
 struct EnumOptions : public ::tsdb2::proto::Message {
+  static ::tsdb2::proto::MessageDescriptor<EnumOptions, 5> const MESSAGE_DESCRIPTOR;
+
   static ::absl::StatusOr<EnumOptions> Decode(::absl::Span<uint8_t const> data);
   static ::tsdb2::io::Cord Encode(EnumOptions const& proto);
 
@@ -546,9 +580,13 @@ struct EnumOptions : public ::tsdb2::proto::Message {
 };
 
 struct EnumDescriptorProto : public ::tsdb2::proto::Message {
+  static ::tsdb2::proto::MessageDescriptor<EnumDescriptorProto, 5> const MESSAGE_DESCRIPTOR;
+
   struct EnumReservedRange;
 
   struct EnumReservedRange : public ::tsdb2::proto::Message {
+    static ::tsdb2::proto::MessageDescriptor<EnumReservedRange, 2> const MESSAGE_DESCRIPTOR;
+
     static ::absl::StatusOr<EnumReservedRange> Decode(::absl::Span<uint8_t const> data);
     static ::tsdb2::io::Cord Encode(EnumReservedRange const& proto);
 
@@ -632,6 +670,8 @@ struct EnumDescriptorProto : public ::tsdb2::proto::Message {
 };
 
 struct FieldOptions : public ::tsdb2::proto::Message {
+  static ::tsdb2::proto::MessageDescriptor<FieldOptions, 14> const MESSAGE_DESCRIPTOR;
+
   struct EditionDefault;
   struct FeatureSupport;
 
@@ -640,6 +680,8 @@ struct FieldOptions : public ::tsdb2::proto::Message {
     CORD = 1,
     STRING_PIECE = 2,
   };
+
+  static ::tsdb2::proto::EnumDescriptor<CType, 3> const CType_ENUM_DESCRIPTOR;
 
   template <typename H>
   friend H AbslHashValue(H h, CType const& value) {
@@ -657,6 +699,8 @@ struct FieldOptions : public ::tsdb2::proto::Message {
     JS_NUMBER = 2,
   };
 
+  static ::tsdb2::proto::EnumDescriptor<JSType, 3> const JSType_ENUM_DESCRIPTOR;
+
   template <typename H>
   friend H AbslHashValue(H h, JSType const& value) {
     return H::combine(std::move(h), ::tsdb2::util::to_underlying(value));
@@ -672,6 +716,8 @@ struct FieldOptions : public ::tsdb2::proto::Message {
     RETENTION_RUNTIME = 1,
     RETENTION_SOURCE = 2,
   };
+
+  static ::tsdb2::proto::EnumDescriptor<OptionRetention, 3> const OptionRetention_ENUM_DESCRIPTOR;
 
   template <typename H>
   friend H AbslHashValue(H h, OptionRetention const& value) {
@@ -696,6 +742,9 @@ struct FieldOptions : public ::tsdb2::proto::Message {
     TARGET_TYPE_METHOD = 9,
   };
 
+  static ::tsdb2::proto::EnumDescriptor<OptionTargetType, 10> const
+      OptionTargetType_ENUM_DESCRIPTOR;
+
   template <typename H>
   friend H AbslHashValue(H h, OptionTargetType const& value) {
     return H::combine(std::move(h), ::tsdb2::util::to_underlying(value));
@@ -707,6 +756,8 @@ struct FieldOptions : public ::tsdb2::proto::Message {
   }
 
   struct EditionDefault : public ::tsdb2::proto::Message {
+    static ::tsdb2::proto::MessageDescriptor<EditionDefault, 2> const MESSAGE_DESCRIPTOR;
+
     static ::absl::StatusOr<EditionDefault> Decode(::absl::Span<uint8_t const> data);
     static ::tsdb2::io::Cord Encode(EditionDefault const& proto);
 
@@ -746,6 +797,8 @@ struct FieldOptions : public ::tsdb2::proto::Message {
   };
 
   struct FeatureSupport : public ::tsdb2::proto::Message {
+    static ::tsdb2::proto::MessageDescriptor<FeatureSupport, 4> const MESSAGE_DESCRIPTOR;
+
     static ::absl::StatusOr<FeatureSupport> Decode(::absl::Span<uint8_t const> data);
     static ::tsdb2::io::Cord Encode(FeatureSupport const& proto);
 
@@ -846,6 +899,8 @@ struct FieldOptions : public ::tsdb2::proto::Message {
 };
 
 struct EnumValueOptions : public ::tsdb2::proto::Message {
+  static ::tsdb2::proto::MessageDescriptor<EnumValueOptions, 5> const MESSAGE_DESCRIPTOR;
+
   static ::absl::StatusOr<EnumValueOptions> Decode(::absl::Span<uint8_t const> data);
   static ::tsdb2::io::Cord Encode(EnumValueOptions const& proto);
 
@@ -891,6 +946,8 @@ struct EnumValueOptions : public ::tsdb2::proto::Message {
 };
 
 struct EnumValueDescriptorProto : public ::tsdb2::proto::Message {
+  static ::tsdb2::proto::MessageDescriptor<EnumValueDescriptorProto, 3> const MESSAGE_DESCRIPTOR;
+
   static ::absl::StatusOr<EnumValueDescriptorProto> Decode(::absl::Span<uint8_t const> data);
   static ::tsdb2::io::Cord Encode(EnumValueDescriptorProto const& proto);
 
@@ -933,9 +990,13 @@ struct EnumValueDescriptorProto : public ::tsdb2::proto::Message {
 };
 
 struct FeatureSetDefaults : public ::tsdb2::proto::Message {
+  static ::tsdb2::proto::MessageDescriptor<FeatureSetDefaults, 3> const MESSAGE_DESCRIPTOR;
+
   struct FeatureSetEditionDefault;
 
   struct FeatureSetEditionDefault : public ::tsdb2::proto::Message {
+    static ::tsdb2::proto::MessageDescriptor<FeatureSetEditionDefault, 3> const MESSAGE_DESCRIPTOR;
+
     static ::absl::StatusOr<FeatureSetEditionDefault> Decode(::absl::Span<uint8_t const> data);
     static ::tsdb2::io::Cord Encode(FeatureSetEditionDefault const& proto);
 
@@ -1025,6 +1086,8 @@ struct FeatureSetDefaults : public ::tsdb2::proto::Message {
 };
 
 struct FieldDescriptorProto : public ::tsdb2::proto::Message {
+  static ::tsdb2::proto::MessageDescriptor<FieldDescriptorProto, 11> const MESSAGE_DESCRIPTOR;
+
   enum class Type {
     TYPE_DOUBLE = 1,
     TYPE_FLOAT = 2,
@@ -1046,6 +1109,8 @@ struct FieldDescriptorProto : public ::tsdb2::proto::Message {
     TYPE_SINT64 = 18,
   };
 
+  static ::tsdb2::proto::EnumDescriptor<Type, 18> const Type_ENUM_DESCRIPTOR;
+
   template <typename H>
   friend H AbslHashValue(H h, Type const& value) {
     return H::combine(std::move(h), ::tsdb2::util::to_underlying(value));
@@ -1061,6 +1126,8 @@ struct FieldDescriptorProto : public ::tsdb2::proto::Message {
     LABEL_REPEATED = 3,
     LABEL_REQUIRED = 2,
   };
+
+  static ::tsdb2::proto::EnumDescriptor<Label, 3> const Label_ENUM_DESCRIPTOR;
 
   template <typename H>
   friend H AbslHashValue(H h, Label const& value) {
@@ -1124,11 +1191,15 @@ struct FieldDescriptorProto : public ::tsdb2::proto::Message {
 };
 
 struct FileOptions : public ::tsdb2::proto::Message {
+  static ::tsdb2::proto::MessageDescriptor<FileOptions, 21> const MESSAGE_DESCRIPTOR;
+
   enum class OptimizeMode {
     SPEED = 1,
     CODE_SIZE = 2,
     LITE_RUNTIME = 3,
   };
+
+  static ::tsdb2::proto::EnumDescriptor<OptimizeMode, 3> const OptimizeMode_ENUM_DESCRIPTOR;
 
   template <typename H>
   friend H AbslHashValue(H h, OptimizeMode const& value) {
@@ -1208,9 +1279,13 @@ struct FileOptions : public ::tsdb2::proto::Message {
 };
 
 struct SourceCodeInfo : public ::tsdb2::proto::Message {
+  static ::tsdb2::proto::MessageDescriptor<SourceCodeInfo, 1> const MESSAGE_DESCRIPTOR;
+
   struct Location;
 
   struct Location : public ::tsdb2::proto::Message {
+    static ::tsdb2::proto::MessageDescriptor<Location, 5> const MESSAGE_DESCRIPTOR;
+
     static ::absl::StatusOr<Location> Decode(::absl::Span<uint8_t const> data);
     static ::tsdb2::io::Cord Encode(Location const& proto);
 
@@ -1289,6 +1364,8 @@ struct SourceCodeInfo : public ::tsdb2::proto::Message {
 };
 
 struct FileDescriptorProto : public ::tsdb2::proto::Message {
+  static ::tsdb2::proto::MessageDescriptor<FileDescriptorProto, 13> const MESSAGE_DESCRIPTOR;
+
   static ::absl::StatusOr<FileDescriptorProto> Decode(::absl::Span<uint8_t const> data);
   static ::tsdb2::io::Cord Encode(FileDescriptorProto const& proto);
 
@@ -1344,6 +1421,8 @@ struct FileDescriptorProto : public ::tsdb2::proto::Message {
 };
 
 struct FileDescriptorSet : public ::tsdb2::proto::Message {
+  static ::tsdb2::proto::MessageDescriptor<FileDescriptorSet, 1> const MESSAGE_DESCRIPTOR;
+
   static ::absl::StatusOr<FileDescriptorSet> Decode(::absl::Span<uint8_t const> data);
   static ::tsdb2::io::Cord Encode(FileDescriptorSet const& proto);
 
@@ -1382,14 +1461,20 @@ struct FileDescriptorSet : public ::tsdb2::proto::Message {
 };
 
 struct GeneratedCodeInfo : public ::tsdb2::proto::Message {
+  static ::tsdb2::proto::MessageDescriptor<GeneratedCodeInfo, 1> const MESSAGE_DESCRIPTOR;
+
   struct Annotation;
 
   struct Annotation : public ::tsdb2::proto::Message {
+    static ::tsdb2::proto::MessageDescriptor<Annotation, 5> const MESSAGE_DESCRIPTOR;
+
     enum class Semantic {
       NONE = 0,
       SET = 1,
       ALIAS = 2,
     };
+
+    static ::tsdb2::proto::EnumDescriptor<Semantic, 3> const Semantic_ENUM_DESCRIPTOR;
 
     template <typename H>
     friend H AbslHashValue(H h, Semantic const& value) {
@@ -1482,11 +1567,15 @@ struct GeneratedCodeInfo : public ::tsdb2::proto::Message {
 };
 
 struct MethodOptions : public ::tsdb2::proto::Message {
+  static ::tsdb2::proto::MessageDescriptor<MethodOptions, 4> const MESSAGE_DESCRIPTOR;
+
   enum class IdempotencyLevel {
     IDEMPOTENCY_UNKNOWN = 0,
     NO_SIDE_EFFECTS = 1,
     IDEMPOTENT = 2,
   };
+
+  static ::tsdb2::proto::EnumDescriptor<IdempotencyLevel, 3> const IdempotencyLevel_ENUM_DESCRIPTOR;
 
   template <typename H>
   friend H AbslHashValue(H h, IdempotencyLevel const& value) {
@@ -1543,6 +1632,8 @@ struct MethodOptions : public ::tsdb2::proto::Message {
 };
 
 struct MethodDescriptorProto : public ::tsdb2::proto::Message {
+  static ::tsdb2::proto::MessageDescriptor<MethodDescriptorProto, 6> const MESSAGE_DESCRIPTOR;
+
   static ::absl::StatusOr<MethodDescriptorProto> Decode(::absl::Span<uint8_t const> data);
   static ::tsdb2::io::Cord Encode(MethodDescriptorProto const& proto);
 
@@ -1589,6 +1680,8 @@ struct MethodDescriptorProto : public ::tsdb2::proto::Message {
 };
 
 struct OneofOptions : public ::tsdb2::proto::Message {
+  static ::tsdb2::proto::MessageDescriptor<OneofOptions, 2> const MESSAGE_DESCRIPTOR;
+
   static ::absl::StatusOr<OneofOptions> Decode(::absl::Span<uint8_t const> data);
   static ::tsdb2::io::Cord Encode(OneofOptions const& proto);
 
@@ -1630,6 +1723,8 @@ struct OneofOptions : public ::tsdb2::proto::Message {
 };
 
 struct OneofDescriptorProto : public ::tsdb2::proto::Message {
+  static ::tsdb2::proto::MessageDescriptor<OneofDescriptorProto, 2> const MESSAGE_DESCRIPTOR;
+
   static ::absl::StatusOr<OneofDescriptorProto> Decode(::absl::Span<uint8_t const> data);
   static ::tsdb2::io::Cord Encode(OneofDescriptorProto const& proto);
 
@@ -1669,6 +1764,8 @@ struct OneofDescriptorProto : public ::tsdb2::proto::Message {
 };
 
 struct ServiceOptions : public ::tsdb2::proto::Message {
+  static ::tsdb2::proto::MessageDescriptor<ServiceOptions, 3> const MESSAGE_DESCRIPTOR;
+
   static ::absl::StatusOr<ServiceOptions> Decode(::absl::Span<uint8_t const> data);
   static ::tsdb2::io::Cord Encode(ServiceOptions const& proto);
 
@@ -1711,6 +1808,8 @@ struct ServiceOptions : public ::tsdb2::proto::Message {
 };
 
 struct ServiceDescriptorProto : public ::tsdb2::proto::Message {
+  static ::tsdb2::proto::MessageDescriptor<ServiceDescriptorProto, 3> const MESSAGE_DESCRIPTOR;
+
   static ::absl::StatusOr<ServiceDescriptorProto> Decode(::absl::Span<uint8_t const> data);
   static ::tsdb2::io::Cord Encode(ServiceDescriptorProto const& proto);
 
@@ -1753,9 +1852,13 @@ struct ServiceDescriptorProto : public ::tsdb2::proto::Message {
 };
 
 struct UninterpretedOption : public ::tsdb2::proto::Message {
+  static ::tsdb2::proto::MessageDescriptor<UninterpretedOption, 7> const MESSAGE_DESCRIPTOR;
+
   struct NamePart;
 
   struct NamePart : public ::tsdb2::proto::Message {
+    static ::tsdb2::proto::MessageDescriptor<NamePart, 2> const MESSAGE_DESCRIPTOR;
+
     static ::absl::StatusOr<NamePart> Decode(::absl::Span<uint8_t const> data);
     static ::tsdb2::io::Cord Encode(NamePart const& proto);
 
@@ -1841,4 +1944,4 @@ TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING();
 
 }  // namespace google::protobuf
 
-#endif  // __TSDB2_PROTO_DESCRIPTOR_PB_H__
+#endif  // __TSDB2_PROTO_DESCRIPTOR_PB_SYNC_H__

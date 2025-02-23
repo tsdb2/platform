@@ -104,7 +104,7 @@ sigset_t SigUsr1::SignalHandler::BlockSigUsr1() {
   return old_mask;
 }
 
-void SigUsr1::SignalHandler::HandlerFn(int) { notified_ = 1; }
+void SigUsr1::SignalHandler::HandlerFn(int /*unused*/) { notified_ = 1; }
 
 SigUsr1::SignalHandler::SignalHandler()
     : process_id_(::getpid()), thread_id_(::gettid()), mask_(BlockSigUsr1()) {

@@ -10,7 +10,8 @@
       "request": "launch",
       "program": "${fileWorkspaceFolder}/bazel-bin/${relativeFileDirname}/${fileBasenameNoExtension}",
       "args": [
-        "--file_descriptor_sets=/home/jim/tsdb2/platform/bazel-bin/proto/descriptor_proto-descriptor-set.proto.bin",
+        "--root_path=/home/jim/test/tsdb2/",
+        "--file_descriptor_sets=/home/jim/tsdb2/platform/bazel-bin/proto/plugin_proto-descriptor-set.proto.bin",
       ],
       "cwd": "${fileWorkspaceFolder}",
       "sourceMap": [

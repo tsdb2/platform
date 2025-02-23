@@ -10,6 +10,7 @@
 #include "common/flat_set.h"
 #include "common/utilities.h"
 #include "io/cord.h"
+#include "proto/proto.h"
 #include "proto/wire_format.h"
 
 namespace google::protobuf {
@@ -1968,6 +1969,600 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
   }
   return std::move(encoder).Finish();
 }
+
+::tsdb2::proto::EnumDescriptor<FeatureSet::EnumType, 3> const FeatureSet::EnumType_ENUM_DESCRIPTOR{{
+    {"ENUM_TYPE_UNKNOWN", 0},
+    {"OPEN", 1},
+    {"CLOSED", 2},
+}};
+
+::tsdb2::proto::EnumDescriptor<FeatureSet::FieldPresence, 4> const
+    FeatureSet::FieldPresence_ENUM_DESCRIPTOR{{
+        {"FIELD_PRESENCE_UNKNOWN", 0},
+        {"EXPLICIT", 1},
+        {"IMPLICIT", 2},
+        {"LEGACY_REQUIRED", 3},
+    }};
+
+::tsdb2::proto::EnumDescriptor<FeatureSet::JsonFormat, 3> const
+    FeatureSet::JsonFormat_ENUM_DESCRIPTOR{{
+        {"JSON_FORMAT_UNKNOWN", 0},
+        {"ALLOW", 1},
+        {"LEGACY_BEST_EFFORT", 2},
+    }};
+
+::tsdb2::proto::EnumDescriptor<FeatureSet::MessageEncoding, 3> const
+    FeatureSet::MessageEncoding_ENUM_DESCRIPTOR{{
+        {"MESSAGE_ENCODING_UNKNOWN", 0},
+        {"LENGTH_PREFIXED", 1},
+        {"DELIMITED", 2},
+    }};
+
+::tsdb2::proto::EnumDescriptor<FeatureSet::RepeatedFieldEncoding, 3> const
+    FeatureSet::RepeatedFieldEncoding_ENUM_DESCRIPTOR{{
+        {"REPEATED_FIELD_ENCODING_UNKNOWN", 0},
+        {"PACKED", 1},
+        {"EXPANDED", 2},
+    }};
+
+::tsdb2::proto::EnumDescriptor<FeatureSet::Utf8Validation, 3> const
+    FeatureSet::Utf8Validation_ENUM_DESCRIPTOR{{
+        {"UTF8_VALIDATION_UNKNOWN", 0},
+        {"VERIFY", 2},
+        {"NONE", 3},
+    }};
+
+::tsdb2::proto::EnumDescriptor<ExtensionRangeOptions::VerificationState, 2> const
+    ExtensionRangeOptions::VerificationState_ENUM_DESCRIPTOR{{
+        {"DECLARATION", 0},
+        {"UNVERIFIED", 1},
+    }};
+
+::tsdb2::proto::EnumDescriptor<Edition, 12> const Edition_ENUM_DESCRIPTOR{{
+    {"EDITION_UNKNOWN", 0},
+    {"EDITION_LEGACY", 900},
+    {"EDITION_PROTO2", 998},
+    {"EDITION_PROTO3", 999},
+    {"EDITION_2023", 1000},
+    {"EDITION_2024", 1001},
+    {"EDITION_1_TEST_ONLY", 1},
+    {"EDITION_2_TEST_ONLY", 2},
+    {"EDITION_99997_TEST_ONLY", 99997},
+    {"EDITION_99998_TEST_ONLY", 99998},
+    {"EDITION_99999_TEST_ONLY", 99999},
+    {"EDITION_MAX", 2147483647},
+}};
+
+::tsdb2::proto::EnumDescriptor<FieldDescriptorProto::Label, 3> const
+    FieldDescriptorProto::Label_ENUM_DESCRIPTOR{{
+        {"LABEL_OPTIONAL", 1},
+        {"LABEL_REPEATED", 3},
+        {"LABEL_REQUIRED", 2},
+    }};
+
+::tsdb2::proto::EnumDescriptor<FieldOptions::CType, 3> const FieldOptions::CType_ENUM_DESCRIPTOR{{
+    {"STRING", 0},
+    {"CORD", 1},
+    {"STRING_PIECE", 2},
+}};
+
+::tsdb2::proto::EnumDescriptor<FieldOptions::JSType, 3> const FieldOptions::JSType_ENUM_DESCRIPTOR{{
+    {"JS_NORMAL", 0},
+    {"JS_STRING", 1},
+    {"JS_NUMBER", 2},
+}};
+
+::tsdb2::proto::EnumDescriptor<FieldOptions::OptionRetention, 3> const
+    FieldOptions::OptionRetention_ENUM_DESCRIPTOR{{
+        {"RETENTION_UNKNOWN", 0},
+        {"RETENTION_RUNTIME", 1},
+        {"RETENTION_SOURCE", 2},
+    }};
+
+::tsdb2::proto::EnumDescriptor<FieldDescriptorProto::Type, 18> const
+    FieldDescriptorProto::Type_ENUM_DESCRIPTOR{{
+        {"TYPE_DOUBLE", 1},
+        {"TYPE_FLOAT", 2},
+        {"TYPE_INT64", 3},
+        {"TYPE_UINT64", 4},
+        {"TYPE_INT32", 5},
+        {"TYPE_FIXED64", 6},
+        {"TYPE_FIXED32", 7},
+        {"TYPE_BOOL", 8},
+        {"TYPE_STRING", 9},
+        {"TYPE_GROUP", 10},
+        {"TYPE_MESSAGE", 11},
+        {"TYPE_BYTES", 12},
+        {"TYPE_UINT32", 13},
+        {"TYPE_ENUM", 14},
+        {"TYPE_SFIXED32", 15},
+        {"TYPE_SFIXED64", 16},
+        {"TYPE_SINT32", 17},
+        {"TYPE_SINT64", 18},
+    }};
+
+::tsdb2::proto::EnumDescriptor<FieldOptions::OptionTargetType, 10> const
+    FieldOptions::OptionTargetType_ENUM_DESCRIPTOR{{
+        {"TARGET_TYPE_UNKNOWN", 0},
+        {"TARGET_TYPE_FILE", 1},
+        {"TARGET_TYPE_EXTENSION_RANGE", 2},
+        {"TARGET_TYPE_MESSAGE", 3},
+        {"TARGET_TYPE_FIELD", 4},
+        {"TARGET_TYPE_ONEOF", 5},
+        {"TARGET_TYPE_ENUM", 6},
+        {"TARGET_TYPE_ENUM_ENTRY", 7},
+        {"TARGET_TYPE_SERVICE", 8},
+        {"TARGET_TYPE_METHOD", 9},
+    }};
+
+::tsdb2::proto::EnumDescriptor<FileOptions::OptimizeMode, 3> const
+    FileOptions::OptimizeMode_ENUM_DESCRIPTOR{{
+        {"SPEED", 1},
+        {"CODE_SIZE", 2},
+        {"LITE_RUNTIME", 3},
+    }};
+
+::tsdb2::proto::EnumDescriptor<GeneratedCodeInfo::Annotation::Semantic, 3> const
+    GeneratedCodeInfo::Annotation::Semantic_ENUM_DESCRIPTOR{{
+        {"NONE", 0},
+        {"SET", 1},
+        {"ALIAS", 2},
+    }};
+
+::tsdb2::proto::EnumDescriptor<MethodOptions::IdempotencyLevel, 3> const
+    MethodOptions::IdempotencyLevel_ENUM_DESCRIPTOR{{
+        {"IDEMPOTENCY_UNKNOWN", 0},
+        {"NO_SIDE_EFFECTS", 1},
+        {"IDEMPOTENT", 2},
+    }};
+
+::tsdb2::proto::MessageDescriptor<FeatureSet, 6> const FeatureSet::MESSAGE_DESCRIPTOR{{
+    {"enum_type",
+     ::tsdb2::proto::OptionalEnumField<FeatureSet>(
+         &FeatureSet::enum_type, ::google::protobuf::FeatureSet::EnumType_ENUM_DESCRIPTOR)},
+    {"field_presence", ::tsdb2::proto::OptionalEnumField<FeatureSet>(
+                           &FeatureSet::field_presence,
+                           ::google::protobuf::FeatureSet::FieldPresence_ENUM_DESCRIPTOR)},
+    {"json_format",
+     ::tsdb2::proto::OptionalEnumField<FeatureSet>(
+         &FeatureSet::json_format, ::google::protobuf::FeatureSet::JsonFormat_ENUM_DESCRIPTOR)},
+    {"message_encoding", ::tsdb2::proto::OptionalEnumField<FeatureSet>(
+                             &FeatureSet::message_encoding,
+                             ::google::protobuf::FeatureSet::MessageEncoding_ENUM_DESCRIPTOR)},
+    {"repeated_field_encoding",
+     ::tsdb2::proto::OptionalEnumField<FeatureSet>(
+         &FeatureSet::repeated_field_encoding,
+         ::google::protobuf::FeatureSet::RepeatedFieldEncoding_ENUM_DESCRIPTOR)},
+    {"utf8_validation", ::tsdb2::proto::OptionalEnumField<FeatureSet>(
+                            &FeatureSet::utf8_validation,
+                            ::google::protobuf::FeatureSet::Utf8Validation_ENUM_DESCRIPTOR)},
+}};
+
+::tsdb2::proto::MessageDescriptor<MessageOptions, 7> const MessageOptions::MESSAGE_DESCRIPTOR{{
+    {"deprecated", &MessageOptions::deprecated},
+    {"deprecated_legacy_json_field_conflicts",
+     &MessageOptions::deprecated_legacy_json_field_conflicts},
+    {"features",
+     ::tsdb2::proto::OptionalSubMessageField<MessageOptions>(
+         &MessageOptions::features, ::google::protobuf::FeatureSet::MESSAGE_DESCRIPTOR)},
+    {"map_entry", &MessageOptions::map_entry},
+    {"message_set_wire_format", &MessageOptions::message_set_wire_format},
+    {"no_standard_descriptor_accessor", &MessageOptions::no_standard_descriptor_accessor},
+    {"uninterpreted_option", ::tsdb2::proto::RepeatedSubMessageField<MessageOptions>(
+                                 &MessageOptions::uninterpreted_option,
+                                 ::google::protobuf::UninterpretedOption::MESSAGE_DESCRIPTOR)},
+}};
+
+::tsdb2::proto::MessageDescriptor<DescriptorProto, 10> const DescriptorProto::MESSAGE_DESCRIPTOR{{
+    {"enum_type",
+     ::tsdb2::proto::RepeatedSubMessageField<DescriptorProto>(
+         &DescriptorProto::enum_type, ::google::protobuf::EnumDescriptorProto::MESSAGE_DESCRIPTOR)},
+    {"extension", ::tsdb2::proto::RepeatedSubMessageField<DescriptorProto>(
+                      &DescriptorProto::extension,
+                      ::google::protobuf::FieldDescriptorProto::MESSAGE_DESCRIPTOR)},
+    {"extension_range",
+     ::tsdb2::proto::RepeatedSubMessageField<DescriptorProto>(
+         &DescriptorProto::extension_range,
+         ::google::protobuf::DescriptorProto::ExtensionRange::MESSAGE_DESCRIPTOR)},
+    {"field",
+     ::tsdb2::proto::RepeatedSubMessageField<DescriptorProto>(
+         &DescriptorProto::field, ::google::protobuf::FieldDescriptorProto::MESSAGE_DESCRIPTOR)},
+    {"name", &DescriptorProto::name},
+    {"nested_type",
+     ::tsdb2::proto::RepeatedSubMessageField<DescriptorProto>(
+         &DescriptorProto::nested_type, ::google::protobuf::DescriptorProto::MESSAGE_DESCRIPTOR)},
+    {"oneof_decl", ::tsdb2::proto::RepeatedSubMessageField<DescriptorProto>(
+                       &DescriptorProto::oneof_decl,
+                       ::google::protobuf::OneofDescriptorProto::MESSAGE_DESCRIPTOR)},
+    {"options",
+     ::tsdb2::proto::OptionalSubMessageField<DescriptorProto>(
+         &DescriptorProto::options, ::google::protobuf::MessageOptions::MESSAGE_DESCRIPTOR)},
+    {"reserved_name", &DescriptorProto::reserved_name},
+    {"reserved_range", ::tsdb2::proto::RepeatedSubMessageField<DescriptorProto>(
+                           &DescriptorProto::reserved_range,
+                           ::google::protobuf::DescriptorProto::ReservedRange::MESSAGE_DESCRIPTOR)},
+}};
+
+::tsdb2::proto::MessageDescriptor<ExtensionRangeOptions, 4> const
+    ExtensionRangeOptions::MESSAGE_DESCRIPTOR{{
+        {"declaration",
+         ::tsdb2::proto::RepeatedSubMessageField<ExtensionRangeOptions>(
+             &ExtensionRangeOptions::declaration,
+             ::google::protobuf::ExtensionRangeOptions::Declaration::MESSAGE_DESCRIPTOR)},
+        {"features",
+         ::tsdb2::proto::OptionalSubMessageField<ExtensionRangeOptions>(
+             &ExtensionRangeOptions::features, ::google::protobuf::FeatureSet::MESSAGE_DESCRIPTOR)},
+        {"uninterpreted_option", ::tsdb2::proto::RepeatedSubMessageField<ExtensionRangeOptions>(
+                                     &ExtensionRangeOptions::uninterpreted_option,
+                                     ::google::protobuf::UninterpretedOption::MESSAGE_DESCRIPTOR)},
+        {"verification",
+         ::tsdb2::proto::RawEnumField<ExtensionRangeOptions>(
+             &ExtensionRangeOptions::verification,
+             ::google::protobuf::ExtensionRangeOptions::VerificationState_ENUM_DESCRIPTOR)},
+    }};
+
+::tsdb2::proto::MessageDescriptor<DescriptorProto::ExtensionRange, 3> const
+    DescriptorProto::ExtensionRange::MESSAGE_DESCRIPTOR{{
+        {"end", &DescriptorProto::ExtensionRange::end},
+        {"options", ::tsdb2::proto::OptionalSubMessageField<DescriptorProto::ExtensionRange>(
+                        &DescriptorProto::ExtensionRange::options,
+                        ::google::protobuf::ExtensionRangeOptions::MESSAGE_DESCRIPTOR)},
+        {"start", &DescriptorProto::ExtensionRange::start},
+    }};
+
+::tsdb2::proto::MessageDescriptor<DescriptorProto::ReservedRange, 2> const
+    DescriptorProto::ReservedRange::MESSAGE_DESCRIPTOR{{
+        {"end", &DescriptorProto::ReservedRange::end},
+        {"start", &DescriptorProto::ReservedRange::start},
+    }};
+
+::tsdb2::proto::MessageDescriptor<EnumOptions, 5> const EnumOptions::MESSAGE_DESCRIPTOR{{
+    {"allow_alias", &EnumOptions::allow_alias},
+    {"deprecated", &EnumOptions::deprecated},
+    {"deprecated_legacy_json_field_conflicts",
+     &EnumOptions::deprecated_legacy_json_field_conflicts},
+    {"features", ::tsdb2::proto::OptionalSubMessageField<EnumOptions>(
+                     &EnumOptions::features, ::google::protobuf::FeatureSet::MESSAGE_DESCRIPTOR)},
+    {"uninterpreted_option", ::tsdb2::proto::RepeatedSubMessageField<EnumOptions>(
+                                 &EnumOptions::uninterpreted_option,
+                                 ::google::protobuf::UninterpretedOption::MESSAGE_DESCRIPTOR)},
+}};
+
+::tsdb2::proto::MessageDescriptor<EnumDescriptorProto, 5> const
+    EnumDescriptorProto::MESSAGE_DESCRIPTOR{{
+        {"name", &EnumDescriptorProto::name},
+        {"options",
+         ::tsdb2::proto::OptionalSubMessageField<EnumDescriptorProto>(
+             &EnumDescriptorProto::options, ::google::protobuf::EnumOptions::MESSAGE_DESCRIPTOR)},
+        {"reserved_name", &EnumDescriptorProto::reserved_name},
+        {"reserved_range",
+         ::tsdb2::proto::RepeatedSubMessageField<EnumDescriptorProto>(
+             &EnumDescriptorProto::reserved_range,
+             ::google::protobuf::EnumDescriptorProto::EnumReservedRange::MESSAGE_DESCRIPTOR)},
+        {"value", ::tsdb2::proto::RepeatedSubMessageField<EnumDescriptorProto>(
+                      &EnumDescriptorProto::value,
+                      ::google::protobuf::EnumValueDescriptorProto::MESSAGE_DESCRIPTOR)},
+    }};
+
+::tsdb2::proto::MessageDescriptor<EnumDescriptorProto::EnumReservedRange, 2> const
+    EnumDescriptorProto::EnumReservedRange::MESSAGE_DESCRIPTOR{{
+        {"end", &EnumDescriptorProto::EnumReservedRange::end},
+        {"start", &EnumDescriptorProto::EnumReservedRange::start},
+    }};
+
+::tsdb2::proto::MessageDescriptor<FieldOptions::FeatureSupport, 4> const
+    FieldOptions::FeatureSupport::MESSAGE_DESCRIPTOR{{
+        {"deprecation_warning", &FieldOptions::FeatureSupport::deprecation_warning},
+        {"edition_deprecated", ::tsdb2::proto::OptionalEnumField<FieldOptions::FeatureSupport>(
+                                   &FieldOptions::FeatureSupport::edition_deprecated,
+                                   ::google::protobuf::Edition_ENUM_DESCRIPTOR)},
+        {"edition_introduced", ::tsdb2::proto::OptionalEnumField<FieldOptions::FeatureSupport>(
+                                   &FieldOptions::FeatureSupport::edition_introduced,
+                                   ::google::protobuf::Edition_ENUM_DESCRIPTOR)},
+        {"edition_removed", ::tsdb2::proto::OptionalEnumField<FieldOptions::FeatureSupport>(
+                                &FieldOptions::FeatureSupport::edition_removed,
+                                ::google::protobuf::Edition_ENUM_DESCRIPTOR)},
+    }};
+
+::tsdb2::proto::MessageDescriptor<EnumValueOptions, 5> const EnumValueOptions::MESSAGE_DESCRIPTOR{{
+    {"debug_redact", &EnumValueOptions::debug_redact},
+    {"deprecated", &EnumValueOptions::deprecated},
+    {"feature_support", ::tsdb2::proto::OptionalSubMessageField<EnumValueOptions>(
+                            &EnumValueOptions::feature_support,
+                            ::google::protobuf::FieldOptions::FeatureSupport::MESSAGE_DESCRIPTOR)},
+    {"features",
+     ::tsdb2::proto::OptionalSubMessageField<EnumValueOptions>(
+         &EnumValueOptions::features, ::google::protobuf::FeatureSet::MESSAGE_DESCRIPTOR)},
+    {"uninterpreted_option", ::tsdb2::proto::RepeatedSubMessageField<EnumValueOptions>(
+                                 &EnumValueOptions::uninterpreted_option,
+                                 ::google::protobuf::UninterpretedOption::MESSAGE_DESCRIPTOR)},
+}};
+
+::tsdb2::proto::MessageDescriptor<EnumValueDescriptorProto, 3> const
+    EnumValueDescriptorProto::MESSAGE_DESCRIPTOR{{
+        {"name", &EnumValueDescriptorProto::name},
+        {"number", &EnumValueDescriptorProto::number},
+        {"options", ::tsdb2::proto::OptionalSubMessageField<EnumValueDescriptorProto>(
+                        &EnumValueDescriptorProto::options,
+                        ::google::protobuf::EnumValueOptions::MESSAGE_DESCRIPTOR)},
+    }};
+
+::tsdb2::proto::MessageDescriptor<ExtensionRangeOptions::Declaration, 5> const
+    ExtensionRangeOptions::Declaration::MESSAGE_DESCRIPTOR{{
+        {"full_name", &ExtensionRangeOptions::Declaration::full_name},
+        {"number", &ExtensionRangeOptions::Declaration::number},
+        {"repeated", &ExtensionRangeOptions::Declaration::repeated},
+        {"reserved", &ExtensionRangeOptions::Declaration::reserved},
+        {"type", &ExtensionRangeOptions::Declaration::type},
+    }};
+
+::tsdb2::proto::MessageDescriptor<FeatureSetDefaults, 3> const
+    FeatureSetDefaults::MESSAGE_DESCRIPTOR{{
+        {"defaults",
+         ::tsdb2::proto::RepeatedSubMessageField<FeatureSetDefaults>(
+             &FeatureSetDefaults::defaults,
+             ::google::protobuf::FeatureSetDefaults::FeatureSetEditionDefault::MESSAGE_DESCRIPTOR)},
+        {"maximum_edition",
+         ::tsdb2::proto::OptionalEnumField<FeatureSetDefaults>(
+             &FeatureSetDefaults::maximum_edition, ::google::protobuf::Edition_ENUM_DESCRIPTOR)},
+        {"minimum_edition",
+         ::tsdb2::proto::OptionalEnumField<FeatureSetDefaults>(
+             &FeatureSetDefaults::minimum_edition, ::google::protobuf::Edition_ENUM_DESCRIPTOR)},
+    }};
+
+::tsdb2::proto::MessageDescriptor<FeatureSetDefaults::FeatureSetEditionDefault, 3> const
+    FeatureSetDefaults::FeatureSetEditionDefault::MESSAGE_DESCRIPTOR{{
+        {"edition", ::tsdb2::proto::OptionalEnumField<FeatureSetDefaults::FeatureSetEditionDefault>(
+                        &FeatureSetDefaults::FeatureSetEditionDefault::edition,
+                        ::google::protobuf::Edition_ENUM_DESCRIPTOR)},
+        {"fixed_features",
+         ::tsdb2::proto::OptionalSubMessageField<FeatureSetDefaults::FeatureSetEditionDefault>(
+             &FeatureSetDefaults::FeatureSetEditionDefault::fixed_features,
+             ::google::protobuf::FeatureSet::MESSAGE_DESCRIPTOR)},
+        {"overridable_features",
+         ::tsdb2::proto::OptionalSubMessageField<FeatureSetDefaults::FeatureSetEditionDefault>(
+             &FeatureSetDefaults::FeatureSetEditionDefault::overridable_features,
+             ::google::protobuf::FeatureSet::MESSAGE_DESCRIPTOR)},
+    }};
+
+::tsdb2::proto::MessageDescriptor<FieldOptions, 14> const FieldOptions::MESSAGE_DESCRIPTOR{{
+    {"ctype", ::tsdb2::proto::RawEnumField<FieldOptions>(
+                  &FieldOptions::ctype, ::google::protobuf::FieldOptions::CType_ENUM_DESCRIPTOR)},
+    {"debug_redact", &FieldOptions::debug_redact},
+    {"deprecated", &FieldOptions::deprecated},
+    {"edition_defaults", ::tsdb2::proto::RepeatedSubMessageField<FieldOptions>(
+                             &FieldOptions::edition_defaults,
+                             ::google::protobuf::FieldOptions::EditionDefault::MESSAGE_DESCRIPTOR)},
+    {"feature_support", ::tsdb2::proto::OptionalSubMessageField<FieldOptions>(
+                            &FieldOptions::feature_support,
+                            ::google::protobuf::FieldOptions::FeatureSupport::MESSAGE_DESCRIPTOR)},
+    {"features", ::tsdb2::proto::OptionalSubMessageField<FieldOptions>(
+                     &FieldOptions::features, ::google::protobuf::FeatureSet::MESSAGE_DESCRIPTOR)},
+    {"jstype",
+     ::tsdb2::proto::RawEnumField<FieldOptions>(
+         &FieldOptions::jstype, ::google::protobuf::FieldOptions::JSType_ENUM_DESCRIPTOR)},
+    {"lazy", &FieldOptions::lazy},
+    {"packed", &FieldOptions::packed},
+    {"retention", ::tsdb2::proto::OptionalEnumField<FieldOptions>(
+                      &FieldOptions::retention,
+                      ::google::protobuf::FieldOptions::OptionRetention_ENUM_DESCRIPTOR)},
+    {"targets", ::tsdb2::proto::RepeatedEnumField<FieldOptions>(
+                    &FieldOptions::targets,
+                    ::google::protobuf::FieldOptions::OptionTargetType_ENUM_DESCRIPTOR)},
+    {"uninterpreted_option", ::tsdb2::proto::RepeatedSubMessageField<FieldOptions>(
+                                 &FieldOptions::uninterpreted_option,
+                                 ::google::protobuf::UninterpretedOption::MESSAGE_DESCRIPTOR)},
+    {"unverified_lazy", &FieldOptions::unverified_lazy},
+    {"weak", &FieldOptions::weak},
+}};
+
+::tsdb2::proto::MessageDescriptor<FieldDescriptorProto, 11> const
+    FieldDescriptorProto::MESSAGE_DESCRIPTOR{{
+        {"default_value", &FieldDescriptorProto::default_value},
+        {"extendee", &FieldDescriptorProto::extendee},
+        {"json_name", &FieldDescriptorProto::json_name},
+        {"label", ::tsdb2::proto::OptionalEnumField<FieldDescriptorProto>(
+                      &FieldDescriptorProto::label,
+                      ::google::protobuf::FieldDescriptorProto::Label_ENUM_DESCRIPTOR)},
+        {"name", &FieldDescriptorProto::name},
+        {"number", &FieldDescriptorProto::number},
+        {"oneof_index", &FieldDescriptorProto::oneof_index},
+        {"options",
+         ::tsdb2::proto::OptionalSubMessageField<FieldDescriptorProto>(
+             &FieldDescriptorProto::options, ::google::protobuf::FieldOptions::MESSAGE_DESCRIPTOR)},
+        {"proto3_optional", &FieldDescriptorProto::proto3_optional},
+        {"type", ::tsdb2::proto::OptionalEnumField<FieldDescriptorProto>(
+                     &FieldDescriptorProto::type,
+                     ::google::protobuf::FieldDescriptorProto::Type_ENUM_DESCRIPTOR)},
+        {"type_name", &FieldDescriptorProto::type_name},
+    }};
+
+::tsdb2::proto::MessageDescriptor<FieldOptions::EditionDefault, 2> const
+    FieldOptions::EditionDefault::MESSAGE_DESCRIPTOR{{
+        {"edition",
+         ::tsdb2::proto::OptionalEnumField<FieldOptions::EditionDefault>(
+             &FieldOptions::EditionDefault::edition, ::google::protobuf::Edition_ENUM_DESCRIPTOR)},
+        {"value", &FieldOptions::EditionDefault::value},
+    }};
+
+::tsdb2::proto::MessageDescriptor<FileOptions, 21> const FileOptions::MESSAGE_DESCRIPTOR{{
+    {"cc_enable_arenas", &FileOptions::cc_enable_arenas},
+    {"cc_generic_services", &FileOptions::cc_generic_services},
+    {"csharp_namespace", &FileOptions::csharp_namespace},
+    {"deprecated", &FileOptions::deprecated},
+    {"features", ::tsdb2::proto::OptionalSubMessageField<FileOptions>(
+                     &FileOptions::features, ::google::protobuf::FeatureSet::MESSAGE_DESCRIPTOR)},
+    {"go_package", &FileOptions::go_package},
+    {"java_generate_equals_and_hash", &FileOptions::java_generate_equals_and_hash},
+    {"java_generic_services", &FileOptions::java_generic_services},
+    {"java_multiple_files", &FileOptions::java_multiple_files},
+    {"java_outer_classname", &FileOptions::java_outer_classname},
+    {"java_package", &FileOptions::java_package},
+    {"java_string_check_utf8", &FileOptions::java_string_check_utf8},
+    {"objc_class_prefix", &FileOptions::objc_class_prefix},
+    {"optimize_for", ::tsdb2::proto::RawEnumField<FileOptions>(
+                         &FileOptions::optimize_for,
+                         ::google::protobuf::FileOptions::OptimizeMode_ENUM_DESCRIPTOR)},
+    {"php_class_prefix", &FileOptions::php_class_prefix},
+    {"php_metadata_namespace", &FileOptions::php_metadata_namespace},
+    {"php_namespace", &FileOptions::php_namespace},
+    {"py_generic_services", &FileOptions::py_generic_services},
+    {"ruby_package", &FileOptions::ruby_package},
+    {"swift_prefix", &FileOptions::swift_prefix},
+    {"uninterpreted_option", ::tsdb2::proto::RepeatedSubMessageField<FileOptions>(
+                                 &FileOptions::uninterpreted_option,
+                                 ::google::protobuf::UninterpretedOption::MESSAGE_DESCRIPTOR)},
+}};
+
+::tsdb2::proto::MessageDescriptor<SourceCodeInfo, 1> const SourceCodeInfo::MESSAGE_DESCRIPTOR{{
+    {"location", ::tsdb2::proto::RepeatedSubMessageField<SourceCodeInfo>(
+                     &SourceCodeInfo::location,
+                     ::google::protobuf::SourceCodeInfo::Location::MESSAGE_DESCRIPTOR)},
+}};
+
+::tsdb2::proto::MessageDescriptor<FileDescriptorProto,
+                                  13> const FileDescriptorProto::MESSAGE_DESCRIPTOR{{
+    {"dependency", &FileDescriptorProto::dependency},
+    {"edition", ::tsdb2::proto::OptionalEnumField<FileDescriptorProto>(
+                    &FileDescriptorProto::edition, ::google::protobuf::Edition_ENUM_DESCRIPTOR)},
+    {"enum_type", ::tsdb2::proto::RepeatedSubMessageField<FileDescriptorProto>(
+                      &FileDescriptorProto::enum_type,
+                      ::google::protobuf::EnumDescriptorProto::MESSAGE_DESCRIPTOR)},
+    {"extension", ::tsdb2::proto::RepeatedSubMessageField<FileDescriptorProto>(
+                      &FileDescriptorProto::extension,
+                      ::google::protobuf::FieldDescriptorProto::MESSAGE_DESCRIPTOR)},
+    {"message_type", ::tsdb2::proto::RepeatedSubMessageField<FileDescriptorProto>(
+                         &FileDescriptorProto::message_type,
+                         ::google::protobuf::DescriptorProto::MESSAGE_DESCRIPTOR)},
+    {"name", &FileDescriptorProto::name},
+    {"options",
+     ::tsdb2::proto::OptionalSubMessageField<FileDescriptorProto>(
+         &FileDescriptorProto::options, ::google::protobuf::FileOptions::MESSAGE_DESCRIPTOR)},
+    {"package", &FileDescriptorProto::package},
+    {"public_dependency", &FileDescriptorProto::public_dependency},
+    {"service", ::tsdb2::proto::RepeatedSubMessageField<FileDescriptorProto>(
+                    &FileDescriptorProto::service,
+                    ::google::protobuf::ServiceDescriptorProto::MESSAGE_DESCRIPTOR)},
+    {"source_code_info", ::tsdb2::proto::OptionalSubMessageField<FileDescriptorProto>(
+                             &FileDescriptorProto::source_code_info,
+                             ::google::protobuf::SourceCodeInfo::MESSAGE_DESCRIPTOR)},
+    {"syntax", &FileDescriptorProto::syntax},
+    {"weak_dependency", &FileDescriptorProto::weak_dependency},
+}};
+
+::tsdb2::proto::MessageDescriptor<FileDescriptorSet, 1> const FileDescriptorSet::MESSAGE_DESCRIPTOR{
+    {
+        {"file", ::tsdb2::proto::RepeatedSubMessageField<FileDescriptorSet>(
+                     &FileDescriptorSet::file,
+                     ::google::protobuf::FileDescriptorProto::MESSAGE_DESCRIPTOR)},
+    }};
+
+::tsdb2::proto::MessageDescriptor<GeneratedCodeInfo, 1> const GeneratedCodeInfo::MESSAGE_DESCRIPTOR{
+    {
+        {"annotation", ::tsdb2::proto::RepeatedSubMessageField<GeneratedCodeInfo>(
+                           &GeneratedCodeInfo::annotation,
+                           ::google::protobuf::GeneratedCodeInfo::Annotation::MESSAGE_DESCRIPTOR)},
+    }};
+
+::tsdb2::proto::MessageDescriptor<GeneratedCodeInfo::Annotation,
+                                  5> const GeneratedCodeInfo::Annotation::MESSAGE_DESCRIPTOR{{
+    {"begin", &GeneratedCodeInfo::Annotation::begin},
+    {"end", &GeneratedCodeInfo::Annotation::end},
+    {"path", &GeneratedCodeInfo::Annotation::path},
+    {"semantic", ::tsdb2::proto::OptionalEnumField<GeneratedCodeInfo::Annotation>(
+                     &GeneratedCodeInfo::Annotation::semantic,
+                     ::google::protobuf::GeneratedCodeInfo::Annotation::Semantic_ENUM_DESCRIPTOR)},
+    {"source_file", &GeneratedCodeInfo::Annotation::source_file},
+}};
+
+::tsdb2::proto::MessageDescriptor<MethodOptions, 4> const MethodOptions::MESSAGE_DESCRIPTOR{{
+    {"deprecated", &MethodOptions::deprecated},
+    {"features", ::tsdb2::proto::OptionalSubMessageField<MethodOptions>(
+                     &MethodOptions::features, ::google::protobuf::FeatureSet::MESSAGE_DESCRIPTOR)},
+    {"idempotency_level", ::tsdb2::proto::RawEnumField<MethodOptions>(
+                              &MethodOptions::idempotency_level,
+                              ::google::protobuf::MethodOptions::IdempotencyLevel_ENUM_DESCRIPTOR)},
+    {"uninterpreted_option", ::tsdb2::proto::RepeatedSubMessageField<MethodOptions>(
+                                 &MethodOptions::uninterpreted_option,
+                                 ::google::protobuf::UninterpretedOption::MESSAGE_DESCRIPTOR)},
+}};
+
+::tsdb2::proto::MessageDescriptor<MethodDescriptorProto, 6> const
+    MethodDescriptorProto::MESSAGE_DESCRIPTOR{{
+        {"client_streaming", &MethodDescriptorProto::client_streaming},
+        {"input_type", &MethodDescriptorProto::input_type},
+        {"name", &MethodDescriptorProto::name},
+        {"options", ::tsdb2::proto::OptionalSubMessageField<MethodDescriptorProto>(
+                        &MethodDescriptorProto::options,
+                        ::google::protobuf::MethodOptions::MESSAGE_DESCRIPTOR)},
+        {"output_type", &MethodDescriptorProto::output_type},
+        {"server_streaming", &MethodDescriptorProto::server_streaming},
+    }};
+
+::tsdb2::proto::MessageDescriptor<OneofOptions, 2> const OneofOptions::MESSAGE_DESCRIPTOR{{
+    {"features", ::tsdb2::proto::OptionalSubMessageField<OneofOptions>(
+                     &OneofOptions::features, ::google::protobuf::FeatureSet::MESSAGE_DESCRIPTOR)},
+    {"uninterpreted_option", ::tsdb2::proto::RepeatedSubMessageField<OneofOptions>(
+                                 &OneofOptions::uninterpreted_option,
+                                 ::google::protobuf::UninterpretedOption::MESSAGE_DESCRIPTOR)},
+}};
+
+::tsdb2::proto::MessageDescriptor<OneofDescriptorProto, 2> const
+    OneofDescriptorProto::MESSAGE_DESCRIPTOR{{
+        {"name", &OneofDescriptorProto::name},
+        {"options",
+         ::tsdb2::proto::OptionalSubMessageField<OneofDescriptorProto>(
+             &OneofDescriptorProto::options, ::google::protobuf::OneofOptions::MESSAGE_DESCRIPTOR)},
+    }};
+
+::tsdb2::proto::MessageDescriptor<ServiceOptions, 3> const ServiceOptions::MESSAGE_DESCRIPTOR{{
+    {"deprecated", &ServiceOptions::deprecated},
+    {"features",
+     ::tsdb2::proto::OptionalSubMessageField<ServiceOptions>(
+         &ServiceOptions::features, ::google::protobuf::FeatureSet::MESSAGE_DESCRIPTOR)},
+    {"uninterpreted_option", ::tsdb2::proto::RepeatedSubMessageField<ServiceOptions>(
+                                 &ServiceOptions::uninterpreted_option,
+                                 ::google::protobuf::UninterpretedOption::MESSAGE_DESCRIPTOR)},
+}};
+
+::tsdb2::proto::MessageDescriptor<ServiceDescriptorProto, 3> const
+    ServiceDescriptorProto::MESSAGE_DESCRIPTOR{{
+        {"method", ::tsdb2::proto::RepeatedSubMessageField<ServiceDescriptorProto>(
+                       &ServiceDescriptorProto::method,
+                       ::google::protobuf::MethodDescriptorProto::MESSAGE_DESCRIPTOR)},
+        {"name", &ServiceDescriptorProto::name},
+        {"options", ::tsdb2::proto::OptionalSubMessageField<ServiceDescriptorProto>(
+                        &ServiceDescriptorProto::options,
+                        ::google::protobuf::ServiceOptions::MESSAGE_DESCRIPTOR)},
+    }};
+
+::tsdb2::proto::MessageDescriptor<SourceCodeInfo::Location, 5> const
+    SourceCodeInfo::Location::MESSAGE_DESCRIPTOR{{
+        {"leading_comments", &SourceCodeInfo::Location::leading_comments},
+        {"leading_detached_comments", &SourceCodeInfo::Location::leading_detached_comments},
+        {"path", &SourceCodeInfo::Location::path},
+        {"span", &SourceCodeInfo::Location::span},
+        {"trailing_comments", &SourceCodeInfo::Location::trailing_comments},
+    }};
+
+::tsdb2::proto::MessageDescriptor<UninterpretedOption, 7> const
+    UninterpretedOption::MESSAGE_DESCRIPTOR{{
+        {"aggregate_value", &UninterpretedOption::aggregate_value},
+        {"double_value", &UninterpretedOption::double_value},
+        {"identifier_value", &UninterpretedOption::identifier_value},
+        {"name", ::tsdb2::proto::RepeatedSubMessageField<UninterpretedOption>(
+                     &UninterpretedOption::name,
+                     ::google::protobuf::UninterpretedOption::NamePart::MESSAGE_DESCRIPTOR)},
+        {"negative_int_value", &UninterpretedOption::negative_int_value},
+        {"positive_int_value", &UninterpretedOption::positive_int_value},
+        {"string_value", &UninterpretedOption::string_value},
+    }};
+
+::tsdb2::proto::MessageDescriptor<UninterpretedOption::NamePart, 2> const
+    UninterpretedOption::NamePart::MESSAGE_DESCRIPTOR{{
+        {"is_extension", &UninterpretedOption::NamePart::is_extension},
+        {"name_part", &UninterpretedOption::NamePart::name_part},
+    }};
 
 TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING();
 

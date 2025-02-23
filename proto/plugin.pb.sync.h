@@ -1,5 +1,5 @@
-#ifndef __TSDB2_PROTO_PLUGIN_PB_H__
-#define __TSDB2_PROTO_PLUGIN_PB_H__
+#ifndef __TSDB2_PROTO_PLUGIN_PB_SYNC_H__
+#define __TSDB2_PROTO_PLUGIN_PB_SYNC_H__
 
 #include <cstdint>
 #include <optional>
@@ -24,6 +24,8 @@ struct CodeGeneratorRequest;
 struct CodeGeneratorResponse;
 
 struct Version : public ::tsdb2::proto::Message {
+  static ::tsdb2::proto::MessageDescriptor<Version, 4> const MESSAGE_DESCRIPTOR;
+
   static ::absl::StatusOr<Version> Decode(::absl::Span<uint8_t const> data);
   static ::tsdb2::io::Cord Encode(Version const& proto);
 
@@ -55,6 +57,8 @@ struct Version : public ::tsdb2::proto::Message {
 };
 
 struct CodeGeneratorRequest : public ::tsdb2::proto::Message {
+  static ::tsdb2::proto::MessageDescriptor<CodeGeneratorRequest, 5> const MESSAGE_DESCRIPTOR;
+
   static ::absl::StatusOr<CodeGeneratorRequest> Decode(::absl::Span<uint8_t const> data);
   static ::tsdb2::io::Cord Encode(CodeGeneratorRequest const& proto);
 
@@ -100,6 +104,8 @@ struct CodeGeneratorRequest : public ::tsdb2::proto::Message {
 };
 
 struct CodeGeneratorResponse : public ::tsdb2::proto::Message {
+  static ::tsdb2::proto::MessageDescriptor<CodeGeneratorResponse, 5> const MESSAGE_DESCRIPTOR;
+
   struct File;
 
   enum class Feature {
@@ -107,6 +113,8 @@ struct CodeGeneratorResponse : public ::tsdb2::proto::Message {
     FEATURE_PROTO3_OPTIONAL = 1,
     FEATURE_SUPPORTS_EDITIONS = 2,
   };
+
+  static ::tsdb2::proto::EnumDescriptor<Feature, 3> const Feature_ENUM_DESCRIPTOR;
 
   template <typename H>
   friend H AbslHashValue(H h, Feature const& value) {
@@ -119,6 +127,8 @@ struct CodeGeneratorResponse : public ::tsdb2::proto::Message {
   }
 
   struct File : public ::tsdb2::proto::Message {
+    static ::tsdb2::proto::MessageDescriptor<File, 4> const MESSAGE_DESCRIPTOR;
+
     static ::absl::StatusOr<File> Decode(::absl::Span<uint8_t const> data);
     static ::tsdb2::io::Cord Encode(File const& proto);
 
@@ -197,4 +207,4 @@ TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING();
 
 }  // namespace google::protobuf::compiler
 
-#endif  // __TSDB2_PROTO_PLUGIN_PB_H__
+#endif  // __TSDB2_PROTO_PLUGIN_PB_SYNC_H__

@@ -3,11 +3,13 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -71,11 +73,7 @@ class Generator {
 
    private:
     using Cycle = internal::DependencyManager::Cycle;
-
-    struct CycleInfo {
-      Path base_path;
-      std::vector<Cycle> cycles;
-    };
+    using Cycles = std::vector<Cycle>;
 
     explicit Builder(google::protobuf::FileDescriptorProto const& file_descriptor, Path base_path)
         : file_descriptor_(&file_descriptor), base_path_(std::move(base_path)) {}
@@ -85,21 +83,30 @@ class Generator {
 
     absl::Status AddLexicalScope(LexicalScope const& scope);
 
-    absl::StatusOr<CycleInfo> FindCycles(LexicalScope const& scope) const;
+    std::optional<std::string> MaybeGetQualifiedName(PathView path);
+
+    absl::Status BuildFlatDependencies(
+        std::string_view scope_name,
+        absl::Span<google::protobuf::DescriptorProto const> message_types,
+        absl::Span<google::protobuf::EnumDescriptorProto const> enum_types);
+
+    absl::StatusOr<Cycles> FindCycles(LexicalScope const& scope) const;
 
     google::protobuf::FileDescriptorProto const* file_descriptor_;
     Path base_path_;
 
     absl::flat_hash_set<Path> enums_;
     internal::DependencyManager dependencies_;
+    internal::DependencyManager flat_dependencies_;
   };
 
   explicit Generator(google::protobuf::FileDescriptorProto const* const file_descriptor,
                      absl::flat_hash_set<Path> enums, internal::DependencyManager dependencies,
-                     Path base_path)
+                     internal::DependencyManager flat_dependencies, Path base_path)
       : file_descriptor_(file_descriptor),
         enums_(std::move(enums)),
         dependencies_(std::move(dependencies)),
+        flat_dependencies_(std::move(flat_dependencies)),
         base_path_(std::move(base_path)) {}
 
   Generator(Generator const&) = delete;
@@ -171,9 +178,50 @@ class Generator {
   absl::Status EmitImplementationForScope(internal::TextWriter* writer, PathView prefix,
                                           LexicalScope const& scope) const;
 
+  static absl::Status GetEnumTypesByPathImpl(
+      LexicalScope const& scope,
+      absl::flat_hash_map<Path, google::protobuf::EnumDescriptorProto>* descriptors);
+
+  absl::StatusOr<absl::flat_hash_map<Path, google::protobuf::EnumDescriptorProto>>
+  GetEnumTypesByPath() const;
+
+  static absl::Status GetMessageTypesByPathImpl(
+      LexicalScope const& scope,
+      absl::flat_hash_map<Path, google::protobuf::DescriptorProto>* descriptor);
+
+  absl::StatusOr<absl::flat_hash_map<Path, google::protobuf::DescriptorProto>>
+  GetMessageTypesByPath() const;
+
+  static absl::Status EmitEnumReflectionDescriptor(
+      internal::TextWriter* writer, PathView path,
+      google::protobuf::EnumDescriptorProto const& enum_type);
+
+  static absl::Status EmitEnumFieldDescriptor(
+      internal::TextWriter* writer, std::string_view qualified_parent_name,
+      google::protobuf::FieldDescriptorProto const& descriptor, bool is_optional);
+
+  static absl::Status EmitObjectFieldDescriptor(
+      internal::TextWriter* writer, std::string_view qualified_parent_name,
+      google::protobuf::FieldDescriptorProto const& descriptor);
+
+  absl::Status EmitFieldDescriptor(internal::TextWriter* writer,
+                                   std::string_view qualified_parent_name,
+                                   google::protobuf::FieldDescriptorProto const& descriptor) const;
+
+  absl::Status EmitMessageReflectionDescriptor(
+      internal::TextWriter* writer, PathView path,
+      google::protobuf::DescriptorProto const& message_type) const;
+
+  absl::Status EmitReflectionDescriptors(
+      internal::TextWriter* writer,
+      absl::flat_hash_map<Path, google::protobuf::EnumDescriptorProto> const& enum_types_by_path,
+      absl::flat_hash_map<Path, google::protobuf::DescriptorProto> const& message_types_by_path)
+      const;
+
   google::protobuf::FileDescriptorProto const* file_descriptor_;
   absl::flat_hash_set<Path> enums_;
   internal::DependencyManager dependencies_;
+  internal::DependencyManager flat_dependencies_;
   Path base_path_;
 };
 

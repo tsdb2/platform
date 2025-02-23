@@ -11,6 +11,7 @@
 #include "common/utilities.h"
 #include "io/cord.h"
 #include "proto/descriptor.pb.sync.h"
+#include "proto/proto.h"
 #include "proto/wire_format.h"
 
 namespace google::protobuf::compiler {
@@ -235,6 +236,56 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   }
   return std::move(encoder).Finish();
 }
+
+::tsdb2::proto::EnumDescriptor<CodeGeneratorResponse::Feature, 3> const
+    CodeGeneratorResponse::Feature_ENUM_DESCRIPTOR{{
+        {"FEATURE_NONE", 0},
+        {"FEATURE_PROTO3_OPTIONAL", 1},
+        {"FEATURE_SUPPORTS_EDITIONS", 2},
+    }};
+
+::tsdb2::proto::MessageDescriptor<Version, 4> const Version::MESSAGE_DESCRIPTOR{{
+    {"major", &Version::major},
+    {"minor", &Version::minor},
+    {"patch", &Version::patch},
+    {"suffix", &Version::suffix},
+}};
+
+::tsdb2::proto::MessageDescriptor<CodeGeneratorRequest,
+                                  5> const CodeGeneratorRequest::MESSAGE_DESCRIPTOR{{
+    {"compiler_version", ::tsdb2::proto::OptionalSubMessageField<CodeGeneratorRequest>(
+                             &CodeGeneratorRequest::compiler_version,
+                             ::google::protobuf::compiler::Version::MESSAGE_DESCRIPTOR)},
+    {"file_to_generate", &CodeGeneratorRequest::file_to_generate},
+    {"parameter", &CodeGeneratorRequest::parameter},
+    {"proto_file", ::tsdb2::proto::RepeatedSubMessageField<CodeGeneratorRequest>(
+                       &CodeGeneratorRequest::proto_file,
+                       ::google::protobuf::FileDescriptorProto::MESSAGE_DESCRIPTOR)},
+    {"source_file_descriptors", ::tsdb2::proto::RepeatedSubMessageField<CodeGeneratorRequest>(
+                                    &CodeGeneratorRequest::source_file_descriptors,
+                                    ::google::protobuf::FileDescriptorProto::MESSAGE_DESCRIPTOR)},
+}};
+
+::tsdb2::proto::MessageDescriptor<CodeGeneratorResponse,
+                                  5> const CodeGeneratorResponse::MESSAGE_DESCRIPTOR{{
+    {"error", &CodeGeneratorResponse::error},
+    {"file", ::tsdb2::proto::RepeatedSubMessageField<CodeGeneratorResponse>(
+                 &CodeGeneratorResponse::file,
+                 ::google::protobuf::compiler::CodeGeneratorResponse::File::MESSAGE_DESCRIPTOR)},
+    {"maximum_edition", &CodeGeneratorResponse::maximum_edition},
+    {"minimum_edition", &CodeGeneratorResponse::minimum_edition},
+    {"supported_features", &CodeGeneratorResponse::supported_features},
+}};
+
+::tsdb2::proto::MessageDescriptor<CodeGeneratorResponse::File,
+                                  4> const CodeGeneratorResponse::File::MESSAGE_DESCRIPTOR{{
+    {"content", &CodeGeneratorResponse::File::content},
+    {"generated_code_info", ::tsdb2::proto::OptionalSubMessageField<CodeGeneratorResponse::File>(
+                                &CodeGeneratorResponse::File::generated_code_info,
+                                ::google::protobuf::GeneratedCodeInfo::MESSAGE_DESCRIPTOR)},
+    {"insertion_point", &CodeGeneratorResponse::File::insertion_point},
+    {"name", &CodeGeneratorResponse::File::name},
+}};
 
 TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING();
 
