@@ -125,7 +125,27 @@ class EnumDescriptor<Enum, 0> : public BaseEnumDescriptor {
 // proper synchronization. The same goes for the protobufs themselves.
 class BaseMessageDescriptor {
  public:
-  enum class FieldType {
+  enum class FieldType : int8_t {
+    kInt32Field = 0,
+    kUInt32Field = 1,
+    kInt64Field = 2,
+    kUInt64Field = 3,
+    kBoolField = 4,
+    kStringField = 5,
+    kBytesField = 6,
+    kDoubleField = 7,
+    kFloatField = 8,
+    kEnumField = 9,
+    kSubMessageField = 10,
+  };
+
+  enum class FieldLabel : int8_t {
+    kRaw = 0,
+    kOptional = 1,
+    kRepeated = 2,
+  };
+
+  enum class LabeledFieldType : int8_t {
     kRawInt32Field = 0,
     kOptionalInt32Field = 1,
     kRepeatedInt32Field = 2,
@@ -588,21 +608,43 @@ class BaseMessageDescriptor {
   // Returns the list of field names of the described message.
   virtual absl::Span<std::string_view const> GetAllFieldNames() const = 0;
 
+  // Returns the `LabeledFieldType` of a field from its name.
+  virtual absl::StatusOr<LabeledFieldType> GetLabeledFieldType(
+      std::string_view field_name) const = 0;
+
+  // Returns the type and label of a field from its name.
+  absl::StatusOr<std::pair<FieldType, FieldLabel>> GetFieldTypeAndLabel(
+      std::string_view const field_name) const {
+    DEFINE_CONST_OR_RETURN(labeled_type, GetLabeledFieldType(field_name));
+    auto const index = tsdb2::util::to_underlying(labeled_type);
+    return std::make_pair(static_cast<FieldType>(index / 3), static_cast<FieldLabel>(index % 3));
+  }
+
   // Returns the type of a field from its name.
-  virtual absl::StatusOr<FieldType> GetFieldType(std::string_view field_name) const = 0;
+  absl::StatusOr<FieldType> GetFieldType(std::string_view const field_name) const {
+    DEFINE_CONST_OR_RETURN(type_and_label, GetFieldTypeAndLabel(field_name));
+    return type_and_label.first;
+  }
+
+  // Returns the label of a field from its name.
+  absl::StatusOr<FieldLabel> GetFieldLabel(std::string_view const field_name) const {
+    DEFINE_CONST_OR_RETURN(type_and_label, GetFieldTypeAndLabel(field_name));
+    return type_and_label.second;
+  }
 
   // Returns a const pointer to the value of a field from its name. The returned type is an
-  // `std::variant` that wraps all possible types. Sub-message types are also wrapped in a proxy
+  // `std::variant` that wraps all possible types. Sub-message types are further wrapped in a proxy
   // object (see `RawSubMessage`, `OptionalSubMessage`, and `RepeatedSubMessage`) allowing access to
   // the field and to the `BaseMessageDescriptor` of its type.
   virtual absl::StatusOr<ConstFieldValue> GetConstFieldValue(Message const& message,
                                                              std::string_view field_name) const = 0;
 
-  // virtual absl::StatusOr<FieldValue> GetMutableFieldValue(Message const& message,
-  //                                                         std::string_view field_name) const = 0;
-
-  // virtual absl::Status SetFieldValue(Message const& message, std::string_view field_name,
-  //                                    FieldValue new_value) const = 0;
+  // Returns a pointer to a (mutable) field from its name. The returned type is an `std::variant`
+  // that wraps all possible types. Sub-message types are further wrapped in a proxy object (see
+  // `RawSubMessage`, `OptionalSubMessage`, and `RepeatedSubMessage`) allowing access to the field
+  // and to the `BaseMessageDescriptor` of its type.
+  virtual absl::StatusOr<FieldValue> GetFieldValue(Message* message,
+                                                   std::string_view field_name) const = 0;
 
  private:
   BaseMessageDescriptor(BaseMessageDescriptor const&) = delete;
@@ -993,8 +1035,8 @@ template <typename Message, size_t num_fields>
 class MessageDescriptor final : public BaseMessageDescriptor, public FieldTypes<Message> {
  public:
   using BaseMessageDescriptor::ConstFieldValue;
-  using BaseMessageDescriptor::FieldType;
   using BaseMessageDescriptor::FieldValue;
+  using BaseMessageDescriptor::LabeledFieldType;
   using BaseMessageDescriptor::OptionalSubMessage;
   using BaseMessageDescriptor::RawEnum;
   using BaseMessageDescriptor::RawSubMessage;
@@ -1010,10 +1052,11 @@ class MessageDescriptor final : public BaseMessageDescriptor, public FieldTypes<
 
   absl::Span<std::string_view const> GetAllFieldNames() const override { return field_names_; }
 
-  absl::StatusOr<FieldType> GetFieldType(std::string_view const field_name) const override {
+  absl::StatusOr<LabeledFieldType> GetLabeledFieldType(
+      std::string_view const field_name) const override {
     auto const it = field_ptrs_.find(field_name);
     if (it != field_ptrs_.end()) {
-      return static_cast<FieldType>(it->second.index());
+      return static_cast<LabeledFieldType>(it->second.index());
     } else {
       return absl::InvalidArgumentError(
           absl::StrCat("unknown field \"", absl::CEscape(field_name), "\""));
@@ -1027,14 +1070,23 @@ class MessageDescriptor final : public BaseMessageDescriptor, public FieldTypes<
       return absl::InvalidArgumentError(
           absl::StrCat("unknown field \"", absl::CEscape(field_name), "\""));
     }
-    Message const& typed_message = *static_cast<Message const*>(&message);
-    return std::visit(FieldPointerVisitor(typed_message), it->second);
+    return std::visit(ConstFieldPointerVisitor(*static_cast<Message const*>(&message)), it->second);
+  }
+
+  absl::StatusOr<FieldValue> GetFieldValue(tsdb2::proto::Message* const message,
+                                           std::string_view const field_name) const override {
+    auto const it = field_ptrs_.find(field_name);
+    if (it == field_ptrs_.end()) {
+      return absl::InvalidArgumentError(
+          absl::StrCat("unknown field \"", absl::CEscape(field_name), "\""));
+    }
+    return std::visit(FieldPointerVisitor(static_cast<Message*>(message)), it->second);
   }
 
  private:
-  class FieldPointerVisitor {
+  class ConstFieldPointerVisitor {
    public:
-    explicit FieldPointerVisitor(Message const& message) : message_(message) {}
+    explicit ConstFieldPointerVisitor(Message const& message) : message_(message) {}
 
     ConstFieldValue operator()(int32_t Message::*const value) const { return &(message_.*value); }
 
@@ -1158,6 +1210,130 @@ class MessageDescriptor final : public BaseMessageDescriptor, public FieldTypes<
     Message const& message_;
   };
 
+  class FieldPointerVisitor {
+   public:
+    explicit FieldPointerVisitor(Message* const message) : message_(message) {}
+
+    FieldValue operator()(int32_t Message::*const value) const { return &(message_->*value); }
+
+    FieldValue operator()(std::optional<int32_t> Message::*const value) const {
+      return &(message_->*value);
+    }
+
+    FieldValue operator()(std::vector<int32_t> Message::*const value) const {
+      return &(message_->*value);
+    }
+
+    FieldValue operator()(uint32_t Message::*const value) const { return &(message_->*value); }
+
+    FieldValue operator()(std::optional<uint32_t> Message::*const value) const {
+      return &(message_->*value);
+    }
+
+    FieldValue operator()(std::vector<uint32_t> Message::*const value) const {
+      return &(message_->*value);
+    }
+
+    FieldValue operator()(int64_t Message::*const value) const { return &(message_->*value); }
+
+    FieldValue operator()(std::optional<int64_t> Message::*const value) const {
+      return &(message_->*value);
+    }
+
+    FieldValue operator()(std::vector<int64_t> Message::*const value) const {
+      return &(message_->*value);
+    }
+
+    FieldValue operator()(uint64_t Message::*const value) const { return &(message_->*value); }
+
+    FieldValue operator()(std::optional<uint64_t> Message::*const value) const {
+      return &(message_->*value);
+    }
+
+    FieldValue operator()(std::vector<uint64_t> Message::*const value) const {
+      return &(message_->*value);
+    }
+
+    FieldValue operator()(bool Message::*const value) const { return &(message_->*value); }
+
+    FieldValue operator()(std::optional<bool> Message::*const value) const {
+      return &(message_->*value);
+    }
+
+    FieldValue operator()(std::vector<bool> Message::*const value) const {
+      return &(message_->*value);
+    }
+
+    FieldValue operator()(std::string Message::*const value) const { return &(message_->*value); }
+
+    FieldValue operator()(std::optional<std::string> Message::*const value) const {
+      return &(message_->*value);
+    }
+
+    FieldValue operator()(std::vector<std::string> Message::*const value) const {
+      return &(message_->*value);
+    }
+
+    FieldValue operator()(std::vector<uint8_t> Message::*const value) const {
+      return &(message_->*value);
+    }
+
+    FieldValue operator()(std::optional<std::vector<uint8_t>> Message::*const value) const {
+      return &(message_->*value);
+    }
+
+    FieldValue operator()(std::vector<std::vector<uint8_t>> Message::*const value) const {
+      return &(message_->*value);
+    }
+
+    FieldValue operator()(double Message::*const value) const { return &(message_->*value); }
+
+    FieldValue operator()(std::optional<double> Message::*const value) const {
+      return &(message_->*value);
+    }
+
+    FieldValue operator()(std::vector<double> Message::*const value) const {
+      return &(message_->*value);
+    }
+
+    FieldValue operator()(float Message::*const value) const { return &(message_->*value); }
+
+    FieldValue operator()(std::optional<float> Message::*const value) const {
+      return &(message_->*value);
+    }
+
+    FieldValue operator()(std::vector<float> Message::*const value) const {
+      return &(message_->*value);
+    }
+
+    FieldValue operator()(typename FieldTypes::RawEnumField const field) const {
+      return field.MakeValue(message_);
+    }
+
+    FieldValue operator()(typename FieldTypes::OptionalEnumField const field) const {
+      return field.MakeValue(message_);
+    }
+
+    FieldValue operator()(typename FieldTypes::RepeatedEnumField const field) const {
+      return field.MakeValue(message_);
+    }
+
+    FieldValue operator()(typename FieldTypes::RawSubMessageField const field) const {
+      return field.MakeValue(message_);
+    }
+
+    FieldValue operator()(typename FieldTypes::OptionalSubMessageField const& field) const {
+      return field.MakeValue(message_);
+    }
+
+    FieldValue operator()(typename FieldTypes::RepeatedSubMessageField const& field) const {
+      return field.MakeValue(message_);
+    }
+
+   private:
+    Message* const message_;
+  };
+
   static constexpr std::array<std::string_view, num_fields> MakeNameArray(
       std::pair<std::string_view, FieldPointer> const (&fields)[num_fields]) {
     std::array<std::string_view, num_fields> array;
@@ -1178,8 +1354,8 @@ class MessageDescriptor<Message, 0> final : public BaseMessageDescriptor,
                                             public FieldTypes<Message> {
  public:
   using BaseMessageDescriptor::ConstFieldValue;
-  using BaseMessageDescriptor::FieldType;
   using BaseMessageDescriptor::FieldValue;
+  using BaseMessageDescriptor::LabeledFieldType;
   using BaseMessageDescriptor::OptionalSubMessage;
   using BaseMessageDescriptor::RawEnum;
   using BaseMessageDescriptor::RawSubMessage;
@@ -1192,13 +1368,20 @@ class MessageDescriptor<Message, 0> final : public BaseMessageDescriptor,
 
   absl::Span<std::string_view const> GetAllFieldNames() const override { return {}; }
 
-  absl::StatusOr<FieldType> GetFieldType(std::string_view const field_name) const override {
+  absl::StatusOr<LabeledFieldType> GetLabeledFieldType(
+      std::string_view const field_name) const override {
     return absl::InvalidArgumentError(
         absl::StrCat("unknown field \"", absl::CEscape(field_name), "\""));
   }
 
   absl::StatusOr<ConstFieldValue> GetConstFieldValue(
       tsdb2::proto::Message const& message, std::string_view const field_name) const override {
+    return absl::InvalidArgumentError(
+        absl::StrCat("unknown field \"", absl::CEscape(field_name), "\""));
+  }
+
+  absl::StatusOr<FieldValue> GetFieldValue(tsdb2::proto::Message* const message,
+                                           std::string_view const field_name) const override {
     return absl::InvalidArgumentError(
         absl::StrCat("unknown field \"", absl::CEscape(field_name), "\""));
   }

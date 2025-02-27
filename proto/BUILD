@@ -77,6 +77,30 @@ cc_test(
 )
 
 cc_library(
+    name = "text_format",
+    srcs = ["text_format.cc"],
+    hdrs = ["text_format.h"],
+    deps = [
+        ":proto",
+        "//common:re",
+        "//common:utilities",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "text_format_test",
+    srcs = ["text_format_test.cc"],
+    deps = [
+        ":text_format",
+        "//common:testing",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "proto",
     hdrs = ["proto.h"],
     visibility = ["//visibility:public"],
