@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -26,6 +27,46 @@ namespace proto {
 
 // Base class for all protobuf messages.
 struct Message {};
+
+namespace internal {
+
+template <typename Type, typename Descriptor, typename Enable = void>
+struct IsDescriptorForType {
+  static inline bool constexpr value = std::is_same_v<Descriptor, std::monostate>;
+};
+
+template <typename Type, typename Descriptor>
+inline bool constexpr IsDescriptorForTypeV = IsDescriptorForType<Type, Descriptor>::value;
+
+template <typename... Types>
+struct OneofTypes {};
+
+template <typename... Descriptors>
+struct OneofDescriptors {};
+
+template <typename Types, typename Descriptors>
+struct CheckDescriptorsForTypes;
+
+template <>
+struct CheckDescriptorsForTypes<OneofTypes<>, OneofDescriptors<>> {
+  static inline bool constexpr value = true;
+};
+
+template <typename FirstType, typename... OtherTypes, typename FirstDescriptor,
+          typename... OtherDescriptors>
+struct CheckDescriptorsForTypes<OneofTypes<FirstType, OtherTypes...>,
+                                OneofDescriptors<FirstDescriptor, OtherDescriptors...>> {
+  static inline bool constexpr value =
+      internal::IsDescriptorForTypeV<FirstType, FirstDescriptor> &&
+      CheckDescriptorsForTypes<OneofTypes<OtherTypes...>,
+                               OneofDescriptors<OtherDescriptors...>>::value;
+};
+
+template <typename Types, typename Descriptors>
+static inline bool constexpr CheckDescriptorsForTypesV =
+    CheckDescriptorsForTypes<Types, Descriptors>::value;
+
+}  // namespace internal
 
 // Base class for all enum descriptors (see the `EnumDescriptor` template below).
 //
@@ -66,7 +107,7 @@ class EnumDescriptor : public BaseEnumDescriptor {
 
   absl::StatusOr<int64_t> GetValueForName(std::string_view const name) const override {
     auto const it = values_by_name_.find(name);
-    if (it != values_by_name_.end()) {
+    if (it == values_by_name_.end()) {
       return absl::InvalidArgumentError(
           absl::StrCat("invalid enum value name: \"", absl::CEscape(name), "\""));
     }
@@ -75,10 +116,33 @@ class EnumDescriptor : public BaseEnumDescriptor {
 
   absl::StatusOr<std::string_view> GetNameForValue(int64_t const value) const override {
     auto const it = names_by_value_.find(value);
-    if (it != names_by_value_.end()) {
+    if (it == names_by_value_.end()) {
       return absl::InvalidArgumentError(absl::StrCat("unknown enum value: ", value));
     }
     return it->second;
+  }
+
+  absl::StatusOr<std::string_view> GetValueName(Enum const value) const {
+    auto const it = names_by_value_.find(tsdb2::util::to_underlying(value));
+    if (it == names_by_value_.end()) {
+      return absl::InvalidArgumentError("invalid enum value");
+    }
+    return it->second;
+  }
+
+  absl::StatusOr<Enum> GetNameValue(std::string_view const name) const {
+    auto const it = values_by_name_.find(name);
+    if (it == values_by_name_.end()) {
+      return absl::InvalidArgumentError(
+          absl::StrCat("invalid enum value name: \"", absl::CEscape(name), "\""));
+    }
+    return static_cast<Enum>(it->second);
+  }
+
+  absl::Status SetValueByName(Enum* const ptr, std::string_view const name) const {
+    DEFINE_CONST_OR_RETURN(value, GetNameValue(name));
+    *ptr = value;
+    return absl::OkStatus();
   }
 
  private:
@@ -116,6 +180,16 @@ class EnumDescriptor<Enum, 0> : public BaseEnumDescriptor {
   absl::Span<std::string_view const> GetValueNames() const override { return {}; }
 };
 
+namespace internal {
+
+template <typename Enum, typename Descriptor>
+struct IsDescriptorForType<Enum, Descriptor, std::enable_if_t<std::is_enum_v<Enum>>> {
+  static inline bool constexpr value =
+      std::is_base_of_v<BaseEnumDescriptor, std::decay_t<Descriptor>>;
+};
+
+}  // namespace internal
+
 // Base class for all message descriptors (see the `MessageDescriptor` template below).
 //
 // You must not create instances of this class. Instances are already provided in every generated
@@ -125,7 +199,29 @@ class EnumDescriptor<Enum, 0> : public BaseEnumDescriptor {
 // proper synchronization. The same goes for the protobufs themselves.
 class BaseMessageDescriptor {
  public:
-  enum class FieldType {
+  enum class FieldType : int8_t {
+    kInt32Field = 0,
+    kUInt32Field = 1,
+    kInt64Field = 2,
+    kUInt64Field = 3,
+    kBoolField = 4,
+    kStringField = 5,
+    kBytesField = 6,
+    kDoubleField = 7,
+    kFloatField = 8,
+    kEnumField = 9,
+    kSubMessageField = 10,
+    kOneOfField = 11,
+  };
+
+  enum class FieldKind : int8_t {
+    kRaw = 0,
+    kOptional = 1,
+    kRepeated = 2,
+    kOneOf = 3,
+  };
+
+  enum class LabeledFieldType : int8_t {
     kRawInt32Field = 0,
     kOptionalInt32Field = 1,
     kRepeatedInt32Field = 2,
@@ -159,14 +255,15 @@ class BaseMessageDescriptor {
     kRawSubMessageField = 30,
     kOptionalSubMessageField = 31,
     kRepeatedSubMessageField = 32,
+    kOneOfField = 33,
   };
 
   // Keeps information about an enum-typed field.
   class RawEnum final {
    public:
-    template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
-    explicit RawEnum(Enum* const field, BaseEnumDescriptor const& descriptor)
-        : impl_(std::make_shared<Impl<Enum>>(field, descriptor)) {}
+    template <typename Enum, typename Descriptor>
+    explicit RawEnum(Enum* const field, Descriptor const& descriptor)
+        : impl_(std::make_shared<Impl<Enum, Descriptor>>(field, descriptor)) {}
 
     ~RawEnum() = default;
 
@@ -178,7 +275,13 @@ class BaseMessageDescriptor {
 
     BaseEnumDescriptor const& descriptor() const { return impl_->GetDescriptor(); }
 
-    int64_t value() const { return impl_->GetValue(); }
+    bool HasKnownValue() const { return impl_->HasKnownValue(); }
+
+    absl::StatusOr<std::string_view> GetValue() const { return impl_->GetValue(); }
+
+    int64_t GetUnderlyingValue() const { return impl_->GetUnderlyingValue(); }
+
+    absl::Status SetValue(std::string_view name) { return impl_->SetValue(name); }
 
    private:
     class BaseImpl {
@@ -187,7 +290,10 @@ class BaseMessageDescriptor {
       virtual ~BaseImpl() = default;
 
       virtual BaseEnumDescriptor const& GetDescriptor() const = 0;
-      virtual int64_t GetValue() const = 0;
+      virtual bool HasKnownValue() const = 0;
+      virtual absl::StatusOr<std::string_view> GetValue() const = 0;
+      virtual int64_t GetUnderlyingValue() const = 0;
+      virtual absl::Status SetValue(std::string_view name) = 0;
 
      private:
       BaseImpl(BaseImpl const&) = delete;
@@ -196,19 +302,35 @@ class BaseMessageDescriptor {
       BaseImpl& operator=(BaseImpl&&) = delete;
     };
 
-    template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+    template <
+        typename Enum, typename Descriptor,
+        std::enable_if_t<std::is_enum_v<Enum> && std::is_base_of_v<BaseEnumDescriptor, Descriptor>,
+                         bool> = true>
     class Impl : public BaseImpl {
      public:
-      explicit Impl(Enum* const field, BaseEnumDescriptor const& descriptor)
+      explicit Impl(Enum* const field, Descriptor const& descriptor)
           : field_(field), descriptor_(descriptor) {}
 
-      BaseEnumDescriptor const& GetDescriptor() const override { return descriptor_; }
+      Descriptor const& GetDescriptor() const override { return descriptor_; }
 
-      int64_t GetValue() const override { return tsdb2::util::to_underlying(*field_); }
+      bool HasKnownValue() const override {
+        auto const status_or_value = descriptor_.GetValueName(*field_);
+        return status_or_value.ok();
+      }
+
+      absl::StatusOr<std::string_view> GetValue() const override {
+        return descriptor_.GetValueName(*field_);
+      }
+
+      int64_t GetUnderlyingValue() const override { return tsdb2::util::to_underlying(*field_); }
+
+      absl::Status SetValue(std::string_view const name) override {
+        return descriptor_.SetValueByName(field_, name);
+      }
 
      private:
       Enum* const field_;
-      BaseEnumDescriptor const& descriptor_;
+      Descriptor const& descriptor_;
     };
 
     std::shared_ptr<BaseImpl> impl_;
@@ -217,9 +339,9 @@ class BaseMessageDescriptor {
   // Keeps information about an optional enum-typed field.
   class OptionalEnum final {
    public:
-    template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
-    explicit OptionalEnum(std::optional<Enum>* const field, BaseEnumDescriptor const& descriptor)
-        : impl_(std::make_shared<Impl<Enum>>(field, descriptor)) {}
+    template <typename Enum, typename Descriptor>
+    explicit OptionalEnum(std::optional<Enum>* const field, Descriptor const& descriptor)
+        : impl_(std::make_shared<Impl<Enum, Descriptor>>(field, descriptor)) {}
 
     ~OptionalEnum() = default;
 
@@ -231,8 +353,16 @@ class BaseMessageDescriptor {
 
     BaseEnumDescriptor const& descriptor() const { return impl_->GetDescriptor(); }
 
-    bool has_value() const { return impl_->HasValue(); }
-    int64_t value() const { return impl_->GetValue(); }
+    bool HasValue() const { return impl_->HasValue(); }
+    bool HasKnownValue() const { return impl_->HasKnownValue(); }
+
+    absl::StatusOr<std::string_view> GetValue() const { return impl_->GetValue(); }
+
+    int64_t GetUnderlyingValue() const { return impl_->GetUnderlyingValue(); }
+
+    absl::Status SetValue(std::string_view name) { return impl_->SetValue(name); }
+
+    bool EraseValue() { return impl_->EraseValue(); }
 
    private:
     class BaseImpl {
@@ -242,7 +372,11 @@ class BaseMessageDescriptor {
 
       virtual BaseEnumDescriptor const& GetDescriptor() const = 0;
       virtual bool HasValue() const = 0;
-      virtual int64_t GetValue() const = 0;
+      virtual bool HasKnownValue() const = 0;
+      virtual absl::StatusOr<std::string_view> GetValue() const = 0;
+      virtual int64_t GetUnderlyingValue() const = 0;
+      virtual absl::Status SetValue(std::string_view name) = 0;
+      virtual bool EraseValue() = 0;
 
      private:
       BaseImpl(BaseImpl const&) = delete;
@@ -251,20 +385,50 @@ class BaseMessageDescriptor {
       BaseImpl& operator=(BaseImpl&&) = delete;
     };
 
-    template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+    template <
+        typename Enum, typename Descriptor,
+        std::enable_if_t<std::is_enum_v<Enum> && std::is_base_of_v<BaseEnumDescriptor, Descriptor>,
+                         bool> = true>
     class Impl : public BaseImpl {
      public:
-      explicit Impl(std::optional<Enum>* const field, BaseEnumDescriptor const& descriptor)
+      explicit Impl(std::optional<Enum>* const field, Descriptor const& descriptor)
           : field_(field), descriptor_(descriptor) {}
 
-      BaseEnumDescriptor const& GetDescriptor() const override { return descriptor_; }
+      Descriptor const& GetDescriptor() const override { return descriptor_; }
 
       bool HasValue() const override { return field_->has_value(); }
-      int64_t GetValue() const override { return tsdb2::util::to_underlying(field_->value()); }
+
+      bool HasKnownValue() const override {
+        if (!field_->has_value()) {
+          return false;
+        }
+        auto const status_or_value = descriptor_.GetValueName(field_->value());
+        return status_or_value.ok();
+      }
+
+      absl::StatusOr<std::string_view> GetValue() const override {
+        return descriptor_.GetValueName(field_->value());
+      }
+
+      int64_t GetUnderlyingValue() const override {
+        return tsdb2::util::to_underlying(field_->value());
+      }
+
+      absl::Status SetValue(std::string_view const name) override {
+        DEFINE_CONST_OR_RETURN(value, descriptor_.GetNameValue(name));
+        field_->emplace(value);
+        return absl::OkStatus();
+      }
+
+      bool EraseValue() override {
+        bool const result = field_->has_value();
+        field_->reset();
+        return result;
+      }
 
      private:
       std::optional<Enum>* const field_;
-      BaseEnumDescriptor const& descriptor_;
+      Descriptor const& descriptor_;
     };
 
     std::shared_ptr<BaseImpl> impl_;
@@ -273,9 +437,68 @@ class BaseMessageDescriptor {
   // Keeps information about a repeated enum-typed field.
   class RepeatedEnum final {
    public:
-    template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
-    explicit RepeatedEnum(std::vector<Enum>* const values, BaseEnumDescriptor const& descriptor)
-        : impl_(std::make_shared<Impl<Enum>>(values, descriptor)) {}
+    using value_type = std::string_view;
+
+    class const_iterator final {
+     public:
+      explicit const_iterator() : parent_(nullptr), index_(0) {}
+      ~const_iterator() = default;
+
+      const_iterator(const_iterator const&) = default;
+      const_iterator& operator=(const_iterator const&) = default;
+      const_iterator(const_iterator&&) noexcept = default;
+      const_iterator& operator=(const_iterator&&) noexcept = default;
+
+      auto tie() const { return std::tie(parent_, index_); }
+
+      friend bool operator==(const_iterator const& lhs, const_iterator const& rhs) {
+        return lhs.tie() == rhs.tie();
+      }
+
+      friend bool operator!=(const_iterator const& lhs, const_iterator const& rhs) {
+        return lhs.tie() != rhs.tie();
+      }
+
+      friend bool operator<(const_iterator const& lhs, const_iterator const& rhs) {
+        return lhs.tie() < rhs.tie();
+      }
+
+      friend bool operator<=(const_iterator const& lhs, const_iterator const& rhs) {
+        return lhs.tie() <= rhs.tie();
+      }
+
+      friend bool operator>(const_iterator const& lhs, const_iterator const& rhs) {
+        return lhs.tie() > rhs.tie();
+      }
+
+      friend bool operator>=(const_iterator const& lhs, const_iterator const& rhs) {
+        return lhs.tie() >= rhs.tie();
+      }
+
+      explicit operator bool() const { return parent_ != nullptr; }
+
+      std::string_view operator*() const { return parent_->operator[](index_); }
+
+      const_iterator& operator++() {
+        ++index_;
+        return *this;
+      }
+
+      const_iterator operator++(int) { return const_iterator(*parent_, index_++); }
+
+     private:
+      friend class RepeatedEnum;
+
+      explicit const_iterator(RepeatedEnum const& parent, size_t const index)
+          : parent_(&parent), index_(index) {}
+
+      RepeatedEnum const* parent_;
+      size_t index_;
+    };
+
+    template <typename Enum, typename Descriptor>
+    explicit RepeatedEnum(std::vector<Enum>* const values, Descriptor const& descriptor)
+        : impl_(std::make_shared<Impl<Enum, Descriptor>>(values, descriptor)) {}
 
     ~RepeatedEnum() = default;
 
@@ -290,7 +513,39 @@ class BaseMessageDescriptor {
     size_t size() const { return impl_->GetSize(); }
     [[nodiscard]] bool empty() const { return impl_->GetSize() == 0; }
 
-    int64_t operator[](size_t const index) const { return impl_->GetAt(index); }
+    bool HasKnownValueAt(size_t const index) const { return impl_->HasKnownValueAt(index); }
+
+    absl::StatusOr<std::string_view> GetValueAt(size_t const index) const {
+      return impl_->GetValueAt(index);
+    }
+
+    int64_t GetUnderlyingValueAt(size_t const index) const {
+      return impl_->GetUnderlyingValueAt(index);
+    }
+
+    bool AllValuesAreKnown() const {
+      size_t const size = impl_->GetSize();
+      for (size_t i = 0; i < size; ++i) {
+        if (!impl_->HasKnownValueAt(i)) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    std::string_view operator[](size_t const index) const {
+      return impl_->GetValueAt(index).value_or("");
+    }
+
+    const_iterator begin() const { return const_iterator(*this, 0); }
+    const_iterator cbegin() const { return const_iterator(*this, 0); }
+
+    const_iterator end() const { return const_iterator(*this, impl_->GetSize()); }
+    const_iterator cend() const { return const_iterator(*this, impl_->GetSize()); }
+
+    absl::Status SetAllValues(absl::Span<std::string_view const> const names) {
+      return impl_->SetAllValues(names);
+    }
 
    private:
     class BaseImpl {
@@ -302,7 +557,13 @@ class BaseMessageDescriptor {
 
       virtual size_t GetSize() const = 0;
 
-      virtual int64_t GetAt(size_t index) const = 0;
+      virtual bool HasKnownValueAt(size_t index) const = 0;
+
+      virtual absl::StatusOr<std::string_view> GetValueAt(size_t index) const = 0;
+
+      virtual int64_t GetUnderlyingValueAt(size_t index) const = 0;
+
+      virtual absl::Status SetAllValues(absl::Span<std::string_view const> names) = 0;
 
      private:
       BaseImpl(BaseImpl const&) = delete;
@@ -311,23 +572,43 @@ class BaseMessageDescriptor {
       BaseImpl& operator=(BaseImpl&&) = delete;
     };
 
-    template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+    template <
+        typename Enum, typename Descriptor,
+        std::enable_if_t<std::is_enum_v<Enum> && std::is_base_of_v<BaseEnumDescriptor, Descriptor>,
+                         bool> = true>
     class Impl : public BaseImpl {
      public:
-      explicit Impl(std::vector<Enum>* const values, BaseEnumDescriptor const& descriptor)
+      explicit Impl(std::vector<Enum>* const values, Descriptor const& descriptor)
           : values_(values), descriptor_(descriptor) {}
 
-      BaseEnumDescriptor const& GetDescriptor() const override { return descriptor_; }
+      Descriptor const& GetDescriptor() const override { return descriptor_; }
 
       size_t GetSize() const override { return values_->size(); }
 
-      int64_t GetAt(size_t const index) const override {
-        return tsdb2::util::to_underlying(values_->operator[](index));
+      bool HasKnownValueAt(size_t const index) const override {
+        auto const status_or_value = descriptor_.GetValueName(values_->at(index));
+        return status_or_value.ok();
+      }
+
+      absl::StatusOr<std::string_view> GetValueAt(size_t const index) const override {
+        return descriptor_.GetValueName(values_->at(index));
+      }
+
+      int64_t GetUnderlyingValueAt(size_t const index) const override {
+        return tsdb2::util::to_underlying(values_->at(index));
+      }
+
+      absl::Status SetAllValues(absl::Span<std::string_view const> names) override {
+        values_->resize(names.size());
+        for (size_t i = 0; i < names.size(); ++i) {
+          RETURN_IF_ERROR(descriptor_.SetValueByName(&((*values_)[i]), names[i]));
+        }
+        return absl::OkStatus();
       }
 
      private:
       std::vector<Enum>* const values_;
-      BaseEnumDescriptor const& descriptor_;
+      Descriptor const& descriptor_;
     };
 
     std::shared_ptr<BaseImpl> impl_;
@@ -380,6 +661,9 @@ class BaseMessageDescriptor {
     Message const& message() const { return impl_->GetValue(); }
     Message* mutable_message() { return impl_->GetMutableValue(); }
 
+    bool Erase() { return impl_->Erase(); }
+    Message* Reset() { return impl_->Reset(); }
+
     BaseMessageDescriptor const& descriptor() const { return impl_->GetDescriptor(); }
 
    private:
@@ -391,7 +675,9 @@ class BaseMessageDescriptor {
       virtual BaseMessageDescriptor const& GetDescriptor() const = 0;
       virtual bool HasValue() const = 0;
       virtual Message const& GetValue() const = 0;
-      virtual Message* GetMutableValue() const = 0;
+      virtual Message* GetMutableValue() = 0;
+      virtual bool Erase() = 0;
+      virtual Message* Reset() = 0;
 
      private:
       BaseImpl(BaseImpl const&) = delete;
@@ -410,9 +696,16 @@ class BaseMessageDescriptor {
       BaseMessageDescriptor const& GetDescriptor() const override { return descriptor_; }
 
       bool HasValue() const override { return message_->has_value(); }
-
       Message const& GetValue() const override { return message_->value(); }
-      Message* GetMutableValue() const override { return &(message_->value()); }
+      Message* GetMutableValue() override { return &(message_->value()); }
+
+      bool Erase() override {
+        bool const result = message_->has_value();
+        message_->reset();
+        return result;
+      }
+
+      Message* Reset() override { return &(message_->emplace()); }
 
      private:
       std::optional<SubMessage>* const message_;
@@ -468,6 +761,32 @@ class BaseMessageDescriptor {
       const_iterator(const_iterator&&) noexcept = default;
       const_iterator& operator=(const_iterator&&) noexcept = default;
 
+      auto tie() const { return std::tie(parent_, index_); }
+
+      friend bool operator==(const_iterator const& lhs, const_iterator const& rhs) {
+        return lhs.tie() == rhs.tie();
+      }
+
+      friend bool operator!=(const_iterator const& lhs, const_iterator const& rhs) {
+        return lhs.tie() != rhs.tie();
+      }
+
+      friend bool operator<(const_iterator const& lhs, const_iterator const& rhs) {
+        return lhs.tie() < rhs.tie();
+      }
+
+      friend bool operator<=(const_iterator const& lhs, const_iterator const& rhs) {
+        return lhs.tie() <= rhs.tie();
+      }
+
+      friend bool operator>(const_iterator const& lhs, const_iterator const& rhs) {
+        return lhs.tie() > rhs.tie();
+      }
+
+      friend bool operator>=(const_iterator const& lhs, const_iterator const& rhs) {
+        return lhs.tie() >= rhs.tie();
+      }
+
       explicit operator bool() const { return parent_ != nullptr; }
 
       Message const& operator*() const { return parent_->operator[](index_); }
@@ -508,6 +827,11 @@ class BaseMessageDescriptor {
     size_t size() const { return impl_->GetSize(); }
     [[nodiscard]] bool empty() const { return impl_->GetSize() == 0; }
 
+    void Clear() { impl_->Clear(); }
+    void Reserve(size_t const size) { impl_->Reserve(size); }
+
+    Message* Append() { return impl_->Append(); }
+
     Message& operator[](size_t const index) { return *(impl_->GetAt(index)); }
     Message const& operator[](size_t const index) const { return *(impl_->GetAt(index)); }
 
@@ -528,8 +852,12 @@ class BaseMessageDescriptor {
       virtual BaseMessageDescriptor const& GetDescriptor() const = 0;
 
       virtual size_t GetSize() const = 0;
+      virtual void Clear() = 0;
+      virtual void Reserve(size_t size) = 0;
 
       virtual Message* GetAt(size_t index) const = 0;
+
+      virtual Message* Append() = 0;
 
      private:
       BaseImpl(BaseImpl const&) = delete;
@@ -549,12 +877,225 @@ class BaseMessageDescriptor {
 
       size_t GetSize() const override { return messages_->size(); }
 
+      void Clear() override { messages_->clear(); }
+      void Reserve(size_t const size) override { messages_->reserve(size); }
+
       Message* GetAt(size_t const index) const override { return &(messages_->at(index)); }
+
+      Message* Append() override { return &(messages_->emplace_back()); }
 
      private:
       std::vector<SubMessage>* const messages_;
       BaseMessageDescriptor const& descriptor_;
     };
+
+    std::shared_ptr<BaseImpl> impl_;
+  };
+
+  using OneofFieldValue =
+      std::variant<int32_t*, uint32_t*, int64_t*, uint64_t*, bool*, std::string*,
+                   std::vector<uint8_t>*, double*, float*, RawEnum, RawSubMessage>;
+
+  using ConstOneofFieldValue =
+      std::variant<int32_t const*, uint32_t const*, int64_t const*, uint64_t const*, bool const*,
+                   std::string const*, std::vector<uint8_t> const*, double const*, float const*,
+                   RawEnum const, RawSubMessage const>;
+
+  class OneOf final {
+   public:
+    using SetValueArg = std::variant<int32_t, uint32_t, int64_t, uint64_t, bool, std::string,
+                                     std::vector<uint8_t>, double, float>;
+
+    template <typename Variant, typename Descriptors>
+    explicit OneOf(Variant* const variant, Descriptors&& descriptors)
+        : impl_(new Impl(variant, std::forward<Descriptors>(descriptors))) {}
+
+    ~OneOf() = default;
+
+    OneOf(OneOf const&) = default;
+    OneOf& operator=(OneOf const&) = default;
+
+    OneOf(OneOf&&) noexcept = default;
+    OneOf& operator=(OneOf&&) noexcept = default;
+
+    // Returns the number of types in this variant, including the leading monostate.
+    size_t size() const { return impl_->GetSize(); }
+
+    // Returns the index of the currently held variant. 0 means the currently held variant is the
+    // leading monostate, meaning the variant is effectively empty.
+    size_t index() const { return impl_->GetIndex(); }
+
+    absl::StatusOr<FieldType> GetTypeAt(size_t const index) const {
+      return impl_->GetTypeAt(index);
+    }
+
+    std::optional<FieldType> GetType() const { return impl_->GetType(); }
+    std::optional<OneofFieldValue> GetValue() { return impl_->GetValue(); }
+    std::optional<ConstOneofFieldValue> GetValue() const { return impl_->GetConstValue(); }
+
+    absl::Status SetValue(size_t const index, SetValueArg value) {
+      return impl_->SetValue(index, std::move(value));
+    }
+
+    // TODO: add setters for enums and sub-messages.
+
+    void Clear() { impl_->Clear(); }
+
+   private:
+    class BaseImpl {
+     public:
+      explicit BaseImpl() = default;
+      virtual ~BaseImpl() = default;
+
+      virtual size_t GetSize() const = 0;
+      virtual size_t GetIndex() const = 0;
+
+      virtual absl::StatusOr<FieldType> GetTypeAt(size_t index) const = 0;
+      virtual std::optional<FieldType> GetType() const = 0;
+      virtual std::optional<OneofFieldValue> GetValue() = 0;
+      virtual std::optional<ConstOneofFieldValue> GetConstValue() const = 0;
+
+      virtual absl::Status SetValue(size_t index, SetValueArg&& value) = 0;
+
+      virtual void Clear() = 0;
+
+     private:
+      BaseImpl(BaseImpl const&) = delete;
+      BaseImpl& operator=(BaseImpl const&) = delete;
+      BaseImpl(BaseImpl&&) = delete;
+      BaseImpl& operator=(BaseImpl&&) = delete;
+    };
+
+    template <typename Variant, typename Descriptors, typename Enable = void>
+    class Impl;
+
+    template <typename... Types, typename... Descriptors>
+    class Impl<std::variant<std::monostate, Types...>, std::tuple<Descriptors...>,
+               std::enable_if_t<internal::CheckDescriptorsForTypesV<
+                   internal::OneofTypes<Types...>, internal::OneofDescriptors<Descriptors...>>>>
+        final : public BaseImpl {
+     public:
+      using Variant = std::variant<std::monostate, Types...>;
+
+      explicit Impl(Variant* const variant, std::tuple<Descriptors...> descriptors)
+          : variant_(variant),
+            descriptors_(std::tuple_cat(std::tuple<std::monostate>(), std::move(descriptors))) {}
+
+      size_t GetSize() const override { return sizeof...(Types) + 1; }
+      size_t GetIndex() const override { return variant_->index(); }
+
+      absl::StatusOr<FieldType> GetTypeAt(size_t const index) const override {
+        if (index > 0 && index < sizeof...(Types)) {
+          return std::visit(OneOfFieldTypeSelector(), *variant_);
+        } else {
+          return absl::OutOfRangeError("invalid oneof variant index");
+        }
+      }
+
+      std::optional<FieldType> GetType() const override {
+        if (variant_->index() > 0) {
+          return std::visit(OneOfFieldTypeSelector(), *variant_);
+        } else {
+          return std::nullopt;
+        }
+      }
+
+      std::optional<OneofFieldValue> GetValue() override {
+        if (variant_->index() > 0) {
+          return GetValueImpl(std::make_index_sequence<sizeof...(Types) + 1>());
+        } else {
+          return std::nullopt;
+        }
+      }
+
+      std::optional<ConstOneofFieldValue> GetConstValue() const override {
+        if (variant_->index() > 0) {
+          return GetConstValueImpl();
+        } else {
+          return std::nullopt;
+        }
+      }
+
+      absl::Status SetValue(size_t const index, SetValueArg&& value) override {
+        return SetValueImpl(index, std::move(value),
+                            std::make_index_sequence<sizeof...(Types) + 1>());
+      }
+
+      void Clear() override { variant_->template emplace<0>(); }
+
+     private:
+      template <size_t index, typename Type, typename Enable = void>
+      struct ValueSetter {
+        absl::Status operator()(Variant* const variant, SetValueArg&& value) const {
+          variant->template emplace<index>(std::get<Type>(std::move(value)));
+          return absl::OkStatus();
+        }
+      };
+
+      template <size_t index>
+      struct ValueSetter<index, std::monostate> {
+        absl::Status operator()(Variant* const variant, SetValueArg&& value) const {
+          return absl::OutOfRangeError("invalid oneof variant index");
+        }
+      };
+
+      template <size_t index, typename Enum>
+      struct ValueSetter<index, Enum, std::enable_if_t<std::is_enum_v<Enum>>> {
+        absl::Status operator()(Variant* const variant, SetValueArg&& value) const {
+          return absl::InvalidArgumentError("use `SetEnumValue()` for enums");
+        }
+      };
+
+      template <size_t index, typename Message>
+      struct ValueSetter<index, Message,
+                         std::enable_if_t<std::is_base_of_v<tsdb2::proto::Message, Message>>> {
+        absl::Status operator()(Variant* const variant, SetValueArg&& value) const {
+          return absl::InvalidArgumentError("use `SetSubMessage()` for sub-messages");
+        }
+      };
+
+      template <size_t... Is>
+      std::optional<OneofFieldValue> GetValueImpl(std::index_sequence<Is...> /*unused*/) const {
+        size_t const index = variant_->index();
+        std::optional<OneofFieldValue> result;
+        (void)((index == Is && (result = OneOfFieldValueSelector{}(std::get<Is>(*variant_),
+                                                                   std::get<Is>(descriptors_)),
+                                true)) ||
+               ...);
+        return result;
+      }
+
+      std::optional<ConstOneofFieldValue> GetConstValueImpl() const {
+        auto result = GetValueImpl(std::make_index_sequence<sizeof...(Types) + 1>());
+        if (result.has_value()) {
+          return std::visit(MakeConstOneOfFieldValue(), std::move(result).value());
+        } else {
+          return std::nullopt;
+        }
+      }
+
+      template <size_t... Is>
+      absl::Status SetValueImpl(size_t const target_index, SetValueArg&& value,
+                                std::index_sequence<Is...> /*unused*/) const {
+        if (target_index > sizeof...(Types)) {
+          return absl::OutOfRangeError("invalid oneof variant index");
+        }
+        absl::Status result = absl::OkStatus();
+        (void)((target_index == Is &&
+                (result.Update(ValueSetter<Is, std::variant_alternative_t<Is, Variant>>{}(
+                     variant_, std::move(value))),
+                 true)) ||
+               ...);
+        return result;
+      }
+
+      Variant* const variant_;
+      std::tuple<std::monostate, Descriptors...> const descriptors_;
+    };
+
+    template <typename... Types, typename... Descriptors>
+    explicit Impl(std::variant<std::monostate, Types...>*, std::tuple<Descriptors...>)
+        -> Impl<std::variant<std::monostate, Types...>, std::tuple<Descriptors...>>;
 
     std::shared_ptr<BaseImpl> impl_;
   };
@@ -567,7 +1108,7 @@ class BaseMessageDescriptor {
       std::vector<uint8_t>*, std::optional<std::vector<uint8_t>>*,
       std::vector<std::vector<uint8_t>>*, double*, std::optional<double>*, std::vector<double>*,
       float*, std::optional<float>*, std::vector<float>*, RawEnum, OptionalEnum, RepeatedEnum,
-      RawSubMessage, OptionalSubMessage, RepeatedSubMessage>;
+      RawSubMessage, OptionalSubMessage, RepeatedSubMessage, OneOf>;
 
   using ConstFieldValue = std::variant<
       int32_t const*, std::optional<int32_t> const*, std::vector<int32_t> const*, uint32_t const*,
@@ -580,7 +1121,7 @@ class BaseMessageDescriptor {
       std::vector<std::vector<uint8_t>> const*, double const*, std::optional<double> const*,
       std::vector<double> const*, float const*, std::optional<float> const*,
       std::vector<float> const*, RawEnum const, OptionalEnum const, RepeatedEnum const,
-      RawSubMessage const, OptionalSubMessage const, RepeatedSubMessage const>;
+      RawSubMessage const, OptionalSubMessage const, RepeatedSubMessage const, OneOf const>;
 
   explicit constexpr BaseMessageDescriptor() = default;
   virtual ~BaseMessageDescriptor() = default;
@@ -588,23 +1129,179 @@ class BaseMessageDescriptor {
   // Returns the list of field names of the described message.
   virtual absl::Span<std::string_view const> GetAllFieldNames() const = 0;
 
+  // Returns the `LabeledFieldType` of a field from its name.
+  virtual absl::StatusOr<LabeledFieldType> GetLabeledFieldType(
+      std::string_view field_name) const = 0;
+
+  // Returns the type and kind of a field from its name.
+  absl::StatusOr<std::pair<FieldType, FieldKind>> GetFieldTypeAndKind(
+      std::string_view const field_name) const {
+    DEFINE_CONST_OR_RETURN(labeled_type, GetLabeledFieldType(field_name));
+    if (labeled_type != LabeledFieldType::kOneOfField) {
+      auto const index = tsdb2::util::to_underlying(labeled_type);
+      return std::make_pair(static_cast<FieldType>(index / 3), static_cast<FieldKind>(index % 3));
+    } else {
+      return std::make_pair(FieldType::kOneOfField, FieldKind::kOneOf);
+    }
+  }
+
   // Returns the type of a field from its name.
-  virtual absl::StatusOr<FieldType> GetFieldType(std::string_view field_name) const = 0;
+  absl::StatusOr<FieldType> GetFieldType(std::string_view const field_name) const {
+    DEFINE_CONST_OR_RETURN(type_and_kind, GetFieldTypeAndKind(field_name));
+    return type_and_kind.first;
+  }
+
+  // Returns the kind of a field from its name.
+  absl::StatusOr<FieldKind> GetFieldKind(std::string_view const field_name) const {
+    DEFINE_CONST_OR_RETURN(type_and_kind, GetFieldTypeAndKind(field_name));
+    return type_and_kind.second;
+  }
 
   // Returns a const pointer to the value of a field from its name. The returned type is an
-  // `std::variant` that wraps all possible types. Sub-message types are also wrapped in a proxy
+  // `std::variant` that wraps all possible types. Sub-message types are further wrapped in a proxy
   // object (see `RawSubMessage`, `OptionalSubMessage`, and `RepeatedSubMessage`) allowing access to
   // the field and to the `BaseMessageDescriptor` of its type.
   virtual absl::StatusOr<ConstFieldValue> GetConstFieldValue(Message const& message,
                                                              std::string_view field_name) const = 0;
 
-  // virtual absl::StatusOr<FieldValue> GetMutableFieldValue(Message const& message,
-  //                                                         std::string_view field_name) const = 0;
-
-  // virtual absl::Status SetFieldValue(Message const& message, std::string_view field_name,
-  //                                    FieldValue new_value) const = 0;
+  // Returns a pointer to a (mutable) field from its name. The returned type is an `std::variant`
+  // that wraps all possible types. Sub-message types are further wrapped in a proxy object (see
+  // `RawSubMessage`, `OptionalSubMessage`, and `RepeatedSubMessage`) allowing access to the field
+  // and to the `BaseMessageDescriptor` of its type.
+  virtual absl::StatusOr<FieldValue> GetFieldValue(Message* message,
+                                                   std::string_view field_name) const = 0;
 
  private:
+  struct OneOfFieldTypeSelector {
+    // NOLINTBEGIN(readability-named-parameter)
+
+    FieldType operator()(std::monostate) const {
+      // This return value is bogus, we should never get here because empty oneofs are handled by
+      // the caller.
+      return FieldType::kOneOfField;
+    }
+
+    FieldType operator()(int32_t) const { return FieldType::kInt32Field; }
+    FieldType operator()(uint32_t) const { return FieldType::kUInt32Field; }
+    FieldType operator()(int64_t) const { return FieldType::kInt64Field; }
+    FieldType operator()(uint64_t) const { return FieldType::kUInt64Field; }
+    FieldType operator()(bool) const { return FieldType::kBoolField; }
+    FieldType operator()(std::string_view) const { return FieldType::kStringField; }
+    FieldType operator()(absl::Span<uint8_t const>) const { return FieldType::kBytesField; }
+    FieldType operator()(double) const { return FieldType::kDoubleField; }
+    FieldType operator()(float) const { return FieldType::kFloatField; }
+
+    template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+    FieldType operator()(Enum) const {
+      return FieldType::kEnumField;
+    }
+
+    FieldType operator()(tsdb2::proto::Message const&) const { return FieldType::kSubMessageField; }
+
+    // NOLINTEND(readability-named-parameter)
+  };
+
+  struct OneOfFieldValueSelector {
+    std::optional<OneofFieldValue> operator()(std::monostate /*unused*/,
+                                              std::monostate /*unused*/) const {
+      return std::nullopt;
+    }
+
+    std::optional<OneofFieldValue> operator()(int32_t& value, std::monostate /*unused*/) const {
+      return OneofFieldValue(std::in_place_type<int32_t*>, &value);
+    }
+
+    std::optional<OneofFieldValue> operator()(uint32_t& value, std::monostate /*unused*/) const {
+      return OneofFieldValue(std::in_place_type<uint32_t*>, &value);
+    }
+
+    std::optional<OneofFieldValue> operator()(int64_t& value, std::monostate /*unused*/) const {
+      return OneofFieldValue(std::in_place_type<int64_t*>, &value);
+    }
+
+    std::optional<OneofFieldValue> operator()(uint64_t& value, std::monostate /*unused*/) const {
+      return OneofFieldValue(std::in_place_type<uint64_t*>, &value);
+    }
+
+    std::optional<OneofFieldValue> operator()(bool& value, std::monostate /*unused*/) const {
+      return OneofFieldValue(std::in_place_type<bool*>, &value);
+    }
+
+    std::optional<OneofFieldValue> operator()(std::string& value, std::monostate /*unused*/) const {
+      return OneofFieldValue(std::in_place_type<std::string*>, &value);
+    }
+
+    std::optional<OneofFieldValue> operator()(std::vector<uint8_t>& value,
+                                              std::monostate /*unused*/) const {
+      return OneofFieldValue(std::in_place_type<std::vector<uint8_t>*>, &value);
+    }
+
+    std::optional<OneofFieldValue> operator()(double& value, std::monostate /*unused*/) const {
+      return OneofFieldValue(std::in_place_type<double*>, &value);
+    }
+
+    std::optional<OneofFieldValue> operator()(float& value, std::monostate /*unused*/) const {
+      return OneofFieldValue(std::in_place_type<float*>, &value);
+    }
+
+    template <typename Enum, typename Descriptor,
+              std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+    std::optional<OneofFieldValue> operator()(Enum& value, Descriptor const& descriptor) const {
+      return OneofFieldValue(std::in_place_type<RawEnum>, RawEnum(&value, descriptor));
+    }
+
+    template <typename Descriptor>
+    std::optional<OneofFieldValue> operator()(Message& value, Descriptor const& descriptor) const {
+      return OneofFieldValue(std::in_place_type<RawSubMessage>, RawSubMessage(&value, descriptor));
+    }
+  };
+
+  struct MakeConstOneOfFieldValue {
+    std::optional<ConstOneofFieldValue> operator()(int32_t* const value) const {
+      return ConstOneofFieldValue(std::in_place_type<int32_t const*>, value);
+    }
+
+    std::optional<ConstOneofFieldValue> operator()(uint32_t* const value) const {
+      return ConstOneofFieldValue(std::in_place_type<uint32_t const*>, value);
+    }
+
+    std::optional<ConstOneofFieldValue> operator()(int64_t* const value) const {
+      return ConstOneofFieldValue(std::in_place_type<int64_t const*>, value);
+    }
+
+    std::optional<ConstOneofFieldValue> operator()(uint64_t* const value) const {
+      return ConstOneofFieldValue(std::in_place_type<uint64_t const*>, value);
+    }
+
+    std::optional<ConstOneofFieldValue> operator()(bool* const value) const {
+      return ConstOneofFieldValue(std::in_place_type<bool const*>, value);
+    }
+
+    std::optional<ConstOneofFieldValue> operator()(std::string* const value) const {
+      return ConstOneofFieldValue(std::in_place_type<std::string const*>, value);
+    }
+
+    std::optional<ConstOneofFieldValue> operator()(std::vector<uint8_t>* const value) const {
+      return ConstOneofFieldValue(std::in_place_type<std::vector<uint8_t> const*>, value);
+    }
+
+    std::optional<ConstOneofFieldValue> operator()(double* const value) const {
+      return ConstOneofFieldValue(std::in_place_type<double const*>, value);
+    }
+
+    std::optional<ConstOneofFieldValue> operator()(float* const value) const {
+      return ConstOneofFieldValue(std::in_place_type<float const*>, value);
+    }
+
+    std::optional<ConstOneofFieldValue> operator()(RawEnum&& value) const {
+      return ConstOneofFieldValue(std::in_place_type<RawEnum const>, std::move(value));
+    }
+
+    std::optional<ConstOneofFieldValue> operator()(RawSubMessage&& value) const {
+      return ConstOneofFieldValue(std::in_place_type<RawSubMessage const>, std::move(value));
+    }
+  };
+
   BaseMessageDescriptor(BaseMessageDescriptor const&) = delete;
   BaseMessageDescriptor& operator=(BaseMessageDescriptor const&) = delete;
   BaseMessageDescriptor(BaseMessageDescriptor&&) = delete;
@@ -651,9 +1348,9 @@ struct FieldTypes {
 
   class RawEnumField final {
    public:
-    template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
-    explicit RawEnumField(Enum Message::*const field, BaseEnumDescriptor const& descriptor)
-        : impl_(std::make_shared<Impl<Enum>>(field, descriptor)) {}
+    template <typename Enum, typename Descriptor>
+    explicit RawEnumField(Enum Message::*const field, Descriptor const& descriptor)
+        : impl_(std::make_shared<Impl<Enum, Descriptor>>(field, descriptor)) {}
 
     ~RawEnumField() = default;
 
@@ -685,13 +1382,16 @@ struct FieldTypes {
       BaseImpl& operator=(BaseImpl&&) = delete;
     };
 
-    template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+    template <
+        typename Enum, typename Descriptor,
+        std::enable_if_t<std::is_enum_v<Enum> && std::is_base_of_v<BaseEnumDescriptor, Descriptor>,
+                         bool> = true>
     class Impl : public BaseImpl {
      public:
-      explicit Impl(Enum Message::*const field, BaseEnumDescriptor const& descriptor)
+      explicit Impl(Enum Message::*const field, Descriptor const& descriptor)
           : field_(field), descriptor_(descriptor) {}
 
-      BaseEnumDescriptor const& GetDescriptor() const override { return descriptor_; }
+      Descriptor const& GetDescriptor() const override { return descriptor_; }
 
       BaseMessageDescriptor::RawEnum MakeValue(Message* const parent) const override {
         return BaseMessageDescriptor::RawEnum(&(parent->*field_), descriptor_);
@@ -699,7 +1399,7 @@ struct FieldTypes {
 
      private:
       Enum Message::*const field_;
-      BaseEnumDescriptor const& descriptor_;
+      Descriptor const& descriptor_;
     };
 
     std::shared_ptr<BaseImpl> impl_;
@@ -707,10 +1407,10 @@ struct FieldTypes {
 
   class OptionalEnumField final {
    public:
-    template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+    template <typename Enum, typename Descriptor>
     explicit OptionalEnumField(std::optional<Enum> Message::*const field,
-                               BaseEnumDescriptor const& descriptor)
-        : impl_(std::make_shared<Impl<Enum>>(field, descriptor)) {}
+                               Descriptor const& descriptor)
+        : impl_(std::make_shared<Impl<Enum, Descriptor>>(field, descriptor)) {}
 
     ~OptionalEnumField() = default;
 
@@ -742,13 +1442,16 @@ struct FieldTypes {
       BaseImpl& operator=(BaseImpl&&) = delete;
     };
 
-    template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+    template <
+        typename Enum, typename Descriptor,
+        std::enable_if_t<std::is_enum_v<Enum> && std::is_base_of_v<BaseEnumDescriptor, Descriptor>,
+                         bool> = true>
     class Impl : public BaseImpl {
      public:
-      explicit Impl(std::optional<Enum> Message::*const field, BaseEnumDescriptor const& descriptor)
+      explicit Impl(std::optional<Enum> Message::*const field, Descriptor const& descriptor)
           : field_(field), descriptor_(descriptor) {}
 
-      BaseEnumDescriptor const& GetDescriptor() const override { return descriptor_; }
+      Descriptor const& GetDescriptor() const override { return descriptor_; }
 
       BaseMessageDescriptor::OptionalEnum MakeValue(Message* const parent) const override {
         return BaseMessageDescriptor::OptionalEnum(&(parent->*field_), descriptor_);
@@ -756,7 +1459,7 @@ struct FieldTypes {
 
      private:
       std::optional<Enum> Message::*const field_;
-      BaseEnumDescriptor const& descriptor_;
+      Descriptor const& descriptor_;
     };
 
     std::shared_ptr<BaseImpl> impl_;
@@ -764,10 +1467,10 @@ struct FieldTypes {
 
   class RepeatedEnumField final {
    public:
-    template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+    template <typename Enum, typename Descriptor>
     explicit RepeatedEnumField(std::vector<Enum> Message::*const field,
-                               BaseEnumDescriptor const& descriptor)
-        : impl_(std::make_shared<Impl<Enum>>(field, descriptor)) {}
+                               Descriptor const& descriptor)
+        : impl_(std::make_shared<Impl<Enum, Descriptor>>(field, descriptor)) {}
 
     ~RepeatedEnumField() = default;
 
@@ -799,13 +1502,16 @@ struct FieldTypes {
       BaseImpl& operator=(BaseImpl&&) = delete;
     };
 
-    template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+    template <
+        typename Enum, typename Descriptor,
+        std::enable_if_t<std::is_enum_v<Enum> && std::is_base_of_v<BaseEnumDescriptor, Descriptor>,
+                         bool> = true>
     class Impl : public BaseImpl {
      public:
-      explicit Impl(std::vector<Enum> Message::*const field, BaseEnumDescriptor const& descriptor)
+      explicit Impl(std::vector<Enum> Message::*const field, Descriptor const& descriptor)
           : field_(field), descriptor_(descriptor) {}
 
-      BaseEnumDescriptor const& GetDescriptor() const override { return descriptor_; }
+      Descriptor const& GetDescriptor() const override { return descriptor_; }
 
       BaseMessageDescriptor::RepeatedEnum MakeValue(Message* const parent) const override {
         return BaseMessageDescriptor::RepeatedEnum(&(parent->*field_), descriptor_);
@@ -813,7 +1519,7 @@ struct FieldTypes {
 
      private:
       std::vector<Enum> Message::*const field_;
-      BaseEnumDescriptor const& descriptor_;
+      Descriptor const& descriptor_;
     };
 
     std::shared_ptr<BaseImpl> impl_;
@@ -821,9 +1527,10 @@ struct FieldTypes {
 
   class RawSubMessageField final {
    public:
-    explicit RawSubMessageField(tsdb2::proto::Message Message::*const message,
+    template <typename SubMessage>
+    explicit RawSubMessageField(SubMessage Message::*const message,
                                 BaseMessageDescriptor const& descriptor)
-        : message_(message), descriptor_(&descriptor) {}
+        : impl_(std::make_shared<Impl<SubMessage>>(message, descriptor)) {}
 
     ~RawSubMessageField() = default;
 
@@ -833,15 +1540,46 @@ struct FieldTypes {
     RawSubMessageField(RawSubMessageField&&) noexcept = default;
     RawSubMessageField& operator=(RawSubMessageField&&) noexcept = default;
 
-    BaseMessageDescriptor const& descriptor() const { return *descriptor_; }
+    BaseMessageDescriptor const& descriptor() const { return impl_->GetDescriptor(); }
 
     BaseMessageDescriptor::RawSubMessage MakeValue(Message* const parent) const {
-      return BaseMessageDescriptor::RawSubMessage(&(parent->*message_), *descriptor_);
+      return impl_->MakeValue(parent);
     }
 
    private:
-    tsdb2::proto::Message Message::*message_;
-    BaseMessageDescriptor const* descriptor_;
+    class BaseImpl {
+     public:
+      explicit BaseImpl() = default;
+      virtual ~BaseImpl() = default;
+
+      virtual BaseMessageDescriptor const& GetDescriptor() const = 0;
+      virtual BaseMessageDescriptor::RawSubMessage MakeValue(Message* parent) const = 0;
+
+     private:
+      BaseImpl(BaseImpl const&) = delete;
+      BaseImpl& operator=(BaseImpl const&) = delete;
+      BaseImpl(BaseImpl&&) = delete;
+      BaseImpl& operator=(BaseImpl&&) = delete;
+    };
+
+    template <typename SubMessage>
+    class Impl : public BaseImpl {
+     public:
+      explicit Impl(SubMessage Message::*const message, BaseMessageDescriptor const& descriptor)
+          : message_(message), descriptor_(descriptor) {}
+
+      BaseMessageDescriptor const& GetDescriptor() const override { return descriptor_; }
+
+      BaseMessageDescriptor::RawSubMessage MakeValue(Message* const parent) const override {
+        return BaseMessageDescriptor::RawSubMessage(&(parent->*message_), descriptor_);
+      }
+
+     private:
+      SubMessage Message::*const message_;
+      BaseMessageDescriptor const& descriptor_;
+    };
+
+    std::shared_ptr<BaseImpl> impl_;
   };
 
   class OptionalSubMessageField final {
@@ -960,6 +1698,70 @@ struct FieldTypes {
     std::shared_ptr<BaseImpl> impl_;
   };
 
+  class OneOfField final {
+   public:
+    template <typename Variant, typename Descriptors>
+    explicit OneOfField(Variant Message::*const variant, Descriptors&& descriptors)
+        : impl_(new Impl(variant, std::forward<Descriptors>(descriptors))) {}
+
+    ~OneOfField() = default;
+
+    OneOfField(OneOfField const&) = default;
+    OneOfField& operator=(OneOfField const&) = default;
+
+    OneOfField(OneOfField&&) noexcept = default;
+    OneOfField& operator=(OneOfField&&) noexcept = default;
+
+    BaseMessageDescriptor::OneOf MakeValue(Message* const parent) const {
+      return impl_->MakeValue(parent);
+    }
+
+   private:
+    class BaseImpl {
+     public:
+      explicit BaseImpl() = default;
+      virtual ~BaseImpl() = default;
+
+      virtual BaseMessageDescriptor::OneOf MakeValue(Message* parent) const = 0;
+
+     private:
+      BaseImpl(BaseImpl const&) = delete;
+      BaseImpl& operator=(BaseImpl const&) = delete;
+      BaseImpl(BaseImpl&&) = delete;
+      BaseImpl& operator=(BaseImpl&&) = delete;
+    };
+
+    template <typename Variant, typename Descriptors>
+    class Impl;
+
+    template <typename... Types, typename... Descriptors>
+    class Impl<std::variant<std::monostate, Types...>, std::tuple<Descriptors...>> final
+        : public BaseImpl {
+     public:
+      explicit Impl(std::variant<std::monostate, Types...> Message::*const variant,
+                    std::tuple<Descriptors...> descriptors)
+          : variant_(variant), descriptors_(std::move(descriptors)) {}
+
+      BaseMessageDescriptor::OneOf MakeValue(Message* const parent) const override {
+        return BaseMessageDescriptor::OneOf(&(parent->*variant_), descriptors_);
+      }
+
+     private:
+      static_assert(internal::CheckDescriptorsForTypesV<internal::OneofTypes<Types...>,
+                                                        internal::OneofDescriptors<Descriptors...>>,
+                    "invalid type descriptors");
+
+      std::variant<std::monostate, Types...> Message::*const variant_;
+      std::tuple<Descriptors...> const descriptors_;
+    };
+
+    template <typename... Types, typename... Descriptors>
+    explicit Impl(std::variant<std::monostate, Types...> Message::*, std::tuple<Descriptors...>)
+        -> Impl<std::variant<std::monostate, Types...>, std::tuple<Descriptors...>>;
+
+    std::shared_ptr<BaseImpl> impl_;
+  };
+
   using FieldPointer = std::variant<
       RawInt32Field, OptionalInt32Field, RepeatedInt32Field, RawUInt32Field, OptionalUInt32Field,
       RepeatedUInt32Field, RawInt64Field, OptionalInt64Field, RepeatedInt64Field, RawUInt64Field,
@@ -967,7 +1769,7 @@ struct FieldTypes {
       RawStringField, OptionalStringField, RepeatedStringField, RawBytesField, OptionalBytesField,
       RepeatedBytesField, RawDoubleField, OptionalDoubleField, RepeatedDoubleField, RawFloatField,
       OptionalFloatField, RepeatedFloatField, RawEnumField, OptionalEnumField, RepeatedEnumField,
-      RawSubMessageField, OptionalSubMessageField, RepeatedSubMessageField>;
+      RawSubMessageField, OptionalSubMessageField, RepeatedSubMessageField, OneOfField>;
 };
 
 template <typename Message>
@@ -988,13 +1790,16 @@ using OptionalSubMessageField = typename FieldTypes<Message>::OptionalSubMessage
 template <typename Message>
 using RepeatedSubMessageField = typename FieldTypes<Message>::RepeatedSubMessageField;
 
+template <typename Message>
+using OneOfField = typename FieldTypes<Message>::OneOfField;
+
 // Allows implementing message descriptors, used for reflection features and TextFormat parsing.
 template <typename Message, size_t num_fields>
 class MessageDescriptor final : public BaseMessageDescriptor, public FieldTypes<Message> {
  public:
   using BaseMessageDescriptor::ConstFieldValue;
-  using BaseMessageDescriptor::FieldType;
   using BaseMessageDescriptor::FieldValue;
+  using BaseMessageDescriptor::LabeledFieldType;
   using BaseMessageDescriptor::OptionalSubMessage;
   using BaseMessageDescriptor::RawEnum;
   using BaseMessageDescriptor::RawSubMessage;
@@ -1005,15 +1810,15 @@ class MessageDescriptor final : public BaseMessageDescriptor, public FieldTypes<
 
   explicit constexpr MessageDescriptor(
       std::pair<std::string_view, FieldPointer> const (&fields)[num_fields])
-      : field_names_(MakeNameArray(fields)),
-        field_ptrs_(tsdb2::common::fixed_flat_map_of(fields)) {}
+      : field_ptrs_(tsdb2::common::fixed_flat_map_of(fields)), field_names_(MakeNameArray()) {}
 
   absl::Span<std::string_view const> GetAllFieldNames() const override { return field_names_; }
 
-  absl::StatusOr<FieldType> GetFieldType(std::string_view const field_name) const override {
+  absl::StatusOr<LabeledFieldType> GetLabeledFieldType(
+      std::string_view const field_name) const override {
     auto const it = field_ptrs_.find(field_name);
     if (it != field_ptrs_.end()) {
-      return static_cast<FieldType>(it->second.index());
+      return static_cast<LabeledFieldType>(it->second.index());
     } else {
       return absl::InvalidArgumentError(
           absl::StrCat("unknown field \"", absl::CEscape(field_name), "\""));
@@ -1027,148 +1832,333 @@ class MessageDescriptor final : public BaseMessageDescriptor, public FieldTypes<
       return absl::InvalidArgumentError(
           absl::StrCat("unknown field \"", absl::CEscape(field_name), "\""));
     }
-    Message const& typed_message = *static_cast<Message const*>(&message);
-    return std::visit(FieldPointerVisitor(typed_message), it->second);
+    return std::visit(ConstFieldPointerVisitor(*static_cast<Message const*>(&message)), it->second);
+  }
+
+  absl::StatusOr<FieldValue> GetFieldValue(tsdb2::proto::Message* const message,
+                                           std::string_view const field_name) const override {
+    auto const it = field_ptrs_.find(field_name);
+    if (it == field_ptrs_.end()) {
+      return absl::InvalidArgumentError(
+          absl::StrCat("unknown field \"", absl::CEscape(field_name), "\""));
+    }
+    return std::visit(FieldPointerVisitor(static_cast<Message*>(message)), it->second);
   }
 
  private:
-  class FieldPointerVisitor {
+  class ConstFieldPointerVisitor {
    public:
-    explicit FieldPointerVisitor(Message const& message) : message_(message) {}
+    explicit ConstFieldPointerVisitor(Message const& message) : message_(message) {}
 
-    ConstFieldValue operator()(int32_t Message::*const value) const { return &(message_.*value); }
+    ConstFieldValue operator()(int32_t Message::*const value) const {
+      return ConstFieldValue(std::in_place_type<int32_t const*>, &(message_.*value));
+    }
 
     ConstFieldValue operator()(std::optional<int32_t> Message::*const value) const {
-      return &(message_.*value);
+      return ConstFieldValue(std::in_place_type<std::optional<int32_t> const*>, &(message_.*value));
     }
 
     ConstFieldValue operator()(std::vector<int32_t> Message::*const value) const {
-      return &(message_.*value);
+      return ConstFieldValue(std::in_place_type<std::vector<int32_t> const*>, &(message_.*value));
     }
 
-    ConstFieldValue operator()(uint32_t Message::*const value) const { return &(message_.*value); }
+    ConstFieldValue operator()(uint32_t Message::*const value) const {
+      return ConstFieldValue(std::in_place_type<uint32_t const*>, &(message_.*value));
+    }
 
     ConstFieldValue operator()(std::optional<uint32_t> Message::*const value) const {
-      return &(message_.*value);
+      return ConstFieldValue(std::in_place_type<std::optional<uint32_t> const*>,
+                             &(message_.*value));
     }
 
     ConstFieldValue operator()(std::vector<uint32_t> Message::*const value) const {
-      return &(message_.*value);
+      return ConstFieldValue(std::in_place_type<std::vector<uint32_t> const*>, &(message_.*value));
     }
 
-    ConstFieldValue operator()(int64_t Message::*const value) const { return &(message_.*value); }
+    ConstFieldValue operator()(int64_t Message::*const value) const {
+      return ConstFieldValue(std::in_place_type<int64_t const*>, &(message_.*value));
+    }
 
     ConstFieldValue operator()(std::optional<int64_t> Message::*const value) const {
-      return &(message_.*value);
+      return ConstFieldValue(std::in_place_type<std::optional<int64_t> const*>, &(message_.*value));
     }
 
     ConstFieldValue operator()(std::vector<int64_t> Message::*const value) const {
-      return &(message_.*value);
+      return ConstFieldValue(std::in_place_type<std::vector<int64_t> const*>, &(message_.*value));
     }
 
-    ConstFieldValue operator()(uint64_t Message::*const value) const { return &(message_.*value); }
+    ConstFieldValue operator()(uint64_t Message::*const value) const {
+      return ConstFieldValue(std::in_place_type<uint64_t const*>, &(message_.*value));
+    }
 
     ConstFieldValue operator()(std::optional<uint64_t> Message::*const value) const {
-      return &(message_.*value);
+      return ConstFieldValue(std::in_place_type<std::optional<uint64_t> const*>,
+                             &(message_.*value));
     }
 
     ConstFieldValue operator()(std::vector<uint64_t> Message::*const value) const {
-      return &(message_.*value);
+      return ConstFieldValue(std::in_place_type<std::vector<uint64_t> const*>, &(message_.*value));
     }
 
-    ConstFieldValue operator()(bool Message::*const value) const { return &(message_.*value); }
+    ConstFieldValue operator()(bool Message::*const value) const {
+      return ConstFieldValue(std::in_place_type<bool const*>, &(message_.*value));
+    }
 
     ConstFieldValue operator()(std::optional<bool> Message::*const value) const {
-      return &(message_.*value);
+      return ConstFieldValue(std::in_place_type<std::optional<bool> const*>, &(message_.*value));
     }
 
     ConstFieldValue operator()(std::vector<bool> Message::*const value) const {
-      return &(message_.*value);
+      return ConstFieldValue(std::in_place_type<std::vector<bool> const*>, &(message_.*value));
     }
 
     ConstFieldValue operator()(std::string Message::*const value) const {
-      return &(message_.*value);
+      return ConstFieldValue(std::in_place_type<std::string const*>, &(message_.*value));
     }
 
     ConstFieldValue operator()(std::optional<std::string> Message::*const value) const {
-      return &(message_.*value);
+      return ConstFieldValue(std::in_place_type<std::optional<std::string> const*>,
+                             &(message_.*value));
     }
 
     ConstFieldValue operator()(std::vector<std::string> Message::*const value) const {
-      return &(message_.*value);
+      return ConstFieldValue(std::in_place_type<std::vector<std::string> const*>,
+                             &(message_.*value));
     }
 
     ConstFieldValue operator()(std::vector<uint8_t> Message::*const value) const {
-      return &(message_.*value);
+      return ConstFieldValue(std::in_place_type<std::vector<uint8_t> const*>, &(message_.*value));
     }
 
     ConstFieldValue operator()(std::optional<std::vector<uint8_t>> Message::*const value) const {
-      return &(message_.*value);
+      return ConstFieldValue(std::in_place_type<std::optional<std::vector<uint8_t>> const*>,
+                             &(message_.*value));
     }
 
     ConstFieldValue operator()(std::vector<std::vector<uint8_t>> Message::*const value) const {
-      return &(message_.*value);
+      return ConstFieldValue(std::in_place_type<std::vector<std::vector<uint8_t>> const*>,
+                             &(message_.*value));
     }
 
-    ConstFieldValue operator()(double Message::*const value) const { return &(message_.*value); }
+    ConstFieldValue operator()(double Message::*const value) const {
+      return ConstFieldValue(std::in_place_type<double const*>, &(message_.*value));
+    }
 
     ConstFieldValue operator()(std::optional<double> Message::*const value) const {
-      return &(message_.*value);
+      return ConstFieldValue(std::in_place_type<std::optional<double> const*>, &(message_.*value));
     }
 
     ConstFieldValue operator()(std::vector<double> Message::*const value) const {
-      return &(message_.*value);
+      return ConstFieldValue(std::in_place_type<std::vector<double> const*>, &(message_.*value));
     }
 
-    ConstFieldValue operator()(float Message::*const value) const { return &(message_.*value); }
+    ConstFieldValue operator()(float Message::*const value) const {
+      return ConstFieldValue(std::in_place_type<float const*>, &(message_.*value));
+    }
 
     ConstFieldValue operator()(std::optional<float> Message::*const value) const {
-      return &(message_.*value);
+      return ConstFieldValue(std::in_place_type<std::optional<float> const*>, &(message_.*value));
     }
 
     ConstFieldValue operator()(std::vector<float> Message::*const value) const {
-      return &(message_.*value);
+      return ConstFieldValue(std::in_place_type<std::vector<float> const*>, &(message_.*value));
     }
 
     ConstFieldValue operator()(typename FieldTypes::RawEnumField const field) const {
-      return field.MakeValue(const_cast<Message*>(&message_));
+      return ConstFieldValue(std::in_place_type<RawEnum const>,
+                             field.MakeValue(const_cast<Message*>(&message_)));
     }
 
     ConstFieldValue operator()(typename FieldTypes::OptionalEnumField const field) const {
-      return field.MakeValue(const_cast<Message*>(&message_));
+      return ConstFieldValue(std::in_place_type<OptionalEnum const>,
+                             field.MakeValue(const_cast<Message*>(&message_)));
     }
 
     ConstFieldValue operator()(typename FieldTypes::RepeatedEnumField const field) const {
-      return field.MakeValue(const_cast<Message*>(&message_));
+      return ConstFieldValue(std::in_place_type<RepeatedEnum const>,
+                             field.MakeValue(const_cast<Message*>(&message_)));
     }
 
     ConstFieldValue operator()(typename FieldTypes::RawSubMessageField const field) const {
-      return field.MakeValue(const_cast<Message*>(&message_));
+      return ConstFieldValue(std::in_place_type<RawSubMessage const>,
+                             field.MakeValue(const_cast<Message*>(&message_)));
     }
 
     ConstFieldValue operator()(typename FieldTypes::OptionalSubMessageField const& field) const {
-      return field.MakeValue(const_cast<Message*>(&message_));
+      return ConstFieldValue(std::in_place_type<OptionalSubMessage const>,
+                             field.MakeValue(const_cast<Message*>(&message_)));
     }
 
     ConstFieldValue operator()(typename FieldTypes::RepeatedSubMessageField const& field) const {
-      return field.MakeValue(const_cast<Message*>(&message_));
+      return ConstFieldValue(std::in_place_type<RepeatedSubMessage const>,
+                             field.MakeValue(const_cast<Message*>(&message_)));
+    }
+
+    ConstFieldValue operator()(typename FieldTypes::OneOfField const& field) const {
+      return ConstFieldValue(std::in_place_type<OneOf const>,
+                             field.MakeValue(const_cast<Message*>(&message_)));
     }
 
    private:
     Message const& message_;
   };
 
-  static constexpr std::array<std::string_view, num_fields> MakeNameArray(
-      std::pair<std::string_view, FieldPointer> const (&fields)[num_fields]) {
+  class FieldPointerVisitor {
+   public:
+    explicit FieldPointerVisitor(Message* const message) : message_(message) {}
+
+    FieldValue operator()(int32_t Message::*const value) const {
+      return FieldValue(std::in_place_type<int32_t*>, &(message_->*value));
+    }
+
+    FieldValue operator()(std::optional<int32_t> Message::*const value) const {
+      return FieldValue(std::in_place_type<std::optional<int32_t>*>, &(message_->*value));
+    }
+
+    FieldValue operator()(std::vector<int32_t> Message::*const value) const {
+      return FieldValue(std::in_place_type<std::vector<int32_t>*>, &(message_->*value));
+    }
+
+    FieldValue operator()(uint32_t Message::*const value) const {
+      return FieldValue(std::in_place_type<uint32_t*>, &(message_->*value));
+    }
+
+    FieldValue operator()(std::optional<uint32_t> Message::*const value) const {
+      return FieldValue(std::in_place_type<std::optional<uint32_t>*>, &(message_->*value));
+    }
+
+    FieldValue operator()(std::vector<uint32_t> Message::*const value) const {
+      return FieldValue(std::in_place_type<std::vector<uint32_t>*>, &(message_->*value));
+    }
+
+    FieldValue operator()(int64_t Message::*const value) const {
+      return FieldValue(std::in_place_type<int64_t*>, &(message_->*value));
+    }
+
+    FieldValue operator()(std::optional<int64_t> Message::*const value) const {
+      return FieldValue(std::in_place_type<std::optional<int64_t>*>, &(message_->*value));
+    }
+
+    FieldValue operator()(std::vector<int64_t> Message::*const value) const {
+      return FieldValue(std::in_place_type<std::vector<int64_t>*>, &(message_->*value));
+    }
+
+    FieldValue operator()(uint64_t Message::*const value) const {
+      return FieldValue(std::in_place_type<uint64_t*>, &(message_->*value));
+    }
+
+    FieldValue operator()(std::optional<uint64_t> Message::*const value) const {
+      return FieldValue(std::in_place_type<std::optional<uint64_t>*>, &(message_->*value));
+    }
+
+    FieldValue operator()(std::vector<uint64_t> Message::*const value) const {
+      return FieldValue(std::in_place_type<std::vector<uint64_t>*>, &(message_->*value));
+    }
+
+    FieldValue operator()(bool Message::*const value) const {
+      return FieldValue(std::in_place_type<bool*>, &(message_->*value));
+    }
+
+    FieldValue operator()(std::optional<bool> Message::*const value) const {
+      return FieldValue(std::in_place_type<std::optional<bool>*>, &(message_->*value));
+    }
+
+    FieldValue operator()(std::vector<bool> Message::*const value) const {
+      return FieldValue(std::in_place_type<std::vector<bool>*>, &(message_->*value));
+    }
+
+    FieldValue operator()(std::string Message::*const value) const {
+      return FieldValue(std::in_place_type<std::string*>, &(message_->*value));
+    }
+
+    FieldValue operator()(std::optional<std::string> Message::*const value) const {
+      return FieldValue(std::in_place_type<std::optional<std::string>*>, &(message_->*value));
+    }
+
+    FieldValue operator()(std::vector<std::string> Message::*const value) const {
+      return FieldValue(std::in_place_type<std::vector<std::string>*>, &(message_->*value));
+    }
+
+    FieldValue operator()(std::vector<uint8_t> Message::*const value) const {
+      return FieldValue(std::in_place_type<std::vector<uint8_t>*>, &(message_->*value));
+    }
+
+    FieldValue operator()(std::optional<std::vector<uint8_t>> Message::*const value) const {
+      return FieldValue(std::in_place_type<std::optional<std::vector<uint8_t>>*>,
+                        &(message_->*value));
+    }
+
+    FieldValue operator()(std::vector<std::vector<uint8_t>> Message::*const value) const {
+      return FieldValue(std::in_place_type<std::vector<std::vector<uint8_t>>*>,
+                        &(message_->*value));
+    }
+
+    FieldValue operator()(double Message::*const value) const {
+      return FieldValue(std::in_place_type<double*>, &(message_->*value));
+    }
+
+    FieldValue operator()(std::optional<double> Message::*const value) const {
+      return FieldValue(std::in_place_type<std::optional<double>*>, &(message_->*value));
+    }
+
+    FieldValue operator()(std::vector<double> Message::*const value) const {
+      return FieldValue(std::in_place_type<std::vector<double>*>, &(message_->*value));
+    }
+
+    FieldValue operator()(float Message::*const value) const {
+      return FieldValue(std::in_place_type<float*>, &(message_->*value));
+    }
+
+    FieldValue operator()(std::optional<float> Message::*const value) const {
+      return FieldValue(std::in_place_type<std::optional<float>*>, &(message_->*value));
+    }
+
+    FieldValue operator()(std::vector<float> Message::*const value) const {
+      return FieldValue(std::in_place_type<std::vector<float>*>, &(message_->*value));
+    }
+
+    FieldValue operator()(typename FieldTypes::RawEnumField const field) const {
+      return FieldValue(std::in_place_type<RawEnum>, field.MakeValue(message_));
+    }
+
+    FieldValue operator()(typename FieldTypes::OptionalEnumField const field) const {
+      return FieldValue(std::in_place_type<OptionalEnum>, field.MakeValue(message_));
+    }
+
+    FieldValue operator()(typename FieldTypes::RepeatedEnumField const field) const {
+      return FieldValue(std::in_place_type<RepeatedEnum>, field.MakeValue(message_));
+    }
+
+    FieldValue operator()(typename FieldTypes::RawSubMessageField const field) const {
+      return FieldValue(std::in_place_type<RawSubMessage>, field.MakeValue(message_));
+    }
+
+    FieldValue operator()(typename FieldTypes::OptionalSubMessageField const& field) const {
+      return FieldValue(std::in_place_type<OptionalSubMessage>, field.MakeValue(message_));
+    }
+
+    FieldValue operator()(typename FieldTypes::RepeatedSubMessageField const& field) const {
+      return FieldValue(std::in_place_type<RepeatedSubMessage>, field.MakeValue(message_));
+    }
+
+    FieldValue operator()(typename FieldTypes::OneOfField const& field) const {
+      return FieldValue(std::in_place_type<OneOf>, field.MakeValue(message_));
+    }
+
+   private:
+    Message* const message_;
+  };
+
+  constexpr std::array<std::string_view, num_fields> MakeNameArray() const {
     std::array<std::string_view, num_fields> array;
-    for (size_t i = 0; i < num_fields; ++i) {
-      array[i] = fields[i].first;
+    for (size_t i = 0; i < field_ptrs_.size(); ++i) {
+      array[i] = field_ptrs_.rep()[i].first;
     }
     return array;
   }
 
-  std::array<std::string_view, num_fields> const field_names_;
   tsdb2::common::fixed_flat_map<std::string_view, FieldPointer, num_fields> const field_ptrs_;
+  std::array<std::string_view, num_fields> const field_names_;
 };
 
 // We need to specialize the version with 0 values because zero element arrays are not permitted in
@@ -1178,8 +2168,8 @@ class MessageDescriptor<Message, 0> final : public BaseMessageDescriptor,
                                             public FieldTypes<Message> {
  public:
   using BaseMessageDescriptor::ConstFieldValue;
-  using BaseMessageDescriptor::FieldType;
   using BaseMessageDescriptor::FieldValue;
+  using BaseMessageDescriptor::LabeledFieldType;
   using BaseMessageDescriptor::OptionalSubMessage;
   using BaseMessageDescriptor::RawEnum;
   using BaseMessageDescriptor::RawSubMessage;
@@ -1192,7 +2182,8 @@ class MessageDescriptor<Message, 0> final : public BaseMessageDescriptor,
 
   absl::Span<std::string_view const> GetAllFieldNames() const override { return {}; }
 
-  absl::StatusOr<FieldType> GetFieldType(std::string_view const field_name) const override {
+  absl::StatusOr<LabeledFieldType> GetLabeledFieldType(
+      std::string_view const field_name) const override {
     return absl::InvalidArgumentError(
         absl::StrCat("unknown field \"", absl::CEscape(field_name), "\""));
   }
@@ -1202,7 +2193,52 @@ class MessageDescriptor<Message, 0> final : public BaseMessageDescriptor,
     return absl::InvalidArgumentError(
         absl::StrCat("unknown field \"", absl::CEscape(field_name), "\""));
   }
+
+  absl::StatusOr<FieldValue> GetFieldValue(tsdb2::proto::Message* const message,
+                                           std::string_view const field_name) const override {
+    return absl::InvalidArgumentError(
+        absl::StrCat("unknown field \"", absl::CEscape(field_name), "\""));
+  }
 };
+
+namespace internal {
+
+template <typename Message, typename Descriptor>
+struct IsDescriptorForType<Message, Descriptor,
+                           std::enable_if_t<std::is_base_of_v<tsdb2::proto::Message, Message>>> {
+  static inline bool constexpr value =
+      std::is_base_of_v<BaseMessageDescriptor, std::decay_t<Descriptor>>;
+};
+
+}  // namespace internal
+
+// Allows retrieving the descriptor of a proto enum without knowing its exact type. Can be used with
+// templates, e.g.:
+//
+//   template <typename Enum>
+//   void Foo(Enum const value) {
+//     auto const& descriptor = tsdb2::proto::GetEnumDescriptor<Enum>();
+//     for (auto const name : descriptor.GetValueNames()) {
+//       // ...
+//     }
+//   }
+//
+template <typename Enum>
+auto const& GetEnumDescriptor();
+
+// Allows retrieving the descriptor of a proto message without knowing its exact type. Can be used
+// with templates, e.g.:
+//
+//   template <typename Message>
+//   void Foo(Message const& proto) {
+//     auto const& descriptor = tsdb2::proto::GetMessageDescriptor<Message>();
+//     for (auto const name : descriptor.GetAllFieldNames()) {
+//       // ...
+//     }
+//   }
+//
+template <typename Message>
+auto const& GetMessageDescriptor();
 
 template <typename Value>
 absl::StatusOr<Value const*> RequireField(std::optional<Value> const& field) {

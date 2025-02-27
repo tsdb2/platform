@@ -42,6 +42,7 @@ def _cc_proto_library_impl(ctx):
         arguments = [
             "--root_path=" + _join_path(ctx.genfiles_dir.path, proto_info.proto_source_root),
             "--file_descriptor_sets=" + proto_info.direct_descriptor_set.path,
+            "--emit_reflection_api" if ctx.attr.enable_reflection else "--noemit_reflection_api",
         ],
         executable = ctx.executable._generator,
     )
@@ -67,6 +68,7 @@ def _cc_proto_library_impl(ctx):
         feature_configuration = feature_configuration,
         cc_toolchain = cc_toolchain,
         compilation_outputs = compilation_outputs,
+        linking_contexts = [cc_info.linking_context for cc_info in cc_infos],
     )
     return [
         DefaultInfo(files = depset(generated_files)),
@@ -80,6 +82,7 @@ tsdb2_cc_proto_library = rule(
     implementation = _cc_proto_library_impl,
     attrs = {
         "proto": attr.label(mandatory = True, providers = [ProtoInfo]),
+        "enable_reflection": attr.bool(),
         "deps": attr.label_list(providers = [CcInfo]),
         "_generator": attr.label(default = "//proto:generate", executable = True, cfg = "exec"),
         "_runtime_deps": attr.label_list(

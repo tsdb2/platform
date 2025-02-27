@@ -135,6 +135,9 @@ State Tsdb2FingerprintValue(State state, std::nullopt_t const& value);
 template <typename State, typename... Values>
 State Tsdb2FingerprintValue(State state, std::variant<Values...> const& value);
 
+template <typename State>
+State Tsdb2FingerprintValue(State state, std::monostate const& value);
+
 template <typename State, typename Inner>
 State Tsdb2FingerprintValue(State state, absl::Span<Inner const> value);
 
@@ -344,6 +347,11 @@ State Tsdb2FingerprintValue(State state, std::variant<Values...> const& value) {
         return Tsdb2FingerprintValue(std::move(state), value);
       },
       value);
+}
+
+template <typename State>
+State Tsdb2FingerprintValue(State state, std::monostate const& value) {
+  return std::move(state);
 }
 
 template <typename State, typename Inner>

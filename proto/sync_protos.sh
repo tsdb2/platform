@@ -24,9 +24,9 @@ amend_file() {
 
   # Modify the include guard only in .pb.sync.h files
   if [[ "$file" == *.pb.sync.h ]]; then
-      sed -i -E 's/(#ifndef __.*)_PB_H__/\1_PB_SYNC_H__/' "$file"
-      sed -i -E 's/(#define __.*)_PB_H__/\1_PB_SYNC_H__/' "$file"
-      sed -i -E 's/(#endif  \/\/ __.*)_PB_H__/\1_PB_SYNC_H__/' "$file"
+    sed -i -E 's/(#ifndef __.*)_PB_H__/\1_PB_SYNC_H__/' "$file"
+    sed -i -E 's/(#define __.*)_PB_H__/\1_PB_SYNC_H__/' "$file"
+    sed -i -E 's/(#endif  \/\/ __.*)_PB_H__/\1_PB_SYNC_H__/' "$file"
   fi
 
   # Replace all #include "<name>.pb.h" with #include "<name>.pb.sync.h"

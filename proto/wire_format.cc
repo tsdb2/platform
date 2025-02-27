@@ -10,7 +10,6 @@
 #include "absl/base/config.h"  // IWYU pragma: keep
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "common/utilities.h"
 #include "io/buffer.h"
@@ -37,8 +36,30 @@ constexpr uint64_t ByteSwap64(uint64_t const value) {
 
 }  // namespace
 
+absl::StatusOr<uint64_t> Decoder::DecodeVarInt() {
+  uint64_t value = 0;
+  uint8_t byte;
+  size_t m = 0;
+  do {
+    if (data_.empty()) {
+      return EndOfInputError();
+    }
+    byte = data_.front();
+    if (m + 7 > kMaxVarIntBits) {
+      uint8_t const mask = (1 << (kMaxVarIntBits - m)) - 1;
+      if ((byte & 0x7F) > mask) {
+        return absl::InvalidArgumentError("decoding error: integer value exceeds 64 bits");
+      }
+    }
+    data_.remove_prefix(1);
+    value += (uint64_t{byte} & 0x7FULL) << m;
+    m += 7;
+  } while ((byte & 0x80) != 0);
+  return value;
+}
+
 absl::StatusOr<FieldTag> Decoder::DecodeTag() {
-  DEFINE_CONST_OR_RETURN(tag, DecodeInteger<uint64_t>());
+  DEFINE_CONST_OR_RETURN(tag, DecodeUInt64());
   return FieldTag{
       .field_number = tag >> 3,
       .wire_type = static_cast<WireType>(tag & 7),
@@ -49,28 +70,28 @@ absl::StatusOr<int32_t> Decoder::DecodeInt32Field(WireType const wire_type) {
   if (wire_type != WireType::kVarInt) {
     return absl::InvalidArgumentError("invalid wire type for int32");
   }
-  return DecodeInteger<int32_t>();
+  return DecodeInt32();
 }
 
 absl::StatusOr<int64_t> Decoder::DecodeInt64Field(WireType const wire_type) {
   if (wire_type != WireType::kVarInt) {
     return absl::InvalidArgumentError("invalid wire type for int64");
   }
-  return DecodeInteger<int64_t>();
+  return DecodeInt64();
 }
 
 absl::StatusOr<uint32_t> Decoder::DecodeUInt32Field(WireType const wire_type) {
   if (wire_type != WireType::kVarInt) {
     return absl::InvalidArgumentError("invalid wire type for uint32");
   }
-  return DecodeInteger<uint32_t>();
+  return DecodeUInt32();
 }
 
 absl::StatusOr<uint64_t> Decoder::DecodeUInt64Field(WireType const wire_type) {
   if (wire_type != WireType::kVarInt) {
     return absl::InvalidArgumentError("invalid wire type for uint64");
   }
-  return DecodeInteger<uint64_t>();
+  return DecodeUInt64();
 }
 
 absl::StatusOr<int32_t> Decoder::DecodeSInt32Field(WireType const wire_type) {
@@ -119,7 +140,7 @@ absl::StatusOr<bool> Decoder::DecodeBoolField(WireType const wire_type) {
   if (wire_type != WireType::kVarInt) {
     return absl::InvalidArgumentError("invalid wire type for bool");
   }
-  DEFINE_CONST_OR_RETURN(value, DecodeInteger<uint8_t>());
+  DEFINE_CONST_OR_RETURN(value, DecodeVarInt());
   return value != 0;
 }
 
@@ -137,7 +158,7 @@ absl::StatusOr<std::string> Decoder::DecodeStringField(WireType const wire_type)
   if (wire_type != WireType::kLength) {
     return absl::InvalidArgumentError("invalid wire type for string");
   }
-  DEFINE_CONST_OR_RETURN(length, DecodeInteger<size_t>());
+  DEFINE_CONST_OR_RETURN(length, DecodeUInt64());
   if (data_.size() < length) {
     return EndOfInputError();
   }
@@ -150,7 +171,7 @@ absl::StatusOr<std::vector<uint8_t>> Decoder::DecodeBytesField(WireType const wi
   if (wire_type != WireType::kLength) {
     return absl::InvalidArgumentError("invalid wire type for bytes");
   }
-  DEFINE_CONST_OR_RETURN(length, DecodeInteger<size_t>());
+  DEFINE_CONST_OR_RETURN(length, DecodeUInt64());
   if (data_.size() < length) {
     return EndOfInputError();
   }
@@ -163,7 +184,7 @@ absl::StatusOr<absl::Span<uint8_t const>> Decoder::GetChildSpan(WireType const w
   if (wire_type != WireType::kLength) {
     return absl::InvalidArgumentError("invalid wire type for submessage");
   }
-  DEFINE_CONST_OR_RETURN(length, DecodeInteger<size_t>());
+  DEFINE_CONST_OR_RETURN(length, DecodeUInt64());
   if (data_.size() < length) {
     return EndOfInputError();
   }
@@ -474,7 +495,7 @@ absl::Status Decoder::SkipRecord(WireType const wire_type) {
       }
       break;
     case WireType::kLength: {
-      DEFINE_CONST_OR_RETURN(length, DecodeInteger<size_t>());
+      DEFINE_CONST_OR_RETURN(length, DecodeUInt64());
       if (data_.size() < length) {
         return EndOfInputError();
       }
@@ -497,36 +518,13 @@ absl::Status Decoder::EndOfInputError() {
   return absl::InvalidArgumentError("decoding error: reached end of input");
 }
 
-absl::StatusOr<uint64_t> Decoder::DecodeIntegerInternal(size_t const max_bits) {
-  uint64_t value = 0;
-  uint8_t byte;
-  size_t m = 0;
-  do {
-    if (data_.empty()) {
-      return EndOfInputError();
-    }
-    byte = data_.front();
-    if (m + 7 > max_bits) {
-      uint8_t const mask = (1 << (max_bits - m)) - 1;
-      if ((byte & 0x7F) > mask) {
-        return absl::InvalidArgumentError(
-            absl::StrCat("decoding error: integer value exceeds ", max_bits, " bits"));
-      }
-    }
-    data_.remove_prefix(1);
-    value += (uint64_t{byte} & 0x7FULL) << m;
-    m += 7;
-  } while ((byte & 0x80) != 0);
-  return value;
-}
-
 absl::StatusOr<int32_t> Decoder::DecodeSInt32() {
-  DEFINE_CONST_OR_RETURN(value, DecodeInteger<uint32_t>());
+  DEFINE_CONST_OR_RETURN(value, DecodeUInt32());
   return (value >> 1) ^ -(value & 1);
 }
 
 absl::StatusOr<int64_t> Decoder::DecodeSInt64() {
-  DEFINE_CONST_OR_RETURN(value, DecodeInteger<uint64_t>());
+  DEFINE_CONST_OR_RETURN(value, DecodeUInt64());
   return (value >> 1) ^ -(value & 1);
 }
 
@@ -579,7 +577,7 @@ absl::StatusOr<uint64_t> Decoder::DecodeFixedUInt64() {
 }
 
 absl::StatusOr<bool> Decoder::DecodeBool() {
-  DEFINE_CONST_OR_RETURN(value, DecodeInteger<uint8_t>());
+  DEFINE_CONST_OR_RETURN(value, DecodeVarInt());
   return value != 0;
 }
 
@@ -594,7 +592,7 @@ absl::StatusOr<double> Decoder::DecodeDouble() {
 }
 
 absl::StatusOr<Decoder> Decoder::DecodeChildSpan() {
-  DEFINE_CONST_OR_RETURN(length, DecodeInteger<size_t>());
+  DEFINE_CONST_OR_RETURN(length, DecodeUInt64());
   if (data_.size() < length) {
     return EndOfInputError();
   }
@@ -604,7 +602,7 @@ absl::StatusOr<Decoder> Decoder::DecodeChildSpan() {
 }
 
 absl::StatusOr<Decoder> Decoder::DecodeChildSpan(size_t const record_size) {
-  DEFINE_CONST_OR_RETURN(length, DecodeInteger<size_t>());
+  DEFINE_CONST_OR_RETURN(length, DecodeUInt64());
   if ((length % record_size) != 0) {
     return absl::InvalidArgumentError("invalid packed array size");
   }

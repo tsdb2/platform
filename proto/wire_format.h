@@ -72,14 +72,9 @@ class Decoder {
   size_t remaining() const { return data_.size(); }
   bool at_end() const { return data_.empty(); }
 
-  absl::StatusOr<FieldTag> DecodeTag();
+  absl::StatusOr<uint64_t> DecodeVarInt();
 
-  template <typename Integer,
-            std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>, bool> = true>
-  absl::StatusOr<Integer> DecodeInteger() {
-    DEFINE_CONST_OR_RETURN(value, DecodeIntegerInternal(sizeof(Integer) * 8));
-    return static_cast<Integer>(value);
-  }
+  absl::StatusOr<FieldTag> DecodeTag();
 
   template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
   absl::StatusOr<Enum> DecodeEnumField(WireType const wire_type) {
@@ -109,6 +104,29 @@ class Decoder {
   absl::StatusOr<std::vector<uint8_t>> DecodeBytesField(WireType wire_type);
 
   absl::StatusOr<absl::Span<uint8_t const>> GetChildSpan(WireType wire_type);
+
+  template <typename Integer>
+  absl::StatusOr<Integer> DecodeInteger();
+
+  template <>
+  absl::StatusOr<uint64_t> DecodeInteger() {
+    return DecodeUInt64();
+  }
+
+  template <>
+  absl::StatusOr<int64_t> DecodeInteger() {
+    return DecodeInt64();
+  }
+
+  template <>
+  absl::StatusOr<uint32_t> DecodeInteger() {
+    return DecodeUInt32();
+  }
+
+  template <>
+  absl::StatusOr<int32_t> DecodeInteger() {
+    return DecodeInt32();
+  }
 
   template <typename Integer,
             std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>, bool> = true>
@@ -188,11 +206,35 @@ class Decoder {
  private:
   static absl::Status EndOfInputError();
 
-  absl::StatusOr<uint64_t> DecodeIntegerInternal(size_t max_bits);
+  static inline size_t constexpr kMaxVarIntBits = 64;
+
+  absl::StatusOr<uint64_t> DecodeUInt64() { return DecodeVarInt(); }
+
+  absl::StatusOr<int64_t> DecodeInt64() {
+    DEFINE_CONST_OR_RETURN(value, DecodeVarInt());
+    return static_cast<int64_t>(value);
+  }
+
+  absl::StatusOr<uint64_t> DecodeUInt32() {
+    DEFINE_CONST_OR_RETURN(value, DecodeVarInt());
+    if (value > std::numeric_limits<uint32_t>::max()) {
+      return absl::InvalidArgumentError("integer overflow");
+    }
+    return static_cast<uint32_t>(value);
+  }
+
+  absl::StatusOr<int32_t> DecodeInt32() {
+    DEFINE_CONST_OR_RETURN(bits, DecodeVarInt());
+    int64_t const high_bits = static_cast<int64_t>(bits) >> 32;
+    if (high_bits != 0 && high_bits != -1) {
+      return absl::InvalidArgumentError("integer overflow");
+    }
+    return static_cast<int32_t>(bits);
+  }
 
   template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
   absl::StatusOr<Enum> DecodeEnum() {
-    DEFINE_CONST_OR_RETURN(value, DecodeInteger<int64_t>());
+    DEFINE_CONST_OR_RETURN(value, DecodeInt64());
     using Underlying = std::underlying_type_t<Enum>;
     if (value < std::numeric_limits<Underlying>::min()) {
       return absl::FailedPreconditionError(
@@ -223,7 +265,7 @@ class Decoder {
     DEFINE_VAR_OR_RETURN(child, DecodeChildSpan());
     std::vector<Integer> values;
     while (!child.at_end()) {
-      DEFINE_CONST_OR_RETURN(value, child.DecodeIntegerInternal(sizeof(Integer) * 8));
+      DEFINE_CONST_OR_RETURN(value, child.DecodeInteger<Integer>());
       values.push_back(value);
     }
     return std::move(values);

@@ -19,7 +19,7 @@ namespace proto {
 namespace internal {
 
 // Keeps track of the dependencies among protobuf messages and allows inferring a definition order
-// (for both global scope messages and nested messages) that doesn't require forward declarations.
+// (both for global scope messages and nested messages) that doesn't require forward declarations.
 // Also allows erroring out when a cycle is detected.
 //
 // This class keeps track of a separate dependency graph for each lexical scope. If a message `A`
@@ -49,7 +49,8 @@ namespace internal {
 // doesn't generate any requirements on the dependency graphs of `A0`, `A2`, `A3`, `B2`, or `B3`.
 //
 // Because of the above, the `AddDependency` method will internally create a dependency between the
-// respective children of the closest common ancestor rather than between the two paths specified.
+// respective children of the closest common ancestor rather than between the leaves of the two
+// specified paths.
 //
 // NOTE: in the protobuf compiler of the TSDB2 platform we cannot resolve the dependency issue by
 // just forward-declaring all messages of each scope at the beginning of the scope. The very reason
@@ -61,7 +62,7 @@ namespace internal {
 // said, not all message dependencies can be handled by this class: there are legitimate use cases
 // of circular dependencies among messages (think about the TSQL AST for example, or any other
 // recursive data structure). In those cases we cannot inline messages inside each other infinitely,
-// as doing so will simply cause a C++ compilation error. The circular dependency must necessarily
+// as doing so would simply cause a C++ compilation error. The circular dependency must necessarily
 // be broken by making one the fields involved in it a pointer rather than an `std::optional`. The
 // user is responsible for annotating such fields as "indirect", and we provide the `tsdb2.indirect`
 // annotation for that purpose. For example, the following defines the protobuf version of a binary

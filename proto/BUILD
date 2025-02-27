@@ -14,7 +14,6 @@ cc_library(
         "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -72,6 +71,36 @@ cc_test(
     deps = [
         ":text_writer",
         "//common:testing",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "text_format",
+    srcs = ["text_format.cc"],
+    hdrs = ["text_format.h"],
+    deps = [
+        ":proto",
+        "//common:flat_map",
+        "//common:flat_set",
+        "//common:no_destructor",
+        "//common:re",
+        "//common:utilities",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "text_format_test",
+    srcs = ["text_format_test.cc"],
+    deps = [
+        ":tests_cc_proto",
+        ":text_format",
+        "//common:testing",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:status_matchers",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -167,6 +196,7 @@ cc_library(
         "//common:utilities",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -183,6 +213,7 @@ proto_library(
 tsdb2_cc_proto_library(
     name = "tests_cc_proto",
     testonly = True,
+    enable_reflection = True,
     proto = ":tests_proto",
 )
 
@@ -194,7 +225,22 @@ cc_test(
         ":tests_cc_proto",
         "//common:fingerprint",
         "//common:testing",
+        "//common:utilities",
         "@com_google_absl//absl/hash",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "reflection_test",
+    srcs = ["reflection_test.cc"],
+    deps = [
+        ":proto",
+        ":tests_cc_proto",
+        "//common:testing",
+        "//common:utilities",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_googletest//:gtest_main",
     ],
