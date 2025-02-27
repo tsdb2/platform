@@ -19,4 +19,26 @@ cp "$SOURCE_DIR/descriptor.pb.cc" ./descriptor.pb.sync.cc
 cp "$SOURCE_DIR/plugin.pb.h" ./plugin.pb.sync.h
 cp "$SOURCE_DIR/plugin.pb.cc" ./plugin.pb.sync.cc
 
+amend_file() {
+  local file="$1"
+
+  # Modify the include guard only in .pb.sync.h files
+  if [[ "$file" == *.pb.sync.h ]]; then
+      sed -i -E 's/(#ifndef __.*)_PB_H__/\1_PB_SYNC_H__/' "$file"
+      sed -i -E 's/(#define __.*)_PB_H__/\1_PB_SYNC_H__/' "$file"
+      sed -i -E 's/(#endif  \/\/ __.*)_PB_H__/\1_PB_SYNC_H__/' "$file"
+  fi
+
+  # Replace all #include "<name>.pb.h" with #include "<name>.pb.sync.h"
+  sed -i -E 's/#include "([^"]+)\.pb\.h"/#include "\1.pb.sync.h"/g' "$file"
+
+  # fix formatting
+  clang-format -i "$file"
+}
+
+amend_file ./descriptor.pb.sync.h
+amend_file ./descriptor.pb.sync.cc
+amend_file ./plugin.pb.sync.h
+amend_file ./plugin.pb.sync.cc
+
 echo "Descriptor proto files synchronized successfully."
