@@ -81,6 +81,20 @@ class EnumDescriptor : public BaseEnumDescriptor {
     return it->second;
   }
 
+  std::string_view GetValueName(Enum const value) const {
+    return names_by_value_.find(tsdb2::util::to_underlying(value))->second;
+  }
+
+  absl::Status SetValueByName(Enum* const value, std::string_view const name) const {
+    auto const it = values_by_name_.find(name);
+    if (it != values_by_name_.end()) {
+      return absl::InvalidArgumentError(
+          absl::StrCat("invalid enum value name: \"", absl::CEscape(name), "\""));
+    }
+    *value = static_cast<Enum>(it->second);
+    return absl::OkStatus();
+  }
+
  private:
   static constexpr std::array<std::string_view, num_values> MakeValueNames(
       std::pair<std::string_view, UnderlyingType> const (&values)[num_values]) {
@@ -139,7 +153,7 @@ class BaseMessageDescriptor {
     kSubMessageField = 10,
   };
 
-  enum class FieldLabel : int8_t {
+  enum class FieldKind : int8_t {
     kRaw = 0,
     kOptional = 1,
     kRepeated = 2,
@@ -184,9 +198,9 @@ class BaseMessageDescriptor {
   // Keeps information about an enum-typed field.
   class RawEnum final {
    public:
-    template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
-    explicit RawEnum(Enum* const field, BaseEnumDescriptor const& descriptor)
-        : impl_(std::make_shared<Impl<Enum>>(field, descriptor)) {}
+    template <typename Enum, typename Descriptor>
+    explicit RawEnum(Enum* const field, Descriptor const& descriptor)
+        : impl_(std::make_shared<Impl<Enum, Descriptor>>(field, descriptor)) {}
 
     ~RawEnum() = default;
 
@@ -197,8 +211,8 @@ class BaseMessageDescriptor {
     RawEnum& operator=(RawEnum&&) noexcept = default;
 
     BaseEnumDescriptor const& descriptor() const { return impl_->GetDescriptor(); }
-
-    int64_t value() const { return impl_->GetValue(); }
+    std::string_view value() const { return impl_->GetValue(); }
+    absl::Status SetValue(std::string_view name) { return impl_->SetValue(name); }
 
    private:
     class BaseImpl {
@@ -207,7 +221,8 @@ class BaseMessageDescriptor {
       virtual ~BaseImpl() = default;
 
       virtual BaseEnumDescriptor const& GetDescriptor() const = 0;
-      virtual int64_t GetValue() const = 0;
+      virtual std::string_view GetValue() const = 0;
+      virtual absl::Status SetValue(std::string_view name) = 0;
 
      private:
       BaseImpl(BaseImpl const&) = delete;
@@ -216,19 +231,26 @@ class BaseMessageDescriptor {
       BaseImpl& operator=(BaseImpl&&) = delete;
     };
 
-    template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+    template <
+        typename Enum, typename Descriptor,
+        std::enable_if_t<std::is_enum_v<Enum> && std::is_base_of_v<BaseEnumDescriptor, Descriptor>,
+                         bool> = true>
     class Impl : public BaseImpl {
      public:
-      explicit Impl(Enum* const field, BaseEnumDescriptor const& descriptor)
+      explicit Impl(Enum* const field, Descriptor const& descriptor)
           : field_(field), descriptor_(descriptor) {}
 
-      BaseEnumDescriptor const& GetDescriptor() const override { return descriptor_; }
+      Descriptor const& GetDescriptor() const override { return descriptor_; }
 
-      int64_t GetValue() const override { return tsdb2::util::to_underlying(*field_); }
+      std::string_view GetValue() const override { return descriptor_.GetValueName(*field_); }
+
+      absl::Status SetValue(std::string_view const name) override {
+        return descriptor_.SetValueByName(field_, name);
+      }
 
      private:
       Enum* const field_;
-      BaseEnumDescriptor const& descriptor_;
+      Descriptor const& descriptor_;
     };
 
     std::shared_ptr<BaseImpl> impl_;
@@ -237,9 +259,9 @@ class BaseMessageDescriptor {
   // Keeps information about an optional enum-typed field.
   class OptionalEnum final {
    public:
-    template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
-    explicit OptionalEnum(std::optional<Enum>* const field, BaseEnumDescriptor const& descriptor)
-        : impl_(std::make_shared<Impl<Enum>>(field, descriptor)) {}
+    template <typename Enum, typename Descriptor>
+    explicit OptionalEnum(std::optional<Enum>* const field, Descriptor const& descriptor)
+        : impl_(std::make_shared<Impl<Enum, Descriptor>>(field, descriptor)) {}
 
     ~OptionalEnum() = default;
 
@@ -252,7 +274,10 @@ class BaseMessageDescriptor {
     BaseEnumDescriptor const& descriptor() const { return impl_->GetDescriptor(); }
 
     bool has_value() const { return impl_->HasValue(); }
-    int64_t value() const { return impl_->GetValue(); }
+    std::string_view value() const { return impl_->GetValue(); }
+
+    absl::Status SetValue(std::string_view name) { return impl_->SetValue(name); }
+    bool EraseValue() { return impl_->EraseValue(); }
 
    private:
     class BaseImpl {
@@ -262,7 +287,9 @@ class BaseMessageDescriptor {
 
       virtual BaseEnumDescriptor const& GetDescriptor() const = 0;
       virtual bool HasValue() const = 0;
-      virtual int64_t GetValue() const = 0;
+      virtual std::string_view GetValue() const = 0;
+      virtual absl::Status SetValue(std::string_view name) = 0;
+      virtual bool EraseValue() = 0;
 
      private:
       BaseImpl(BaseImpl const&) = delete;
@@ -271,20 +298,36 @@ class BaseMessageDescriptor {
       BaseImpl& operator=(BaseImpl&&) = delete;
     };
 
-    template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+    template <
+        typename Enum, typename Descriptor,
+        std::enable_if_t<std::is_enum_v<Enum> && std::is_base_of_v<BaseEnumDescriptor, Descriptor>,
+                         bool> = true>
     class Impl : public BaseImpl {
      public:
-      explicit Impl(std::optional<Enum>* const field, BaseEnumDescriptor const& descriptor)
+      explicit Impl(std::optional<Enum>* const field, Descriptor const& descriptor)
           : field_(field), descriptor_(descriptor) {}
 
-      BaseEnumDescriptor const& GetDescriptor() const override { return descriptor_; }
+      Descriptor const& GetDescriptor() const override { return descriptor_; }
 
       bool HasValue() const override { return field_->has_value(); }
-      int64_t GetValue() const override { return tsdb2::util::to_underlying(field_->value()); }
+
+      std::string_view GetValue() const override {
+        return descriptor_.GetValueName(field_->value());
+      }
+
+      absl::Status SetValue(std::string_view const name) override {
+        return descriptor_.SetValueByName(&(field_->value()), name);
+      }
+
+      bool EraseValue() override {
+        bool const result = field_->has_value();
+        field_->reset();
+        return result;
+      }
 
      private:
       std::optional<Enum>* const field_;
-      BaseEnumDescriptor const& descriptor_;
+      Descriptor const& descriptor_;
     };
 
     std::shared_ptr<BaseImpl> impl_;
@@ -293,9 +336,40 @@ class BaseMessageDescriptor {
   // Keeps information about a repeated enum-typed field.
   class RepeatedEnum final {
    public:
-    template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
-    explicit RepeatedEnum(std::vector<Enum>* const values, BaseEnumDescriptor const& descriptor)
-        : impl_(std::make_shared<Impl<Enum>>(values, descriptor)) {}
+    class const_iterator final {
+     public:
+      explicit const_iterator() : parent_(nullptr), index_(0) {}
+      ~const_iterator() = default;
+
+      const_iterator(const_iterator const&) = default;
+      const_iterator& operator=(const_iterator const&) = default;
+      const_iterator(const_iterator&&) noexcept = default;
+      const_iterator& operator=(const_iterator&&) noexcept = default;
+
+      explicit operator bool() const { return parent_ != nullptr; }
+
+      std::string_view operator*() const { return parent_->operator[](index_); }
+
+      const_iterator& operator++() {
+        ++index_;
+        return *this;
+      }
+
+      const_iterator operator++(int) { return const_iterator(*parent_, index_++); }
+
+     private:
+      friend class RepeatedEnum;
+
+      explicit const_iterator(RepeatedEnum const& parent, size_t const index)
+          : parent_(&parent), index_(index) {}
+
+      RepeatedEnum const* parent_;
+      size_t index_;
+    };
+
+    template <typename Enum, typename Descriptor>
+    explicit RepeatedEnum(std::vector<Enum>* const values, Descriptor const& descriptor)
+        : impl_(std::make_shared<Impl<Enum, Descriptor>>(values, descriptor)) {}
 
     ~RepeatedEnum() = default;
 
@@ -310,7 +384,17 @@ class BaseMessageDescriptor {
     size_t size() const { return impl_->GetSize(); }
     [[nodiscard]] bool empty() const { return impl_->GetSize() == 0; }
 
-    int64_t operator[](size_t const index) const { return impl_->GetAt(index); }
+    std::string_view operator[](size_t const index) const { return impl_->GetAt(index); }
+
+    const_iterator begin() const { return const_iterator(*this, 0); }
+    const_iterator cbegin() const { return const_iterator(*this, 0); }
+
+    const_iterator end() const { return const_iterator(*this, impl_->GetSize()); }
+    const_iterator cend() const { return const_iterator(*this, impl_->GetSize()); }
+
+    absl::Status SetAllValues(absl::Span<std::string_view const> const names) {
+      return impl_->SetAllValues(names);
+    }
 
    private:
     class BaseImpl {
@@ -321,8 +405,9 @@ class BaseMessageDescriptor {
       virtual BaseEnumDescriptor const& GetDescriptor() const = 0;
 
       virtual size_t GetSize() const = 0;
+      virtual std::string_view GetAt(size_t index) const = 0;
 
-      virtual int64_t GetAt(size_t index) const = 0;
+      virtual absl::Status SetAllValues(absl::Span<std::string_view const> names) = 0;
 
      private:
       BaseImpl(BaseImpl const&) = delete;
@@ -331,23 +416,34 @@ class BaseMessageDescriptor {
       BaseImpl& operator=(BaseImpl&&) = delete;
     };
 
-    template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+    template <
+        typename Enum, typename Descriptor,
+        std::enable_if_t<std::is_enum_v<Enum> && std::is_base_of_v<BaseEnumDescriptor, Descriptor>,
+                         bool> = true>
     class Impl : public BaseImpl {
      public:
-      explicit Impl(std::vector<Enum>* const values, BaseEnumDescriptor const& descriptor)
+      explicit Impl(std::vector<Enum>* const values, Descriptor const& descriptor)
           : values_(values), descriptor_(descriptor) {}
 
-      BaseEnumDescriptor const& GetDescriptor() const override { return descriptor_; }
+      Descriptor const& GetDescriptor() const override { return descriptor_; }
 
       size_t GetSize() const override { return values_->size(); }
 
-      int64_t GetAt(size_t const index) const override {
-        return tsdb2::util::to_underlying(values_->operator[](index));
+      std::string_view GetAt(size_t const index) const override {
+        return descriptor_.GetValueName(values_->operator[](index));
+      }
+
+      absl::Status SetAllValues(absl::Span<std::string_view const> names) override {
+        values_->reserve(names.size());
+        for (size_t i = 0; i < names.size(); ++i) {
+          RETURN_IF_ERROR(descriptor_.SetValueByName(&((*values_)[i]), names[i]));
+        }
+        return absl::OkStatus();
       }
 
      private:
       std::vector<Enum>* const values_;
-      BaseEnumDescriptor const& descriptor_;
+      Descriptor const& descriptor_;
     };
 
     std::shared_ptr<BaseImpl> impl_;
@@ -400,6 +496,10 @@ class BaseMessageDescriptor {
     Message const& message() const { return impl_->GetValue(); }
     Message* mutable_message() { return impl_->GetMutableValue(); }
 
+    bool Erase() { return impl_->Erase(); }
+    Message const& Reset() const { return impl_->ResetConst(); }
+    Message* Reset() { return impl_->Reset(); }
+
     BaseMessageDescriptor const& descriptor() const { return impl_->GetDescriptor(); }
 
    private:
@@ -411,7 +511,10 @@ class BaseMessageDescriptor {
       virtual BaseMessageDescriptor const& GetDescriptor() const = 0;
       virtual bool HasValue() const = 0;
       virtual Message const& GetValue() const = 0;
-      virtual Message* GetMutableValue() const = 0;
+      virtual Message* GetMutableValue() = 0;
+      virtual bool Erase() = 0;
+      virtual Message const& ResetConst() const = 0;
+      virtual Message* Reset() = 0;
 
      private:
       BaseImpl(BaseImpl const&) = delete;
@@ -430,9 +533,17 @@ class BaseMessageDescriptor {
       BaseMessageDescriptor const& GetDescriptor() const override { return descriptor_; }
 
       bool HasValue() const override { return message_->has_value(); }
-
       Message const& GetValue() const override { return message_->value(); }
-      Message* GetMutableValue() const override { return &(message_->value()); }
+      Message* GetMutableValue() override { return &(message_->value()); }
+
+      bool Erase() override {
+        bool const result = message_->has_value();
+        message_->reset();
+        return result;
+      }
+
+      Message const& ResetConst() const override { return message_->emplace(); }
+      Message* Reset() override { return &(message_->emplace()); }
 
      private:
       std::optional<SubMessage>* const message_;
@@ -528,6 +639,11 @@ class BaseMessageDescriptor {
     size_t size() const { return impl_->GetSize(); }
     [[nodiscard]] bool empty() const { return impl_->GetSize() == 0; }
 
+    void Clear() { impl_->Clear(); }
+    void Reserve(size_t const size) { impl_->Reserve(size); }
+
+    Message* Append() { return impl_->Append(); }
+
     Message& operator[](size_t const index) { return *(impl_->GetAt(index)); }
     Message const& operator[](size_t const index) const { return *(impl_->GetAt(index)); }
 
@@ -548,8 +664,12 @@ class BaseMessageDescriptor {
       virtual BaseMessageDescriptor const& GetDescriptor() const = 0;
 
       virtual size_t GetSize() const = 0;
+      virtual void Clear() = 0;
+      virtual void Reserve(size_t size) = 0;
 
       virtual Message* GetAt(size_t index) const = 0;
+
+      virtual Message* Append() = 0;
 
      private:
       BaseImpl(BaseImpl const&) = delete;
@@ -569,7 +689,12 @@ class BaseMessageDescriptor {
 
       size_t GetSize() const override { return messages_->size(); }
 
+      void Clear() override { messages_->clear(); }
+      void Reserve(size_t const size) override { messages_->reserve(size); }
+
       Message* GetAt(size_t const index) const override { return &(messages_->at(index)); }
+
+      Message* Append() override { return &(messages_->emplace_back()); }
 
      private:
       std::vector<SubMessage>* const messages_;
@@ -612,24 +737,24 @@ class BaseMessageDescriptor {
   virtual absl::StatusOr<LabeledFieldType> GetLabeledFieldType(
       std::string_view field_name) const = 0;
 
-  // Returns the type and label of a field from its name.
-  absl::StatusOr<std::pair<FieldType, FieldLabel>> GetFieldTypeAndLabel(
+  // Returns the type and kind of a field from its name.
+  absl::StatusOr<std::pair<FieldType, FieldKind>> GetFieldTypeAndKind(
       std::string_view const field_name) const {
     DEFINE_CONST_OR_RETURN(labeled_type, GetLabeledFieldType(field_name));
     auto const index = tsdb2::util::to_underlying(labeled_type);
-    return std::make_pair(static_cast<FieldType>(index / 3), static_cast<FieldLabel>(index % 3));
+    return std::make_pair(static_cast<FieldType>(index / 3), static_cast<FieldKind>(index % 3));
   }
 
   // Returns the type of a field from its name.
   absl::StatusOr<FieldType> GetFieldType(std::string_view const field_name) const {
-    DEFINE_CONST_OR_RETURN(type_and_label, GetFieldTypeAndLabel(field_name));
-    return type_and_label.first;
+    DEFINE_CONST_OR_RETURN(type_and_kind, GetFieldTypeAndKind(field_name));
+    return type_and_kind.first;
   }
 
-  // Returns the label of a field from its name.
-  absl::StatusOr<FieldLabel> GetFieldLabel(std::string_view const field_name) const {
-    DEFINE_CONST_OR_RETURN(type_and_label, GetFieldTypeAndLabel(field_name));
-    return type_and_label.second;
+  // Returns the kind of a field from its name.
+  absl::StatusOr<FieldKind> GetFieldKind(std::string_view const field_name) const {
+    DEFINE_CONST_OR_RETURN(type_and_kind, GetFieldTypeAndKind(field_name));
+    return type_and_kind.second;
   }
 
   // Returns a const pointer to the value of a field from its name. The returned type is an
@@ -693,9 +818,9 @@ struct FieldTypes {
 
   class RawEnumField final {
    public:
-    template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
-    explicit RawEnumField(Enum Message::*const field, BaseEnumDescriptor const& descriptor)
-        : impl_(std::make_shared<Impl<Enum>>(field, descriptor)) {}
+    template <typename Enum, typename Descriptor>
+    explicit RawEnumField(Enum Message::*const field, Descriptor const& descriptor)
+        : impl_(std::make_shared<Impl<Enum, Descriptor>>(field, descriptor)) {}
 
     ~RawEnumField() = default;
 
@@ -727,13 +852,16 @@ struct FieldTypes {
       BaseImpl& operator=(BaseImpl&&) = delete;
     };
 
-    template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+    template <
+        typename Enum, typename Descriptor,
+        std::enable_if_t<std::is_enum_v<Enum> && std::is_base_of_v<BaseEnumDescriptor, Descriptor>,
+                         bool> = true>
     class Impl : public BaseImpl {
      public:
-      explicit Impl(Enum Message::*const field, BaseEnumDescriptor const& descriptor)
+      explicit Impl(Enum Message::*const field, Descriptor const& descriptor)
           : field_(field), descriptor_(descriptor) {}
 
-      BaseEnumDescriptor const& GetDescriptor() const override { return descriptor_; }
+      Descriptor const& GetDescriptor() const override { return descriptor_; }
 
       BaseMessageDescriptor::RawEnum MakeValue(Message* const parent) const override {
         return BaseMessageDescriptor::RawEnum(&(parent->*field_), descriptor_);
@@ -741,7 +869,7 @@ struct FieldTypes {
 
      private:
       Enum Message::*const field_;
-      BaseEnumDescriptor const& descriptor_;
+      Descriptor const& descriptor_;
     };
 
     std::shared_ptr<BaseImpl> impl_;
@@ -749,10 +877,10 @@ struct FieldTypes {
 
   class OptionalEnumField final {
    public:
-    template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+    template <typename Enum, typename Descriptor>
     explicit OptionalEnumField(std::optional<Enum> Message::*const field,
-                               BaseEnumDescriptor const& descriptor)
-        : impl_(std::make_shared<Impl<Enum>>(field, descriptor)) {}
+                               Descriptor const& descriptor)
+        : impl_(std::make_shared<Impl<Enum, Descriptor>>(field, descriptor)) {}
 
     ~OptionalEnumField() = default;
 
@@ -784,13 +912,16 @@ struct FieldTypes {
       BaseImpl& operator=(BaseImpl&&) = delete;
     };
 
-    template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+    template <
+        typename Enum, typename Descriptor,
+        std::enable_if_t<std::is_enum_v<Enum> && std::is_base_of_v<BaseEnumDescriptor, Descriptor>,
+                         bool> = true>
     class Impl : public BaseImpl {
      public:
-      explicit Impl(std::optional<Enum> Message::*const field, BaseEnumDescriptor const& descriptor)
+      explicit Impl(std::optional<Enum> Message::*const field, Descriptor const& descriptor)
           : field_(field), descriptor_(descriptor) {}
 
-      BaseEnumDescriptor const& GetDescriptor() const override { return descriptor_; }
+      Descriptor const& GetDescriptor() const override { return descriptor_; }
 
       BaseMessageDescriptor::OptionalEnum MakeValue(Message* const parent) const override {
         return BaseMessageDescriptor::OptionalEnum(&(parent->*field_), descriptor_);
@@ -798,7 +929,7 @@ struct FieldTypes {
 
      private:
       std::optional<Enum> Message::*const field_;
-      BaseEnumDescriptor const& descriptor_;
+      Descriptor const& descriptor_;
     };
 
     std::shared_ptr<BaseImpl> impl_;
@@ -806,10 +937,10 @@ struct FieldTypes {
 
   class RepeatedEnumField final {
    public:
-    template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+    template <typename Enum, typename Descriptor>
     explicit RepeatedEnumField(std::vector<Enum> Message::*const field,
-                               BaseEnumDescriptor const& descriptor)
-        : impl_(std::make_shared<Impl<Enum>>(field, descriptor)) {}
+                               Descriptor const& descriptor)
+        : impl_(std::make_shared<Impl<Enum, Descriptor>>(field, descriptor)) {}
 
     ~RepeatedEnumField() = default;
 
@@ -841,13 +972,16 @@ struct FieldTypes {
       BaseImpl& operator=(BaseImpl&&) = delete;
     };
 
-    template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+    template <
+        typename Enum, typename Descriptor,
+        std::enable_if_t<std::is_enum_v<Enum> && std::is_base_of_v<BaseEnumDescriptor, Descriptor>,
+                         bool> = true>
     class Impl : public BaseImpl {
      public:
-      explicit Impl(std::vector<Enum> Message::*const field, BaseEnumDescriptor const& descriptor)
+      explicit Impl(std::vector<Enum> Message::*const field, Descriptor const& descriptor)
           : field_(field), descriptor_(descriptor) {}
 
-      BaseEnumDescriptor const& GetDescriptor() const override { return descriptor_; }
+      Descriptor const& GetDescriptor() const override { return descriptor_; }
 
       BaseMessageDescriptor::RepeatedEnum MakeValue(Message* const parent) const override {
         return BaseMessageDescriptor::RepeatedEnum(&(parent->*field_), descriptor_);
@@ -855,7 +989,7 @@ struct FieldTypes {
 
      private:
       std::vector<Enum> Message::*const field_;
-      BaseEnumDescriptor const& descriptor_;
+      Descriptor const& descriptor_;
     };
 
     std::shared_ptr<BaseImpl> impl_;

@@ -82,6 +82,9 @@ cc_library(
     hdrs = ["text_format.h"],
     deps = [
         ":proto",
+        "//common:flat_map",
+        "//common:flat_set",
+        "//common:no_destructor",
         "//common:re",
         "//common:utilities",
         "@com_google_absl//absl/status",
