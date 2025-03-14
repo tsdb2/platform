@@ -1435,10 +1435,8 @@ absl::Status Generator::EmitObjectEncoding(TextWriter* const writer,
       writer->AppendLine("if (proto.", name, ".has_value()) {");
       {
         TextWriter::IndentedScope is{writer};
-        writer->AppendLine("encoder.EncodeTag({.field_number = ", number,
-                           ", .wire_type = ::tsdb2::proto::WireType::kLength});");
-        writer->AppendLine("encoder.EncodeSubMessage(", type_name, "::Encode(proto.", name,
-                           ".value()));");
+        writer->AppendLine("encoder.EncodeSubMessageField(", number, ", ", type_name,
+                           "::Encode(proto.", name, ".value()));");
       }
       writer->AppendLine("}");
       break;
@@ -1446,16 +1444,14 @@ absl::Status Generator::EmitObjectEncoding(TextWriter* const writer,
       writer->AppendLine("for (auto const& value : proto.", name, ") {");
       {
         TextWriter::IndentedScope is{writer};
-        writer->AppendLine("encoder.EncodeTag({.field_number = ", number,
-                           ", .wire_type = ::tsdb2::proto::WireType::kLength});");
-        writer->AppendLine("encoder.EncodeSubMessage(", type_name, "::Encode(value));");
+        writer->AppendLine("encoder.EncodeSubMessageField(", number, ", ", type_name,
+                           "::Encode(value));");
       }
       writer->AppendLine("}");
       break;
     case FieldDescriptorProto::Label::LABEL_REQUIRED:
-      writer->AppendLine("encoder.EncodeTag({.field_number = ", number,
-                         ", .wire_type = ::tsdb2::proto::WireType::kLength});");
-      writer->AppendLine("encoder.EncodeSubMessage(", type_name, "::Encode(proto.", name, "));");
+      writer->AppendLine("encoder.EncodeSubMessageField(", number, ", ", type_name,
+                         "::Encode(proto.", name, "));");
       break;
     default:
       return absl::InvalidArgumentError("invalid field label");
@@ -1511,10 +1507,8 @@ absl::Status Generator::EmitOneofFieldEncoding(
           std::string const type_name = absl::StrReplaceAll(field.type_name.value(), {{".", "::"}});
           DEFINE_CONST_OR_RETURN(is_message, IsMessage(field.type_name.value()));
           if (is_message) {
-            writer->AppendLine("encoder.EncodeTag({.field_number = ", number,
-                               ", .wire_type = ::tsdb2::proto::WireType::kLength});");
-            writer->AppendLine("encoder.EncodeSubMessage(", type_name, "::Encode(std::get<",
-                               field_index, ">(proto.", name, ")));");
+            writer->AppendLine("encoder.EncodeSubMessageField(", number, ", ", type_name,
+                               "::Encode(std::get<", field_index, ">(proto.", name, ")));");
           } else {
             writer->AppendLine("encoder.EncodeEnumField(", number, ", std::get<", field_index,
                                ">(proto.", name, "));");

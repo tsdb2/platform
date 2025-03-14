@@ -701,14 +701,14 @@ void Encoder::EncodeBytesField(size_t const number, absl::Span<uint8_t const> co
   cord_.Append(std::move(buffer));
 }
 
-void Encoder::EncodeSubMessage(Encoder &&child_encoder) {
-  EncodeIntegerInternal(child_encoder.size());
-  cord_.Append(std::move(child_encoder.cord_));
+void Encoder::EncodeSubMessageField(size_t const number, Encoder &&child_encoder) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kLength});
+  EncodeSubMessage(std::move(child_encoder));
 }
 
-void Encoder::EncodeSubMessage(tsdb2::io::Cord cord) {
-  EncodeIntegerInternal(cord.size());
-  cord_.Append(std::move(cord));
+void Encoder::EncodeSubMessageField(size_t const number, tsdb2::io::Cord cord) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kLength});
+  EncodeSubMessage(std::move(cord));
 }
 
 void Encoder::EncodePackedSInt32s(size_t const field_number,
@@ -841,6 +841,16 @@ void Encoder::EncodeFixedUInt64(uint64_t value) {
   buffer.as<uint64_t>() = value;
   buffer.Advance(8);
   cord_.Append(std::move(buffer));
+}
+
+void Encoder::EncodeSubMessage(Encoder &&child_encoder) {
+  EncodeIntegerInternal(child_encoder.size());
+  cord_.Append(std::move(child_encoder.cord_));
+}
+
+void Encoder::EncodeSubMessage(tsdb2::io::Cord cord) {
+  EncodeIntegerInternal(cord.size());
+  cord_.Append(std::move(cord));
 }
 
 }  // namespace proto

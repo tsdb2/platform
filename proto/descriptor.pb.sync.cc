@@ -43,8 +43,7 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
 ::tsdb2::io::Cord FileDescriptorSet::Encode(FileDescriptorSet const& proto) {
   ::tsdb2::proto::Encoder encoder;
   for (auto const& value : proto.file) {
-    encoder.EncodeTag({.field_number = 1, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::FileDescriptorProto::Encode(value));
+    encoder.EncodeSubMessageField(1, ::google::protobuf::FileDescriptorProto::Encode(value));
   }
   return std::move(encoder).Finish();
 }
@@ -139,29 +138,24 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
     encoder.EncodeInt32Field(11, value);
   }
   for (auto const& value : proto.message_type) {
-    encoder.EncodeTag({.field_number = 4, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::DescriptorProto::Encode(value));
+    encoder.EncodeSubMessageField(4, ::google::protobuf::DescriptorProto::Encode(value));
   }
   for (auto const& value : proto.enum_type) {
-    encoder.EncodeTag({.field_number = 5, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::EnumDescriptorProto::Encode(value));
+    encoder.EncodeSubMessageField(5, ::google::protobuf::EnumDescriptorProto::Encode(value));
   }
   for (auto const& value : proto.service) {
-    encoder.EncodeTag({.field_number = 6, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::ServiceDescriptorProto::Encode(value));
+    encoder.EncodeSubMessageField(6, ::google::protobuf::ServiceDescriptorProto::Encode(value));
   }
   for (auto const& value : proto.extension) {
-    encoder.EncodeTag({.field_number = 7, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::FieldDescriptorProto::Encode(value));
+    encoder.EncodeSubMessageField(7, ::google::protobuf::FieldDescriptorProto::Encode(value));
   }
   if (proto.options.has_value()) {
-    encoder.EncodeTag({.field_number = 8, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::FileOptions::Encode(proto.options.value()));
+    encoder.EncodeSubMessageField(8,
+                                  ::google::protobuf::FileOptions::Encode(proto.options.value()));
   }
   if (proto.source_code_info.has_value()) {
-    encoder.EncodeTag({.field_number = 9, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(
-        ::google::protobuf::SourceCodeInfo::Encode(proto.source_code_info.value()));
+    encoder.EncodeSubMessageField(
+        9, ::google::protobuf::SourceCodeInfo::Encode(proto.source_code_info.value()));
   }
   if (proto.syntax.has_value()) {
     encoder.EncodeStringField(12, proto.syntax.value());
@@ -210,9 +204,8 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
     encoder.EncodeInt32Field(2, proto.end.value());
   }
   if (proto.options.has_value()) {
-    encoder.EncodeTag({.field_number = 3, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(
-        ::google::protobuf::ExtensionRangeOptions::Encode(proto.options.value()));
+    encoder.EncodeSubMessageField(
+        3, ::google::protobuf::ExtensionRangeOptions::Encode(proto.options.value()));
   }
   return std::move(encoder).Finish();
 }
@@ -322,36 +315,31 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
     encoder.EncodeStringField(1, proto.name.value());
   }
   for (auto const& value : proto.field) {
-    encoder.EncodeTag({.field_number = 2, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::FieldDescriptorProto::Encode(value));
+    encoder.EncodeSubMessageField(2, ::google::protobuf::FieldDescriptorProto::Encode(value));
   }
   for (auto const& value : proto.extension) {
-    encoder.EncodeTag({.field_number = 6, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::FieldDescriptorProto::Encode(value));
+    encoder.EncodeSubMessageField(6, ::google::protobuf::FieldDescriptorProto::Encode(value));
   }
   for (auto const& value : proto.nested_type) {
-    encoder.EncodeTag({.field_number = 3, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::DescriptorProto::Encode(value));
+    encoder.EncodeSubMessageField(3, ::google::protobuf::DescriptorProto::Encode(value));
   }
   for (auto const& value : proto.enum_type) {
-    encoder.EncodeTag({.field_number = 4, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::EnumDescriptorProto::Encode(value));
+    encoder.EncodeSubMessageField(4, ::google::protobuf::EnumDescriptorProto::Encode(value));
   }
   for (auto const& value : proto.extension_range) {
-    encoder.EncodeTag({.field_number = 5, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::DescriptorProto::ExtensionRange::Encode(value));
+    encoder.EncodeSubMessageField(
+        5, ::google::protobuf::DescriptorProto::ExtensionRange::Encode(value));
   }
   for (auto const& value : proto.oneof_decl) {
-    encoder.EncodeTag({.field_number = 8, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::OneofDescriptorProto::Encode(value));
+    encoder.EncodeSubMessageField(8, ::google::protobuf::OneofDescriptorProto::Encode(value));
   }
   if (proto.options.has_value()) {
-    encoder.EncodeTag({.field_number = 7, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::MessageOptions::Encode(proto.options.value()));
+    encoder.EncodeSubMessageField(
+        7, ::google::protobuf::MessageOptions::Encode(proto.options.value()));
   }
   for (auto const& value : proto.reserved_range) {
-    encoder.EncodeTag({.field_number = 9, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::DescriptorProto::ReservedRange::Encode(value));
+    encoder.EncodeSubMessageField(
+        9, ::google::protobuf::DescriptorProto::ReservedRange::Encode(value));
   }
   for (auto const& value : proto.reserved_name) {
     encoder.EncodeStringField(10, value);
@@ -456,16 +444,15 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
 ::tsdb2::io::Cord ExtensionRangeOptions::Encode(ExtensionRangeOptions const& proto) {
   ::tsdb2::proto::Encoder encoder;
   for (auto const& value : proto.uninterpreted_option) {
-    encoder.EncodeTag({.field_number = 999, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::UninterpretedOption::Encode(value));
+    encoder.EncodeSubMessageField(999, ::google::protobuf::UninterpretedOption::Encode(value));
   }
   for (auto const& value : proto.declaration) {
-    encoder.EncodeTag({.field_number = 2, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::ExtensionRangeOptions::Declaration::Encode(value));
+    encoder.EncodeSubMessageField(
+        2, ::google::protobuf::ExtensionRangeOptions::Declaration::Encode(value));
   }
   if (proto.features.has_value()) {
-    encoder.EncodeTag({.field_number = 50, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::FeatureSet::Encode(proto.features.value()));
+    encoder.EncodeSubMessageField(50,
+                                  ::google::protobuf::FeatureSet::Encode(proto.features.value()));
   }
   encoder.EncodeEnumField(3, proto.verification);
   return std::move(encoder).Finish();
@@ -565,8 +552,8 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
     encoder.EncodeStringField(10, proto.json_name.value());
   }
   if (proto.options.has_value()) {
-    encoder.EncodeTag({.field_number = 8, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::FieldOptions::Encode(proto.options.value()));
+    encoder.EncodeSubMessageField(8,
+                                  ::google::protobuf::FieldOptions::Encode(proto.options.value()));
   }
   if (proto.proto3_optional.has_value()) {
     encoder.EncodeBoolField(17, proto.proto3_optional.value());
@@ -604,8 +591,8 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
     encoder.EncodeStringField(1, proto.name.value());
   }
   if (proto.options.has_value()) {
-    encoder.EncodeTag({.field_number = 2, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::OneofOptions::Encode(proto.options.value()));
+    encoder.EncodeSubMessageField(2,
+                                  ::google::protobuf::OneofOptions::Encode(proto.options.value()));
   }
   return std::move(encoder).Finish();
 }
@@ -691,17 +678,15 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     encoder.EncodeStringField(1, proto.name.value());
   }
   for (auto const& value : proto.value) {
-    encoder.EncodeTag({.field_number = 2, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::EnumValueDescriptorProto::Encode(value));
+    encoder.EncodeSubMessageField(2, ::google::protobuf::EnumValueDescriptorProto::Encode(value));
   }
   if (proto.options.has_value()) {
-    encoder.EncodeTag({.field_number = 3, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::EnumOptions::Encode(proto.options.value()));
+    encoder.EncodeSubMessageField(3,
+                                  ::google::protobuf::EnumOptions::Encode(proto.options.value()));
   }
   for (auto const& value : proto.reserved_range) {
-    encoder.EncodeTag({.field_number = 4, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(
-        ::google::protobuf::EnumDescriptorProto::EnumReservedRange::Encode(value));
+    encoder.EncodeSubMessageField(
+        4, ::google::protobuf::EnumDescriptorProto::EnumReservedRange::Encode(value));
   }
   for (auto const& value : proto.reserved_name) {
     encoder.EncodeStringField(5, value);
@@ -746,8 +731,8 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     encoder.EncodeInt32Field(2, proto.number.value());
   }
   if (proto.options.has_value()) {
-    encoder.EncodeTag({.field_number = 3, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::EnumValueOptions::Encode(proto.options.value()));
+    encoder.EncodeSubMessageField(
+        3, ::google::protobuf::EnumValueOptions::Encode(proto.options.value()));
   }
   return std::move(encoder).Finish();
 }
@@ -787,12 +772,11 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     encoder.EncodeStringField(1, proto.name.value());
   }
   for (auto const& value : proto.method) {
-    encoder.EncodeTag({.field_number = 2, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::MethodDescriptorProto::Encode(value));
+    encoder.EncodeSubMessageField(2, ::google::protobuf::MethodDescriptorProto::Encode(value));
   }
   if (proto.options.has_value()) {
-    encoder.EncodeTag({.field_number = 3, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::ServiceOptions::Encode(proto.options.value()));
+    encoder.EncodeSubMessageField(
+        3, ::google::protobuf::ServiceOptions::Encode(proto.options.value()));
   }
   return std::move(encoder).Finish();
 }
@@ -849,8 +833,8 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     encoder.EncodeStringField(3, proto.output_type.value());
   }
   if (proto.options.has_value()) {
-    encoder.EncodeTag({.field_number = 4, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::MethodOptions::Encode(proto.options.value()));
+    encoder.EncodeSubMessageField(4,
+                                  ::google::protobuf::MethodOptions::Encode(proto.options.value()));
   }
   encoder.EncodeBoolField(5, proto.client_streaming);
   encoder.EncodeBoolField(6, proto.server_streaming);
@@ -1003,12 +987,11 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     encoder.EncodeStringField(45, proto.ruby_package.value());
   }
   if (proto.features.has_value()) {
-    encoder.EncodeTag({.field_number = 50, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::FeatureSet::Encode(proto.features.value()));
+    encoder.EncodeSubMessageField(50,
+                                  ::google::protobuf::FeatureSet::Encode(proto.features.value()));
   }
   for (auto const& value : proto.uninterpreted_option) {
-    encoder.EncodeTag({.field_number = 999, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::UninterpretedOption::Encode(value));
+    encoder.EncodeSubMessageField(999, ::google::protobuf::UninterpretedOption::Encode(value));
   }
   return std::move(encoder).Finish();
 }
@@ -1069,12 +1052,11 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     encoder.EncodeBoolField(11, proto.deprecated_legacy_json_field_conflicts.value());
   }
   if (proto.features.has_value()) {
-    encoder.EncodeTag({.field_number = 12, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::FeatureSet::Encode(proto.features.value()));
+    encoder.EncodeSubMessageField(12,
+                                  ::google::protobuf::FeatureSet::Encode(proto.features.value()));
   }
   for (auto const& value : proto.uninterpreted_option) {
-    encoder.EncodeTag({.field_number = 999, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::UninterpretedOption::Encode(value));
+    encoder.EncodeSubMessageField(999, ::google::protobuf::UninterpretedOption::Encode(value));
   }
   return std::move(encoder).Finish();
 }
@@ -1266,21 +1248,19 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     encoder.EncodeEnumField(19, value);
   }
   for (auto const& value : proto.edition_defaults) {
-    encoder.EncodeTag({.field_number = 20, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::FieldOptions::EditionDefault::Encode(value));
+    encoder.EncodeSubMessageField(20,
+                                  ::google::protobuf::FieldOptions::EditionDefault::Encode(value));
   }
   if (proto.features.has_value()) {
-    encoder.EncodeTag({.field_number = 21, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::FeatureSet::Encode(proto.features.value()));
+    encoder.EncodeSubMessageField(21,
+                                  ::google::protobuf::FeatureSet::Encode(proto.features.value()));
   }
   if (proto.feature_support.has_value()) {
-    encoder.EncodeTag({.field_number = 22, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(
-        ::google::protobuf::FieldOptions::FeatureSupport::Encode(proto.feature_support.value()));
+    encoder.EncodeSubMessageField(22, ::google::protobuf::FieldOptions::FeatureSupport::Encode(
+                                          proto.feature_support.value()));
   }
   for (auto const& value : proto.uninterpreted_option) {
-    encoder.EncodeTag({.field_number = 999, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::UninterpretedOption::Encode(value));
+    encoder.EncodeSubMessageField(999, ::google::protobuf::UninterpretedOption::Encode(value));
   }
   return std::move(encoder).Finish();
 }
@@ -1312,12 +1292,11 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
 ::tsdb2::io::Cord OneofOptions::Encode(OneofOptions const& proto) {
   ::tsdb2::proto::Encoder encoder;
   if (proto.features.has_value()) {
-    encoder.EncodeTag({.field_number = 1, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::FeatureSet::Encode(proto.features.value()));
+    encoder.EncodeSubMessageField(1,
+                                  ::google::protobuf::FeatureSet::Encode(proto.features.value()));
   }
   for (auto const& value : proto.uninterpreted_option) {
-    encoder.EncodeTag({.field_number = 999, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::UninterpretedOption::Encode(value));
+    encoder.EncodeSubMessageField(999, ::google::protobuf::UninterpretedOption::Encode(value));
   }
   return std::move(encoder).Finish();
 }
@@ -1368,12 +1347,11 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     encoder.EncodeBoolField(6, proto.deprecated_legacy_json_field_conflicts.value());
   }
   if (proto.features.has_value()) {
-    encoder.EncodeTag({.field_number = 7, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::FeatureSet::Encode(proto.features.value()));
+    encoder.EncodeSubMessageField(7,
+                                  ::google::protobuf::FeatureSet::Encode(proto.features.value()));
   }
   for (auto const& value : proto.uninterpreted_option) {
-    encoder.EncodeTag({.field_number = 999, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::UninterpretedOption::Encode(value));
+    encoder.EncodeSubMessageField(999, ::google::protobuf::UninterpretedOption::Encode(value));
   }
   return std::move(encoder).Finish();
 }
@@ -1421,18 +1399,16 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   ::tsdb2::proto::Encoder encoder;
   encoder.EncodeBoolField(1, proto.deprecated);
   if (proto.features.has_value()) {
-    encoder.EncodeTag({.field_number = 2, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::FeatureSet::Encode(proto.features.value()));
+    encoder.EncodeSubMessageField(2,
+                                  ::google::protobuf::FeatureSet::Encode(proto.features.value()));
   }
   encoder.EncodeBoolField(3, proto.debug_redact);
   if (proto.feature_support.has_value()) {
-    encoder.EncodeTag({.field_number = 4, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(
-        ::google::protobuf::FieldOptions::FeatureSupport::Encode(proto.feature_support.value()));
+    encoder.EncodeSubMessageField(
+        4, ::google::protobuf::FieldOptions::FeatureSupport::Encode(proto.feature_support.value()));
   }
   for (auto const& value : proto.uninterpreted_option) {
-    encoder.EncodeTag({.field_number = 999, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::UninterpretedOption::Encode(value));
+    encoder.EncodeSubMessageField(999, ::google::protobuf::UninterpretedOption::Encode(value));
   }
   return std::move(encoder).Finish();
 }
@@ -1468,13 +1444,12 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
 ::tsdb2::io::Cord ServiceOptions::Encode(ServiceOptions const& proto) {
   ::tsdb2::proto::Encoder encoder;
   if (proto.features.has_value()) {
-    encoder.EncodeTag({.field_number = 34, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::FeatureSet::Encode(proto.features.value()));
+    encoder.EncodeSubMessageField(34,
+                                  ::google::protobuf::FeatureSet::Encode(proto.features.value()));
   }
   encoder.EncodeBoolField(33, proto.deprecated);
   for (auto const& value : proto.uninterpreted_option) {
-    encoder.EncodeTag({.field_number = 999, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::UninterpretedOption::Encode(value));
+    encoder.EncodeSubMessageField(999, ::google::protobuf::UninterpretedOption::Encode(value));
   }
   return std::move(encoder).Finish();
 }
@@ -1518,12 +1493,11 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   encoder.EncodeBoolField(33, proto.deprecated);
   encoder.EncodeEnumField(34, proto.idempotency_level);
   if (proto.features.has_value()) {
-    encoder.EncodeTag({.field_number = 35, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::FeatureSet::Encode(proto.features.value()));
+    encoder.EncodeSubMessageField(35,
+                                  ::google::protobuf::FeatureSet::Encode(proto.features.value()));
   }
   for (auto const& value : proto.uninterpreted_option) {
-    encoder.EncodeTag({.field_number = 999, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::UninterpretedOption::Encode(value));
+    encoder.EncodeSubMessageField(999, ::google::protobuf::UninterpretedOption::Encode(value));
   }
   return std::move(encoder).Finish();
 }
@@ -1616,8 +1590,8 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
 ::tsdb2::io::Cord UninterpretedOption::Encode(UninterpretedOption const& proto) {
   ::tsdb2::proto::Encoder encoder;
   for (auto const& value : proto.name) {
-    encoder.EncodeTag({.field_number = 2, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::UninterpretedOption::NamePart::Encode(value));
+    encoder.EncodeSubMessageField(2,
+                                  ::google::protobuf::UninterpretedOption::NamePart::Encode(value));
   }
   if (proto.identifier_value.has_value()) {
     encoder.EncodeStringField(3, proto.identifier_value.value());
@@ -1750,13 +1724,12 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
     encoder.EncodeEnumField(3, proto.edition.value());
   }
   if (proto.overridable_features.has_value()) {
-    encoder.EncodeTag({.field_number = 4, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(
-        ::google::protobuf::FeatureSet::Encode(proto.overridable_features.value()));
+    encoder.EncodeSubMessageField(
+        4, ::google::protobuf::FeatureSet::Encode(proto.overridable_features.value()));
   }
   if (proto.fixed_features.has_value()) {
-    encoder.EncodeTag({.field_number = 5, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::FeatureSet::Encode(proto.fixed_features.value()));
+    encoder.EncodeSubMessageField(
+        5, ::google::protobuf::FeatureSet::Encode(proto.fixed_features.value()));
   }
   return std::move(encoder).Finish();
 }
@@ -1796,9 +1769,8 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
 ::tsdb2::io::Cord FeatureSetDefaults::Encode(FeatureSetDefaults const& proto) {
   ::tsdb2::proto::Encoder encoder;
   for (auto const& value : proto.defaults) {
-    encoder.EncodeTag({.field_number = 1, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(
-        ::google::protobuf::FeatureSetDefaults::FeatureSetEditionDefault::Encode(value));
+    encoder.EncodeSubMessageField(
+        1, ::google::protobuf::FeatureSetDefaults::FeatureSetEditionDefault::Encode(value));
   }
   if (proto.minimum_edition.has_value()) {
     encoder.EncodeEnumField(4, proto.minimum_edition.value());
@@ -1881,8 +1853,7 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
 ::tsdb2::io::Cord SourceCodeInfo::Encode(SourceCodeInfo const& proto) {
   ::tsdb2::proto::Encoder encoder;
   for (auto const& value : proto.location) {
-    encoder.EncodeTag({.field_number = 1, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::SourceCodeInfo::Location::Encode(value));
+    encoder.EncodeSubMessageField(1, ::google::protobuf::SourceCodeInfo::Location::Encode(value));
   }
   return std::move(encoder).Finish();
 }
@@ -1967,8 +1938,8 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
 ::tsdb2::io::Cord GeneratedCodeInfo::Encode(GeneratedCodeInfo const& proto) {
   ::tsdb2::proto::Encoder encoder;
   for (auto const& value : proto.annotation) {
-    encoder.EncodeTag({.field_number = 1, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::GeneratedCodeInfo::Annotation::Encode(value));
+    encoder.EncodeSubMessageField(1,
+                                  ::google::protobuf::GeneratedCodeInfo::Annotation::Encode(value));
   }
   return std::move(encoder).Finish();
 }

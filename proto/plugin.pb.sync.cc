@@ -115,17 +115,14 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
     encoder.EncodeStringField(2, proto.parameter.value());
   }
   for (auto const& value : proto.proto_file) {
-    encoder.EncodeTag({.field_number = 15, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::FileDescriptorProto::Encode(value));
+    encoder.EncodeSubMessageField(15, ::google::protobuf::FileDescriptorProto::Encode(value));
   }
   for (auto const& value : proto.source_file_descriptors) {
-    encoder.EncodeTag({.field_number = 17, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(::google::protobuf::FileDescriptorProto::Encode(value));
+    encoder.EncodeSubMessageField(17, ::google::protobuf::FileDescriptorProto::Encode(value));
   }
   if (proto.compiler_version.has_value()) {
-    encoder.EncodeTag({.field_number = 3, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(
-        ::google::protobuf::compiler::Version::Encode(proto.compiler_version.value()));
+    encoder.EncodeSubMessageField(
+        3, ::google::protobuf::compiler::Version::Encode(proto.compiler_version.value()));
   }
   return std::move(encoder).Finish();
 }
@@ -174,9 +171,8 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
     encoder.EncodeStringField(15, proto.content.value());
   }
   if (proto.generated_code_info.has_value()) {
-    encoder.EncodeTag({.field_number = 16, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(
-        ::google::protobuf::GeneratedCodeInfo::Encode(proto.generated_code_info.value()));
+    encoder.EncodeSubMessageField(
+        16, ::google::protobuf::GeneratedCodeInfo::Encode(proto.generated_code_info.value()));
   }
   return std::move(encoder).Finish();
 }
@@ -233,9 +229,8 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
     encoder.EncodeInt32Field(4, proto.maximum_edition.value());
   }
   for (auto const& value : proto.file) {
-    encoder.EncodeTag({.field_number = 15, .wire_type = ::tsdb2::proto::WireType::kLength});
-    encoder.EncodeSubMessage(
-        ::google::protobuf::compiler::CodeGeneratorResponse::File::Encode(value));
+    encoder.EncodeSubMessageField(
+        15, ::google::protobuf::compiler::CodeGeneratorResponse::File::Encode(value));
   }
   return std::move(encoder).Finish();
 }

@@ -364,8 +364,8 @@ class Encoder {
     EncodeIntegerInternal(tsdb2::util::to_underlying(value));
   }
 
-  void EncodeSubMessage(Encoder &&child_encoder);
-  void EncodeSubMessage(tsdb2::io::Cord cord);
+  void EncodeSubMessageField(size_t number, Encoder &&child_encoder);
+  void EncodeSubMessageField(size_t number, tsdb2::io::Cord cord);
 
   void EncodePackedVarInts(size_t const field_number, absl::Span<uint64_t const> const values) {
     EncodePackedIntegers(field_number, values);
@@ -448,6 +448,9 @@ class Encoder {
   void EncodeDouble(double const value) {
     EncodeFixedUInt64(*reinterpret_cast<uint64_t const *>(&value));
   }
+
+  void EncodeSubMessage(Encoder &&child_encoder);
+  void EncodeSubMessage(tsdb2::io::Cord cord);
 
   template <typename Integer,
             std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>, bool> = true>
