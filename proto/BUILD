@@ -1,4 +1,7 @@
 load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("//proto:proto.bzl", "tsdb2_cc_proto_library")
 
 package(default_visibility = ["//visibility:private"])
