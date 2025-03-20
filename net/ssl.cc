@@ -5,6 +5,7 @@
 #include <openssl/err.h>
 #include <openssl/prov_ssl.h>
 #include <openssl/ssl.h>
+#include <openssl/types.h>
 
 #include <algorithm>
 #include <cstddef>

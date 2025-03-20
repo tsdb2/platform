@@ -28,11 +28,11 @@ struct Node final {
 
   // Resolves the `Node` constructor overload that receives the caller-provided hash.
   struct Hashed {};
-  static inline Hashed constexpr kHashed;
+  static inline Hashed constexpr kHashed{};
 
   // Resolves the `Node` constructor overload that hashes the key.
   struct ToHash {};
-  static inline ToHash constexpr kToHash;
+  static inline ToHash constexpr kToHash{};
 
   static Key const &ToKey(DataType const &data) { return data.first; }
 
@@ -83,11 +83,11 @@ struct Node<Key, void> final {
 
   // Resolves the `Node` constructor overload that receives the caller-provided hash.
   struct Hashed {};
-  static inline Hashed constexpr kHashed;
+  static inline Hashed constexpr kHashed{};
 
   // Resolves the `Node` constructor overload that hashes the key.
   struct ToHash {};
-  static inline ToHash constexpr kToHash;
+  static inline ToHash constexpr kToHash{};
 
   static Key const &ToKey(DataType const &data) { return data; }
 
@@ -189,11 +189,11 @@ class RawLockFreeHash {
 
   // Token for overload resolution of begin iterator constructors.
   struct BeginIterator {};
-  static inline BeginIterator constexpr kBeginIterator;
+  static inline BeginIterator constexpr kBeginIterator{};
 
   // Token for overload resolution of end iterator constructors.
   struct EndIterator {};
-  static inline EndIterator constexpr kEndIterator;
+  static inline EndIterator constexpr kEndIterator{};
 
   class BaseIterator {
    public:

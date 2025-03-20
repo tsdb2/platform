@@ -616,10 +616,10 @@ absl::StatusOr<tsdb2::common::reffed_ptr<SocketClass>> SSLSocket::CreateClass(
   }
   int const connect_result = ::connect(*fd, ai->ai_addr, ai->ai_addrlen);
   ::freeaddrinfo(rai);
-  DEFINE_VAR_OR_RETURN(ssl, internal::SSLContext::GetClientContext().MakeSSL(fd));
   if (connect_result < 0 && errno != EINPROGRESS) {
     return absl::ErrnoToStatus(errno, "connect()");
   }
+  DEFINE_VAR_OR_RETURN(ssl, internal::SSLContext::GetClientContext().MakeSSL(fd));
   auto socket = tsdb2::common::WrapReffed(new SocketClass(
       parent, kConnectTag, std::move(fd), std::move(ssl),
       absl::GetFlag(FLAGS_ssl_handshake_timeout),

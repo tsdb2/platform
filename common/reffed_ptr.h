@@ -255,7 +255,7 @@ class reffed_ptr final {
   friend class reffed_ptr;
 
   struct AdoptPointer {};
-  static inline AdoptPointer constexpr kAdoptPointer;
+  static inline AdoptPointer constexpr kAdoptPointer{};
 
   explicit reffed_ptr(AdoptPointer /*adopt_pointer*/, T* const ptr) : ptr_(ptr) {}
 

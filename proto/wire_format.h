@@ -109,22 +109,22 @@ class Decoder {
   absl::StatusOr<Integer> DecodeInteger();
 
   template <>
-  absl::StatusOr<uint64_t> DecodeInteger() {
+  absl::StatusOr<uint64_t> DecodeInteger<uint64_t>() {
     return DecodeUInt64();
   }
 
   template <>
-  absl::StatusOr<int64_t> DecodeInteger() {
+  absl::StatusOr<int64_t> DecodeInteger<int64_t>() {
     return DecodeInt64();
   }
 
   template <>
-  absl::StatusOr<uint32_t> DecodeInteger() {
+  absl::StatusOr<uint32_t> DecodeInteger<uint32_t>() {
     return DecodeUInt32();
   }
 
   template <>
-  absl::StatusOr<int32_t> DecodeInteger() {
+  absl::StatusOr<int32_t> DecodeInteger<int32_t>() {
     return DecodeInt32();
   }
 
