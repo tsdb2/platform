@@ -50,7 +50,7 @@ absl::Status ModuleManager::InitializeModulesForTesting() {
   return Initializer(dependencies_, /*testing=*/true).Run();
 }
 
-absl::Status ModuleManager::DependencyChecker::Run() {
+absl::Status ModuleManager::DependencyChecker::Run() && {
   for (auto const& [module, unused_dependencies] : dependencies_) {
     RETURN_IF_ERROR(CheckCircularDependencies(module));
   }

@@ -14,7 +14,7 @@ using owner = T;
 }  // namespace gsl
 
 // Forked from Abseil's implementation of `ABSL_INTERNAL_DISABLE_DEPRECATED_DECLARATION_WARNING`.
-// Sometimes we also need to disable deprecation warnings.
+// Sometimes we too need to disable deprecation warnings.
 #if defined(__GNUC__) || defined(__clang__)
 // Clang also supports these GCC pragmas.
 #define TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING() \

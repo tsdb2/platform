@@ -7,6 +7,9 @@
 
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "capture_groups.h"
 #include "common/flat_set.h"
 #include "common/re/automaton.h"
@@ -141,13 +144,74 @@ void TempNFA::Merge(TempNFA&& other, int const capture_group, uint32_t const ini
   final_state_ = final_state;
 }
 
-reffed_ptr<AbstractAutomaton> TempNFA::Finalize(CaptureGroups capture_groups) && {
+absl::StatusOr<reffed_ptr<AbstractAutomaton>> TempNFA::Finalize(CaptureGroups capture_groups) && {
   CollapseEpsilonMoves();
+  if (HasDeadEnds()) {
+    return absl::FailedPreconditionError(
+        "dead ends detected: the source pattern has one or more epsilon-loops with no exits");
+  }
   if (IsDeterministic()) {
     return std::move(*this).ToDFA(std::move(capture_groups));
   } else {
     return std::move(*this).ToNFA(std::move(capture_groups));
   }
+}
+
+bool TempNFA::DeadEndChecker::Run() && {
+  for (auto const& [state, unused] : parent_.states_) {
+    if (IsDeadEnd(state)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool TempNFA::DeadEndChecker::PushState(uint32_t const state) {
+  auto const [unused_it, inserted] = path_set_.emplace(state);
+  if (!inserted) {
+    return false;
+  }
+  path_.emplace_back(state);
+  return true;
+}
+
+void TempNFA::DeadEndChecker::PopState(uint32_t const state) {
+  path_.pop_back();
+  path_set_.erase(state);
+}
+
+bool TempNFA::DeadEndChecker::HasExits(uint32_t const last_state) const {
+  for (auto it = path_.rbegin(); it != path_.rend() && *it != last_state; ++it) {
+    auto const state_it = parent_.states_.find(*it);
+    for (auto const& [ch, edges] : state_it->second.edges) {
+      if (ch != 0) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool TempNFA::DeadEndChecker::IsDeadEnd(uint32_t const state) {
+  auto const maybe_state_frame = StateFrame::Create(this, state);
+  if (!maybe_state_frame) {
+    return !HasExits(state);
+  }
+  auto const [unused_it, inserted] = visited_.emplace(state);
+  if (!inserted) {
+    return false;
+  }
+  auto const it = parent_.states_.find(state);
+  auto const& edges = it->second.edges;
+  auto const epsilon_it = edges.find(0);
+  if (epsilon_it != edges.end()) {
+    for (auto const neighbor : epsilon_it->second) {
+      if (IsDeadEnd(neighbor)) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 void TempNFA::MergeState(uint32_t const state_num, State&& new_state) {

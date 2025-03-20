@@ -80,7 +80,7 @@ class ModuleManager {
 
     ~DependencyChecker() = default;
 
-    absl::Status Run();
+    absl::Status Run() &&;
 
     // For internal use by the checking algorithm.
     absl::Status PushModule(BaseModule* module);

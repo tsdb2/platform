@@ -2,9 +2,13 @@
 #define __TSDB2_COMMON_RE_TEMP_H__
 
 #include <cstdint>
+#include <optional>
 #include <utility>
+#include <vector>
 
 #include "absl/container/btree_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/status/statusor.h"
 #include "common/re/automaton.h"
 #include "common/re/capture_groups.h"
 #include "common/re/dfa.h"
@@ -46,7 +50,7 @@ class TempNFA final {
   uint32_t final_state() const { return final_state_; }
 
   // Checks if the automaton is deterministic (that is, for each state each label is at most on one
-  // edge and either there's no epsilon-move or the epsilon-move is the only one).
+  // edge and either there's no epsilon-move or the epsilon-move is the only edge).
   bool IsDeterministic() const;
 
   // Renames state `old_name` to `new_name`, updating the whole graph and doing the necessary
@@ -88,9 +92,76 @@ class TempNFA final {
 
   // Finalizes this automaton by converting it into a `DFA` object if it's deterministic or an `NFA`
   // if it's not.
-  reffed_ptr<AbstractAutomaton> Finalize(CaptureGroups capture_groups) &&;
+  absl::StatusOr<reffed_ptr<AbstractAutomaton>> Finalize(CaptureGroups capture_groups) &&;
 
  private:
+  // Implements the `HasDeadEnds` method (see below for more information).
+  //
+  // A dead end is an epsilon-loop with no exits, so our implementation simply checks the parent NFA
+  // for epsilon-loops and every time it finds one it checks whether it has exits (i.e. non-epsilon
+  // outbound edges). The boolean value returned by `Run` is true iff there's at least one dead end,
+  // in which case the compilation of the whole regular expression should fail.
+  class DeadEndChecker final {
+   public:
+    explicit DeadEndChecker(TempNFA const &parent) : parent_(parent) {}
+
+    ~DeadEndChecker() = default;
+
+    bool Run() &&;
+
+   private:
+    class StateFrame final {
+     public:
+      static std::optional<StateFrame> Create(DeadEndChecker *const parent, uint32_t const state) {
+        if (parent->PushState(state)) {
+          return StateFrame(parent, state);
+        } else {
+          return std::nullopt;
+        }
+      }
+
+      StateFrame(StateFrame &&other) noexcept : parent_(other.parent_), state_(other.state_) {
+        other.parent_ = nullptr;
+      }
+
+      ~StateFrame() {
+        if (parent_ != nullptr) {
+          parent_->PopState(state_);
+        }
+      }
+
+     private:
+      explicit StateFrame(DeadEndChecker *const parent, uint32_t const state)
+          : parent_(parent), state_(state) {}
+
+      StateFrame(StateFrame const &) = delete;
+      StateFrame &operator=(StateFrame const &) = delete;
+      StateFrame &operator=(StateFrame &&) = delete;
+
+      DeadEndChecker *parent_;
+      uint32_t state_;
+    };
+
+    DeadEndChecker(DeadEndChecker const &) = delete;
+    DeadEndChecker &operator=(DeadEndChecker const &) = delete;
+    DeadEndChecker(DeadEndChecker &&) = delete;
+    DeadEndChecker &operator=(DeadEndChecker &&) = delete;
+
+    bool PushState(uint32_t state);
+    void PopState(uint32_t state);
+
+    // Checks whether the current `path_` has any exits, i.e. non-epsilon outbound edges.
+    bool HasExits(uint32_t last_state) const;
+
+    // Checks whether the epsilon-graph rooted at this node has any dead ends.
+    bool IsDeadEnd(uint32_t state);
+
+    TempNFA const &parent_;
+    absl::flat_hash_set<uint32_t> visited_;
+    absl::flat_hash_set<uint32_t> path_set_;
+    std::vector<uint32_t> path_;
+  };
+
   // Adds a state and its edges to the NFA, or merges it with an existing one.
   //
   // REQUIRES: if state `state_num` exists it must belong to the same capture group as `state`.
@@ -104,6 +175,13 @@ class TempNFA final {
   // REQUIRES: the automaton must be deterministic, in which case two states separated by an
   // epsilon-move can't have any other edge in between.
   void CollapseEpsilonMoves();
+
+  // Checks the automaton for so-called "dead ends", i.e. epsilon-loops with no exits (no outbound
+  // non-epsilon edges). Such loops are problematic because they don't consume any input character,
+  // so they would always cause a DFA to loop indefinitely and would sometimes also prevent NFAs
+  // from terminating. If our automaton has one or more dead ends we must fail compilation of the
+  // regular expression.
+  bool HasDeadEnds() const { return DeadEndChecker(*this).Run(); }
 
   // Finalizes this NFA by converting it to an `DFA` object, assuming the automaton is deterministic
   // (`IsDeterministic()` must return true) and has no epsilon-moves (`CollapseEpsilonMoves()` must

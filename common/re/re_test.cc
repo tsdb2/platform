@@ -1942,62 +1942,21 @@ TEST_P(RegexpTest, InvalidNonCapturingBrackets) {
   EXPECT_THAT(Parse("lorem(?ipsum)dolor"), StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
-TEST_P(RegexpTest, EpsilonLoop1) {
-  auto const status_or_pattern = Parse("(|a)+");
-  EXPECT_OK(status_or_pattern);
-  auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern, Matches("", {{""}}));
-  EXPECT_THAT(pattern, Matches("a", {{"a"}}));
-  EXPECT_THAT(pattern, AnyOf(Matches("aa", {{"aa"}}), Matches("aa", {{"a", "a"}})));
-  EXPECT_THAT(pattern, AnyOf(Matches("aaa", {{"aaa"}}), Matches("aaa", {{"aa", "a"}}),
-                             Matches("aaa", {{"a", "aa"}}), Matches("aaa", {{"a", "a", "a"}})));
-  EXPECT_THAT(pattern, DoesntMatch("b"));
-  EXPECT_THAT(pattern, DoesntMatch("bb"));
-  EXPECT_THAT(pattern, DoesntMatch("ab"));
-  EXPECT_THAT(pattern, DoesntMatch("ba"));
+TEST_P(RegexpTest, EpsilonLoop) {
+  EXPECT_THAT(Parse("()*"), StatusIs(absl::StatusCode::kFailedPrecondition));
+  // EXPECT_THAT(Parse("[^\\x00-\\xFF]*"), StatusIs(absl::StatusCode::kFailedPrecondition));
+  EXPECT_THAT(Parse("(|a)+"), StatusIs(absl::StatusCode::kFailedPrecondition));
+  EXPECT_THAT(Parse("(a|)+"), StatusIs(absl::StatusCode::kFailedPrecondition));
+  EXPECT_THAT(Parse("(?:|a)+"), StatusIs(absl::StatusCode::kFailedPrecondition));
+  EXPECT_THAT(Parse("(?:a|)+"), StatusIs(absl::StatusCode::kFailedPrecondition));
 }
 
-TEST_P(RegexpTest, EpsilonLoop2) {
-  auto const status_or_pattern = Parse("(a|)+");
-  EXPECT_OK(status_or_pattern);
-  auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern, Matches("", {{""}}));
-  EXPECT_THAT(pattern, Matches("a", {{"a"}}));
-  EXPECT_THAT(pattern, AnyOf(Matches("aa", {{"aa"}}), Matches("aa", {{"a", "a"}})));
-  EXPECT_THAT(pattern, AnyOf(Matches("aaa", {{"aaa"}}), Matches("aaa", {{"aa", "a"}}),
-                             Matches("aaa", {{"a", "aa"}}), Matches("aaa", {{"a", "a", "a"}})));
-  EXPECT_THAT(pattern, DoesntMatch("b"));
-  EXPECT_THAT(pattern, DoesntMatch("bb"));
-  EXPECT_THAT(pattern, DoesntMatch("ab"));
-  EXPECT_THAT(pattern, DoesntMatch("ba"));
-}
-
-TEST_P(RegexpTest, NonCapturingEpsilonLoop1) {
-  auto const status_or_pattern = Parse("(?:|a)+");
+TEST_P(RegexpTest, CollapsedEpsilonLoop) {
+  auto const status_or_pattern = Parse("(?:)*");
   EXPECT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
-  EXPECT_THAT(pattern, Matches("a", {}));
-  EXPECT_THAT(pattern, Matches("aa", {}));
-  EXPECT_THAT(pattern, Matches("aaa", {}));
-  EXPECT_THAT(pattern, DoesntMatch("b"));
-  EXPECT_THAT(pattern, DoesntMatch("bb"));
-  EXPECT_THAT(pattern, DoesntMatch("ab"));
-  EXPECT_THAT(pattern, DoesntMatch("ba"));
-}
-
-TEST_P(RegexpTest, NonCapturingEpsilonLoop2) {
-  auto const status_or_pattern = Parse("(?:a|)+");
-  EXPECT_OK(status_or_pattern);
-  auto const& pattern = status_or_pattern.value();
-  EXPECT_THAT(pattern, Matches("", {}));
-  EXPECT_THAT(pattern, Matches("a", {}));
-  EXPECT_THAT(pattern, Matches("aa", {}));
-  EXPECT_THAT(pattern, Matches("aaa", {}));
-  EXPECT_THAT(pattern, DoesntMatch("b"));
-  EXPECT_THAT(pattern, DoesntMatch("bb"));
-  EXPECT_THAT(pattern, DoesntMatch("ab"));
-  EXPECT_THAT(pattern, DoesntMatch("ba"));
+  EXPECT_THAT(pattern, DoesntMatch("a"));
 }
 
 TEST_P(RegexpTest, ChainLoops) {
