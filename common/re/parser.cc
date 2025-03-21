@@ -133,17 +133,8 @@ class Parser final {
   TempNFA MakeNegatedCharacterClassNFA(int capture_group, std::string_view chars);
   TempNFA MakeAssertionState(int capture_group, Assertions assertions);
 
-  static absl::Status UpdateCharacterClassEdgeNoCase(bool negated, State* start_state, char ch,
-                                                     uint32_t stop_state_num);
-
-  // Called by `ParseCharacterClass` to parse escape codes. `negated` indicates whether the
-  // character class is negated (i.e. it begins with ^). `state` is the NFA state to update with the
-  // characters resulting from the escape code. Returns an error status if the escape code is
-  // invalid.
-  //
-  // REQUIRES: the backslash before the escape code must have already been consumed.
-  absl::Status ParseCharacterClassEscapeCode(bool negated, State* start_state,
-                                             uint32_t stop_state_num);
+  // Called by `ParseCharacterClass` to parse a single, possibly escaped character.
+  absl::StatusOr<char> ParseCharacterClassElement();
 
   absl::Status ParseCharacterOrRange(bool negated, State* start_state, uint32_t stop_state_num);
 
@@ -278,18 +269,10 @@ TempNFA Parser::MakeAssertionState(int const capture_group, Assertions const ass
   return TempNFA({{state, State(capture_group, assertions, {})}}, state, state);
 }
 
-absl::Status Parser::UpdateCharacterClassEdgeNoCase(bool const negated, State* const start_state,
-                                                    char const ch, uint32_t const stop_state_num) {
-  if (negated) {
-    start_state->edges.erase(ch);
-  } else {
-    start_state->edges[ch].emplace(stop_state_num);
+absl::StatusOr<char> Parser::ParseCharacterClassElement() {
+  if (!ConsumePrefix("\\")) {
+    return Advance();
   }
-  return absl::OkStatus();
-}
-
-absl::Status Parser::ParseCharacterClassEscapeCode(bool const negated, State* const start_state,
-                                                   uint32_t const stop_state_num) {
   if (at_end()) {
     return SyntaxError("invalid escape code");
   }
@@ -309,20 +292,20 @@ absl::Status Parser::ParseCharacterClassEscapeCode(bool const negated, State* co
     case '?':
     case '*':
     case '+':
-      return UpdateCharacterClassEdgeNoCase(negated, start_state, ch, stop_state_num);
+      return ch;
     case 't':
-      return UpdateCharacterClassEdgeNoCase(negated, start_state, '\t', stop_state_num);
+      return '\t';
     case 'r':
-      return UpdateCharacterClassEdgeNoCase(negated, start_state, '\r', stop_state_num);
+      return '\r';
     case 'n':
-      return UpdateCharacterClassEdgeNoCase(negated, start_state, '\n', stop_state_num);
+      return '\n';
     case 'v':
-      return UpdateCharacterClassEdgeNoCase(negated, start_state, '\v', stop_state_num);
+      return '\v';
     case 'f':
-      return UpdateCharacterClassEdgeNoCase(negated, start_state, '\f', stop_state_num);
+      return '\f';
     case 'x': {
       ASSIGN_VAR_OR_RETURN(uint8_t, code, ParseHexCode());
-      return UpdateCharacterClassEdgeNoCase(negated, start_state, code, stop_state_num);
+      return code;
     }
     case '0':
     case '1':
@@ -342,21 +325,20 @@ absl::Status Parser::ParseCharacterClassEscapeCode(bool const negated, State* co
 
 absl::Status Parser::ParseCharacterOrRange(bool const negated, State* const start_state,
                                            uint32_t const stop_state_num) {
-  char const ch1 = Advance();
+  DEFINE_CONST_OR_RETURN(ch1, ParseCharacterClassElement());
   if (ConsumePrefix("-")) {
     if (at_end()) {
       return SyntaxError("unmatched square bracket");
     }
     if (front() != ']') {
-      if (ConsumePrefix("\\")) {
-        return SyntaxError("invalid character range");
-      }
-      char const ch2 = Advance();
-      if (ch2 <= ch1) {
+      DEFINE_CONST_OR_RETURN(ch2, ParseCharacterClassElement());
+      uint8_t const uch1 = ch1;
+      uint8_t const uch2 = ch2;
+      if (uch2 <= uch1) {
         return SyntaxError(
             "the right-hand side of a character range must be greater than the left-hand side");
       }
-      for (char ch = ch1; ch <= ch2; ++ch) {
+      for (int ch = uch1; ch <= uch2; ++ch) {
         if (negated) {
           EraseEdgeWithCase(start_state, ch);
         } else {
@@ -397,11 +379,7 @@ absl::StatusOr<TempNFA> Parser::ParseCharacterClass(int const capture_group) {
     if (at_end()) {
       return SyntaxError("unmatched square bracket");
     }
-    if (ConsumePrefix("\\")) {
-      RETURN_IF_ERROR(ParseCharacterClassEscapeCode(negated, &state, stop));
-    } else {
-      RETURN_IF_ERROR(ParseCharacterOrRange(negated, &state, stop));
-    }
+    RETURN_IF_ERROR(ParseCharacterOrRange(negated, &state, stop));
   }
   return TempNFA(
       {

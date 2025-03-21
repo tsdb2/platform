@@ -439,7 +439,7 @@ TEST_P(RegexpTest, ManyCaptureGroups) {
 
 TEST_P(RegexpTest, Empty) {
   auto const status_or_pattern = Parse("");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch("a"));
   EXPECT_THAT(pattern, DoesntMatch("b"));
@@ -449,7 +449,7 @@ TEST_P(RegexpTest, Empty) {
 
 TEST_P(RegexpTest, SimpleCharacter) {
   auto const status_or_pattern = Parse("a");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("a", {}));
   EXPECT_THAT(pattern, DoesntMatch("b"));
@@ -460,7 +460,7 @@ TEST_P(RegexpTest, SimpleCharacter) {
 
 TEST_P(RegexpTest, AnotherSimpleCharacter) {
   auto const status_or_pattern = Parse("b");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch("a"));
   EXPECT_THAT(pattern, Matches("b", {}));
@@ -494,7 +494,7 @@ TEST_P(RegexpTest, BlockBackrefs) {
 
 TEST_P(RegexpTest, Digit) {
   auto const status_or_pattern = Parse("\\d");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("0", {}));
@@ -516,7 +516,7 @@ TEST_P(RegexpTest, Digit) {
 
 TEST_P(RegexpTest, NotDigit) {
   auto const status_or_pattern = Parse("\\D");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("0"));
@@ -538,7 +538,7 @@ TEST_P(RegexpTest, NotDigit) {
 
 TEST_P(RegexpTest, WordCharacter) {
   auto const status_or_pattern = Parse("\\w");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("A", {}));
@@ -612,7 +612,7 @@ TEST_P(RegexpTest, WordCharacter) {
 
 TEST_P(RegexpTest, NotWordCharacter) {
   auto const status_or_pattern = Parse("\\W");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("A"));
@@ -686,7 +686,7 @@ TEST_P(RegexpTest, NotWordCharacter) {
 
 TEST_P(RegexpTest, Spacing) {
   auto const status_or_pattern = Parse("\\s");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches(" ", {}));
@@ -703,7 +703,7 @@ TEST_P(RegexpTest, Spacing) {
 
 TEST_P(RegexpTest, NotSpacing) {
   auto const status_or_pattern = Parse("\\S");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch(" "));
@@ -720,7 +720,7 @@ TEST_P(RegexpTest, NotSpacing) {
 
 TEST_P(RegexpTest, HorizontalTab) {
   auto const status_or_pattern = Parse("\\t");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("\t", {}));
@@ -733,7 +733,7 @@ TEST_P(RegexpTest, HorizontalTab) {
 
 TEST_P(RegexpTest, CarriageReturn) {
   auto const status_or_pattern = Parse("\\r");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("\r", {}));
@@ -746,7 +746,7 @@ TEST_P(RegexpTest, CarriageReturn) {
 
 TEST_P(RegexpTest, LineFeed) {
   auto const status_or_pattern = Parse("\\n");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("\n", {}));
@@ -759,7 +759,7 @@ TEST_P(RegexpTest, LineFeed) {
 
 TEST_P(RegexpTest, VerticalTab) {
   auto const status_or_pattern = Parse("\\v");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("\v", {}));
@@ -772,7 +772,7 @@ TEST_P(RegexpTest, VerticalTab) {
 
 TEST_P(RegexpTest, FormFeed) {
   auto const status_or_pattern = Parse("\\f");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("\f", {}));
@@ -790,7 +790,7 @@ TEST_P(RegexpTest, InvalidHexCode) {
 
 TEST_P(RegexpTest, HexCode1) {
   auto const status_or_pattern = Parse("\\x12");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("\x12", {}));
@@ -802,7 +802,7 @@ TEST_P(RegexpTest, HexCode1) {
 
 TEST_P(RegexpTest, HexCode2) {
   auto const status_or_pattern = Parse("\\xAF");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("\xAF", {}));
@@ -814,7 +814,7 @@ TEST_P(RegexpTest, HexCode2) {
 
 TEST_P(RegexpTest, HexCode3) {
   auto const status_or_pattern = Parse("\\xaf");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("\xAF", {}));
@@ -826,7 +826,7 @@ TEST_P(RegexpTest, HexCode3) {
 
 TEST_P(RegexpTest, AnyCharacter) {
   auto const status_or_pattern = Parse(".");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("a", {}));
   EXPECT_THAT(pattern, Matches("b", {}));
@@ -837,7 +837,7 @@ TEST_P(RegexpTest, AnyCharacter) {
 
 TEST_P(RegexpTest, EmptyCharacterClass) {
   auto const status_or_pattern = Parse("[]");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -849,7 +849,7 @@ TEST_P(RegexpTest, EmptyCharacterClass) {
 
 TEST_P(RegexpTest, NegatedEmptyCharacterClass) {
   auto const status_or_pattern = Parse("[^]");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -862,7 +862,7 @@ TEST_P(RegexpTest, NegatedEmptyCharacterClass) {
 
 TEST_P(RegexpTest, CharacterClass) {
   auto const status_or_pattern = Parse("[lorem\xAF]");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -880,7 +880,7 @@ TEST_P(RegexpTest, CharacterClass) {
 
 TEST_P(RegexpTest, NegatedCharacterClass) {
   auto const status_or_pattern = Parse("[^lorem\xAF]");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -901,7 +901,7 @@ TEST_P(RegexpTest, NegatedCharacterClass) {
 
 TEST_P(RegexpTest, CharacterClassWithCircumflex) {
   auto const status_or_pattern = Parse("[ab^cd]");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -915,7 +915,7 @@ TEST_P(RegexpTest, CharacterClassWithCircumflex) {
 
 TEST_P(RegexpTest, NegatedCharacterClassWithCircumflex) {
   auto const status_or_pattern = Parse("[^ab^cd]");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -932,7 +932,7 @@ TEST_P(RegexpTest, NegatedCharacterClassWithCircumflex) {
 
 TEST_P(RegexpTest, CharacterRange) {
   auto const status_or_pattern = Parse("[2-4]");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("0"));
@@ -947,7 +947,7 @@ TEST_P(RegexpTest, CharacterRange) {
 
 TEST_P(RegexpTest, NegatedCharacterRange) {
   auto const status_or_pattern = Parse("[^2-4]");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("0", {}));
@@ -962,7 +962,7 @@ TEST_P(RegexpTest, NegatedCharacterRange) {
 
 TEST_P(RegexpTest, CharacterRangeWithDash) {
   auto const status_or_pattern = Parse("[2-4-]");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("0"));
@@ -977,7 +977,7 @@ TEST_P(RegexpTest, CharacterRangeWithDash) {
 
 TEST_P(RegexpTest, NegatedCharacterRangeWithDash) {
   auto const status_or_pattern = Parse("[^2-4-]");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("0", {}));
@@ -992,7 +992,7 @@ TEST_P(RegexpTest, NegatedCharacterRangeWithDash) {
 
 TEST_P(RegexpTest, CharacterClassWithCharactersAndRange) {
   auto const status_or_pattern = Parse("[ac2-4eg-]");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -1015,7 +1015,7 @@ TEST_P(RegexpTest, CharacterClassWithCharactersAndRange) {
 
 TEST_P(RegexpTest, NegatedCharacterClassWithCharactersAndRange) {
   auto const status_or_pattern = Parse("[^ac2-4eg-]");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -1038,7 +1038,7 @@ TEST_P(RegexpTest, NegatedCharacterClassWithCharactersAndRange) {
 
 TEST_P(RegexpTest, CharacterClassWithSpecialCharacters) {
   auto const status_or_pattern = Parse("[a^$.(){}|?*+b]");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -1060,7 +1060,7 @@ TEST_P(RegexpTest, CharacterClassWithSpecialCharacters) {
 
 TEST_P(RegexpTest, NegatedCharacterClassWithSpecialCharacters) {
   auto const status_or_pattern = Parse("[^a^$.(){}|?*+b]");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -1082,7 +1082,7 @@ TEST_P(RegexpTest, NegatedCharacterClassWithSpecialCharacters) {
 
 TEST_P(RegexpTest, CharacterClassWithEscapes) {
   auto const status_or_pattern = Parse("[a\\\\\\^\\$\\.\\(\\)\\[\\]\\{\\}\\|\\?\\*\\+b]");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -1107,7 +1107,7 @@ TEST_P(RegexpTest, CharacterClassWithEscapes) {
 
 TEST_P(RegexpTest, NegatedCharacterClassWithEscapes) {
   auto const status_or_pattern = Parse("[^a\\\\\\^\\$\\.\\(\\)\\[\\]\\{\\}\\|\\?\\*\\+b]");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -1132,7 +1132,7 @@ TEST_P(RegexpTest, NegatedCharacterClassWithEscapes) {
 
 TEST_P(RegexpTest, CharacterClassWithMoreEscapes) {
   auto const status_or_pattern = Parse("[\\t\\r\\n\\v\\f\\x12\\xAF]");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -1150,7 +1150,7 @@ TEST_P(RegexpTest, CharacterClassWithMoreEscapes) {
 
 TEST_P(RegexpTest, NegatedCharacterClassWithMoreEscapes) {
   auto const status_or_pattern = Parse("[^\\t\\r\\n\\v\\f\\x12\\xAF]");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -1164,6 +1164,105 @@ TEST_P(RegexpTest, NegatedCharacterClassWithMoreEscapes) {
   EXPECT_THAT(pattern, DoesntMatch("\xAF"));
   EXPECT_THAT(pattern, Matches("x", {}));
   EXPECT_THAT(pattern, Matches("y", {}));
+}
+
+TEST_P(RegexpTest, CharacterRangeBeginsWithEscape) {
+  auto const status_or_pattern = Parse("[\\x12-4]");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern, DoesntMatch(""));
+  EXPECT_THAT(pattern, DoesntMatch("a"));
+  EXPECT_THAT(pattern, DoesntMatch("\x11"));
+  EXPECT_THAT(pattern, Matches("\x12", {}));
+  EXPECT_THAT(pattern, Matches("\x13", {}));
+  EXPECT_THAT(pattern, Matches("3", {}));
+  EXPECT_THAT(pattern, Matches("4", {}));
+  EXPECT_THAT(pattern, DoesntMatch("5"));
+}
+
+TEST_P(RegexpTest, CharacterRangeEndsWithEscape) {
+  auto const status_or_pattern = Parse("[0-\\x34]");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern, DoesntMatch(""));
+  EXPECT_THAT(pattern, DoesntMatch("a"));
+  EXPECT_THAT(pattern, DoesntMatch("/"));
+  EXPECT_THAT(pattern, Matches("0", {}));
+  EXPECT_THAT(pattern, Matches("1", {}));
+  EXPECT_THAT(pattern, Matches("2", {}));
+  EXPECT_THAT(pattern, Matches("3", {}));
+  EXPECT_THAT(pattern, Matches("4", {}));
+  EXPECT_THAT(pattern, DoesntMatch("5"));
+}
+
+TEST_P(RegexpTest, CharacterRangeWithEscapes) {
+  auto const status_or_pattern = Parse("[\\x12-\\x34]");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern, DoesntMatch(""));
+  EXPECT_THAT(pattern, DoesntMatch("a"));
+  EXPECT_THAT(pattern, DoesntMatch("\x11"));
+  EXPECT_THAT(pattern, Matches("\x12", {}));
+  EXPECT_THAT(pattern, Matches("\x13", {}));
+  EXPECT_THAT(pattern, Matches("3", {}));
+  EXPECT_THAT(pattern, Matches("4", {}));
+  EXPECT_THAT(pattern, DoesntMatch("5"));
+}
+
+TEST_P(RegexpTest, NegatedCharacterRangeWithEscapes) {
+  auto const status_or_pattern = Parse("[^\\x12-\\x34]");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern, DoesntMatch(""));
+  EXPECT_THAT(pattern, Matches("a", {}));
+  EXPECT_THAT(pattern, Matches("\x11", {}));
+  EXPECT_THAT(pattern, DoesntMatch("\x12"));
+  EXPECT_THAT(pattern, DoesntMatch("\x13"));
+  EXPECT_THAT(pattern, DoesntMatch("3"));
+  EXPECT_THAT(pattern, DoesntMatch("4"));
+  EXPECT_THAT(pattern, Matches("5", {}));
+}
+
+TEST_P(RegexpTest, CharacterRangeCrossingSignBoundary) {
+  auto const status_or_pattern = Parse("[\\x42-\\xDB]");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern, DoesntMatch(""));
+  EXPECT_THAT(pattern, DoesntMatch("A"));
+  EXPECT_THAT(pattern, Matches("\x42", {}));
+  EXPECT_THAT(pattern, Matches("\x43", {}));
+  EXPECT_THAT(pattern, Matches("\xDA", {}));
+  EXPECT_THAT(pattern, Matches("\xDB", {}));
+  EXPECT_THAT(pattern, DoesntMatch("\xDC"));
+}
+
+TEST_P(RegexpTest, FullCharacterRange) {
+  auto const status_or_pattern = Parse("[\\x00-\\xFF]");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  // TODO: fix the bug and re-enable the following line.
+  // EXPECT_THAT(pattern, DoesntMatch(""));
+  EXPECT_THAT(pattern, Matches("\x00", {}));
+  EXPECT_THAT(pattern, Matches("\x01", {}));
+  EXPECT_THAT(pattern, Matches("a", {}));
+  EXPECT_THAT(pattern, DoesntMatch("aa"));
+  EXPECT_THAT(pattern, Matches("b", {}));
+  EXPECT_THAT(pattern, DoesntMatch("bb"));
+  EXPECT_THAT(pattern, Matches("\xFE", {}));
+  EXPECT_THAT(pattern, Matches("\xFF", {}));
+}
+
+TEST_P(RegexpTest, EmptyCharacterRange) {
+  auto const status_or_pattern = Parse("[^\\x00-\\xFF]");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern, DoesntMatch(""));
+  EXPECT_THAT(pattern, DoesntMatch("\x00"));
+  EXPECT_THAT(pattern, DoesntMatch("\x01"));
+  EXPECT_THAT(pattern, DoesntMatch("a"));
+  EXPECT_THAT(pattern, DoesntMatch("b"));
+  EXPECT_THAT(pattern, DoesntMatch("\xFE"));
+  EXPECT_THAT(pattern, DoesntMatch("\xFF"));
 }
 
 TEST_P(RegexpTest, InvalidEscapeCodesInCharacterClass) {
@@ -1201,7 +1300,7 @@ TEST_P(RegexpTest, InvalidSpecialCharacter) {
 
 TEST_P(RegexpTest, CharacterSequence) {
   auto const status_or_pattern = Parse("lorem");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("l"));
@@ -1212,7 +1311,7 @@ TEST_P(RegexpTest, CharacterSequence) {
 
 TEST_P(RegexpTest, CharacterSequenceWithDot) {
   auto const status_or_pattern = Parse("lo.em");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("l"));
@@ -1226,7 +1325,7 @@ TEST_P(RegexpTest, CharacterSequenceWithDot) {
 
 TEST_P(RegexpTest, KleeneStar) {
   auto const status_or_pattern = Parse("a*");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -1240,7 +1339,7 @@ TEST_P(RegexpTest, KleeneStar) {
 
 TEST_P(RegexpTest, CharacterSequenceWithStar) {
   auto const status_or_pattern = Parse("lo*rem");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("l"));
@@ -1256,7 +1355,7 @@ TEST_P(RegexpTest, CharacterSequenceWithStar) {
 
 TEST_P(RegexpTest, KleenePlus) {
   auto const status_or_pattern = Parse("a+");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -1270,7 +1369,7 @@ TEST_P(RegexpTest, KleenePlus) {
 
 TEST_P(RegexpTest, CharacterSequenceWithPlus) {
   auto const status_or_pattern = Parse("lo+rem");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("l"));
@@ -1286,7 +1385,7 @@ TEST_P(RegexpTest, CharacterSequenceWithPlus) {
 
 TEST_P(RegexpTest, Maybe) {
   auto const status_or_pattern = Parse("a?");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -1298,7 +1397,7 @@ TEST_P(RegexpTest, Maybe) {
 
 TEST_P(RegexpTest, Many) {
   auto const status_or_pattern = Parse("a{}");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -1315,7 +1414,7 @@ TEST_P(RegexpTest, Many) {
 
 TEST_P(RegexpTest, ExactlyZero) {
   auto const status_or_pattern = Parse("a{0}");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -1330,7 +1429,7 @@ TEST_P(RegexpTest, ExactlyZero) {
 
 TEST_P(RegexpTest, ExactlyOne) {
   auto const status_or_pattern = Parse("a{1}");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -1345,7 +1444,7 @@ TEST_P(RegexpTest, ExactlyOne) {
 
 TEST_P(RegexpTest, ExactlyTwo) {
   auto const status_or_pattern = Parse("a{2}");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -1360,7 +1459,7 @@ TEST_P(RegexpTest, ExactlyTwo) {
 
 TEST_P(RegexpTest, ExactlyFourtyTwo) {
   auto const status_or_pattern = Parse("a{42}");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -1378,7 +1477,7 @@ TEST_P(RegexpTest, ExactlyFourtyTwo) {
 
 TEST_P(RegexpTest, AtLeastZero) {
   auto const status_or_pattern = Parse("a{0,}");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -1395,7 +1494,7 @@ TEST_P(RegexpTest, AtLeastZero) {
 
 TEST_P(RegexpTest, AtLeastOne) {
   auto const status_or_pattern = Parse("a{1,}");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -1412,7 +1511,7 @@ TEST_P(RegexpTest, AtLeastOne) {
 
 TEST_P(RegexpTest, AtLeastTwo) {
   auto const status_or_pattern = Parse("a{2,}");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -1429,7 +1528,7 @@ TEST_P(RegexpTest, AtLeastTwo) {
 
 TEST_P(RegexpTest, AtLeastFourtyTwo) {
   auto const status_or_pattern = Parse("a{42,}");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -1448,7 +1547,7 @@ TEST_P(RegexpTest, AtLeastFourtyTwo) {
 
 TEST_P(RegexpTest, BetweenZeroAndZero) {
   auto const status_or_pattern = Parse("a{0,0}");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -1465,7 +1564,7 @@ TEST_P(RegexpTest, BetweenZeroAndZero) {
 
 TEST_P(RegexpTest, BetweenZeroAndOne) {
   auto const status_or_pattern = Parse("a{0,1}");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -1482,7 +1581,7 @@ TEST_P(RegexpTest, BetweenZeroAndOne) {
 
 TEST_P(RegexpTest, BetweenZeroAndTwo) {
   auto const status_or_pattern = Parse("a{0,2}");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -1499,7 +1598,7 @@ TEST_P(RegexpTest, BetweenZeroAndTwo) {
 
 TEST_P(RegexpTest, BetweenOneAndOne) {
   auto const status_or_pattern = Parse("a{1,1}");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -1516,7 +1615,7 @@ TEST_P(RegexpTest, BetweenOneAndOne) {
 
 TEST_P(RegexpTest, BetweenOneAndTwo) {
   auto const status_or_pattern = Parse("a{1,2}");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -1533,7 +1632,7 @@ TEST_P(RegexpTest, BetweenOneAndTwo) {
 
 TEST_P(RegexpTest, BetweenTwoAndTwo) {
   auto const status_or_pattern = Parse("a{2,2}");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -1550,7 +1649,7 @@ TEST_P(RegexpTest, BetweenTwoAndTwo) {
 
 TEST_P(RegexpTest, BetweenFourtyTwoAndFourtyFive) {
   auto const status_or_pattern = Parse("a{42,45}");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -1572,7 +1671,7 @@ TEST_P(RegexpTest, BetweenFourtyTwoAndFourtyFive) {
 
 TEST_P(RegexpTest, CharacterSequenceWithMaybe) {
   auto const status_or_pattern = Parse("lo?rem");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("l"));
@@ -1621,7 +1720,7 @@ TEST_P(RegexpTest, MultipleQuantifiersDisallowed) {
 
 TEST_P(RegexpTest, MultipleQuantifiersWithBrackets) {
   auto const status_or_pattern = Parse("(a+)*");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {{}}));
   EXPECT_THAT(pattern, Matches("a", {{"a"}}));
@@ -1640,7 +1739,7 @@ TEST_P(RegexpTest, MultipleQuantifiersWithBrackets) {
 
 TEST_P(RegexpTest, MultipleQuantifiersWithNonCapturingBrackets) {
   auto const status_or_pattern = Parse("(?:a+)*");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -1655,7 +1754,7 @@ TEST_P(RegexpTest, MultipleQuantifiersWithNonCapturingBrackets) {
 
 TEST_P(RegexpTest, EmptyOrEmpty) {
   auto const status_or_pattern = Parse("|");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -1665,7 +1764,7 @@ TEST_P(RegexpTest, EmptyOrEmpty) {
 
 TEST_P(RegexpTest, EmptyOrA) {
   auto const status_or_pattern = Parse("|a");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -1678,7 +1777,7 @@ TEST_P(RegexpTest, EmptyOrA) {
 
 TEST_P(RegexpTest, AOrEmpty) {
   auto const status_or_pattern = Parse("a|");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -1691,7 +1790,7 @@ TEST_P(RegexpTest, AOrEmpty) {
 
 TEST_P(RegexpTest, AOrB) {
   auto const status_or_pattern = Parse("a|b");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -1707,7 +1806,7 @@ TEST_P(RegexpTest, AOrB) {
 
 TEST_P(RegexpTest, LoremOrIpsum) {
   auto const status_or_pattern = Parse("lorem|ipsum");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("l"));
@@ -1722,7 +1821,7 @@ TEST_P(RegexpTest, LoremOrIpsum) {
 
 TEST_P(RegexpTest, EmptyBrackets) {
   auto const status_or_pattern = Parse("()");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {{""}}));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -1733,7 +1832,7 @@ TEST_P(RegexpTest, EmptyBrackets) {
 
 TEST_P(RegexpTest, EmptyNonCapturingBrackets) {
   auto const status_or_pattern = Parse("(?:)");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -1752,7 +1851,7 @@ TEST_P(RegexpTest, UnmatchedBrackets) {
 
 TEST_P(RegexpTest, Brackets) {
   auto const status_or_pattern = Parse("(a)");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("a", {{"a"}}));
@@ -1763,7 +1862,7 @@ TEST_P(RegexpTest, Brackets) {
 
 TEST_P(RegexpTest, NonCapturingBrackets) {
   auto const status_or_pattern = Parse("(?:a)");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -1774,7 +1873,7 @@ TEST_P(RegexpTest, NonCapturingBrackets) {
 
 TEST_P(RegexpTest, IpsumInBrackets) {
   auto const status_or_pattern = Parse("lorem(ipsum)dolor");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("lorem"));
@@ -1787,7 +1886,7 @@ TEST_P(RegexpTest, IpsumInBrackets) {
 
 TEST_P(RegexpTest, IpsumInNonCapturingBrackets) {
   auto const status_or_pattern = Parse("lorem(?:ipsum)dolor");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("lorem"));
@@ -1800,7 +1899,7 @@ TEST_P(RegexpTest, IpsumInNonCapturingBrackets) {
 
 TEST_P(RegexpTest, NestedBrackets) {
   auto const status_or_pattern = Parse("lorem(ipsum(dolor)amet)adipisci");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -1818,7 +1917,7 @@ TEST_P(RegexpTest, NestedBrackets) {
 
 TEST_P(RegexpTest, CapturingBracketsNestedInNonCapturingBrackets) {
   auto const status_or_pattern = Parse("lorem(?:ipsum(dolor)amet)adipisci");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -1836,7 +1935,7 @@ TEST_P(RegexpTest, CapturingBracketsNestedInNonCapturingBrackets) {
 
 TEST_P(RegexpTest, NonCapturingBracketsNestedInCapturingBrackets) {
   auto const status_or_pattern = Parse("lorem(ipsum(?:dolor)amet)adipisci");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -1854,7 +1953,7 @@ TEST_P(RegexpTest, NonCapturingBracketsNestedInCapturingBrackets) {
 
 TEST_P(RegexpTest, NestedNonCapturingBrackets) {
   auto const status_or_pattern = Parse("lorem(?:ipsum(?:dolor)amet)adipisci");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -1872,7 +1971,7 @@ TEST_P(RegexpTest, NestedNonCapturingBrackets) {
 
 TEST_P(RegexpTest, PeeringBrackets) {
   auto const status_or_pattern = Parse("lorem(ipsum)dolor(amet)adipisci");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -1889,7 +1988,7 @@ TEST_P(RegexpTest, PeeringBrackets) {
 
 TEST_P(RegexpTest, CapturingBracketsPeeringWithNonCapturingBrackets) {
   auto const status_or_pattern = Parse("lorem(ipsum)dolor(?:amet)adipisci");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -1906,7 +2005,7 @@ TEST_P(RegexpTest, CapturingBracketsPeeringWithNonCapturingBrackets) {
 
 TEST_P(RegexpTest, NonCapturingBracketsPeeringWithCapturingBrackets) {
   auto const status_or_pattern = Parse("lorem(?:ipsum)dolor(amet)adipisci");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -1923,7 +2022,7 @@ TEST_P(RegexpTest, NonCapturingBracketsPeeringWithCapturingBrackets) {
 
 TEST_P(RegexpTest, PeeringNonCapturingBrackets) {
   auto const status_or_pattern = Parse("lorem(?:ipsum)dolor(?:amet)adipisci");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -1944,24 +2043,33 @@ TEST_P(RegexpTest, InvalidNonCapturingBrackets) {
 
 TEST_P(RegexpTest, EpsilonLoop) {
   EXPECT_THAT(Parse("()*"), StatusIs(absl::StatusCode::kFailedPrecondition));
-  // EXPECT_THAT(Parse("[^\\x00-\\xFF]*"), StatusIs(absl::StatusCode::kFailedPrecondition));
   EXPECT_THAT(Parse("(|a)+"), StatusIs(absl::StatusCode::kFailedPrecondition));
   EXPECT_THAT(Parse("(a|)+"), StatusIs(absl::StatusCode::kFailedPrecondition));
   EXPECT_THAT(Parse("(?:|a)+"), StatusIs(absl::StatusCode::kFailedPrecondition));
   EXPECT_THAT(Parse("(?:a|)+"), StatusIs(absl::StatusCode::kFailedPrecondition));
 }
 
-TEST_P(RegexpTest, CollapsedEpsilonLoop) {
+TEST_P(RegexpTest, CollapsedEpsilonLoop1) {
   auto const status_or_pattern = Parse("(?:)*");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, DoesntMatch("a"));
+  EXPECT_THAT(pattern, DoesntMatch("b"));
+}
+
+TEST_P(RegexpTest, CollapsedEpsilonLoop2) {
+  auto const status_or_pattern = Parse("[^\\x00-\\xFF]*");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_THAT(pattern, Matches("", {}));
+  EXPECT_THAT(pattern, DoesntMatch("a"));
+  EXPECT_THAT(pattern, DoesntMatch("b"));
 }
 
 TEST_P(RegexpTest, ChainLoops) {
   auto const status_or_pattern = Parse("a*b*");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -1989,7 +2097,7 @@ TEST_P(RegexpTest, ChainLoops) {
 
 TEST_P(RegexpTest, ChainStarAndPlus) {
   auto const status_or_pattern = Parse("a*b+");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -2017,7 +2125,7 @@ TEST_P(RegexpTest, ChainStarAndPlus) {
 
 TEST_P(RegexpTest, ChainStarAndMaybe) {
   auto const status_or_pattern = Parse("a*b?");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -2045,7 +2153,7 @@ TEST_P(RegexpTest, ChainStarAndMaybe) {
 
 TEST_P(RegexpTest, ChainStarAndQuantifier) {
   auto const status_or_pattern = Parse("a*b{2}");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -2074,7 +2182,7 @@ TEST_P(RegexpTest, ChainStarAndQuantifier) {
 
 TEST_P(RegexpTest, ChainPlusAndStar) {
   auto const status_or_pattern = Parse("a+b*");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -2102,7 +2210,7 @@ TEST_P(RegexpTest, ChainPlusAndStar) {
 
 TEST_P(RegexpTest, ChainPlusAndPlus) {
   auto const status_or_pattern = Parse("a+b+");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -2130,7 +2238,7 @@ TEST_P(RegexpTest, ChainPlusAndPlus) {
 
 TEST_P(RegexpTest, ChainPlusAndMaybe) {
   auto const status_or_pattern = Parse("a+b?");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -2158,7 +2266,7 @@ TEST_P(RegexpTest, ChainPlusAndMaybe) {
 
 TEST_P(RegexpTest, ChainPlusAndQuantifier) {
   auto const status_or_pattern = Parse("a+b{2}");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -2187,7 +2295,7 @@ TEST_P(RegexpTest, ChainPlusAndQuantifier) {
 
 TEST_P(RegexpTest, ChainMaybeAndStar) {
   auto const status_or_pattern = Parse("a?b*");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -2215,7 +2323,7 @@ TEST_P(RegexpTest, ChainMaybeAndStar) {
 
 TEST_P(RegexpTest, ChainMaybeAndPlus) {
   auto const status_or_pattern = Parse("a?b+");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -2243,7 +2351,7 @@ TEST_P(RegexpTest, ChainMaybeAndPlus) {
 
 TEST_P(RegexpTest, ChainMaybeAndMaybe) {
   auto const status_or_pattern = Parse("a?b?");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -2271,7 +2379,7 @@ TEST_P(RegexpTest, ChainMaybeAndMaybe) {
 
 TEST_P(RegexpTest, ChainMaybeAndQuantifier) {
   auto const status_or_pattern = Parse("a?b{2}");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -2300,7 +2408,7 @@ TEST_P(RegexpTest, ChainMaybeAndQuantifier) {
 
 TEST_P(RegexpTest, ChainQuantifierAndStar) {
   auto const status_or_pattern = Parse("a{2}b*");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -2329,7 +2437,7 @@ TEST_P(RegexpTest, ChainQuantifierAndStar) {
 
 TEST_P(RegexpTest, ChainQuantifierAndPlus) {
   auto const status_or_pattern = Parse("a{2}b+");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -2358,7 +2466,7 @@ TEST_P(RegexpTest, ChainQuantifierAndPlus) {
 
 TEST_P(RegexpTest, ChainQuantifierAndMaybe) {
   auto const status_or_pattern = Parse("a{2}b?");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -2387,7 +2495,7 @@ TEST_P(RegexpTest, ChainQuantifierAndMaybe) {
 
 TEST_P(RegexpTest, ChainQuantifiers) {
   auto const status_or_pattern = Parse("a{3}b{2}");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -2418,7 +2526,7 @@ TEST_P(RegexpTest, ChainQuantifiers) {
 
 TEST_P(RegexpTest, PipeLoops) {
   auto const status_or_pattern = Parse("a*|b*");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -2433,7 +2541,7 @@ TEST_P(RegexpTest, PipeLoops) {
 
 TEST_P(RegexpTest, StarOrPlus) {
   auto const status_or_pattern = Parse("a*|b+");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -2448,7 +2556,7 @@ TEST_P(RegexpTest, StarOrPlus) {
 
 TEST_P(RegexpTest, StarOrMaybe) {
   auto const status_or_pattern = Parse("a*|b?");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -2463,7 +2571,7 @@ TEST_P(RegexpTest, StarOrMaybe) {
 
 TEST_P(RegexpTest, StarOrQuantifier) {
   auto const status_or_pattern = Parse("a*|b{2}");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -2481,7 +2589,7 @@ TEST_P(RegexpTest, StarOrQuantifier) {
 
 TEST_P(RegexpTest, PlusOrStar) {
   auto const status_or_pattern = Parse("a+|b*");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -2496,7 +2604,7 @@ TEST_P(RegexpTest, PlusOrStar) {
 
 TEST_P(RegexpTest, PlusOrPlus) {
   auto const status_or_pattern = Parse("a+|b+");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -2511,7 +2619,7 @@ TEST_P(RegexpTest, PlusOrPlus) {
 
 TEST_P(RegexpTest, PlusOrMaybe) {
   auto const status_or_pattern = Parse("a+|b?");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -2526,7 +2634,7 @@ TEST_P(RegexpTest, PlusOrMaybe) {
 
 TEST_P(RegexpTest, PlusOrQuantifier) {
   auto const status_or_pattern = Parse("a+|b{2}");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -2544,7 +2652,7 @@ TEST_P(RegexpTest, PlusOrQuantifier) {
 
 TEST_P(RegexpTest, MaybeOrStar) {
   auto const status_or_pattern = Parse("a?|b*");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -2559,7 +2667,7 @@ TEST_P(RegexpTest, MaybeOrStar) {
 
 TEST_P(RegexpTest, MaybeOrPlus) {
   auto const status_or_pattern = Parse("a?|b+");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -2574,7 +2682,7 @@ TEST_P(RegexpTest, MaybeOrPlus) {
 
 TEST_P(RegexpTest, MaybeOrMaybe) {
   auto const status_or_pattern = Parse("a?|b?");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -2589,7 +2697,7 @@ TEST_P(RegexpTest, MaybeOrMaybe) {
 
 TEST_P(RegexpTest, MaybeOrQuantifier) {
   auto const status_or_pattern = Parse("a?|b{2}");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, Matches("a", {}));
@@ -2607,7 +2715,7 @@ TEST_P(RegexpTest, MaybeOrQuantifier) {
 
 TEST_P(RegexpTest, QuantifierOrStar) {
   auto const status_or_pattern = Parse("a{2}|b*");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -2625,7 +2733,7 @@ TEST_P(RegexpTest, QuantifierOrStar) {
 
 TEST_P(RegexpTest, QuantifierOrPlus) {
   auto const status_or_pattern = Parse("a{2}|b+");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -2643,7 +2751,7 @@ TEST_P(RegexpTest, QuantifierOrPlus) {
 
 TEST_P(RegexpTest, QuantifierOrMaybe) {
   auto const status_or_pattern = Parse("a{2}|b?");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -2661,7 +2769,7 @@ TEST_P(RegexpTest, QuantifierOrMaybe) {
 
 TEST_P(RegexpTest, QuantifierOrQuantifier) {
   auto const status_or_pattern = Parse("a{2}|b{3}");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, DoesntMatch("a"));
@@ -2681,7 +2789,7 @@ TEST_P(RegexpTest, QuantifierOrQuantifier) {
 
 TEST_P(RegexpTest, CaptureMultipleTimes) {
   auto const status_or_pattern = Parse("((ab.)*)");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {{""}, {}}));
   EXPECT_THAT(pattern, Matches("abcabdabe", {{"abcabdabe"}, {"abc", "abd", "abe"}}));
@@ -2689,7 +2797,7 @@ TEST_P(RegexpTest, CaptureMultipleTimes) {
 
 TEST_P(RegexpTest, CantMergeLoopEndpoints) {
   auto const status_or_pattern = Parse("(lore(m))*");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {{}, {}}));
   EXPECT_THAT(pattern, Matches("lorem", {{"lorem"}, {"m"}}));
@@ -2702,7 +2810,7 @@ TEST_P(RegexpTest, CantMergeLoopEndpoints) {
 
 TEST_P(RegexpTest, CantMergeLoopEndpointsOfPrefix) {
   auto const status_or_pattern = Parse("(lore(m))*");
-  EXPECT_OK(status_or_pattern);
+  ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, MatchesPrefixOf("", {{}, {}}));
   EXPECT_THAT(pattern, MatchesPrefixOf("lorem", {{"lorem"}, {"m"}}));
