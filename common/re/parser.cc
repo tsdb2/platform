@@ -305,7 +305,11 @@ absl::StatusOr<char> Parser::ParseCharacterClassElement() {
       return '\f';
     case 'x': {
       ASSIGN_VAR_OR_RETURN(uint8_t, code, ParseHexCode());
-      return code;
+      if (code != 0) {
+        return code;
+      } else {
+        return SyntaxError("escape code \"\\x00\" is reserved");
+      }
     }
     case '0':
     case '1':
@@ -443,7 +447,11 @@ absl::StatusOr<TempNFA> Parser::ParseEscape(int const capture_group) {
       return MakeAssertionState(capture_group, Assertions::kNotWordBoundary);
     case 'x': {
       ASSIGN_VAR_OR_RETURN(uint8_t, code, ParseHexCode());
-      return MakeSingleCharacterNFA(capture_group, code);
+      if (code != 0) {
+        return MakeSingleCharacterNFA(capture_group, code);
+      } else {
+        return SyntaxError("escape code \"\\x00\" is reserved");
+      }
     }
     // TODO: handle Unicode escape codes.
     case '0':

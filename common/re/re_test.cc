@@ -470,6 +470,7 @@ TEST_P(RegexpTest, AnotherSimpleCharacter) {
 }
 
 TEST_P(RegexpTest, InvalidEscapeCode) {
+  EXPECT_THAT(Parse("\\x00"), StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(Parse("\\a"), StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(Parse("\\T"), StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(Parse("\\R"), StatusIs(absl::StatusCode::kInvalidArgument));
@@ -1237,13 +1238,12 @@ TEST_P(RegexpTest, CharacterRangeCrossingSignBoundary) {
 }
 
 TEST_P(RegexpTest, FullCharacterRange) {
-  auto const status_or_pattern = Parse("[\\x00-\\xFF]");
+  auto const status_or_pattern = Parse("[\\x01-\\xFF]");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
-  // TODO: fix the bug and re-enable the following line.
-  // EXPECT_THAT(pattern, DoesntMatch(""));
-  EXPECT_THAT(pattern, Matches("\x00", {}));
+  EXPECT_THAT(pattern, DoesntMatch(""));
   EXPECT_THAT(pattern, Matches("\x01", {}));
+  EXPECT_THAT(pattern, Matches("\x02", {}));
   EXPECT_THAT(pattern, Matches("a", {}));
   EXPECT_THAT(pattern, DoesntMatch("aa"));
   EXPECT_THAT(pattern, Matches("b", {}));
@@ -1253,12 +1253,12 @@ TEST_P(RegexpTest, FullCharacterRange) {
 }
 
 TEST_P(RegexpTest, EmptyCharacterRange) {
-  auto const status_or_pattern = Parse("[^\\x00-\\xFF]");
+  auto const status_or_pattern = Parse("[^\\x01-\\xFF]");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, DoesntMatch(""));
-  EXPECT_THAT(pattern, DoesntMatch("\x00"));
   EXPECT_THAT(pattern, DoesntMatch("\x01"));
+  EXPECT_THAT(pattern, DoesntMatch("\x02"));
   EXPECT_THAT(pattern, DoesntMatch("a"));
   EXPECT_THAT(pattern, DoesntMatch("b"));
   EXPECT_THAT(pattern, DoesntMatch("\xFE"));
@@ -1270,6 +1270,7 @@ TEST_P(RegexpTest, InvalidEscapeCodesInCharacterClass) {
   EXPECT_THAT(Parse("[\\]"), StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(Parse("[\\x"), StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(Parse("[\\x]"), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse("[\\x00]"), StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(Parse("[\\x0Z]"), StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(Parse("[\\xZ0]"), StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(Parse("[\\a]"), StatusIs(absl::StatusCode::kInvalidArgument));
@@ -2059,7 +2060,7 @@ TEST_P(RegexpTest, CollapsedEpsilonLoop1) {
 }
 
 TEST_P(RegexpTest, CollapsedEpsilonLoop2) {
-  auto const status_or_pattern = Parse("[^\\x00-\\xFF]*");
+  auto const status_or_pattern = Parse("[^\\x01-\\xFF]*");
   ASSERT_OK(status_or_pattern);
   auto const& pattern = status_or_pattern.value();
   EXPECT_THAT(pattern, Matches("", {}));
