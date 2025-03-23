@@ -2,6 +2,7 @@
 #define __TSDB2_COMMON_RE_H__
 
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -11,6 +12,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/span.h"
 #include "common/re/automaton.h"
 #include "common/re/parser.h"
 #include "common/reffed_ptr.h"
@@ -183,6 +185,29 @@ class RE {
   static absl::Status ConsumePrefixArgs(std::string_view *input, std::string_view pattern,
                                         Args *const... args);
 
+  // Searches the `input` string for a substring matching the `pattern` regular expression and
+  // returns a new string with the substring replaced by `replacement`. The `input`, `pattern`, and
+  // `replacement` strings are not modified.
+  //
+  // Example usage:
+  //
+  //   auto const status_or_string = RE::StrReplaceFirst("foo bar baz", "bar", "qux");
+  //   assert(status_or_string.ok() && *status_or_string == "foo qux baz");
+  //
+  // This function works by wrapping the whole `pattern` in round brackets, therefore creating the
+  // first top-level capture group, compiling the resulting regular expression, and invoking its
+  // non-static version. See `StrReplaceFirst` below for more details.
+  static absl::StatusOr<std::string> StrReplaceFirst(std::string_view input,
+                                                     std::string_view pattern,
+                                                     std::string_view replacement);
+
+  // Like `StrReplaceFirst` but replaces all substrings matching the `pattern`, not just the first.
+  //
+  // This function works by running the `StrReplaceFirst` algorithm repeatedly, so if the `input`
+  // string has a cluster of overlapping matches only the first match in the cluster is replaced.
+  static absl::StatusOr<std::string> StrReplaceAll(std::string_view input, std::string_view pattern,
+                                                   std::string_view replacement);
+
   // Compiles the provided `pattern` into a `RE` object that can be run efficiently multiple times.
   static absl::StatusOr<RE> Create(std::string_view pattern, Options const &options = {});
 
@@ -235,30 +260,24 @@ class RE {
   }
 
   // Same as `Match` above but stores the captured substrings in the provided `std::string_view`
-  // objects rather than returning a `CaptureSet`. Returns an OK status if the `input` matched, or
-  // an error if the `pattern` didn't compile or the `input` didn't match. The contents of the
-  // string views are undefined if false is returned.
+  // objects rather than returning a `CaptureSet`. Returns `true` if the `input` matched, `false` if
+  // the `pattern` didn't compile or the `input` didn't match. The contents of the string views are
+  // undefined if false is returned.
   //
   // Example:
   //
   //   ASSIGN_VAR_OR_RETURN(RE, re, RE::Create("blah (blah)"));
   //   std::string_view blah;
-  //   if (re.MatchArgs("blah blah", &blah)) {
-  //     LOG(INFO) << blah;  // logs "blah"
-  //   } else {
-  //      // didn't match.
-  //   }
+  //   CHECK(re.MatchArgs("blah blah", &blah));
+  //   LOG(INFO) << blah;  // logs "blah"
   //
   // NOTE: only one substring is retrieved for each capture group. If the corresponding capture
   // group matched more than one substring, only the last one is returned. Example:
   //
   //   ASSIGN_VAR_OR_RETURN(RE, re, RE::Create("(?:f(..) bar )*"));
   //   std::string_view sv;
-  //   if (re.MatchArgs("foo bar fee bar ", &sv)) {
-  //     LOG(INFO) << sv;  // logs "ee", not "oo".
-  //   } else {
-  //      // didn't match.
-  //   }
+  //   CHECK(re.MatchArgs("foo bar fee bar ", &sv));
+  //   LOG(INFO) << sv;  // logs "ee", not "oo".
   //
   // NOTE: normally there would be as many `args` as there are capture groups in the `pattern`, but
   // it's okay to provide fewer or more: missing substrings won't be retrieved and extra string
@@ -276,30 +295,24 @@ class RE {
   }
 
   // Same as `MatchPrefix` above but stores the captured substrings in the provided
-  // `std::string_view` objects rather than returning a `CaptureSet`. Returns an OK status if a
-  // prefix of the `input` matched, or an error if the `pattern` didn't compile or no prefix
-  // matched. The contents of the string views are undefined if false is returned.
+  // `std::string_view` objects rather than returning a `CaptureSet`. Returns `true` if a prefix of
+  // the `input` matched, or `false` if the `pattern` didn't compile or no prefix matched. The
+  // contents of the string views are undefined if false is returned.
   //
   // Example:
   //
   //   ASSIGN_VAR_OR_RETURN(RE, re, RE::Create("(blah)"));
   //   std::string_view blah;
-  //   if (re.MatchPrefixArgs("blah blah", &blah)) {
-  //     LOG(INFO) << blah;  // logs "blah"
-  //   } else {
-  //      // didn't match.
-  //   }
+  //   CHECK(re.MatchPrefixArgs("blah blah", &blah));
+  //   LOG(INFO) << blah;  // logs "blah"
   //
   // NOTE: only one substring is retrieved for each capture group. If the corresponding capture
   // group matched more than one substring, only the last one is returned. Example:
   //
   //   ASSIGN_VAR_OR_RETURN(RE, re, RE::Create("(?:f(..) bar )*"));
   //   std::string_view sv;
-  //   if (re.MatchPrefixArgs("foo bar fee bar ", &sv)) {
-  //     LOG(INFO) << sv;  // logs "ee", not "oo".
-  //   } else {
-  //      // didn't match.
-  //   }
+  //   CHECK(re.MatchPrefixArgs("foo bar fee bar ", &sv));
+  //   LOG(INFO) << sv;  // logs "ee", not "oo".
   //
   // NOTE: normally there would be as many `args` as there are capture groups in the `pattern`, but
   // it's okay to provide fewer or more: missing substrings won't be retrieved and extra string
@@ -321,30 +334,24 @@ class RE {
   }
 
   // Same as `PartialMatch` above but stores the captured substrings in the provided
-  // `std::string_view` objects rather than returning a `CaptureSet`. Returns an OK status if a
-  // substring of `input` matched, or an error if the `pattern` didn't compile or no substring
-  // matched. The contents of the string views are undefined if false is returned.
+  // `std::string_view` objects rather than returning a `CaptureSet`. Returns `true` if a substring
+  // of `input` matched, or `false` if the `pattern` didn't compile or no substring matched. The
+  // contents of the string views are undefined if false is returned.
   //
   // Example:
   //
   //   ASSIGN_VAR_OR_RETURN(RE, re, RE::Create("(blah)"));
   //   std::string_view blah;
-  //   if (re.PartialMatchArgs("blah blah", &blah)) {
-  //     LOG(INFO) << blah;  // logs "blah"
-  //   } else {
-  //      // didn't match.
-  //   }
+  //   CHECK(re.PartialMatchArgs("blah blah", &blah));
+  //   LOG(INFO) << blah;  // logs "blah"
   //
   // NOTE: only one substring is retrieved for each capture group. If the corresponding capture
   // group matched more than one substring, only the last one is returned. Example:
   //
   //   ASSIGN_VAR_OR_RETURN(RE, re, RE::Create("(?:f(..) bar )*"));
   //   std::string_view sv;
-  //   if (re.PartialMatchArgs("foo bar fee bar ", &sv)) {
-  //     LOG(INFO) << sv;  // logs "ee", not "oo".
-  //   } else {
-  //      // didn't match.
-  //   }
+  //   CHECK(re.PartialMatchArgs("foo bar fee bar ", &sv));
+  //   LOG(INFO) << sv;  // logs "ee", not "oo".
   //
   // NOTE: normally there would be as many `args` as there are capture groups in the `pattern`, but
   // it's okay to provide fewer or more: missing substrings won't be retrieved and extra string
@@ -354,9 +361,72 @@ class RE {
     return automaton_->PartialMatchArgs(input, {args...});
   }
 
+  // Searches the `input` string for a substring matching this regular expression, identifies the
+  // i-th capture group (with i == `capture_index`), and returns a new string with the captured
+  // substring replaced by `replacement`. Neither the `input` string nor the `replacement` string
+  // are modified.
+  //
+  // Example usage:
+  //
+  //   RE const pattern = RE::CreateOrDie("foo (bar) baz");
+  //   auto const status_or_string = pattern.StrReplaceFirst("foo bar baz", 0, "qux");
+  //   assert(status_or_string.ok() && *status_or_string == "foo qux baz");
+  //
+  // Since `StrReplaceFirst` performs a partial match, the pattern doesn't have to match the entire
+  // input string. The following would also work:
+  //
+  //   RE const pattern = RE::CreateOrDie("o (bar) b");
+  //   auto const status_or_string = pattern.StrReplaceFirst("foo bar baz", 0, "qux");
+  //   assert(status_or_string.ok() && *status_or_string == "foo qux baz");
+  //
+  // The most common use case is to wrap the whole pattern in a captuing group. Example:
+  //
+  //   RE const pattern = RE::CreateOrDie("(opera)");
+  //   auto const status_or_string = pattern.StrReplaceFirst(
+  //       "sator opera tenet opera rotas", 0, "arepo");
+  //   assert(status_or_string.ok());
+  //   assert(*status_or_string == "sator arepo tenet arepo rotas");
+  //
+  // `capture_index` is zero-based. If it's invalid (i.e. it refers to a capture group that doesn't
+  // exist), an error status is returned.
+  //
+  // If no match is found this function simply returns a copy of the input string. If more than one
+  // match exists this function is guaranteed to find and replace the first occurring one and to
+  // match as many characters as possible. Use `StrReplaceAll` if you need to replace all
+  // occurrences.
+  //
+  // The `replacement` string may contain references to capture groups found in the regular
+  // expression. The syntax for a reference to the n-th capture group (with n being zero-based) is
+  // "\n", e.g. "\0", "\1", "\2", etc. If a capture group matched multiple substrings the last one
+  // is used. If a reference references a capture group that doesn't exist, e.g. if `replacement`
+  // contains "\4" and there are only 3 capture groups, an error status is returned.
+  //
+  // If you want your replacement string to contain a literal sequence that looks like a reference
+  // code, e.g. if you want it to literally contain "\2" without replacing it with the second
+  // capture group, simply use a double backslash ("\\2").
+  //
+  // Note that if you're hard-coding the `replacement` string in a C/C++ string literal you'll need
+  // to escape all backslashes, so the syntax for a reference code will be "\\n" ("\\0", "\\1",
+  // etc.) and in order to include a literal sequence that looks like a reference code you'll need
+  // to use four backslashes ("\\\\0", "\\\\1", etc.).
+  absl::StatusOr<std::string> StrReplaceFirst(std::string_view input, size_t capture_index,
+                                              std::string_view replacement) const;
+
+  // Like `StrReplaceFirst` but replaces all substrings matching the regular expression, not just
+  // the first.
+  //
+  // This function works by running the `StrReplaceFirst` algorithm repeatedly, so if the `input`
+  // string has a cluster of overlapping matches only the first match in the cluster is replaced.
+  absl::StatusOr<std::string> StrReplaceAll(std::string_view input, size_t capture_index,
+                                            std::string_view replacement) const;
+
  private:
   template <typename Label, typename Allocator>
   friend class internal::TrieNode;
+
+  static absl::StatusOr<std::string> SubstituteRefs(
+      std::string_view input, std::string_view replacement,
+      absl::Span<std::pair<intptr_t, intptr_t> const> ranges);
 
   explicit RE(reffed_ptr<regexp_internal::AbstractAutomaton> automaton)
       : automaton_(std::move(automaton)) {}

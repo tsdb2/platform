@@ -71,6 +71,15 @@ class AbstractAutomaton : public SimpleRefCounted {
   // substring of the original input).
   using CaptureSet = std::vector<CaptureEntry>;
 
+  // Represents the substrings captured by `Match` methods expressed as ranges rather than
+  // `std::string_view` substring objects. A range is an <offset,length> pair relative to the
+  // original input string.
+  //
+  // Note that this type provides only one range for each capture group, so if a capture group gets
+  // triggered more than once only the last captured range is provided. If a capture group doesn't
+  // get triggered at all, the corresponding range is set to <-1,-1>.
+  using RangeSet = std::vector<std::pair<intptr_t, intptr_t>>;
+
   // Abstract interface for an automaton stepper.
   //
   // A stepper allows running the automaton in separate steps, processing the input string character
@@ -161,6 +170,10 @@ class AbstractAutomaton : public SimpleRefCounted {
   // Returns a boolean indicating whether the automaton asserts the begin of input (`^`). This is
   // used by `PartialMatch` to determine if it can run `MatchPrefix` on suffixes of the original
   // input string.
+  //
+  // Note that this method indicates whether or not the automaton *always* asserts the begin of
+  // input. For example, it would return false for the pattern `lorem|^ipsum` because the
+  // corresponding automaton would still be able to match `lorem` after the begin of input.
   virtual bool AssertsBeginOfInput() const = 0;
 
   // Creates a stepper for the automaton. `previous_character` is the character preceding the
@@ -201,6 +214,9 @@ class AbstractAutomaton : public SimpleRefCounted {
   virtual bool MatchArgs(std::string_view input,
                          absl::Span<std::string_view *const> args) const = 0;
 
+  // Same as `Match` above but returns a `RangeSet` rather than a `CaptureSet`.
+  virtual std::optional<RangeSet> MatchRanges(std::string_view input) const = 0;
+
   // Runs the automaton on the provided input string trying to match the longest possible prefix.
   // Returns the array of captured substrings if a match is found, or an empty optional otherwise.
   std::optional<CaptureSet> MatchPrefix(std::string_view const input) const {
@@ -221,6 +237,11 @@ class AbstractAutomaton : public SimpleRefCounted {
   bool MatchPrefixArgs(std::string_view const input,
                        absl::Span<std::string_view *const> const args) const {
     return PartialMatchArgs(input, 0, args);
+  }
+
+  // Same as `MatchPrefix` above but returns a `RangeSet` rather than a `CaptureSet`.
+  std::optional<RangeSet> MatchPrefixRanges(std::string_view const input) const {
+    return PartialMatchRanges(input, 0);
   }
 
   // Searches for a substring of the `input` string matching this regular expression. The returned
@@ -244,6 +265,9 @@ class AbstractAutomaton : public SimpleRefCounted {
   // expression, but it's okay to provide a different number: missing substrings won't be retrieved
   // and extra string views will be ignored.
   bool PartialMatchArgs(std::string_view input, absl::Span<std::string_view *const> args) const;
+
+  // Same as `PartialMatch` above but returns a `RangeSet` rather than a `CaptureSet`.
+  std::optional<RangeSet> PartialMatchRanges(std::string_view input) const;
 
  protected:
   // Used in subclasses by non-Args versions of the `Match*` methods to track the boundaries of the
@@ -272,7 +296,10 @@ class AbstractAutomaton : public SimpleRefCounted {
     // Captures a single character in the specified group and its ancestors.
     void Capture(intptr_t offset, int innermost_capture_group);
 
-    // Builds the final `CaptureSet`.
+    // Builds a `RangeSet` from the ranges captured so far.
+    RangeSet ToRanges() const;
+
+    // Builds a `CaptureSet` from the ranges captured so far.
     CaptureSet ToCaptureSet(std::string_view source) const;
 
    private:
@@ -358,6 +385,10 @@ class AbstractAutomaton : public SimpleRefCounted {
   // implementation of `PartialMatchArgs` and `MatchPrefixArgs`.
   virtual bool PartialMatchArgs(std::string_view input, size_t offset,
                                 absl::Span<std::string_view *const> args) const = 0;
+
+  // Same as `PartialMatch` above but returns a `RangeSet` rather than a `CaptureSet`.
+  virtual std::optional<RangeSet> PartialMatchRanges(std::string_view input,
+                                                     size_t offset) const = 0;
 
  private:
   // Assertion helpers.

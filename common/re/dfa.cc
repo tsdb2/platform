@@ -128,6 +128,15 @@ bool DFA::MatchArgs(std::string_view const input,
   }
 }
 
+std::optional<AbstractAutomaton::RangeSet> DFA::MatchRanges(std::string_view const input) const {
+  RangeSetCaptureManager ranges{capture_groups_};
+  if (MatchInternal(input, &ranges)) {
+    return ranges.ToRanges();
+  } else {
+    return std::nullopt;
+  }
+}
+
 bool DFA::PartialTest(std::string_view const input, size_t offset) const {
   uint32_t state_num = initial_state_;
   while (state_num != final_state_ && offset < input.size()) {
@@ -182,6 +191,16 @@ bool DFA::PartialMatchArgs(std::string_view const input, size_t const offset,
     return true;
   } else {
     return false;
+  }
+}
+
+std::optional<AbstractAutomaton::RangeSet> DFA::PartialMatchRanges(std::string_view const input,
+                                                                   size_t const offset) const {
+  RangeSetCaptureManager ranges{capture_groups_};
+  if (PartialMatchInternal(input, offset, &ranges)) {
+    return ranges.ToRanges();
+  } else {
+    return std::nullopt;
   }
 }
 

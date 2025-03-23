@@ -67,6 +67,20 @@ std::string PrintCaptures(CaptureSet const& captures) {
   return absl::StrCat("{", absl::StrJoin(entries, ", "), "}");
 }
 
+template <typename RangeSet>
+std::string PrintRanges(std::string_view const input, RangeSet const& ranges) {
+  std::vector<std::string> quoted_strings;
+  quoted_strings.reserve(ranges.size());
+  for (auto const& [offset, length] : ranges) {
+    if (offset < 0 || length < 0 || offset + length > input.size()) {
+      quoted_strings.emplace_back(absl::StrCat("<", offset, ",", length, ">"));
+    } else {
+      quoted_strings.emplace_back(absl::StrCat("\"", input.substr(offset, length), "\""));
+    }
+  }
+  return absl::StrCat("{", absl::StrJoin(quoted_strings, ", "), "}");
+}
+
 bool TestWithStepper(reffed_ptr<AbstractAutomaton> const& automaton, std::string_view const input) {
   auto const stepper = automaton->MakeStepper();
   return stepper->Step(input) && stepper->Finish();
@@ -108,7 +122,7 @@ bool PartialTestWithStepper(reffed_ptr<AbstractAutomaton> const& automaton,
 }
 
 bool CheckMatchResults(AbstractAutomaton::CaptureSet const& results,
-                       std::vector<std::vector<std::string>> expected) {
+                       std::vector<std::vector<std::string>> const& expected) {
   if (results.size() != expected.size()) {
     return false;
   }
@@ -126,7 +140,7 @@ bool CheckMatchResults(AbstractAutomaton::CaptureSet const& results,
 }
 
 bool CheckMatchArgs(std::vector<std::string_view> const& args,
-                    std::vector<std::vector<std::string>> expected) {
+                    std::vector<std::vector<std::string>> const& expected) {
   for (size_t i = 0; i < expected.size(); ++i) {
     if (expected[i].empty()) {
       if (args[i] != "") {
@@ -134,6 +148,29 @@ bool CheckMatchArgs(std::vector<std::string_view> const& args,
       }
     } else {
       if (args[i] != expected[i].back()) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+bool CheckMatchRanges(std::string_view const input, AbstractAutomaton::RangeSet const& ranges,
+                      std::vector<std::vector<std::string>> const& expected) {
+  if (ranges.size() != expected.size()) {
+    return false;
+  }
+  for (size_t i = 0; i < expected.size(); ++i) {
+    auto const& [offset, length] = ranges[i];
+    if (expected[i].empty()) {
+      if (offset >= 0 || length >= 0) {
+        return false;
+      }
+    } else {
+      if (offset < 0 || length < 0 || offset + length > input.size()) {
+        return false;
+      }
+      if (input.substr(offset, length) != expected[i].back()) {
         return false;
       }
     }
@@ -150,10 +187,14 @@ using MatchMethod =
 using MatchArgsMethod = bool (AbstractAutomaton::*)(std::string_view,
                                                     absl::Span<std::string_view* const>) const;
 
+using MatchRangesMethod =
+    std::optional<AbstractAutomaton::RangeSet> (AbstractAutomaton::*)(std::string_view) const;
+
 template <TestMethod test_method, char const test_method_name[],
           StepperTestFunction stepper_test_function, MatchMethod match_method,
           char const match_method_name[], MatchArgsMethod match_args_method,
-          char const match_args_method_name[]>
+          char const match_args_method_name[], MatchRangesMethod match_ranges_method,
+          char const match_ranges_method_name[]>
 class GenericMatcher {
  public:
   using is_gtest_matcher = void;
@@ -213,6 +254,15 @@ class GenericMatcher {
     if (test_result && match_args_outcome == Outcome::kUnexpected) {
       return false;
     }
+    auto const match_ranges_outcome = MatchRanges(automaton, listener);
+    if ((match_ranges_outcome != Outcome::kNoMatch) != test_result) {
+      *listener << ", " << match_ranges_method_name << "() results differ from " << test_method_name
+                << "() result";
+      return negated_;
+    }
+    if (test_result && match_ranges_outcome == Outcome::kUnexpected) {
+      return false;
+    }
     return test_result;
   }
 
@@ -270,6 +320,24 @@ class GenericMatcher {
     }
   }
 
+  Outcome MatchRanges(reffed_ptr<AbstractAutomaton> const& automaton,
+                      ::testing::MatchResultListener* const listener) const {
+    auto maybe_results = (*automaton.*match_ranges_method)(input_);
+    if (!maybe_results.has_value()) {
+      *listener << ", " << match_ranges_method_name << "() doesn't match";
+      return Outcome::kNoMatch;
+    }
+    auto const& results = maybe_results.value();
+    if (!captures_ || CheckMatchRanges(input_, results, *captures_)) {
+      *listener << ", " << match_ranges_method_name << "() matches";
+      return Outcome::kMatch;
+    } else {
+      *listener << ", " << match_ranges_method_name
+                << "() matches with unexpected captures: " << PrintRanges(input_, results);
+      return Outcome::kUnexpected;
+    }
+  }
+
   std::string input_;
   std::optional<std::vector<std::vector<std::string>>> captures_;
   bool use_stepper_;
@@ -288,19 +356,26 @@ char constexpr kMatchArgsMethodName[] = "MatchArgs";
 char constexpr kMatchPrefixArgsMethodName[] = "MatchPrefixArgs";
 char constexpr kPartialMatchArgsMethodName[] = "PartialMatchArgs";
 
-using MatchesImpl = GenericMatcher<&AbstractAutomaton::Test, kTestMethodName, TestWithStepper,
-                                   &AbstractAutomaton::Match, kMatchMethodName,
-                                   &AbstractAutomaton::MatchArgs, kMatchArgsMethodName>;
+char constexpr kMatchRangesMethodName[] = "MatchRanges";
+char constexpr kMatchPrefixRangesMethodName[] = "MatchPrefixRanges";
+char constexpr kPartialMatchRangesMethodName[] = "PartialMatchRanges";
+
+using MatchesImpl =
+    GenericMatcher<&AbstractAutomaton::Test, kTestMethodName, TestWithStepper,
+                   &AbstractAutomaton::Match, kMatchMethodName, &AbstractAutomaton::MatchArgs,
+                   kMatchArgsMethodName, &AbstractAutomaton::MatchRanges, kMatchRangesMethodName>;
 
 using MatchesPrefixOfImpl =
     GenericMatcher<&AbstractAutomaton::TestPrefix, kTestPrefixMethodName, TestPrefixWithStepper,
                    &AbstractAutomaton::MatchPrefix, kMatchPrefixMethodName,
-                   &AbstractAutomaton::MatchPrefixArgs, kMatchPrefixArgsMethodName>;
+                   &AbstractAutomaton::MatchPrefixArgs, kMatchPrefixArgsMethodName,
+                   &AbstractAutomaton::MatchPrefixRanges, kMatchPrefixRangesMethodName>;
 
 using PartiallyMatchesImpl =
     GenericMatcher<&AbstractAutomaton::PartialTest, kPartialTestMethodName, PartialTestWithStepper,
                    &AbstractAutomaton::PartialMatch, kPartialMatchMethodName,
-                   &AbstractAutomaton::PartialMatchArgs, kPartialMatchArgsMethodName>;
+                   &AbstractAutomaton::PartialMatchArgs, kPartialMatchArgsMethodName,
+                   &AbstractAutomaton::PartialMatchRanges, kPartialMatchRangesMethodName>;
 
 struct RegexpTestParams {
   bool force_nfa;

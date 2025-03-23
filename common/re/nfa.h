@@ -128,6 +128,8 @@ class NFA final : public AbstractAutomaton {
 
   bool MatchArgs(std::string_view input, absl::Span<std::string_view *const> args) const override;
 
+  std::optional<RangeSet> MatchRanges(std::string_view input) const override;
+
  protected:
   template <typename CaptureManager>
   std::optional<CaptureManager> MatchInternal(std::string_view input,
@@ -139,6 +141,8 @@ class NFA final : public AbstractAutomaton {
 
   bool PartialMatchArgs(std::string_view input, size_t offset,
                         absl::Span<std::string_view *const> args) const override;
+
+  std::optional<RangeSet> PartialMatchRanges(std::string_view input, size_t offset) const override;
 
   template <typename CaptureManager>
   std::optional<CaptureManager> PartialMatchInternal(std::string_view input, size_t offset,

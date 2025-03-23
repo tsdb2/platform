@@ -71,6 +71,24 @@ bool AbstractAutomaton::PartialMatchArgs(std::string_view const input,
   return false;
 }
 
+std::optional<AbstractAutomaton::RangeSet> AbstractAutomaton::PartialMatchRanges(
+    std::string_view const input) const {
+  auto results = PartialMatchRanges(input, 0);
+  if (results) {
+    return results;
+  }
+  if (AssertsBeginOfInput()) {
+    return std::nullopt;
+  }
+  for (size_t offset = 1; offset < input.size(); ++offset) {
+    results = PartialMatchRanges(input, offset);
+    if (results) {
+      return results;
+    }
+  }
+  return std::nullopt;
+}
+
 void AbstractAutomaton::RangeSetCaptureManager::CloseGroup(intptr_t const offset,
                                                            int const capture_group) {
   auto const it = capture_groups_->LookUp(capture_group);
@@ -78,7 +96,7 @@ void AbstractAutomaton::RangeSetCaptureManager::CloseGroup(intptr_t const offset
     auto& ranges = ranges_[*it];
     auto& range = ranges.back();
     if (range.first < 0) {
-      range = std::make_pair(offset, offset + 1);
+      range = std::make_pair(offset, offset);
     }
     ranges.emplace_back(-1, -1);
   }
@@ -94,6 +112,21 @@ void AbstractAutomaton::RangeSetCaptureManager::Capture(intptr_t const offset,
     }
     range.second = offset + 1;
   }
+}
+
+AbstractAutomaton::RangeSet AbstractAutomaton::RangeSetCaptureManager::ToRanges() const {
+  RangeSet ranges;
+  ranges.reserve(ranges_.size());
+  for (size_t i = 0; i < ranges_.size(); ++i) {
+    auto const count = ranges_[i].size();
+    if (count < 2) {
+      ranges.emplace_back(-1, -1);
+    } else {
+      auto const [start, end] = ranges_[i][count - 2];
+      ranges.emplace_back(start, end - start);
+    }
+  }
+  return ranges;
 }
 
 AbstractAutomaton::CaptureSet AbstractAutomaton::RangeSetCaptureManager::ToCaptureSet(

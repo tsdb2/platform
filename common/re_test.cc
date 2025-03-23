@@ -390,6 +390,281 @@ TEST(RegexpTest, StaticPartialMatchArgs) {
               StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
+TEST(RegexpTest, ReplaceFirstFullMatch) {
+  auto const status_or_re = RE::Create("foo (bar) baz");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceFirst("foo bar baz", 0, "qux"), IsOkAndHolds("foo qux baz"));
+}
+
+TEST(RegexpTest, ReplaceFirstFullMatchCaptured) {
+  auto const status_or_re = RE::Create("(foo bar baz)");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceFirst("foo bar baz", 0, "qux"), IsOkAndHolds("qux"));
+}
+
+TEST(RegexpTest, ReplaceFirstPartialMatch) {
+  auto const status_or_re = RE::Create("o (bar) b");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceFirst("foo bar baz", 0, "qux"), IsOkAndHolds("foo qux baz"));
+}
+
+TEST(RegexpTest, ReplaceFirstWrapped) {
+  auto const status_or_re = RE::Create("(bar)");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceFirst("foo bar baz", 0, "qux"), IsOkAndHolds("foo qux baz"));
+}
+
+TEST(RegexpTest, ReplaceFirstInvalidCaptureIndex) {
+  auto const status_or_re = RE::Create("foo (bar) baz");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceFirst("foo bar baz", 1, "qux"), StatusIs(absl::StatusCode::kOutOfRange));
+}
+
+TEST(RegexpTest, ReplaceFirstCaptureNotTriggered) {
+  auto const status_or_re = RE::Create("foo (?:bar|(baz)) baz");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceFirst("foo bar baz", 0, "qux"),
+              StatusIs(absl::StatusCode::kFailedPrecondition));
+}
+
+TEST(RegexpTest, ReplaceFirstFirstGroup) {
+  auto const status_or_re = RE::Create("(bar) (baz)");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceFirst("foo bar baz qux", 0, "lorem"), IsOkAndHolds("foo lorem baz qux"));
+}
+
+TEST(RegexpTest, ReplaceFirstSecondGroup) {
+  auto const status_or_re = RE::Create("(bar) (baz)");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceFirst("foo bar baz qux", 1, "lorem"), IsOkAndHolds("foo bar lorem qux"));
+}
+
+TEST(RegexpTest, ReplaceFirstOuterGroup) {
+  auto const status_or_re = RE::Create("o (b(a)r) b");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceFirst("foo bar baz qux", 0, "bear"), IsOkAndHolds("foo bear baz qux"));
+}
+
+TEST(RegexpTest, ReplaceFirstInnerGroup) {
+  auto const status_or_re = RE::Create("o (b(a)r) b");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceFirst("foo bar baz qux", 1, "ea"), IsOkAndHolds("foo bear baz qux"));
+}
+
+TEST(RegexpTest, ReplaceFirstNotSecond) {
+  auto const status_or_re = RE::Create("(bar)");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceFirst("foo bar baz bar qux", 0, "lorem"),
+              IsOkAndHolds("foo lorem baz bar qux"));
+}
+
+TEST(RegexpTest, ReplaceFirstWithOverlaps) {
+  auto const status_or_re = RE::Create("(abab)");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceFirst("foo ababababab baz", 0, "bar"),
+              IsOkAndHolds("foo barababab baz"));
+}
+
+TEST(RegexpTest, ReplaceFirstWithRefs1) {
+  auto const status_or_re = RE::Create("(lo(r)em ipsum (a)met)");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceFirst("foo lorem ipsum amet baz", 0, "b\\2\\1"),
+              IsOkAndHolds("foo bar baz"));
+}
+
+TEST(RegexpTest, ReplaceFirstWithRefs2) {
+  auto const status_or_re = RE::Create("(the quick brown ([a-z]+) jumped over the lazy ([a-z]+))");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceFirst("the quick brown fox jumped over the lazy dog", 0,
+                                 "jumper: \\1, jumpee: \\2"),
+              IsOkAndHolds("jumper: fox, jumpee: dog"));
+}
+
+TEST(RegexpTest, ReplaceFirstWithInvalidRef) {
+  auto const status_or_re = RE::Create("(lo(r)em ipsum (a)met)");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceFirst("foo lorem ipsum amet baz", 0, "b\\a\\1"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(RegexpTest, ReplaceFirstWithOutOfRangeRef) {
+  auto const status_or_re = RE::Create("(lo(r)em ipsum (a)met)");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceFirst("foo lorem ipsum amet baz", 0, "b\\3\\1"),
+              StatusIs(absl::StatusCode::kOutOfRange));
+}
+
+TEST(RegexpTest, ReplaceFirstWithRefNotTriggered) {
+  auto const status_or_re = RE::Create("(lo(r)em ipsum (?:a|(b))met)");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceFirst("foo lorem ipsum amet baz", 0, "b\\2\\1"),
+              StatusIs(absl::StatusCode::kFailedPrecondition));
+}
+
+TEST(RegexpTest, StaticReplaceFirst) {
+  EXPECT_THAT(RE::StrReplaceFirst("foo bar baz bar qux", "bar", "lorem"),
+              IsOkAndHolds("foo lorem baz bar qux"));
+}
+
+TEST(RegexpTest, StaticReplaceFirstWithRef) {
+  EXPECT_THAT(RE::StrReplaceFirst("foo bar baz bar qux", "b(a)r", "\\1met"),
+              IsOkAndHolds("foo amet baz bar qux"));
+}
+
+TEST(RegexpTest, ReplaceAllFullMatch) {
+  auto const status_or_re = RE::Create("foo (bar) baz");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceAll("foo bar baz", 0, "qux"), IsOkAndHolds("foo qux baz"));
+}
+
+TEST(RegexpTest, ReplaceAllFullMatchCaptured) {
+  auto const status_or_re = RE::Create("(foo bar baz)");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceAll("foo bar baz", 0, "qux"), IsOkAndHolds("qux"));
+}
+
+TEST(RegexpTest, ReplaceAllPartialMatch) {
+  auto const status_or_re = RE::Create("o (bar) b");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceAll("foo bar baz", 0, "qux"), IsOkAndHolds("foo qux baz"));
+}
+
+TEST(RegexpTest, ReplaceAllWrapped) {
+  auto const status_or_re = RE::Create("(bar)");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceAll("foo bar baz", 0, "qux"), IsOkAndHolds("foo qux baz"));
+}
+
+TEST(RegexpTest, ReplaceAllInvalidCaptureIndex) {
+  auto const status_or_re = RE::Create("foo (bar) baz");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceAll("foo bar baz", 1, "qux"), StatusIs(absl::StatusCode::kOutOfRange));
+}
+
+TEST(RegexpTest, ReplaceAllCaptureNotTriggered) {
+  auto const status_or_re = RE::Create("foo (?:bar|(baz)) baz");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceAll("foo bar baz", 0, "qux"),
+              StatusIs(absl::StatusCode::kFailedPrecondition));
+}
+
+TEST(RegexpTest, ReplaceAllFirstGroup) {
+  auto const status_or_re = RE::Create("(bar) (baz)");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceAll("foo bar baz qux", 0, "lorem"), IsOkAndHolds("foo lorem baz qux"));
+}
+
+TEST(RegexpTest, ReplaceAllSecondGroup) {
+  auto const status_or_re = RE::Create("(bar) (baz)");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceAll("foo bar baz qux", 1, "lorem"), IsOkAndHolds("foo bar lorem qux"));
+}
+
+TEST(RegexpTest, ReplaceAllOuterGroup) {
+  auto const status_or_re = RE::Create("o (b(a)r) b");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceAll("foo bar baz qux", 0, "bear"), IsOkAndHolds("foo bear baz qux"));
+}
+
+TEST(RegexpTest, ReplaceAllInnerGroup) {
+  auto const status_or_re = RE::Create("o (b(a)r) b");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceAll("foo bar baz qux", 1, "ea"), IsOkAndHolds("foo bear baz qux"));
+}
+
+TEST(RegexpTest, ReplaceAllTwoMatches) {
+  auto const status_or_re = RE::Create("(bar)");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceAll("foo bar baz bar qux", 0, "lorem"),
+              IsOkAndHolds("foo lorem baz lorem qux"));
+}
+
+TEST(RegexpTest, ReplaceAllWithOverlaps) {
+  auto const status_or_re = RE::Create("(abab)");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceAll("foo ababababab baz", 0, "bar"), IsOkAndHolds("foo barbarab baz"));
+}
+
+TEST(RegexpTest, ReplaceAllWithRefs1) {
+  auto const status_or_re = RE::Create("(lo(r)em ipsum (a)met)");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceAll("foo lorem ipsum amet baz", 0, "b\\2\\1"),
+              IsOkAndHolds("foo bar baz"));
+}
+
+TEST(RegexpTest, ReplaceAllWithRefs2) {
+  auto const status_or_re = RE::Create("(the quick brown ([a-z]+) jumped over the lazy ([a-z]+))");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceAll("the quick brown fox jumped over the lazy dog", 0,
+                               "jumper: \\1, jumpee: \\2"),
+              IsOkAndHolds("jumper: fox, jumpee: dog"));
+}
+
+TEST(RegexpTest, ReplaceAllWithInvalidRef) {
+  auto const status_or_re = RE::Create("(lo(r)em ipsum (a)met)");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceAll("foo lorem ipsum amet baz", 0, "b\\a\\1"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(RegexpTest, ReplaceAllWithOutOfRangeRef) {
+  auto const status_or_re = RE::Create("(lo(r)em ipsum (a)met)");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceAll("foo lorem ipsum amet baz", 0, "b\\3\\1"),
+              StatusIs(absl::StatusCode::kOutOfRange));
+}
+
+TEST(RegexpTest, ReplaceAllWithRefNotTriggered) {
+  auto const status_or_re = RE::Create("(lo(r)em ipsum (?:a|(b))met)");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceAll("foo lorem ipsum amet baz", 0, "b\\2\\1"),
+              StatusIs(absl::StatusCode::kFailedPrecondition));
+}
+
+TEST(RegexpTest, StaticReplaceAll) {
+  EXPECT_THAT(RE::StrReplaceAll("foo bar baz bar qux", "bar", "lorem"),
+              IsOkAndHolds("foo lorem baz lorem qux"));
+}
+
+TEST(RegexpTest, StaticReplaceAllWithRef) {
+  EXPECT_THAT(RE::StrReplaceAll("foo bar baz bar qux", "b(a)r", "\\1met"),
+              IsOkAndHolds("foo amet baz amet qux"));
+}
+
 TEST(RegexpTest, CreateOrDie) {
   auto const re = RE::CreateOrDie("lo+rem?");
   EXPECT_TRUE(re.Test("lore"));

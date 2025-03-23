@@ -105,6 +105,15 @@ bool NFA::MatchArgs(std::string_view const input,
   }
 }
 
+std::optional<AbstractAutomaton::RangeSet> NFA::MatchRanges(std::string_view const input) const {
+  auto maybe_captures = MatchInternal(input, RangeSetCaptureManager(capture_groups_));
+  if (maybe_captures) {
+    return std::move(maybe_captures).value().ToRanges();
+  } else {
+    return std::nullopt;
+  }
+}
+
 bool NFA::PartialTest(std::string_view const input, size_t offset) const {
   StateSet states = EpsilonClosure({initial_state_}, input, offset);
   if (states.contains(final_state_)) {
@@ -152,6 +161,17 @@ bool NFA::PartialMatchArgs(std::string_view const input, size_t const offset,
     return true;
   } else {
     return false;
+  }
+}
+
+std::optional<AbstractAutomaton::RangeSet> NFA::PartialMatchRanges(std::string_view const input,
+                                                                   size_t const offset) const {
+  auto maybe_captures =
+      PartialMatchInternal(input, offset, RangeSetCaptureManager(capture_groups_));
+  if (maybe_captures) {
+    return std::move(maybe_captures).value().ToRanges();
+  } else {
+    return std::nullopt;
   }
 }
 
