@@ -7,16 +7,37 @@ load("//proto:proto.bzl", "tsdb2_cc_proto_library")
 package(default_visibility = ["//visibility:private"])
 
 cc_library(
-    name = "wire_format",
-    srcs = ["wire_format.cc"],
-    hdrs = ["wire_format.h"],
+    name = "runtime",
+    srcs = [
+        "duration.pb.sync.cc",
+        "text_format.cc",
+        "time_util.cc",
+        "timestamp.pb.sync.cc",
+        "wire_format.cc",
+    ],
+    hdrs = [
+        "duration.pb.sync.h",
+        "proto.h",
+        "text_format.h",
+        "time_util.h",
+        "timestamp.pb.sync.h",
+        "wire_format.h",
+    ],
+    visibility = ["//visibility:public"],
     deps = [
+        "//common:flat_map",
+        "//common:flat_set",
+        "//common:no_destructor",
+        "//common:re",
         "//common:utilities",
         "//io:buffer",
         "//io:cord",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -25,11 +46,16 @@ cc_test(
     name = "wire_format_test",
     srcs = ["wire_format_test.cc"],
     deps = [
-        ":wire_format",
+        ":runtime",
         "//common:testing",
+        "//common:utilities",
+        "//io:buffer",
         "//io:buffer_testing",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -78,46 +104,16 @@ cc_test(
     ],
 )
 
-cc_library(
-    name = "text_format",
-    srcs = ["text_format.cc"],
-    hdrs = ["text_format.h"],
-    deps = [
-        ":proto",
-        "//common:flat_map",
-        "//common:flat_set",
-        "//common:no_destructor",
-        "//common:re",
-        "//common:utilities",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-    ],
-)
-
 cc_test(
     name = "text_format_test",
     srcs = ["text_format_test.cc"],
     deps = [
+        ":runtime",
         ":tests_cc_proto",
-        ":text_format",
         "//common:testing",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_library(
-    name = "proto",
-    hdrs = ["proto.h"],
-    visibility = ["//visibility:public"],
-    deps = [
-        "//common:flat_map",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -138,11 +134,10 @@ cc_library(
     srcs = ["descriptor.pb.sync.cc"],
     hdrs = ["descriptor.pb.sync.h"],
     deps = [
-        ":proto",
+        ":runtime",
         "//common:flat_set",
         "//common:utilities",
         "//io:cord",
-        "//proto:wire_format",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -170,11 +165,10 @@ cc_library(
     hdrs = ["plugin.pb.sync.h"],
     deps = [
         ":descriptor",
-        ":proto",
+        ":runtime",
         "//common:flat_set",
         "//common:utilities",
         "//io:cord",
-        "//proto:wire_format",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -190,7 +184,7 @@ cc_library(
         ":dependencies",
         ":descriptor",
         ":plugin",
-        ":proto",
+        ":runtime",
         ":text_writer",
         "//common:flat_map",
         "//common:flat_set",
@@ -208,9 +202,43 @@ cc_library(
 )
 
 proto_library(
+    name = "timestamp_proto",
+    srcs = ["timestamp.proto"],
+    visibility = ["//visibility:public"],
+)
+
+tsdb2_cc_proto_library(
+    name = "timestamp_cc_proto",
+    enable_reflection = True,
+    # Set the flag below to True whenever you need to update the timestamp.pb.sync.* files.
+    internal_generate_definitions_for_google_api_types_i_dont_care_about_odr_violations = False,
+    proto = ":timestamp_proto",
+    use_raw_google_api_types = True,
+)
+
+proto_library(
+    name = "duration_proto",
+    srcs = ["duration.proto"],
+    visibility = ["//visibility:public"],
+)
+
+tsdb2_cc_proto_library(
+    name = "duration_cc_proto",
+    enable_reflection = True,
+    # Set the flag below to True whenever you need to update the duration.pb.sync.* files.
+    internal_generate_definitions_for_google_api_types_i_dont_care_about_odr_violations = False,
+    proto = ":duration_proto",
+    use_raw_google_api_types = True,
+)
+
+proto_library(
     name = "tests_proto",
     testonly = True,
     srcs = ["tests.proto"],
+    deps = [
+        ":duration_proto",
+        ":timestamp_proto",
+    ],
 )
 
 tsdb2_cc_proto_library(
@@ -231,6 +259,7 @@ cc_test(
         "//common:utilities",
         "@com_google_absl//absl/hash",
         "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -239,12 +268,13 @@ cc_test(
     name = "reflection_test",
     srcs = ["reflection_test.cc"],
     deps = [
-        ":proto",
+        ":runtime",
         ":tests_cc_proto",
         "//common:testing",
         "//common:utilities",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -256,7 +286,7 @@ cc_binary(
     deps = [
         ":descriptor",
         ":generator",
-        ":proto",
+        ":runtime",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/log",

@@ -22,11 +22,11 @@
 #include "proto/generator.h"
 #include "proto/proto.h"
 
-ABSL_FLAG(std::optional<std::string>, root_path, std::nullopt,
+ABSL_FLAG(std::optional<std::string>, proto_root_path, std::nullopt,
           "The root directory all the file descriptor names are relative to. Defaults to the "
           "current working directory if unspecified.");
 
-ABSL_FLAG(std::vector<std::string>, file_descriptor_sets, {},
+ABSL_FLAG(std::vector<std::string>, proto_file_descriptor_sets, {},
           "One or more comma-separated file paths containing serialized FileDescriptorSet "
           "protobufs. These paths must be relative to the current working directory; the root_path "
           "flag is ignored here.");
@@ -101,7 +101,7 @@ std::string GetFilePath(std::string_view const file_name) {
   if (absl::StartsWith(file_name, "/")) {
     return std::string(file_name);
   }
-  auto const maybe_root_path = absl::GetFlag(FLAGS_root_path);
+  auto const maybe_root_path = absl::GetFlag(FLAGS_proto_root_path);
   if (maybe_root_path.has_value()) {
     auto const& root_path = maybe_root_path.value();
     if (absl::EndsWith(root_path, "/")) {
@@ -152,9 +152,9 @@ absl::Status ProcessFileDescriptorSet(std::string_view const file_path) {
 
 absl::Status Run() {
   LOG(INFO) << "current working directory: " << ::get_current_dir_name();
-  LOG(INFO) << "root path: " << absl::GetFlag(FLAGS_root_path).value_or("<none>");
+  LOG(INFO) << "root path: " << absl::GetFlag(FLAGS_proto_root_path).value_or("<none>");
   absl::Status status = absl::OkStatus();
-  for (auto const& file_path : absl::GetFlag(FLAGS_file_descriptor_sets)) {
+  for (auto const& file_path : absl::GetFlag(FLAGS_proto_file_descriptor_sets)) {
     status.Update(ProcessFileDescriptorSet(file_path));
   }
   LOG(INFO) << "done";

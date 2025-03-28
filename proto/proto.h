@@ -18,6 +18,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "common/flat_map.h"
 #include "common/utilities.h"
@@ -209,9 +210,11 @@ class BaseMessageDescriptor {
     kBytesField = 6,
     kDoubleField = 7,
     kFloatField = 8,
-    kEnumField = 9,
-    kSubMessageField = 10,
-    kOneOfField = 11,
+    kTimeField = 9,
+    kDurationField = 10,
+    kEnumField = 11,
+    kSubMessageField = 12,
+    kOneOfField = 13,
   };
 
   enum class FieldKind : int8_t {
@@ -249,13 +252,19 @@ class BaseMessageDescriptor {
     kRawFloatField = 24,
     kOptionalFloatField = 25,
     kRepeatedFloatField = 26,
-    kRawEnumField = 27,
-    kOptionalEnumField = 28,
-    kRepeatedEnumField = 29,
-    kRawSubMessageField = 30,
-    kOptionalSubMessageField = 31,
-    kRepeatedSubMessageField = 32,
-    kOneOfField = 33,
+    kRawTimeField = 27,
+    kOptionalTimeField = 28,
+    kRepeatedTimeField = 29,
+    kRawDurationField = 30,
+    kOptionalDurationField = 31,
+    kRepeatedDurationField = 32,
+    kRawEnumField = 33,
+    kOptionalEnumField = 34,
+    kRepeatedEnumField = 35,
+    kRawSubMessageField = 36,
+    kOptionalSubMessageField = 37,
+    kRepeatedSubMessageField = 38,
+    kOneOfField = 39,
   };
 
   // Keeps information about an enum-typed field.
@@ -892,19 +901,20 @@ class BaseMessageDescriptor {
     std::shared_ptr<BaseImpl> impl_;
   };
 
-  using OneofFieldValue =
-      std::variant<int32_t*, uint32_t*, int64_t*, uint64_t*, bool*, std::string*,
-                   std::vector<uint8_t>*, double*, float*, RawEnum, RawSubMessage>;
+  using OneofFieldValue = std::variant<int32_t*, uint32_t*, int64_t*, uint64_t*, bool*,
+                                       std::string*, std::vector<uint8_t>*, double*, float*,
+                                       absl::Time*, absl::Duration*, RawEnum, RawSubMessage>;
 
   using ConstOneofFieldValue =
       std::variant<int32_t const*, uint32_t const*, int64_t const*, uint64_t const*, bool const*,
                    std::string const*, std::vector<uint8_t> const*, double const*, float const*,
-                   RawEnum const, RawSubMessage const>;
+                   absl::Time const*, absl::Duration const*, RawEnum const, RawSubMessage const>;
 
   class OneOf final {
    public:
-    using SetValueArg = std::variant<int32_t, uint32_t, int64_t, uint64_t, bool, std::string,
-                                     std::vector<uint8_t>, double, float>;
+    using SetValueArg =
+        std::variant<int32_t, uint32_t, int64_t, uint64_t, bool, std::string, std::vector<uint8_t>,
+                     double, float, absl::Time, absl::Duration>;
 
     template <typename Variant, typename Descriptors>
     explicit OneOf(Variant* const variant, Descriptors&& descriptors)
@@ -932,6 +942,7 @@ class BaseMessageDescriptor {
     std::optional<FieldType> GetType() const { return impl_->GetType(); }
     std::optional<OneofFieldValue> GetValue() { return impl_->GetValue(); }
     std::optional<ConstOneofFieldValue> GetValue() const { return impl_->GetConstValue(); }
+    std::optional<ConstOneofFieldValue> GetConstValue() const { return impl_->GetConstValue(); }
 
     absl::Status SetValue(size_t const index, SetValueArg value) {
       return impl_->SetValue(index, std::move(value));
@@ -1107,8 +1118,10 @@ class BaseMessageDescriptor {
       std::vector<bool>*, std::string*, std::optional<std::string>*, std::vector<std::string>*,
       std::vector<uint8_t>*, std::optional<std::vector<uint8_t>>*,
       std::vector<std::vector<uint8_t>>*, double*, std::optional<double>*, std::vector<double>*,
-      float*, std::optional<float>*, std::vector<float>*, RawEnum, OptionalEnum, RepeatedEnum,
-      RawSubMessage, OptionalSubMessage, RepeatedSubMessage, OneOf>;
+      float*, std::optional<float>*, std::vector<float>*, absl::Time*, std::optional<absl::Time>*,
+      std::vector<absl::Time>*, absl::Duration*, std::optional<absl::Duration>*,
+      std::vector<absl::Duration>*, RawEnum, OptionalEnum, RepeatedEnum, RawSubMessage,
+      OptionalSubMessage, RepeatedSubMessage, OneOf>;
 
   using ConstFieldValue = std::variant<
       int32_t const*, std::optional<int32_t> const*, std::vector<int32_t> const*, uint32_t const*,
@@ -1120,7 +1133,9 @@ class BaseMessageDescriptor {
       std::vector<uint8_t> const*, std::optional<std::vector<uint8_t>> const*,
       std::vector<std::vector<uint8_t>> const*, double const*, std::optional<double> const*,
       std::vector<double> const*, float const*, std::optional<float> const*,
-      std::vector<float> const*, RawEnum const, OptionalEnum const, RepeatedEnum const,
+      std::vector<float> const*, absl::Time const*, std::optional<absl::Time> const*,
+      std::vector<absl::Time> const*, absl::Duration const*, std::optional<absl::Duration> const*,
+      std::vector<absl::Duration> const*, RawEnum const, OptionalEnum const, RepeatedEnum const,
       RawSubMessage const, OptionalSubMessage const, RepeatedSubMessage const, OneOf const>;
 
   explicit constexpr BaseMessageDescriptor() = default;
@@ -1190,6 +1205,8 @@ class BaseMessageDescriptor {
     FieldType operator()(absl::Span<uint8_t const>) const { return FieldType::kBytesField; }
     FieldType operator()(double) const { return FieldType::kDoubleField; }
     FieldType operator()(float) const { return FieldType::kFloatField; }
+    FieldType operator()(absl::Time) const { return FieldType::kTimeField; }
+    FieldType operator()(absl::Duration) const { return FieldType::kDurationField; }
 
     template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
     FieldType operator()(Enum) const {
@@ -1244,6 +1261,15 @@ class BaseMessageDescriptor {
       return OneofFieldValue(std::in_place_type<float*>, &value);
     }
 
+    std::optional<OneofFieldValue> operator()(absl::Time& value, std::monostate /*unused*/) const {
+      return OneofFieldValue(std::in_place_type<absl::Time*>, &value);
+    }
+
+    std::optional<OneofFieldValue> operator()(absl::Duration& value,
+                                              std::monostate /*unused*/) const {
+      return OneofFieldValue(std::in_place_type<absl::Duration*>, &value);
+    }
+
     template <typename Enum, typename Descriptor,
               std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
     std::optional<OneofFieldValue> operator()(Enum& value, Descriptor const& descriptor) const {
@@ -1291,6 +1317,14 @@ class BaseMessageDescriptor {
 
     std::optional<ConstOneofFieldValue> operator()(float* const value) const {
       return ConstOneofFieldValue(std::in_place_type<float const*>, value);
+    }
+
+    std::optional<ConstOneofFieldValue> operator()(absl::Time* const value) const {
+      return ConstOneofFieldValue(std::in_place_type<absl::Time const*>, value);
+    }
+
+    std::optional<ConstOneofFieldValue> operator()(absl::Duration* const value) const {
+      return ConstOneofFieldValue(std::in_place_type<absl::Duration const*>, value);
     }
 
     std::optional<ConstOneofFieldValue> operator()(RawEnum&& value) const {
@@ -1345,6 +1379,14 @@ struct FieldTypes {
   using RawFloatField = float Message::*;
   using OptionalFloatField = std::optional<float> Message::*;
   using RepeatedFloatField = std::vector<float> Message::*;
+
+  using RawTimeField = absl::Time Message::*;
+  using OptionalTimeField = std::optional<absl::Time> Message::*;
+  using RepeatedTimeField = std::vector<absl::Time> Message::*;
+
+  using RawDurationField = absl::Duration Message::*;
+  using OptionalDurationField = std::optional<absl::Duration> Message::*;
+  using RepeatedDurationField = std::vector<absl::Duration> Message::*;
 
   class RawEnumField final {
    public:
@@ -1768,8 +1810,10 @@ struct FieldTypes {
       OptionalUInt64Field, RepeatedUInt64Field, RawBoolField, OptionalBoolField, RepeatedBoolField,
       RawStringField, OptionalStringField, RepeatedStringField, RawBytesField, OptionalBytesField,
       RepeatedBytesField, RawDoubleField, OptionalDoubleField, RepeatedDoubleField, RawFloatField,
-      OptionalFloatField, RepeatedFloatField, RawEnumField, OptionalEnumField, RepeatedEnumField,
-      RawSubMessageField, OptionalSubMessageField, RepeatedSubMessageField, OneOfField>;
+      OptionalFloatField, RepeatedFloatField, RawTimeField, OptionalTimeField, RepeatedTimeField,
+      RawDurationField, OptionalDurationField, RepeatedDurationField, RawEnumField,
+      OptionalEnumField, RepeatedEnumField, RawSubMessageField, OptionalSubMessageField,
+      RepeatedSubMessageField, OneOfField>;
 };
 
 template <typename Message>
@@ -1964,6 +2008,34 @@ class MessageDescriptor final : public BaseMessageDescriptor, public FieldTypes<
       return ConstFieldValue(std::in_place_type<std::vector<float> const*>, &(message_.*value));
     }
 
+    ConstFieldValue operator()(absl::Time Message::*const value) const {
+      return ConstFieldValue(std::in_place_type<absl::Time const*>, &(message_.*value));
+    }
+
+    ConstFieldValue operator()(std::optional<absl::Time> Message::*const value) const {
+      return ConstFieldValue(std::in_place_type<std::optional<absl::Time> const*>,
+                             &(message_.*value));
+    }
+
+    ConstFieldValue operator()(std::vector<absl::Time> Message::*const value) const {
+      return ConstFieldValue(std::in_place_type<std::vector<absl::Time> const*>,
+                             &(message_.*value));
+    }
+
+    ConstFieldValue operator()(absl::Duration Message::*const value) const {
+      return ConstFieldValue(std::in_place_type<absl::Duration const*>, &(message_.*value));
+    }
+
+    ConstFieldValue operator()(std::optional<absl::Duration> Message::*const value) const {
+      return ConstFieldValue(std::in_place_type<std::optional<absl::Duration> const*>,
+                             &(message_.*value));
+    }
+
+    ConstFieldValue operator()(std::vector<absl::Duration> Message::*const value) const {
+      return ConstFieldValue(std::in_place_type<std::vector<absl::Duration> const*>,
+                             &(message_.*value));
+    }
+
     ConstFieldValue operator()(typename FieldTypes::RawEnumField const field) const {
       return ConstFieldValue(std::in_place_type<RawEnum const>,
                              field.MakeValue(const_cast<Message*>(&message_)));
@@ -2115,6 +2187,30 @@ class MessageDescriptor final : public BaseMessageDescriptor, public FieldTypes<
 
     FieldValue operator()(std::vector<float> Message::*const value) const {
       return FieldValue(std::in_place_type<std::vector<float>*>, &(message_->*value));
+    }
+
+    FieldValue operator()(absl::Time Message::*const value) const {
+      return FieldValue(std::in_place_type<absl::Time*>, &(message_->*value));
+    }
+
+    FieldValue operator()(std::optional<absl::Time> Message::*const value) const {
+      return FieldValue(std::in_place_type<std::optional<absl::Time>*>, &(message_->*value));
+    }
+
+    FieldValue operator()(std::vector<absl::Time> Message::*const value) const {
+      return FieldValue(std::in_place_type<std::vector<absl::Time>*>, &(message_->*value));
+    }
+
+    FieldValue operator()(absl::Duration Message::*const value) const {
+      return FieldValue(std::in_place_type<absl::Duration*>, &(message_->*value));
+    }
+
+    FieldValue operator()(std::optional<absl::Duration> Message::*const value) const {
+      return FieldValue(std::in_place_type<std::optional<absl::Duration>*>, &(message_->*value));
+    }
+
+    FieldValue operator()(std::vector<absl::Duration> Message::*const value) const {
+      return FieldValue(std::in_place_type<std::vector<absl::Duration>*>, &(message_->*value));
     }
 
     FieldValue operator()(typename FieldTypes::RawEnumField const field) const {

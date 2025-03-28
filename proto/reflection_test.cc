@@ -6,6 +6,7 @@
 
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "absl/time/time.h"
 #include "common/testing.h"
 #include "common/utilities.h"
 #include "gmock/gmock.h"
@@ -691,6 +692,318 @@ TEST(ReflectionTest, RepeatedSubMessageFieldValues) {
   EXPECT_OK(status_or_field);
   std::get<BaseMessageDescriptor::RepeatedSubMessage>(status_or_field.value()).Clear();
   EXPECT_THAT(message.field, IsEmpty());
+}
+
+TEST(ReflectionTest, OptionalTimestampField) {
+  EXPECT_EQ(&tsdb2::proto::GetMessageDescriptor<tsdb2::proto::test::OptionalTimestampField>(),
+            &tsdb2::proto::test::OptionalTimestampField::MESSAGE_DESCRIPTOR);
+  auto const& descriptor = tsdb2::proto::test::OptionalTimestampField::MESSAGE_DESCRIPTOR;
+  EXPECT_THAT(descriptor.GetAllFieldNames(), ElementsAre("field"));
+  EXPECT_THAT(descriptor.GetLabeledFieldType("field"),
+              IsOkAndHolds(BaseMessageDescriptor::LabeledFieldType::kOptionalTimeField));
+  EXPECT_THAT(descriptor.GetLabeledFieldType("lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(descriptor.GetFieldTypeAndKind("field"),
+              IsOkAndHolds(Pair(BaseMessageDescriptor::FieldType::kTimeField,
+                                BaseMessageDescriptor::FieldKind::kOptional)));
+  EXPECT_THAT(descriptor.GetFieldTypeAndKind("lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(descriptor.GetFieldType("field"),
+              IsOkAndHolds(BaseMessageDescriptor::FieldType::kTimeField));
+  EXPECT_THAT(descriptor.GetFieldType("lorem"), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(descriptor.GetFieldKind("field"),
+              IsOkAndHolds(BaseMessageDescriptor::FieldKind::kOptional));
+  EXPECT_THAT(descriptor.GetFieldKind("lorem"), StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(ReflectionTest, EmptyOptionalTimestampField) {
+  auto const& descriptor = tsdb2::proto::test::OptionalTimestampField::MESSAGE_DESCRIPTOR;
+  tsdb2::proto::test::OptionalTimestampField message;
+  tsdb2::proto::Message const& ref = message;
+  EXPECT_THAT(descriptor.GetConstFieldValue(ref, "field"),
+              IsOkAndHolds(VariantWith<std::optional<absl::Time> const*>(Pointee(std::nullopt))));
+  EXPECT_THAT(descriptor.GetConstFieldValue(ref, "lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  tsdb2::proto::Message* const ptr = &message;
+  EXPECT_THAT(descriptor.GetFieldValue(ptr, "field"),
+              IsOkAndHolds(VariantWith<std::optional<absl::Time>*>(Pointee(std::nullopt))));
+  EXPECT_THAT(descriptor.GetFieldValue(ptr, "lorem"), StatusIs(absl::StatusCode::kInvalidArgument));
+  auto const status_or_field = descriptor.GetFieldValue(ptr, "field");
+  EXPECT_OK(status_or_field);
+  std::get<std::optional<absl::Time>*>(status_or_field.value())
+      ->emplace(absl::UnixEpoch() + absl::Seconds(42));
+  EXPECT_THAT(message.field, Optional(absl::UnixEpoch() + absl::Seconds(42)));
+}
+
+TEST(ReflectionTest, OptionalTimestampFieldValue) {
+  auto const& descriptor = tsdb2::proto::test::OptionalTimestampField::MESSAGE_DESCRIPTOR;
+  tsdb2::proto::test::OptionalTimestampField message{
+      .field = absl::UnixEpoch() + absl::Seconds(123),
+  };
+  tsdb2::proto::Message const& ref = message;
+  EXPECT_THAT(descriptor.GetConstFieldValue(ref, "field"),
+              IsOkAndHolds(VariantWith<std::optional<absl::Time> const*>(
+                  Pointee(Optional(absl::UnixEpoch() + absl::Seconds(123))))));
+  EXPECT_THAT(descriptor.GetConstFieldValue(ref, "lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  tsdb2::proto::Message* const ptr = &message;
+  EXPECT_THAT(descriptor.GetFieldValue(ptr, "field"),
+              IsOkAndHolds(VariantWith<std::optional<absl::Time>*>(
+                  Pointee(Optional(absl::UnixEpoch() + absl::Seconds(123))))));
+  EXPECT_THAT(descriptor.GetFieldValue(ptr, "lorem"), StatusIs(absl::StatusCode::kInvalidArgument));
+  auto const status_or_field = descriptor.GetFieldValue(ptr, "field");
+  EXPECT_OK(status_or_field);
+  std::get<std::optional<absl::Time>*>(status_or_field.value())
+      ->emplace(absl::UnixEpoch() + absl::Seconds(456));
+  EXPECT_THAT(message.field, Optional(absl::UnixEpoch() + absl::Seconds(456)));
+}
+
+TEST(ReflectionTest, RawTimestampField) {
+  EXPECT_EQ(&tsdb2::proto::GetMessageDescriptor<tsdb2::proto::test::RequiredTimestampField>(),
+            &tsdb2::proto::test::RequiredTimestampField::MESSAGE_DESCRIPTOR);
+  auto const& descriptor = tsdb2::proto::test::RequiredTimestampField::MESSAGE_DESCRIPTOR;
+  EXPECT_THAT(descriptor.GetAllFieldNames(), ElementsAre("field"));
+  EXPECT_THAT(descriptor.GetLabeledFieldType("field"),
+              IsOkAndHolds(BaseMessageDescriptor::LabeledFieldType::kRawTimeField));
+  EXPECT_THAT(descriptor.GetLabeledFieldType("lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(descriptor.GetFieldTypeAndKind("field"),
+              IsOkAndHolds(Pair(BaseMessageDescriptor::FieldType::kTimeField,
+                                BaseMessageDescriptor::FieldKind::kRaw)));
+  EXPECT_THAT(descriptor.GetFieldTypeAndKind("lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(descriptor.GetFieldType("field"),
+              IsOkAndHolds(BaseMessageDescriptor::FieldType::kTimeField));
+  EXPECT_THAT(descriptor.GetFieldType("lorem"), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(descriptor.GetFieldKind("field"),
+              IsOkAndHolds(BaseMessageDescriptor::FieldKind::kRaw));
+  EXPECT_THAT(descriptor.GetFieldKind("lorem"), StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(ReflectionTest, RawTimestampFieldValue) {
+  auto const& descriptor = tsdb2::proto::test::RequiredTimestampField::MESSAGE_DESCRIPTOR;
+  tsdb2::proto::test::RequiredTimestampField message{
+      .field = absl::UnixEpoch() + absl::Seconds(123),
+  };
+  tsdb2::proto::Message const& ref = message;
+  EXPECT_THAT(descriptor.GetConstFieldValue(ref, "field"),
+              IsOkAndHolds(VariantWith<absl::Time const*>(
+                  Pointee(Eq(absl::UnixEpoch() + absl::Seconds(123))))));
+  EXPECT_THAT(descriptor.GetConstFieldValue(ref, "lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  tsdb2::proto::Message* const ptr = &message;
+  EXPECT_THAT(
+      descriptor.GetFieldValue(ptr, "field"),
+      IsOkAndHolds(VariantWith<absl::Time*>(Pointee(Eq(absl::UnixEpoch() + absl::Seconds(123))))));
+  EXPECT_THAT(descriptor.GetFieldValue(ptr, "lorem"), StatusIs(absl::StatusCode::kInvalidArgument));
+  auto const status_or_field = descriptor.GetFieldValue(ptr, "field");
+  EXPECT_OK(status_or_field);
+  *std::get<absl::Time*>(status_or_field.value()) = absl::UnixEpoch() + absl::Seconds(456);
+  EXPECT_EQ(message.field, absl::UnixEpoch() + absl::Seconds(456));
+}
+
+TEST(ReflectionTest, RepeatedTimestampField) {
+  EXPECT_EQ(&tsdb2::proto::GetMessageDescriptor<tsdb2::proto::test::RepeatedTimestampField>(),
+            &tsdb2::proto::test::RepeatedTimestampField::MESSAGE_DESCRIPTOR);
+  auto const& descriptor = tsdb2::proto::test::RepeatedTimestampField::MESSAGE_DESCRIPTOR;
+  EXPECT_THAT(descriptor.GetAllFieldNames(), ElementsAre("field"));
+  EXPECT_THAT(descriptor.GetLabeledFieldType("field"),
+              IsOkAndHolds(BaseMessageDescriptor::LabeledFieldType::kRepeatedTimeField));
+  EXPECT_THAT(descriptor.GetLabeledFieldType("lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(descriptor.GetFieldTypeAndKind("field"),
+              IsOkAndHolds(Pair(BaseMessageDescriptor::FieldType::kTimeField,
+                                BaseMessageDescriptor::FieldKind::kRepeated)));
+  EXPECT_THAT(descriptor.GetFieldTypeAndKind("lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(descriptor.GetFieldType("field"),
+              IsOkAndHolds(BaseMessageDescriptor::FieldType::kTimeField));
+  EXPECT_THAT(descriptor.GetFieldType("lorem"), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(descriptor.GetFieldKind("field"),
+              IsOkAndHolds(BaseMessageDescriptor::FieldKind::kRepeated));
+  EXPECT_THAT(descriptor.GetFieldKind("lorem"), StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(ReflectionTest, RepeatedTimestampFieldValues) {
+  auto const& descriptor = tsdb2::proto::test::RepeatedTimestampField::MESSAGE_DESCRIPTOR;
+  tsdb2::proto::test::RepeatedTimestampField message{.field{
+      absl::UnixEpoch() + absl::Seconds(12),
+      absl::UnixEpoch() + absl::Seconds(34),
+      absl::UnixEpoch() + absl::Seconds(56),
+  }};
+  tsdb2::proto::Message const& ref = message;
+  EXPECT_THAT(descriptor.GetConstFieldValue(ref, "field"),
+              IsOkAndHolds(VariantWith<std::vector<absl::Time> const*>(Pointee(ElementsAre(
+                  absl::UnixEpoch() + absl::Seconds(12), absl::UnixEpoch() + absl::Seconds(34),
+                  absl::UnixEpoch() + absl::Seconds(56))))));
+  EXPECT_THAT(descriptor.GetConstFieldValue(ref, "lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  tsdb2::proto::Message* const ptr = &message;
+  EXPECT_THAT(descriptor.GetFieldValue(ptr, "field"),
+              IsOkAndHolds(VariantWith<std::vector<absl::Time>*>(Pointee(ElementsAre(
+                  absl::UnixEpoch() + absl::Seconds(12), absl::UnixEpoch() + absl::Seconds(34),
+                  absl::UnixEpoch() + absl::Seconds(56))))));
+  EXPECT_THAT(descriptor.GetFieldValue(ptr, "lorem"), StatusIs(absl::StatusCode::kInvalidArgument));
+  auto const status_or_field = descriptor.GetFieldValue(ptr, "field");
+  EXPECT_OK(status_or_field);
+  std::get<std::vector<absl::Time>*>(status_or_field.value())
+      ->emplace_back(absl::UnixEpoch() + absl::Seconds(78));
+  EXPECT_THAT(
+      message.field,
+      ElementsAre(absl::UnixEpoch() + absl::Seconds(12), absl::UnixEpoch() + absl::Seconds(34),
+                  absl::UnixEpoch() + absl::Seconds(56), absl::UnixEpoch() + absl::Seconds(78)));
+}
+
+TEST(ReflectionTest, OptionalDurationField) {
+  EXPECT_EQ(&tsdb2::proto::GetMessageDescriptor<tsdb2::proto::test::OptionalDurationField>(),
+            &tsdb2::proto::test::OptionalDurationField::MESSAGE_DESCRIPTOR);
+  auto const& descriptor = tsdb2::proto::test::OptionalDurationField::MESSAGE_DESCRIPTOR;
+  EXPECT_THAT(descriptor.GetAllFieldNames(), ElementsAre("field"));
+  EXPECT_THAT(descriptor.GetLabeledFieldType("field"),
+              IsOkAndHolds(BaseMessageDescriptor::LabeledFieldType::kOptionalDurationField));
+  EXPECT_THAT(descriptor.GetLabeledFieldType("lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(descriptor.GetFieldTypeAndKind("field"),
+              IsOkAndHolds(Pair(BaseMessageDescriptor::FieldType::kDurationField,
+                                BaseMessageDescriptor::FieldKind::kOptional)));
+  EXPECT_THAT(descriptor.GetFieldTypeAndKind("lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(descriptor.GetFieldType("field"),
+              IsOkAndHolds(BaseMessageDescriptor::FieldType::kDurationField));
+  EXPECT_THAT(descriptor.GetFieldType("lorem"), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(descriptor.GetFieldKind("field"),
+              IsOkAndHolds(BaseMessageDescriptor::FieldKind::kOptional));
+  EXPECT_THAT(descriptor.GetFieldKind("lorem"), StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(ReflectionTest, EmptyOptionalDurationField) {
+  auto const& descriptor = tsdb2::proto::test::OptionalDurationField::MESSAGE_DESCRIPTOR;
+  tsdb2::proto::test::OptionalDurationField message;
+  tsdb2::proto::Message const& ref = message;
+  EXPECT_THAT(
+      descriptor.GetConstFieldValue(ref, "field"),
+      IsOkAndHolds(VariantWith<std::optional<absl::Duration> const*>(Pointee(std::nullopt))));
+  EXPECT_THAT(descriptor.GetConstFieldValue(ref, "lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  tsdb2::proto::Message* const ptr = &message;
+  EXPECT_THAT(descriptor.GetFieldValue(ptr, "field"),
+              IsOkAndHolds(VariantWith<std::optional<absl::Duration>*>(Pointee(std::nullopt))));
+  EXPECT_THAT(descriptor.GetFieldValue(ptr, "lorem"), StatusIs(absl::StatusCode::kInvalidArgument));
+  auto const status_or_field = descriptor.GetFieldValue(ptr, "field");
+  EXPECT_OK(status_or_field);
+  std::get<std::optional<absl::Duration>*>(status_or_field.value())->emplace(absl::Seconds(42));
+  EXPECT_THAT(message.field, Optional(absl::Seconds(42)));
+}
+
+TEST(ReflectionTest, OptionalDurationFieldValue) {
+  auto const& descriptor = tsdb2::proto::test::OptionalDurationField::MESSAGE_DESCRIPTOR;
+  tsdb2::proto::test::OptionalDurationField message{
+      .field = absl::Seconds(123),
+  };
+  tsdb2::proto::Message const& ref = message;
+  EXPECT_THAT(descriptor.GetConstFieldValue(ref, "field"),
+              IsOkAndHolds(VariantWith<std::optional<absl::Duration> const*>(
+                  Pointee(Optional(absl::Seconds(123))))));
+  EXPECT_THAT(descriptor.GetConstFieldValue(ref, "lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  tsdb2::proto::Message* const ptr = &message;
+  EXPECT_THAT(descriptor.GetFieldValue(ptr, "field"),
+              IsOkAndHolds(VariantWith<std::optional<absl::Duration>*>(
+                  Pointee(Optional(absl::Seconds(123))))));
+  EXPECT_THAT(descriptor.GetFieldValue(ptr, "lorem"), StatusIs(absl::StatusCode::kInvalidArgument));
+  auto const status_or_field = descriptor.GetFieldValue(ptr, "field");
+  EXPECT_OK(status_or_field);
+  std::get<std::optional<absl::Duration>*>(status_or_field.value())->emplace(absl::Seconds(456));
+  EXPECT_THAT(message.field, Optional(absl::Seconds(456)));
+}
+
+TEST(ReflectionTest, RawDurationField) {
+  EXPECT_EQ(&tsdb2::proto::GetMessageDescriptor<tsdb2::proto::test::RequiredDurationField>(),
+            &tsdb2::proto::test::RequiredDurationField::MESSAGE_DESCRIPTOR);
+  auto const& descriptor = tsdb2::proto::test::RequiredDurationField::MESSAGE_DESCRIPTOR;
+  EXPECT_THAT(descriptor.GetAllFieldNames(), ElementsAre("field"));
+  EXPECT_THAT(descriptor.GetLabeledFieldType("field"),
+              IsOkAndHolds(BaseMessageDescriptor::LabeledFieldType::kRawDurationField));
+  EXPECT_THAT(descriptor.GetLabeledFieldType("lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(descriptor.GetFieldTypeAndKind("field"),
+              IsOkAndHolds(Pair(BaseMessageDescriptor::FieldType::kDurationField,
+                                BaseMessageDescriptor::FieldKind::kRaw)));
+  EXPECT_THAT(descriptor.GetFieldTypeAndKind("lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(descriptor.GetFieldType("field"),
+              IsOkAndHolds(BaseMessageDescriptor::FieldType::kDurationField));
+  EXPECT_THAT(descriptor.GetFieldType("lorem"), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(descriptor.GetFieldKind("field"),
+              IsOkAndHolds(BaseMessageDescriptor::FieldKind::kRaw));
+  EXPECT_THAT(descriptor.GetFieldKind("lorem"), StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(ReflectionTest, RawDurationFieldValue) {
+  auto const& descriptor = tsdb2::proto::test::RequiredDurationField::MESSAGE_DESCRIPTOR;
+  tsdb2::proto::test::RequiredDurationField message{
+      .field = absl::Seconds(123),
+  };
+  tsdb2::proto::Message const& ref = message;
+  EXPECT_THAT(descriptor.GetConstFieldValue(ref, "field"),
+              IsOkAndHolds(VariantWith<absl::Duration const*>(Pointee(Eq(absl::Seconds(123))))));
+  EXPECT_THAT(descriptor.GetConstFieldValue(ref, "lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  tsdb2::proto::Message* const ptr = &message;
+  EXPECT_THAT(descriptor.GetFieldValue(ptr, "field"),
+              IsOkAndHolds(VariantWith<absl::Duration*>(Pointee(Eq(absl::Seconds(123))))));
+  EXPECT_THAT(descriptor.GetFieldValue(ptr, "lorem"), StatusIs(absl::StatusCode::kInvalidArgument));
+  auto const status_or_field = descriptor.GetFieldValue(ptr, "field");
+  EXPECT_OK(status_or_field);
+  *std::get<absl::Duration*>(status_or_field.value()) = absl::Seconds(456);
+  EXPECT_EQ(message.field, absl::Seconds(456));
+}
+
+TEST(ReflectionTest, RepeatedDurationField) {
+  EXPECT_EQ(&tsdb2::proto::GetMessageDescriptor<tsdb2::proto::test::RepeatedDurationField>(),
+            &tsdb2::proto::test::RepeatedDurationField::MESSAGE_DESCRIPTOR);
+  auto const& descriptor = tsdb2::proto::test::RepeatedDurationField::MESSAGE_DESCRIPTOR;
+  EXPECT_THAT(descriptor.GetAllFieldNames(), ElementsAre("field"));
+  EXPECT_THAT(descriptor.GetLabeledFieldType("field"),
+              IsOkAndHolds(BaseMessageDescriptor::LabeledFieldType::kRepeatedDurationField));
+  EXPECT_THAT(descriptor.GetLabeledFieldType("lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(descriptor.GetFieldTypeAndKind("field"),
+              IsOkAndHolds(Pair(BaseMessageDescriptor::FieldType::kDurationField,
+                                BaseMessageDescriptor::FieldKind::kRepeated)));
+  EXPECT_THAT(descriptor.GetFieldTypeAndKind("lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(descriptor.GetFieldType("field"),
+              IsOkAndHolds(BaseMessageDescriptor::FieldType::kDurationField));
+  EXPECT_THAT(descriptor.GetFieldType("lorem"), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(descriptor.GetFieldKind("field"),
+              IsOkAndHolds(BaseMessageDescriptor::FieldKind::kRepeated));
+  EXPECT_THAT(descriptor.GetFieldKind("lorem"), StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(ReflectionTest, RepeatedDurationFieldValues) {
+  auto const& descriptor = tsdb2::proto::test::RepeatedDurationField::MESSAGE_DESCRIPTOR;
+  tsdb2::proto::test::RepeatedDurationField message{.field{
+      absl::Seconds(12),
+      absl::Seconds(34),
+      absl::Seconds(56),
+  }};
+  tsdb2::proto::Message const& ref = message;
+  EXPECT_THAT(descriptor.GetConstFieldValue(ref, "field"),
+              IsOkAndHolds(VariantWith<std::vector<absl::Duration> const*>(
+                  Pointee(ElementsAre(absl::Seconds(12), absl::Seconds(34), absl::Seconds(56))))));
+  EXPECT_THAT(descriptor.GetConstFieldValue(ref, "lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  tsdb2::proto::Message* const ptr = &message;
+  EXPECT_THAT(descriptor.GetFieldValue(ptr, "field"),
+              IsOkAndHolds(VariantWith<std::vector<absl::Duration>*>(
+                  Pointee(ElementsAre(absl::Seconds(12), absl::Seconds(34), absl::Seconds(56))))));
+  EXPECT_THAT(descriptor.GetFieldValue(ptr, "lorem"), StatusIs(absl::StatusCode::kInvalidArgument));
+  auto const status_or_field = descriptor.GetFieldValue(ptr, "field");
+  EXPECT_OK(status_or_field);
+  std::get<std::vector<absl::Duration>*>(status_or_field.value())->emplace_back(absl::Seconds(78));
+  EXPECT_THAT(message.field, ElementsAre(absl::Seconds(12), absl::Seconds(34), absl::Seconds(56),
+                                         absl::Seconds(78)));
 }
 
 }  // namespace

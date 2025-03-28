@@ -1,5 +1,5 @@
-#ifndef __TSDB2_PROTO_DESCRIPTOR_PB_SYNC_H__
-#define __TSDB2_PROTO_DESCRIPTOR_PB_SYNC_H__
+#ifndef __TSDB2_PROTO_DESCRIPTOR_PB_H__
+#define __TSDB2_PROTO_DESCRIPTOR_PB_H__
 
 #include <cstdint>
 #include <optional>
@@ -11,6 +11,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/status/statusor.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "common/utilities.h"
 #include "io/cord.h"
@@ -1843,4 +1844,4 @@ struct UninterpretedOption : public ::tsdb2::proto::Message {
 
 TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING();
 
-#endif  // __TSDB2_PROTO_DESCRIPTOR_PB_SYNC_H__
+#endif  // __TSDB2_PROTO_DESCRIPTOR_PB_H__

@@ -10,16 +10,15 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/flags/declare.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "common/flat_map.h"
+#include "common/flat_set.h"
 #include "proto/dependencies.h"
 #include "proto/descriptor.pb.sync.h"
 #include "proto/plugin.pb.sync.h"
 #include "proto/text_writer.h"
-
-ABSL_DECLARE_FLAG(bool, emit_reflection_api);
 
 namespace tsdb2 {
 namespace proto {
@@ -77,11 +76,16 @@ class Generator {
     using Cycle = internal::DependencyManager::Cycle;
     using Cycles = std::vector<Cycle>;
 
-    explicit Builder(google::protobuf::FileDescriptorProto const& file_descriptor, Path base_path)
-        : file_descriptor_(&file_descriptor), base_path_(std::move(base_path)) {}
+    explicit Builder(google::protobuf::FileDescriptorProto const& file_descriptor, Path base_path,
+                     bool const use_raw_google_api_types)
+        : file_descriptor_(&file_descriptor),
+          base_path_(std::move(base_path)),
+          use_raw_google_api_types_(use_raw_google_api_types) {}
 
     Builder(Builder const&) = delete;
     Builder& operator=(Builder const&) = delete;
+
+    absl::Status CheckGoogleApiType(PathView path) const;
 
     absl::Status AddLexicalScope(LexicalScope const& scope);
 
@@ -110,6 +114,7 @@ class Generator {
 
     google::protobuf::FileDescriptorProto const* file_descriptor_;
     Path base_path_;
+    bool use_raw_google_api_types_;
 
     absl::flat_hash_map<Path, google::protobuf::EnumDescriptorProto> enum_types_by_path_;
     absl::flat_hash_map<Path, google::protobuf::DescriptorProto> message_types_by_path_;
@@ -120,13 +125,16 @@ class Generator {
 
   explicit Generator(
       google::protobuf::FileDescriptorProto const* const file_descriptor,
-      bool const emit_reflection_api,
+      bool const emit_reflection_api, bool const use_raw_google_api_types,
+      bool const generate_definitions_for_google_api_types,
       absl::flat_hash_map<Path, google::protobuf::EnumDescriptorProto> enum_types_by_path,
       absl::flat_hash_map<Path, google::protobuf::DescriptorProto> message_types_by_path,
       internal::DependencyManager dependencies, internal::DependencyManager flat_dependencies,
       Path base_path)
       : file_descriptor_(file_descriptor),
         emit_reflection_api_(emit_reflection_api),
+        use_raw_google_api_types_(use_raw_google_api_types),
+        generate_definitions_for_google_api_types_(generate_definitions_for_google_api_types),
         enum_types_by_path_(std::move(enum_types_by_path)),
         message_types_by_path_(std::move(message_types_by_path)),
         dependencies_(std::move(dependencies)),
@@ -151,6 +159,28 @@ class Generator {
   // Returns the number of generated fields, which may be different from the number of proto fields
   // due to the possible presence of oneof groupings, which generate a single `std::variant`.
   static size_t GetNumGeneratedFields(google::protobuf::DescriptorProto const& message_type);
+
+  void EmitIncludes(google::protobuf::FileDescriptorProto const& file_descriptor,
+                    internal::TextWriter* writer,
+                    tsdb2::common::flat_map<std::string, bool> headers) const;
+
+  template <typename DefaultHeaderSet>
+  void EmitIncludes(google::protobuf::FileDescriptorProto const& file_descriptor,
+                    internal::TextWriter* const writer,
+                    DefaultHeaderSet const& default_headers) const {
+    tsdb2::common::flat_map<std::string, bool> headers;
+    headers.reserve(default_headers.size() + file_descriptor.dependency.size());
+    for (auto const default_dependency : default_headers) {
+      headers.try_emplace(std::string(default_dependency), false);
+    }
+    tsdb2::common::flat_set<size_t> const public_dependency_indexes{
+        file_descriptor.public_dependency.begin(), file_descriptor.public_dependency.end()};
+    for (size_t i = 0; i < file_descriptor.dependency.size(); ++i) {
+      headers.try_emplace(generator::MakeHeaderFileName(file_descriptor.dependency[i]),
+                          /*public=*/public_dependency_indexes.contains(i));
+    }
+    EmitIncludes(file_descriptor, writer, std::move(headers));
+  }
 
   void EmitHeaderIncludes(internal::TextWriter* writer) const;
   void EmitSourceIncludes(internal::TextWriter* writer) const;
@@ -196,6 +226,9 @@ class Generator {
   absl::Status EmitEnumDecoding(internal::TextWriter* writer,
                                 google::protobuf::FieldDescriptorProto const& descriptor) const;
 
+  absl::Status EmitGoogleApiFieldDecoding(
+      internal::TextWriter* writer, google::protobuf::FieldDescriptorProto const& descriptor) const;
+
   absl::Status EmitFieldDecoding(internal::TextWriter* writer,
                                  google::protobuf::FieldDescriptorProto const& descriptor) const;
 
@@ -212,12 +245,16 @@ class Generator {
   static absl::Status EmitRequiredFieldEncoding(
       internal::TextWriter* writer, google::protobuf::FieldDescriptorProto const& descriptor);
 
-  static absl::Status EmitEnumEncoding(internal::TextWriter* writer,
-                                       google::protobuf::FieldDescriptorProto const& descriptor,
-                                       bool is_optional);
+  static absl::Status EmitEnumFieldEncoding(
+      internal::TextWriter* writer, google::protobuf::FieldDescriptorProto const& descriptor,
+      bool is_optional);
 
-  static absl::Status EmitObjectEncoding(internal::TextWriter* writer,
-                                         google::protobuf::FieldDescriptorProto const& descriptor);
+  static absl::Status EmitGoogleApiFieldEncoding(
+      internal::TextWriter* writer, google::protobuf::FieldDescriptorProto const& descriptor,
+      bool is_optional);
+
+  static absl::Status EmitObjectFieldEncoding(
+      internal::TextWriter* writer, google::protobuf::FieldDescriptorProto const& descriptor);
 
   absl::Status EmitFieldEncoding(internal::TextWriter* writer,
                                  google::protobuf::FieldDescriptorProto const& descriptor) const;
@@ -257,6 +294,8 @@ class Generator {
 
   google::protobuf::FileDescriptorProto const* file_descriptor_;
   bool emit_reflection_api_;
+  bool use_raw_google_api_types_;
+  bool generate_definitions_for_google_api_types_;
   absl::flat_hash_map<Path, google::protobuf::EnumDescriptorProto> enum_types_by_path_;
   absl::flat_hash_map<Path, google::protobuf::DescriptorProto> message_types_by_path_;
   internal::DependencyManager dependencies_;

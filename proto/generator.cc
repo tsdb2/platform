@@ -33,9 +33,20 @@
 #include "proto/text_writer.h"
 
 ABSL_FLAG(
-    bool, emit_reflection_api, false,
+    bool, proto_emit_reflection_api, false,
     "Whether to emit the reflection API for the generated types. The reflection API is very heavy "
     "to compile so it's disabled by default, but you'll need it if you use TextFormat.");
+
+ABSL_FLAG(bool, proto_use_raw_google_api_types, false,
+          "Whether to use raw ::google::protobuf::* API messages instead of absl::Time and "
+          "absl::Duration for timestamp and duration fields.");
+
+ABSL_FLAG(
+    bool, proto_internal_generate_definitions_for_google_api_types_i_dont_care_about_odr_violations,
+    false,
+    "DO NOT USE. This is only used internally and very occasionally to generate or update the "
+    "definitions for Google API protos. Never commit to versioning anything that sets this "
+    "flag to true. This flag will cause ODR violations unless you know what you're doing.");
 
 namespace tsdb2 {
 namespace proto {
@@ -59,6 +70,7 @@ tsdb2::common::NoDestructor<tsdb2::common::RE> const kIdentifierPattern{
 auto constexpr kDefaultHeaderIncludes = tsdb2::common::fixed_flat_set_of<std::string_view>({
     "absl/base/attributes.h",
     "absl/status/statusor.h",
+    "absl/time/time.h",
     "absl/types/span.h",
     "common/utilities.h",
     "io/cord.h",
@@ -68,12 +80,18 @@ auto constexpr kDefaultHeaderIncludes = tsdb2::common::fixed_flat_set_of<std::st
 auto constexpr kDefaultSourceIncludes = tsdb2::common::fixed_flat_set_of<std::string_view>({
     "absl/status/status.h",
     "absl/status/statusor.h",
+    "absl/time/time.h",
     "absl/types/span.h",
     "common/flat_set.h",
     "common/utilities.h",
     "io/cord.h",
     "proto/proto.h",
     "proto/wire_format.h",
+});
+
+auto constexpr kGoogleApiHeaders = tsdb2::common::fixed_flat_set_of<std::string_view>({
+    "proto/duration.pb.h",
+    "proto/timestamp.pb.h",
 });
 
 auto constexpr kFieldTypeNames =
@@ -196,6 +214,40 @@ auto constexpr kPackedFieldEncoderNames =
         {FieldDescriptorProto::Type::TYPE_SINT32, "EncodePackedSInt32s"},
         {FieldDescriptorProto::Type::TYPE_SINT64, "EncodePackedSInt64s"},
     });
+
+struct ComparePaths {
+  using is_transparent = void;
+
+  static Generator::PathView ToView(Generator::Path const& path) { return path; }
+  static Generator::PathView ToView(Generator::PathView const view) { return view; }
+
+  template <typename LHS, typename RHS>
+  bool operator()(LHS&& lhs, RHS&& rhs) const {
+    return ToView(std::forward<LHS>(lhs)) < ToView(std::forward<RHS>(rhs));
+  }
+};
+
+struct GoogleApiTypeInfo {
+  Generator::Path cc_type;
+  std::string decoder_name;
+  std::string encoder_name;
+};
+
+auto const* const kGoogleApiTypes =
+    new tsdb2::common::flat_map<Generator::Path, GoogleApiTypeInfo, ComparePaths>{
+        {{"google", "protobuf", "Duration"},
+         {
+             .cc_type{"absl", "Duration"},
+             .decoder_name = "DecodeDurationField",
+             .encoder_name = "EncodeDurationField",
+         }},
+        {{"google", "protobuf", "Timestamp"},
+         {
+             .cc_type{"absl", "Time"},
+             .decoder_name = "DecodeTimeField",
+             .encoder_name = "EncodeTimeField",
+         }},
+    };
 
 Generator::Path JoinPath(Generator::PathView const lhs, std::string_view const rhs) {
   Generator::Path result;
@@ -409,7 +461,8 @@ absl::StatusOr<Generator::Builder> Generator::Builder::Create(
     return absl::InvalidArgumentError(
         absl::StrCat("invalid package name: \"", absl::CEscape(package_name), "\""));
   }
-  return Builder(file_descriptor, SplitPath(package_name));
+  return Builder(file_descriptor, SplitPath(package_name),
+                 absl::GetFlag(FLAGS_proto_use_raw_google_api_types));
 }
 
 absl::StatusOr<Generator> Generator::Builder::Build() && {
@@ -434,9 +487,21 @@ absl::StatusOr<Generator> Generator::Builder::Build() && {
   }
   ASSIGN_OR_RETURN(enum_types_by_path_, GetEnumTypesByPath());
   ASSIGN_OR_RETURN(message_types_by_path_, GetMessageTypesByPath());
-  return Generator(file_descriptor_, absl::GetFlag(FLAGS_emit_reflection_api),
-                   std::move(enum_types_by_path_), std::move(message_types_by_path_),
-                   std::move(dependencies_), std::move(flat_dependencies_), std::move(base_path_));
+  return Generator(
+      file_descriptor_, absl::GetFlag(FLAGS_proto_emit_reflection_api), use_raw_google_api_types_,
+      absl::GetFlag(
+          FLAGS_proto_internal_generate_definitions_for_google_api_types_i_dont_care_about_odr_violations),
+      std::move(enum_types_by_path_), std::move(message_types_by_path_), std::move(dependencies_),
+      std::move(flat_dependencies_), std::move(base_path_));
+}
+
+absl::Status Generator::Builder::CheckGoogleApiType(PathView const path) const {
+  if (!use_raw_google_api_types_ && kGoogleApiTypes->contains(path)) {
+    return absl::FailedPreconditionError(
+        absl::StrCat("cannot redefine ", absl::StrJoin(path, ".")));
+  } else {
+    return absl::OkStatus();
+  }
 }
 
 absl::Status Generator::Builder::AddLexicalScope(Generator::LexicalScope const& scope) {
@@ -447,6 +512,7 @@ absl::Status Generator::Builder::AddLexicalScope(Generator::LexicalScope const& 
           absl::StrCat("invalid enum type name: \"", absl::CEscape(name), "\""));
     }
     Path const path = JoinPath(scope.base_path, name);
+    RETURN_IF_ERROR(CheckGoogleApiType(path));
     dependencies_.AddNode(path);
   }
   for (auto const& message_type : scope.message_types) {
@@ -456,6 +522,7 @@ absl::Status Generator::Builder::AddLexicalScope(Generator::LexicalScope const& 
           absl::StrCat("invalid message type name: \"", absl::CEscape(name), "\""));
     }
     Path const path = JoinPath(scope.base_path, name);
+    RETURN_IF_ERROR(CheckGoogleApiType(path));
     dependencies_.AddNode(path);
     RETURN_IF_ERROR(AddLexicalScope(Generator::LexicalScope{
         .base_path = path,
@@ -477,7 +544,9 @@ absl::Status Generator::Builder::AddLexicalScope(Generator::LexicalScope const& 
         REQUIRE_FIELD_OR_RETURN(label, field, label);
         if (label != FieldDescriptorProto::Label::LABEL_REPEATED) {
           DEFINE_CONST_OR_RETURN(type_path, GetTypePath(field.type_name.value()));
-          dependencies_.AddDependency(path, type_path, field_name);
+          if (use_raw_google_api_types_ || !kGoogleApiTypes->contains(type_path)) {
+            dependencies_.AddDependency(path, type_path, field_name);
+          }
         }
       }
     }
@@ -505,12 +574,15 @@ absl::Status Generator::Builder::BuildFlatDependencies(
   for (auto const& enum_type : enum_types) {
     REQUIRE_FIELD_OR_RETURN(name, enum_type, name);
     auto const qualified_name = scope_name.empty() ? name : absl::StrCat(scope_name, ".", name);
-    flat_dependencies_.AddNode(JoinPath(base_path_, qualified_name));
+    Path const path = JoinPath(base_path_, SplitPath(qualified_name));
+    RETURN_IF_ERROR(CheckGoogleApiType(path));
+    flat_dependencies_.AddNode(path);
   }
   for (auto const& message_type : message_types) {
     REQUIRE_FIELD_OR_RETURN(name, message_type, name);
     auto const qualified_name = scope_name.empty() ? name : absl::StrCat(scope_name, ".", name);
-    Path const child_path = JoinPath(base_path_, qualified_name);
+    Path const child_path = JoinPath(base_path_, SplitPath(qualified_name));
+    RETURN_IF_ERROR(CheckGoogleApiType(child_path));
     flat_dependencies_.AddNode(child_path);
     RETURN_IF_ERROR(
         BuildFlatDependencies(qualified_name, message_type.nested_type, message_type.enum_type));
@@ -519,12 +591,14 @@ absl::Status Generator::Builder::BuildFlatDependencies(
         REQUIRE_FIELD_OR_RETURN(label, field, label);
         if (label != FieldDescriptorProto::Label::LABEL_REPEATED) {
           DEFINE_CONST_OR_RETURN(dependee_path, GetTypePath(field.type_name.value()));
-          auto const maybe_qualified_dependee_name = MaybeGetQualifiedName(dependee_path);
-          if (maybe_qualified_dependee_name.has_value()) {
-            REQUIRE_FIELD_OR_RETURN(field_name, field, name);
-            flat_dependencies_.AddDependency(
-                child_path, JoinPath(base_path_, maybe_qualified_dependee_name.value()),
-                field_name);
+          if (use_raw_google_api_types_ || !kGoogleApiTypes->contains(dependee_path)) {
+            auto const maybe_qualified_dependee_name = MaybeGetQualifiedName(dependee_path);
+            if (maybe_qualified_dependee_name.has_value()) {
+              REQUIRE_FIELD_OR_RETURN(field_name, field, name);
+              flat_dependencies_.AddDependency(
+                  child_path, JoinPath(base_path_, maybe_qualified_dependee_name.value()),
+                  field_name);
+            }
           }
         }
       }
@@ -619,15 +693,17 @@ Generator::Builder::GetMessageTypesByPath() const {
 }
 
 absl::StatusOr<std::string> Generator::GetHeaderGuardName() const {
-  REQUIRE_FIELD_OR_RETURN(name, *file_descriptor_, name);
-  // TODO: we are replacing only path separators here, but file paths may contain many more symbols.
-  std::string converted = absl::StrReplaceAll(name, {{"/", "_"}, {"\\", "_"}});
+  REQUIRE_FIELD_OR_RETURN(name_field, *file_descriptor_, name);
+  std::string_view name = name_field;
   std::string_view extension;
-  if (kFileExtensionPattern->PartialMatchArgs(converted, &extension)) {
-    converted.erase(converted.size() - extension.size());
+  if (kFileExtensionPattern->PartialMatchArgs(name, &extension)) {
+    name.remove_suffix(extension.size());
   }
-  absl::AsciiStrToUpper(&converted);
-  return absl::StrCat("__TSDB2_", converted, "_PB_H__");
+  static tsdb2::common::NoDestructor<tsdb2::common::RE> const kSpecialCharacters{
+      tsdb2::common::RE::CreateOrDie("([^A-Za-z0-9_])")};
+  DEFINE_CONST_OR_RETURN(
+      converted, kSpecialCharacters->StrReplaceAll(name, /*capture_index=*/0, /*replacement=*/"_"));
+  return absl::StrCat("__TSDB2_", absl::AsciiStrToUpper(converted), "_PB_H__");
 }
 
 absl::StatusOr<std::string> Generator::GetCppPackage() const {
@@ -689,21 +765,13 @@ size_t Generator::GetNumGeneratedFields(google::protobuf::DescriptorProto const&
   return num_regular_fields + oneof_indices.size();
 }
 
-namespace {
-
-template <typename DefaultHeaderSet>
-void EmitIncludes(google::protobuf::FileDescriptorProto const& file_descriptor,
-                  TextWriter* const writer, DefaultHeaderSet const& default_headers) {
-  tsdb2::common::flat_map<std::string, bool> headers;
-  headers.reserve(default_headers.size() + file_descriptor.dependency.size());
-  for (auto const default_dependency : default_headers) {
-    headers.try_emplace(std::string(default_dependency), false);
-  }
-  tsdb2::common::flat_set<size_t> const public_dependency_indexes{
-      file_descriptor.public_dependency.begin(), file_descriptor.public_dependency.end()};
-  for (size_t i = 0; i < file_descriptor.dependency.size(); ++i) {
-    headers.try_emplace(generator::MakeHeaderFileName(file_descriptor.dependency[i]),
-                        /*public=*/public_dependency_indexes.contains(i));
+void Generator::EmitIncludes(google::protobuf::FileDescriptorProto const& file_descriptor,
+                             internal::TextWriter* const writer,
+                             tsdb2::common::flat_map<std::string, bool> headers) const {
+  if (!use_raw_google_api_types_) {
+    for (auto const header : kGoogleApiHeaders) {
+      headers.erase(header);
+    }
   }
   for (auto const& [header, is_public] : headers) {
     if (is_public) {
@@ -713,8 +781,6 @@ void EmitIncludes(google::protobuf::FileDescriptorProto const& file_descriptor,
     }
   }
 }
-
-}  // namespace
 
 void Generator::EmitHeaderIncludes(TextWriter* const writer) const {
   EmitIncludes(*file_descriptor_, writer, kDefaultHeaderIncludes);
@@ -728,6 +794,14 @@ absl::StatusOr<std::pair<std::string, bool>> Generator::GetFieldType(
     FieldDescriptorProto const& descriptor) const {
   if (descriptor.type_name.has_value()) {
     auto const& type_name = descriptor.type_name.value();
+    if (!use_raw_google_api_types_) {
+      DEFINE_CONST_OR_RETURN(path, GetTypePath(type_name));
+      auto const it = kGoogleApiTypes->find(path);
+      if (it != kGoogleApiTypes->end()) {
+        return std::make_pair(absl::StrCat("::", absl::StrJoin(it->second.cc_type, "::")),
+                              /*primitive=*/true);
+      }
+    }
     DEFINE_CONST_OR_RETURN(is_enum, IsEnum(type_name));
     return std::make_pair(absl::StrReplaceAll(type_name, {{".", "::"}}), /*primitive=*/is_enum);
   }
@@ -859,9 +933,8 @@ absl::Status Generator::EmitMessageFields(
             DEFINE_CONST_OR_RETURN(initializer,
                                    GetFieldInitializer(field, type, field.default_value.value()));
             writer->AppendLine(deprecation, type, " ", name, "{", initializer, "};");
-          } else if (primitive) {
-            REQUIRE_FIELD_OR_RETURN(primitive_type, field, type);
-            switch (primitive_type) {
+          } else if (primitive && field.type.has_value()) {
+            switch (field.type.value()) {
               case FieldDescriptorProto::Type::TYPE_STRING:
               case FieldDescriptorProto::Type::TYPE_BYTES:
                 writer->AppendLine(deprecation, type, " ", name, ";");
@@ -871,6 +944,9 @@ absl::Status Generator::EmitMessageFields(
                 DEFINE_CONST_OR_RETURN(initial_value, GetInitialEnumValue(type_name));
                 writer->AppendLine(deprecation, type, " ", name, " = ", initial_value, ";");
               } break;
+              case FieldDescriptorProto::Type::TYPE_MESSAGE:
+                writer->AppendLine(deprecation, type, " ", name, ";");
+                break;
               default:
                 writer->AppendLine(deprecation, type, " ", name, "{};");
                 break;
@@ -1243,14 +1319,58 @@ absl::Status Generator::EmitEnumDecoding(TextWriter* const writer,
   return absl::OkStatus();
 }
 
+absl::Status Generator::EmitGoogleApiFieldDecoding(
+    internal::TextWriter* const writer,
+    google::protobuf::FieldDescriptorProto const& descriptor) const {
+  REQUIRE_FIELD_OR_RETURN(name, descriptor, name);
+  REQUIRE_FIELD_OR_RETURN(number, descriptor, number);
+  REQUIRE_FIELD_OR_RETURN(label, descriptor, label);
+  writer->AppendLine("case ", number, ": {");
+  {
+    TextWriter::IndentedScope is{writer};
+    REQUIRE_FIELD_OR_RETURN(type_name, descriptor, type_name);
+    DEFINE_CONST_OR_RETURN(path, GetTypePath(type_name));
+    auto const it = kGoogleApiTypes->find(path);
+    auto const& info = it->second;
+    writer->AppendLine("DEFINE_CONST_OR_RETURN(value, decoder.", info.decoder_name,
+                       "(tag.wire_type));");
+    switch (label) {
+      case FieldDescriptorProto::Label::LABEL_OPTIONAL: {
+        DEFINE_CONST_OR_RETURN(is_optional, FieldIsWrappedInOptional(descriptor));
+        if (is_optional) {
+          writer->AppendLine("proto.", name, ".emplace(value);");
+        } else {
+          writer->AppendLine("proto.", name, " = value;");
+        }
+      } break;
+      case FieldDescriptorProto::Label::LABEL_REQUIRED:
+        writer->AppendLine("proto.", name, " = value;");
+        writer->AppendLine("decoded.emplace(", number, ");");
+        break;
+      case FieldDescriptorProto::Label::LABEL_REPEATED:
+        writer->AppendLine("proto.", name, ".emplace_back(value);");
+        break;
+      default:
+        return absl::InvalidArgumentError("invalid field label");
+    }
+  }
+  writer->AppendLine("} break;");
+  return absl::OkStatus();
+}
+
 absl::Status Generator::EmitFieldDecoding(TextWriter* const writer,
                                           FieldDescriptorProto const& descriptor) const {
   if (descriptor.type_name.has_value()) {
-    DEFINE_CONST_OR_RETURN(is_message, IsMessage(descriptor.type_name.value()));
-    if (is_message) {
-      return EmitObjectDecoding(writer, descriptor);
+    DEFINE_CONST_OR_RETURN(path, GetTypePath(descriptor.type_name.value()));
+    if (!use_raw_google_api_types_ && kGoogleApiTypes->contains(path)) {
+      return EmitGoogleApiFieldDecoding(writer, descriptor);
     } else {
-      return EmitEnumDecoding(writer, descriptor);
+      DEFINE_CONST_OR_RETURN(is_message, IsMessage(descriptor.type_name.value()));
+      if (is_message) {
+        return EmitObjectDecoding(writer, descriptor);
+      } else {
+        return EmitEnumDecoding(writer, descriptor);
+      }
     }
   } else {
     REQUIRE_FIELD_OR_RETURN(label, descriptor, label);
@@ -1286,17 +1406,28 @@ absl::Status Generator::EmitOneofFieldDecoding(
       {
         TextWriter::IndentedScope is{writer};
         if (field.type_name.has_value()) {
-          std::string const type_name = absl::StrReplaceAll(field.type_name.value(), {{".", "::"}});
-          DEFINE_CONST_OR_RETURN(is_message, IsMessage(field.type_name.value()));
-          if (is_message) {
-            writer->AppendLine(
-                "DEFINE_CONST_OR_RETURN(child_span, decoder.GetChildSpan(tag.wire_type));");
-            writer->AppendLine("DEFINE_VAR_OR_RETURN(value, ", type_name, "::Decode(child_span));");
-            writer->AppendLine("proto.", name, ".emplace<", field_index, ">(std::move(value));");
-          } else {
-            writer->AppendLine("DEFINE_CONST_OR_RETURN(value, decoder.DecodeEnumField<", type_name,
-                               ">(tag.wire_type));");
+          DEFINE_CONST_OR_RETURN(path, GetTypePath(field.type_name.value()));
+          auto const it = kGoogleApiTypes->find(path);
+          if (!use_raw_google_api_types_ && it != kGoogleApiTypes->end()) {
+            auto const& info = it->second;
+            writer->AppendLine("DEFINE_CONST_OR_RETURN(value, decoder.", info.decoder_name,
+                               "(tag.wire_type));");
             writer->AppendLine("proto.", name, ".emplace<", field_index, ">(value);");
+          } else {
+            std::string const type_name =
+                absl::StrReplaceAll(field.type_name.value(), {{".", "::"}});
+            DEFINE_CONST_OR_RETURN(is_message, IsMessage(field.type_name.value()));
+            if (is_message) {
+              writer->AppendLine(
+                  "DEFINE_CONST_OR_RETURN(child_span, decoder.GetChildSpan(tag.wire_type));");
+              writer->AppendLine("DEFINE_VAR_OR_RETURN(value, ", type_name,
+                                 "::Decode(child_span));");
+              writer->AppendLine("proto.", name, ".emplace<", field_index, ">(std::move(value));");
+            } else {
+              writer->AppendLine("DEFINE_CONST_OR_RETURN(value, decoder.DecodeEnumField<",
+                                 type_name, ">(tag.wire_type));");
+              writer->AppendLine("proto.", name, ".emplace<", field_index, ">(value);");
+            }
           }
         } else {
           REQUIRE_FIELD_OR_RETURN(type, field, type);
@@ -1382,9 +1513,9 @@ absl::Status Generator::EmitRequiredFieldEncoding(TextWriter* const writer,
   }
 }
 
-absl::Status Generator::EmitEnumEncoding(TextWriter* const writer,
-                                         FieldDescriptorProto const& descriptor,
-                                         bool const is_optional) {
+absl::Status Generator::EmitEnumFieldEncoding(TextWriter* const writer,
+                                              FieldDescriptorProto const& descriptor,
+                                              bool const is_optional) {
   REQUIRE_FIELD_OR_RETURN(name, descriptor, name);
   REQUIRE_FIELD_OR_RETURN(number, descriptor, number);
   REQUIRE_FIELD_OR_RETURN(label, descriptor, label);
@@ -1402,7 +1533,7 @@ absl::Status Generator::EmitEnumEncoding(TextWriter* const writer,
         writer->AppendLine("encoder.EncodeEnumField(", number, ", proto.", name, ");");
       }
       break;
-    case FieldDescriptorProto::Label::LABEL_REPEATED: {
+    case FieldDescriptorProto::Label::LABEL_REPEATED:
       if (packed) {
         writer->AppendLine("encoder.EncodePackedEnums(", number, ", proto.", name, ");");
       } else {
@@ -1413,7 +1544,7 @@ absl::Status Generator::EmitEnumEncoding(TextWriter* const writer,
         }
         writer->AppendLine("}");
       }
-    } break;
+      break;
     case FieldDescriptorProto::Label::LABEL_REQUIRED:
       writer->AppendLine("encoder.EncodeEnumField(", number, ", proto.", name, ");");
       break;
@@ -1423,8 +1554,49 @@ absl::Status Generator::EmitEnumEncoding(TextWriter* const writer,
   return absl::OkStatus();
 }
 
-absl::Status Generator::EmitObjectEncoding(TextWriter* const writer,
-                                           FieldDescriptorProto const& descriptor) {
+absl::Status Generator::EmitGoogleApiFieldEncoding(
+    internal::TextWriter* const writer, google::protobuf::FieldDescriptorProto const& descriptor,
+    bool const is_optional) {
+  REQUIRE_FIELD_OR_RETURN(name, descriptor, name);
+  REQUIRE_FIELD_OR_RETURN(number, descriptor, number);
+  REQUIRE_FIELD_OR_RETURN(label, descriptor, label);
+  REQUIRE_FIELD_OR_RETURN(type_name, descriptor, type_name);
+  DEFINE_CONST_OR_RETURN(path, GetTypePath(type_name));
+  auto const it = kGoogleApiTypes->find(path);
+  auto const& info = it->second;
+  switch (label) {
+    case FieldDescriptorProto::Label::LABEL_OPTIONAL:
+      if (is_optional) {
+        writer->AppendLine("if (proto.", name, ".has_value()) {");
+        {
+          TextWriter::IndentedScope is{writer};
+          writer->AppendLine("encoder.", info.encoder_name, "(", number, ", proto.", name,
+                             ".value());");
+        }
+        writer->AppendLine("}");
+      } else {
+        writer->AppendLine("encoder.", info.encoder_name, "(", number, ", proto.", name, ");");
+      }
+      break;
+    case FieldDescriptorProto::Label::LABEL_REPEATED:
+      writer->AppendLine("for (auto const& value : proto.", name, ") {");
+      {
+        TextWriter::IndentedScope is{writer};
+        writer->AppendLine("encoder.", info.encoder_name, "(", number, ", value);");
+      }
+      writer->AppendLine("}");
+      break;
+    case FieldDescriptorProto::Label::LABEL_REQUIRED:
+      writer->AppendLine("encoder.", info.encoder_name, "(", number, ", proto.", name, ");");
+      break;
+    default:
+      return absl::InvalidArgumentError("invalid field label");
+  }
+  return absl::OkStatus();
+}
+
+absl::Status Generator::EmitObjectFieldEncoding(TextWriter* const writer,
+                                                FieldDescriptorProto const& descriptor) {
   REQUIRE_FIELD_OR_RETURN(name, descriptor, name);
   REQUIRE_FIELD_OR_RETURN(number, descriptor, number);
   REQUIRE_FIELD_OR_RETURN(label, descriptor, label);
@@ -1463,11 +1635,16 @@ absl::Status Generator::EmitFieldEncoding(TextWriter* const writer,
                                           FieldDescriptorProto const& descriptor) const {
   DEFINE_CONST_OR_RETURN(is_optional, FieldIsWrappedInOptional(descriptor));
   if (descriptor.type_name.has_value()) {
-    DEFINE_CONST_OR_RETURN(is_message, IsMessage(descriptor.type_name.value()));
-    if (is_message) {
-      return EmitObjectEncoding(writer, descriptor);
+    DEFINE_CONST_OR_RETURN(path, GetTypePath(descriptor.type_name.value()));
+    if (!use_raw_google_api_types_ && kGoogleApiTypes->contains(path)) {
+      return EmitGoogleApiFieldEncoding(writer, descriptor, is_optional);
     } else {
-      return EmitEnumEncoding(writer, descriptor, is_optional);
+      DEFINE_CONST_OR_RETURN(is_message, IsMessage(descriptor.type_name.value()));
+      if (is_message) {
+        return EmitObjectFieldEncoding(writer, descriptor);
+      } else {
+        return EmitEnumFieldEncoding(writer, descriptor, is_optional);
+      }
     }
   } else {
     REQUIRE_FIELD_OR_RETURN(label, descriptor, label);
@@ -1504,14 +1681,23 @@ absl::Status Generator::EmitOneofFieldEncoding(
         writer->AppendLine("case ", field_index, ":");
         TextWriter::IndentedScope is{writer};
         if (field.type_name.has_value()) {
-          std::string const type_name = absl::StrReplaceAll(field.type_name.value(), {{".", "::"}});
-          DEFINE_CONST_OR_RETURN(is_message, IsMessage(field.type_name.value()));
-          if (is_message) {
-            writer->AppendLine("encoder.EncodeSubMessageField(", number, ", ", type_name,
-                               "::Encode(std::get<", field_index, ">(proto.", name, ")));");
+          DEFINE_CONST_OR_RETURN(path, GetTypePath(field.type_name.value()));
+          auto const it = kGoogleApiTypes->find(path);
+          if (!use_raw_google_api_types_ && it != kGoogleApiTypes->end()) {
+            auto const& info = it->second;
+            writer->AppendLine("encoder.", info.encoder_name, "(", number, ", std::get<",
+                               field_index, ">(proto.", name, "));");
           } else {
-            writer->AppendLine("encoder.EncodeEnumField(", number, ", std::get<", field_index,
-                               ">(proto.", name, "));");
+            std::string const type_name =
+                absl::StrReplaceAll(field.type_name.value(), {{".", "::"}});
+            DEFINE_CONST_OR_RETURN(is_message, IsMessage(field.type_name.value()));
+            if (is_message) {
+              writer->AppendLine("encoder.EncodeSubMessageField(", number, ", ", type_name,
+                                 "::Encode(std::get<", field_index, ">(proto.", name, ")));");
+            } else {
+              writer->AppendLine("encoder.EncodeEnumField(", number, ", std::get<", field_index,
+                                 ">(proto.", name, "));");
+            }
           }
         } else {
           REQUIRE_FIELD_OR_RETURN(type, field, type);
@@ -1535,10 +1721,16 @@ absl::Status Generator::EmitImplementationForScope(TextWriter* const writer, Pat
                                                    LexicalScope const& scope) const {
   for (auto const& message_type : scope.message_types) {
     REQUIRE_FIELD_OR_RETURN(name, message_type, name);
+    Path const full_path = JoinPath(scope.base_path, name);
+    if (!generate_definitions_for_google_api_types_ && kGoogleApiTypes->contains(full_path)) {
+      // Never generate definitions for Google API type symbols, as they are already provided in the
+      // runtime and would cause ODR violations.
+      continue;
+    }
     Path const path = JoinPath(prefix, name);
     RETURN_IF_ERROR(EmitImplementationForScope(writer, /*prefix=*/path,
                                                LexicalScope{
-                                                   .base_path = JoinPath(scope.base_path, name),
+                                                   .base_path = full_path,
                                                    .global = false,
                                                    .message_types = message_type.nested_type,
                                                    .enum_types = message_type.enum_type,
@@ -1729,17 +1921,24 @@ absl::Status Generator::EmitFieldDescriptor(
     google::protobuf::FieldDescriptorProto const& descriptor) const {
   DEFINE_CONST_OR_RETURN(is_optional, FieldIsWrappedInOptional(descriptor));
   if (descriptor.type_name.has_value()) {
-    DEFINE_CONST_OR_RETURN(is_message, IsMessage(descriptor.type_name.value()));
-    if (is_message) {
-      return EmitObjectFieldDescriptor(writer, qualified_parent_name, descriptor);
+    DEFINE_CONST_OR_RETURN(path, GetTypePath(descriptor.type_name.value()));
+    auto const it = kGoogleApiTypes->find(path);
+    if (!use_raw_google_api_types_ && it != kGoogleApiTypes->end()) {
+      REQUIRE_FIELD_OR_RETURN(name, descriptor, name);
+      writer->AppendLine("{\"", name, "\", &", qualified_parent_name, "::", name, "},");
     } else {
-      return EmitEnumFieldDescriptor(writer, qualified_parent_name, descriptor, is_optional);
+      DEFINE_CONST_OR_RETURN(is_message, IsMessage(descriptor.type_name.value()));
+      if (is_message) {
+        return EmitObjectFieldDescriptor(writer, qualified_parent_name, descriptor);
+      } else {
+        return EmitEnumFieldDescriptor(writer, qualified_parent_name, descriptor, is_optional);
+      }
     }
   } else {
     REQUIRE_FIELD_OR_RETURN(name, descriptor, name);
     writer->AppendLine("{\"", name, "\", &", qualified_parent_name, "::", name, "},");
-    return absl::OkStatus();
   }
+  return absl::OkStatus();
 }
 
 absl::Status Generator::EmitOneofFieldDescriptor(
@@ -1751,13 +1950,19 @@ absl::Status Generator::EmitOneofFieldDescriptor(
     if (field.oneof_index.has_value() && field.oneof_index.value() == index) {
       if (field.type_name.has_value()) {
         std::string_view const proto_type_name = field.type_name.value();
-        DEFINE_CONST_OR_RETURN(is_message, IsMessage(proto_type_name));
         DEFINE_CONST_OR_RETURN(path, GetTypePath(proto_type_name));
-        auto const type_name = absl::StrCat("::", absl::StrJoin(path, "::"));
-        if (is_message) {
-          descriptors.emplace_back(absl::StrCat("std::cref(", type_name, "::MESSAGE_DESCRIPTOR)"));
+        auto const it = kGoogleApiTypes->find(path);
+        if (!use_raw_google_api_types_ && it != kGoogleApiTypes->end()) {
+          descriptors.emplace_back("std::monostate()");
         } else {
-          descriptors.emplace_back(absl::StrCat("std::cref(", type_name, "_ENUM_DESCRIPTOR)"));
+          DEFINE_CONST_OR_RETURN(is_message, IsMessage(proto_type_name));
+          auto const type_name = absl::StrCat("::", absl::StrJoin(path, "::"));
+          if (is_message) {
+            descriptors.emplace_back(
+                absl::StrCat("std::cref(", type_name, "::MESSAGE_DESCRIPTOR)"));
+          } else {
+            descriptors.emplace_back(absl::StrCat("std::cref(", type_name, "_ENUM_DESCRIPTOR)"));
+          }
         }
       } else {
         descriptors.emplace_back("std::monostate()");
@@ -1809,6 +2014,12 @@ absl::Status Generator::EmitReflectionDescriptors(TextWriter* writer) const {
   auto const ordered_names = flat_dependencies_.MakeOrder(base_path_);
   for (auto const& proto_type_name : ordered_names) {
     Path const path = SplitPath(proto_type_name);
+    if (!generate_definitions_for_google_api_types_ &&
+        kGoogleApiTypes->contains(JoinPath(base_path_, path))) {
+      // Never generate definitions for Google API type symbols, as they are already provided in the
+      // runtime and would cause ODR violations.
+      continue;
+    }
     auto const it = enum_types_by_path_.find(JoinPath(base_path_, path));
     if (it != enum_types_by_path_.end()) {
       RETURN_IF_ERROR(EmitEnumReflectionDescriptor(writer, path, it->second));
@@ -1816,6 +2027,12 @@ absl::Status Generator::EmitReflectionDescriptors(TextWriter* writer) const {
   }
   for (auto const& proto_type_name : ordered_names) {
     Path const path = SplitPath(proto_type_name);
+    if (!generate_definitions_for_google_api_types_ &&
+        kGoogleApiTypes->contains(JoinPath(base_path_, path))) {
+      // Never generate definitions for Google API type symbols, as they are already provided in the
+      // runtime and would cause ODR violations.
+      continue;
+    }
     auto const it = message_types_by_path_.find(JoinPath(base_path_, path));
     if (it != message_types_by_path_.end()) {
       RETURN_IF_ERROR(EmitMessageReflectionDescriptor(writer, path, it->second));

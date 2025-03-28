@@ -42,9 +42,11 @@ def _cc_proto_library_impl(ctx):
         inputs = [proto_info.direct_descriptor_set],
         outputs = generated_files,
         arguments = [
-            "--root_path=" + _join_path(ctx.genfiles_dir.path, proto_info.proto_source_root),
-            "--file_descriptor_sets=" + proto_info.direct_descriptor_set.path,
-            "--emit_reflection_api" if ctx.attr.enable_reflection else "--noemit_reflection_api",
+            "--proto_root_path=" + _join_path(ctx.genfiles_dir.path, proto_info.proto_source_root),
+            "--proto_file_descriptor_sets=" + proto_info.direct_descriptor_set.path,
+            "--proto_emit_reflection_api" if ctx.attr.enable_reflection else "--noproto_emit_reflection_api",
+            "--proto_use_raw_google_api_types" if ctx.attr.use_raw_google_api_types else "--noproto_use_raw_google_api_types",
+            "--proto_internal_generate_definitions_for_google_api_types_i_dont_care_about_odr_violations" if ctx.attr.internal_generate_definitions_for_google_api_types_i_dont_care_about_odr_violations else "--noproto_internal_generate_definitions_for_google_api_types_i_dont_care_about_odr_violations",
         ],
         executable = ctx.executable._generator,
     )
@@ -85,6 +87,8 @@ tsdb2_cc_proto_library = rule(
     attrs = {
         "proto": attr.label(mandatory = True, providers = [ProtoInfo]),
         "enable_reflection": attr.bool(),
+        "use_raw_google_api_types": attr.bool(),
+        "internal_generate_definitions_for_google_api_types_i_dont_care_about_odr_violations": attr.bool(),
         "deps": attr.label_list(providers = [CcInfo]),
         "_generator": attr.label(default = "//proto:generate", executable = True, cfg = "exec"),
         "_runtime_deps": attr.label_list(
@@ -92,11 +96,11 @@ tsdb2_cc_proto_library = rule(
                 "//common:flat_set",
                 "//common:utilities",
                 "//io:cord",
-                "//proto",
-                "//proto:wire_format",
+                "//proto:runtime",
                 "@com_google_absl//absl/base",
                 "@com_google_absl//absl/status",
                 "@com_google_absl//absl/status:statusor",
+                "@com_google_absl//absl/time",
                 "@com_google_absl//absl/types:span",
             ],
             providers = [CcInfo],

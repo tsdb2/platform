@@ -15,10 +15,14 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/charconv.h"
 #include "absl/strings/strip.h"
+#include "absl/time/time.h"
 #include "common/no_destructor.h"
 #include "common/re.h"
 #include "common/utilities.h"
+#include "proto/duration.pb.sync.h"
 #include "proto/proto.h"
+#include "proto/time_util.h"
+#include "proto/timestamp.pb.sync.h"
 
 namespace tsdb2 {
 namespace proto {
@@ -87,6 +91,26 @@ class Parser {
   struct ValueParser<Float, std::enable_if_t<std::is_floating_point_v<Float>>> {
     absl::StatusOr<bool> operator()(Parser* const parent) const {
       return parent->ParseFloat<Float>();
+    }
+  };
+
+  template <>
+  struct ValueParser<absl::Time> {
+    absl::StatusOr<absl::Time> operator()(Parser* const parent) const {
+      ::google::protobuf::Timestamp proto;
+      RETURN_IF_ERROR(
+          parent->ParseMessage(::google::protobuf::Timestamp::MESSAGE_DESCRIPTOR, &proto));
+      return DecodeGoogleApiProto(proto);
+    }
+  };
+
+  template <>
+  struct ValueParser<absl::Duration> {
+    absl::StatusOr<absl::Duration> operator()(Parser* const parent) const {
+      ::google::protobuf::Duration proto;
+      RETURN_IF_ERROR(
+          parent->ParseMessage(::google::protobuf::Duration::MESSAGE_DESCRIPTOR, &proto));
+      return DecodeGoogleApiProto(proto);
     }
   };
 

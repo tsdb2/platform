@@ -10,10 +10,14 @@
 #include "absl/base/config.h"  // IWYU pragma: keep
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "common/utilities.h"
 #include "io/buffer.h"
 #include "io/cord.h"
+#include "proto/duration.pb.sync.h"
+#include "proto/time_util.h"
+#include "proto/timestamp.pb.sync.h"
 
 namespace tsdb2 {
 namespace proto {
@@ -178,6 +182,18 @@ absl::StatusOr<std::vector<uint8_t>> Decoder::DecodeBytesField(WireType const wi
   std::vector<uint8_t> value{data_.begin(), data_.begin() + length};
   data_.remove_prefix(length);
   return std::move(value);
+}
+
+absl::StatusOr<absl::Time> Decoder::DecodeTimeField(WireType const wire_type) {
+  DEFINE_CONST_OR_RETURN(child_span, GetChildSpan(wire_type));
+  DEFINE_CONST_OR_RETURN(proto, ::google::protobuf::Timestamp::Decode(child_span));
+  return DecodeGoogleApiProto(proto);
+}
+
+absl::StatusOr<absl::Duration> Decoder::DecodeDurationField(WireType const wire_type) {
+  DEFINE_CONST_OR_RETURN(child_span, GetChildSpan(wire_type));
+  DEFINE_CONST_OR_RETURN(proto, ::google::protobuf::Duration::Decode(child_span));
+  return DecodeGoogleApiProto(proto);
 }
 
 absl::StatusOr<absl::Span<uint8_t const>> Decoder::GetChildSpan(WireType const wire_type) {
@@ -699,6 +715,16 @@ void Encoder::EncodeBytesField(size_t const number, absl::Span<uint8_t const> co
   tsdb2::io::Buffer buffer{length};
   buffer.MemCpy(value.data(), length);
   cord_.Append(std::move(buffer));
+}
+
+void Encoder::EncodeTimeField(size_t const number, absl::Time const time) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kLength});
+  EncodeSubMessage(::google::protobuf::Timestamp::Encode(EncodeGoogleApiProto(time)));
+}
+
+void Encoder::EncodeDurationField(size_t const number, absl::Duration const duration) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kLength});
+  EncodeSubMessage(::google::protobuf::Duration::Encode(EncodeGoogleApiProto(duration)));
 }
 
 void Encoder::EncodeSubMessageField(size_t const number, Encoder &&child_encoder) {

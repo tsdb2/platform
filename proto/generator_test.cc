@@ -10,6 +10,7 @@
 
 #include "absl/hash/hash.h"
 #include "absl/status/status_matchers.h"
+#include "absl/time/time.h"
 #include "common/fingerprint.h"
 #include "common/testing.h"
 #include "common/utilities.h"
@@ -649,11 +650,189 @@ TEST(GeneratorTest, RequiredSubMessageField) {
               IsOkAndHolds(m2));
 }
 
+TEST(GeneratorTest, OptionalTimestampField) {
+  EXPECT_TRUE(
+      (std::is_same_v<decltype(std::declval<tsdb2::proto::test::OptionalTimestampField>().field),
+                      std::optional<absl::Time>>));
+  tsdb2::proto::test::OptionalTimestampField m1;
+  tsdb2::proto::test::OptionalTimestampField m2{.field{absl::UnixEpoch() + absl::Seconds(42)}};
+  EXPECT_FALSE(m1.field.has_value());
+  EXPECT_NE(absl::HashOf(m1), absl::HashOf(m2));
+  EXPECT_NE(tsdb2::common::FingerprintOf(m1), tsdb2::common::FingerprintOf(m2));
+  EXPECT_FALSE(m1 == m2);
+  EXPECT_TRUE(m1 != m2);
+  EXPECT_TRUE(m1 < m2);
+  EXPECT_TRUE(m1 <= m2);
+  EXPECT_FALSE(m1 > m2);
+  EXPECT_FALSE(m1 >= m2);
+  m1.field.emplace(absl::UnixEpoch() + absl::Seconds(42));
+  EXPECT_EQ(absl::HashOf(m1), absl::HashOf(m2));
+  EXPECT_EQ(tsdb2::common::FingerprintOf(m1), tsdb2::common::FingerprintOf(m2));
+  EXPECT_TRUE(m1 == m2);
+  EXPECT_FALSE(m1 != m2);
+  EXPECT_FALSE(m1 < m2);
+  EXPECT_TRUE(m1 <= m2);
+  EXPECT_FALSE(m1 > m2);
+  EXPECT_TRUE(m1 >= m2);
+  auto const encoded = tsdb2::proto::test::OptionalTimestampField::Encode(m1).Flatten();
+  EXPECT_THAT(tsdb2::proto::test::OptionalTimestampField::Decode(encoded.span()), IsOkAndHolds(m2));
+}
+
+TEST(GeneratorTest, RepeatedTimestampField) {
+  EXPECT_TRUE(
+      (std::is_same_v<decltype(std::declval<tsdb2::proto::test::RepeatedTimestampField>().field),
+                      std::vector<absl::Time>>));
+  tsdb2::proto::test::RepeatedTimestampField m1;
+  tsdb2::proto::test::RepeatedTimestampField m2{.field{absl::UnixEpoch() + absl::Seconds(42)}};
+  tsdb2::proto::test::RepeatedTimestampField m3{
+      .field{absl::UnixEpoch() + absl::Seconds(12), absl::UnixEpoch() + absl::Seconds(34)}};
+  EXPECT_THAT(m1.field, IsEmpty());
+  EXPECT_THAT(m2.field, ElementsAre(absl::UnixEpoch() + absl::Seconds(42)));
+  EXPECT_THAT(m3.field, ElementsAre(absl::UnixEpoch() + absl::Seconds(12),
+                                    absl::UnixEpoch() + absl::Seconds(34)));
+  EXPECT_NE(absl::HashOf(m1), absl::HashOf(m2));
+  EXPECT_NE(tsdb2::common::FingerprintOf(m1), tsdb2::common::FingerprintOf(m2));
+  EXPECT_FALSE(m1 == m2);
+  EXPECT_TRUE(m1 != m2);
+  EXPECT_TRUE(m1 < m2);
+  EXPECT_TRUE(m1 <= m2);
+  EXPECT_FALSE(m1 > m2);
+  EXPECT_FALSE(m1 >= m2);
+  m2.field = {absl::UnixEpoch() + absl::Seconds(12), absl::UnixEpoch() + absl::Seconds(34)};
+  EXPECT_EQ(absl::HashOf(m2), absl::HashOf(m3));
+  EXPECT_EQ(tsdb2::common::FingerprintOf(m2), tsdb2::common::FingerprintOf(m3));
+  EXPECT_TRUE(m2 == m3);
+  EXPECT_FALSE(m2 != m3);
+  EXPECT_FALSE(m2 < m3);
+  EXPECT_TRUE(m2 <= m3);
+  EXPECT_FALSE(m2 > m3);
+  EXPECT_TRUE(m2 >= m3);
+  auto const encoded = tsdb2::proto::test::RepeatedTimestampField::Encode(m2).Flatten();
+  EXPECT_THAT(tsdb2::proto::test::RepeatedTimestampField::Decode(encoded.span()), IsOkAndHolds(m3));
+}
+
+TEST(GeneratorTest, RequiredTimestampField) {
+  EXPECT_TRUE(
+      (std::is_same_v<decltype(std::declval<tsdb2::proto::test::RequiredTimestampField>().field),
+                      absl::Time>));
+  tsdb2::proto::test::RequiredTimestampField m1;
+  tsdb2::proto::test::RequiredTimestampField m2{.field = absl::UnixEpoch() + absl::Seconds(42)};
+  EXPECT_EQ(m1.field, absl::UnixEpoch());
+  EXPECT_EQ(m2.field, absl::UnixEpoch() + absl::Seconds(42));
+  EXPECT_NE(absl::HashOf(m1), absl::HashOf(m2));
+  EXPECT_NE(tsdb2::common::FingerprintOf(m1), tsdb2::common::FingerprintOf(m2));
+  EXPECT_FALSE(m1 == m2);
+  EXPECT_TRUE(m1 != m2);
+  EXPECT_TRUE(m1 < m2);
+  EXPECT_TRUE(m1 <= m2);
+  EXPECT_FALSE(m1 > m2);
+  EXPECT_FALSE(m1 >= m2);
+  m1.field += absl::Seconds(42);
+  EXPECT_EQ(absl::HashOf(m1), absl::HashOf(m2));
+  EXPECT_EQ(tsdb2::common::FingerprintOf(m1), tsdb2::common::FingerprintOf(m2));
+  EXPECT_TRUE(m1 == m2);
+  EXPECT_FALSE(m1 != m2);
+  EXPECT_FALSE(m1 < m2);
+  EXPECT_TRUE(m1 <= m2);
+  EXPECT_FALSE(m1 > m2);
+  EXPECT_TRUE(m1 >= m2);
+  auto const encoded = tsdb2::proto::test::RequiredTimestampField::Encode(m1).Flatten();
+  EXPECT_THAT(tsdb2::proto::test::RequiredTimestampField::Decode(encoded.span()), IsOkAndHolds(m2));
+}
+
+TEST(GeneratorTest, OptionalDurationField) {
+  EXPECT_TRUE(
+      (std::is_same_v<decltype(std::declval<tsdb2::proto::test::OptionalDurationField>().field),
+                      std::optional<absl::Duration>>));
+  tsdb2::proto::test::OptionalDurationField m1;
+  tsdb2::proto::test::OptionalDurationField m2{.field{absl::Seconds(42)}};
+  EXPECT_FALSE(m1.field.has_value());
+  EXPECT_NE(absl::HashOf(m1), absl::HashOf(m2));
+  EXPECT_NE(tsdb2::common::FingerprintOf(m1), tsdb2::common::FingerprintOf(m2));
+  EXPECT_FALSE(m1 == m2);
+  EXPECT_TRUE(m1 != m2);
+  EXPECT_TRUE(m1 < m2);
+  EXPECT_TRUE(m1 <= m2);
+  EXPECT_FALSE(m1 > m2);
+  EXPECT_FALSE(m1 >= m2);
+  m1.field.emplace(absl::Seconds(42));
+  EXPECT_EQ(absl::HashOf(m1), absl::HashOf(m2));
+  EXPECT_EQ(tsdb2::common::FingerprintOf(m1), tsdb2::common::FingerprintOf(m2));
+  EXPECT_TRUE(m1 == m2);
+  EXPECT_FALSE(m1 != m2);
+  EXPECT_FALSE(m1 < m2);
+  EXPECT_TRUE(m1 <= m2);
+  EXPECT_FALSE(m1 > m2);
+  EXPECT_TRUE(m1 >= m2);
+  auto const encoded = tsdb2::proto::test::OptionalDurationField::Encode(m1).Flatten();
+  EXPECT_THAT(tsdb2::proto::test::OptionalDurationField::Decode(encoded.span()), IsOkAndHolds(m2));
+}
+
+TEST(GeneratorTest, RepeatedDurationField) {
+  EXPECT_TRUE(
+      (std::is_same_v<decltype(std::declval<tsdb2::proto::test::RepeatedDurationField>().field),
+                      std::vector<absl::Duration>>));
+  tsdb2::proto::test::RepeatedDurationField m1;
+  tsdb2::proto::test::RepeatedDurationField m2{.field{absl::Seconds(42)}};
+  tsdb2::proto::test::RepeatedDurationField m3{.field{absl::Seconds(12), absl::Seconds(34)}};
+  EXPECT_THAT(m1.field, IsEmpty());
+  EXPECT_THAT(m2.field, ElementsAre(absl::Seconds(42)));
+  EXPECT_THAT(m3.field, ElementsAre(absl::Seconds(12), absl::Seconds(34)));
+  EXPECT_NE(absl::HashOf(m1), absl::HashOf(m2));
+  EXPECT_NE(tsdb2::common::FingerprintOf(m1), tsdb2::common::FingerprintOf(m2));
+  EXPECT_FALSE(m1 == m2);
+  EXPECT_TRUE(m1 != m2);
+  EXPECT_TRUE(m1 < m2);
+  EXPECT_TRUE(m1 <= m2);
+  EXPECT_FALSE(m1 > m2);
+  EXPECT_FALSE(m1 >= m2);
+  m2.field = {absl::Seconds(12), absl::Seconds(34)};
+  EXPECT_EQ(absl::HashOf(m2), absl::HashOf(m3));
+  EXPECT_EQ(tsdb2::common::FingerprintOf(m2), tsdb2::common::FingerprintOf(m3));
+  EXPECT_TRUE(m2 == m3);
+  EXPECT_FALSE(m2 != m3);
+  EXPECT_FALSE(m2 < m3);
+  EXPECT_TRUE(m2 <= m3);
+  EXPECT_FALSE(m2 > m3);
+  EXPECT_TRUE(m2 >= m3);
+  auto const encoded = tsdb2::proto::test::RepeatedDurationField::Encode(m2).Flatten();
+  EXPECT_THAT(tsdb2::proto::test::RepeatedDurationField::Decode(encoded.span()), IsOkAndHolds(m3));
+}
+
+TEST(GeneratorTest, RequiredDurationField) {
+  EXPECT_TRUE(
+      (std::is_same_v<decltype(std::declval<tsdb2::proto::test::RequiredDurationField>().field),
+                      absl::Duration>));
+  tsdb2::proto::test::RequiredDurationField m1;
+  tsdb2::proto::test::RequiredDurationField m2{.field = absl::Seconds(42)};
+  EXPECT_EQ(m1.field, absl::ZeroDuration());
+  EXPECT_EQ(m2.field, absl::Seconds(42));
+  EXPECT_NE(absl::HashOf(m1), absl::HashOf(m2));
+  EXPECT_NE(tsdb2::common::FingerprintOf(m1), tsdb2::common::FingerprintOf(m2));
+  EXPECT_FALSE(m1 == m2);
+  EXPECT_TRUE(m1 != m2);
+  EXPECT_TRUE(m1 < m2);
+  EXPECT_TRUE(m1 <= m2);
+  EXPECT_FALSE(m1 > m2);
+  EXPECT_FALSE(m1 >= m2);
+  m1.field += absl::Seconds(42);
+  EXPECT_EQ(absl::HashOf(m1), absl::HashOf(m2));
+  EXPECT_EQ(tsdb2::common::FingerprintOf(m1), tsdb2::common::FingerprintOf(m2));
+  EXPECT_TRUE(m1 == m2);
+  EXPECT_FALSE(m1 != m2);
+  EXPECT_FALSE(m1 < m2);
+  EXPECT_TRUE(m1 <= m2);
+  EXPECT_FALSE(m1 > m2);
+  EXPECT_TRUE(m1 >= m2);
+  auto const encoded = tsdb2::proto::test::RequiredDurationField::Encode(m1).Flatten();
+  EXPECT_THAT(tsdb2::proto::test::RequiredDurationField::Decode(encoded.span()), IsOkAndHolds(m2));
+}
+
 TEST(GeneratorTest, OneOfFieldVariant1) {
   using ::tsdb2::proto::test::OptionalStringField;
   EXPECT_TRUE((std::is_same_v<decltype(std::declval<tsdb2::proto::test::OneOfField>().field),
                               std::variant<std::monostate, int32_t, int64_t, std::string, ColorEnum,
-                                           OptionalStringField>>));
+                                           OptionalStringField, absl::Time, absl::Duration>>));
   tsdb2::proto::test::OneOfField m1;
   tsdb2::proto::test::OneOfField m2{.field{std::in_place_index<1>, 42}};
   EXPECT_NE(absl::HashOf(m1), absl::HashOf(m2));
@@ -681,7 +860,7 @@ TEST(GeneratorTest, OneOfFieldVariant2) {
   using ::tsdb2::proto::test::OptionalStringField;
   EXPECT_TRUE((std::is_same_v<decltype(std::declval<tsdb2::proto::test::OneOfField>().field),
                               std::variant<std::monostate, int32_t, int64_t, std::string, ColorEnum,
-                                           OptionalStringField>>));
+                                           OptionalStringField, absl::Time, absl::Duration>>));
   tsdb2::proto::test::OneOfField m1;
   tsdb2::proto::test::OneOfField m2{.field{std::in_place_index<2>, 42}};
   EXPECT_NE(absl::HashOf(m1), absl::HashOf(m2));
@@ -709,7 +888,7 @@ TEST(GeneratorTest, OneOfFieldVariant3) {
   using ::tsdb2::proto::test::OptionalStringField;
   EXPECT_TRUE((std::is_same_v<decltype(std::declval<tsdb2::proto::test::OneOfField>().field),
                               std::variant<std::monostate, int32_t, int64_t, std::string, ColorEnum,
-                                           OptionalStringField>>));
+                                           OptionalStringField, absl::Time, absl::Duration>>));
   tsdb2::proto::test::OneOfField m1;
   tsdb2::proto::test::OneOfField m2{.field{std::in_place_index<3>, "lorem"}};
   EXPECT_NE(absl::HashOf(m1), absl::HashOf(m2));
@@ -737,7 +916,7 @@ TEST(GeneratorTest, OneOfFieldVariant4) {
   using ::tsdb2::proto::test::OptionalStringField;
   EXPECT_TRUE((std::is_same_v<decltype(std::declval<tsdb2::proto::test::OneOfField>().field),
                               std::variant<std::monostate, int32_t, int64_t, std::string, ColorEnum,
-                                           OptionalStringField>>));
+                                           OptionalStringField, absl::Time, absl::Duration>>));
   tsdb2::proto::test::OneOfField m1;
   tsdb2::proto::test::OneOfField m2{.field{std::in_place_index<4>, ColorEnum::COLOR_GREEN}};
   EXPECT_NE(absl::HashOf(m1), absl::HashOf(m2));
@@ -765,7 +944,7 @@ TEST(GeneratorTest, OneOfFieldVariant5) {
   using ::tsdb2::proto::test::OptionalStringField;
   EXPECT_TRUE((std::is_same_v<decltype(std::declval<tsdb2::proto::test::OneOfField>().field),
                               std::variant<std::monostate, int32_t, int64_t, std::string, ColorEnum,
-                                           OptionalStringField>>));
+                                           OptionalStringField, absl::Time, absl::Duration>>));
   tsdb2::proto::test::OneOfField m1;
   tsdb2::proto::test::OneOfField m2{
       .field{std::in_place_index<5>, tsdb2::proto::test::OptionalStringField{.field = "sator"}}};
@@ -798,10 +977,9 @@ TEST(GeneratorTest, SomeOneOfFields) {
   EXPECT_TRUE(
       (std::is_same_v<decltype(std::declval<tsdb2::proto::test::SomeOneOfFields>().int64_field),
                       std::optional<int64_t>>));
-  EXPECT_TRUE(
-      (std::is_same_v<
-          decltype(std::declval<tsdb2::proto::test::SomeOneOfFields>().field),
-          std::variant<std::monostate, int32_t, std::string, ColorEnum, OptionalStringField>>));
+  EXPECT_TRUE((std::is_same_v<decltype(std::declval<tsdb2::proto::test::SomeOneOfFields>().field),
+                              std::variant<std::monostate, int32_t, std::string, ColorEnum,
+                                           OptionalStringField, absl::Time, absl::Duration>>));
   EXPECT_TRUE(
       (std::is_same_v<decltype(std::declval<tsdb2::proto::test::SomeOneOfFields>().string_field),
                       std::optional<std::string>>));
