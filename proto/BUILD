@@ -8,15 +8,25 @@ package(default_visibility = ["//visibility:private"])
 
 cc_library(
     name = "wire_format",
-    srcs = ["wire_format.cc"],
-    hdrs = ["wire_format.h"],
+    srcs = [
+        "duration.pb.sync.cc",
+        "wire_format.cc",
+    ],
+    hdrs = [
+        "duration.pb.sync.h",
+        "wire_format.h",
+    ],
     deps = [
+        ":proto",
+        "//common:flat_set",
         "//common:utilities",
         "//io:buffer",
         "//io:cord",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -27,9 +37,11 @@ cc_test(
     deps = [
         ":wire_format",
         "//common:testing",
+        "//io:buffer",
         "//io:buffer_testing",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -279,4 +291,16 @@ cc_binary(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
     ],
+)
+
+proto_library(
+    name = "duration_proto",
+    srcs = ["duration.proto"],
+    visibility = ["//visibility:public"],
+)
+
+tsdb2_cc_proto_library(
+    name = "duration_cc_proto",
+    proto = ":duration_proto",
+    visibility = ["//visibility:public"],
 )

@@ -13,6 +13,7 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "common/utilities.h"
 #include "io/buffer.h"
@@ -102,6 +103,9 @@ class Decoder {
   absl::StatusOr<double> DecodeDoubleField(WireType wire_type);
   absl::StatusOr<std::string> DecodeStringField(WireType wire_type);
   absl::StatusOr<std::vector<uint8_t>> DecodeBytesField(WireType wire_type);
+
+  absl::StatusOr<absl::Time> DecodeTime(WireType wire_type);
+  absl::StatusOr<absl::Duration> DecodeDuration(WireType wire_type);
 
   absl::StatusOr<absl::Span<uint8_t const>> GetChildSpan(WireType wire_type);
 
@@ -357,6 +361,9 @@ class Encoder {
   void EncodeDoubleField(size_t number, double value);
   void EncodeStringField(size_t number, std::string_view value);
   void EncodeBytesField(size_t number, absl::Span<uint8_t const> value);
+
+  void EncodeTime(size_t number, absl::Time time);
+  void EncodeDuration(size_t number, absl::Duration duration);
 
   template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
   void EncodeEnumField(size_t const number, Enum const value) {

@@ -18,6 +18,8 @@ cp "$SOURCE_DIR/descriptor.pb.h" ./descriptor.pb.sync.h
 cp "$SOURCE_DIR/descriptor.pb.cc" ./descriptor.pb.sync.cc
 cp "$SOURCE_DIR/plugin.pb.h" ./plugin.pb.sync.h
 cp "$SOURCE_DIR/plugin.pb.cc" ./plugin.pb.sync.cc
+cp "$SOURCE_DIR/duration.pb.h" ./duration.pb.sync.h
+cp "$SOURCE_DIR/duration.pb.cc" ./duration.pb.sync.cc
 
 amend_file() {
   local file="$1"
@@ -40,5 +42,7 @@ amend_file ./descriptor.pb.sync.h
 amend_file ./descriptor.pb.sync.cc
 amend_file ./plugin.pb.sync.h
 amend_file ./plugin.pb.sync.cc
+amend_file ./duration.pb.sync.h
+amend_file ./duration.pb.sync.cc
 
 echo "Descriptor proto files synchronized successfully."

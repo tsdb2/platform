@@ -1,15 +1,20 @@
 #include "proto/wire_format.h"
 
+#include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <utility>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "absl/time/time.h"
 #include "common/testing.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "io/buffer.h"
 #include "io/buffer_testing.h"
+#include "proto/duration.pb.sync.h"
 
 namespace {
 
@@ -43,6 +48,13 @@ auto Near<float>(float const value) {
 template <>
 auto Near<double>(double const value) {
   return ::testing::DoubleNear(value, 0.0001);
+}
+
+tsdb2::io::Buffer EncodeGoogleProtobufDuration(size_t const field_number,
+                                               ::google::protobuf::Duration const& duration) {
+  Encoder encoder;
+  encoder.EncodeSubMessageField(field_number, ::google::protobuf::Duration::Encode(duration));
+  return std::move(encoder).Flatten();
 }
 
 TEST(DecoderTest, InitialState) {
@@ -650,6 +662,107 @@ TEST(DecoderTest, IncorrectWireTypeForBytes) {
   Decoder decoder{data};
   EXPECT_THAT(decoder.DecodeBytesField(WireType::kVarInt),
               StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(DecoderTest, DecodeDuration) {
+  auto const data = EncodeGoogleProtobufDuration(42, {.seconds = 123, .nanos = 456});
+  Decoder decoder{data.span()};
+  ASSERT_THAT(decoder.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 42, .wire_type = WireType::kLength}));
+  EXPECT_THAT(decoder.DecodeDuration(WireType::kLength),
+              IsOkAndHolds(absl::Seconds(123) + absl::Nanoseconds(456)));
+}
+
+TEST(DecoderTest, DecodeZeroDuration) {
+  auto const data = EncodeGoogleProtobufDuration(42, {.seconds = 0, .nanos = 0});
+  Decoder decoder{data.span()};
+  ASSERT_THAT(decoder.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 42, .wire_type = WireType::kLength}));
+  EXPECT_THAT(decoder.DecodeDuration(WireType::kLength), IsOkAndHolds(absl::ZeroDuration()));
+}
+
+TEST(DecoderTest, DecodeEmptyDuration) {
+  auto const data =
+      EncodeGoogleProtobufDuration(42, {.seconds = std::nullopt, .nanos = std::nullopt});
+  Decoder decoder{data.span()};
+  ASSERT_THAT(decoder.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 42, .wire_type = WireType::kLength}));
+  EXPECT_THAT(decoder.DecodeDuration(WireType::kLength), IsOkAndHolds(absl::ZeroDuration()));
+}
+
+TEST(DecoderTest, DecodeDurationWithoutSeconds) {
+  auto const data = EncodeGoogleProtobufDuration(42, {.seconds = std::nullopt, .nanos = 123});
+  Decoder decoder{data.span()};
+  ASSERT_THAT(decoder.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 42, .wire_type = WireType::kLength}));
+  EXPECT_THAT(decoder.DecodeDuration(WireType::kLength), IsOkAndHolds(absl::Nanoseconds(123)));
+}
+
+TEST(DecoderTest, DecodeDurationWithoutNanoseconds) {
+  auto const data = EncodeGoogleProtobufDuration(42, {.seconds = 456, .nanos = std::nullopt});
+  Decoder decoder{data.span()};
+  ASSERT_THAT(decoder.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 42, .wire_type = WireType::kLength}));
+  EXPECT_THAT(decoder.DecodeDuration(WireType::kLength), IsOkAndHolds(absl::Seconds(456)));
+}
+
+TEST(DecoderTest, DurationSignConflict1) {
+  auto const data = EncodeGoogleProtobufDuration(42, {.seconds = 123, .nanos = -456});
+  Decoder decoder{data.span()};
+  ASSERT_THAT(decoder.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 42, .wire_type = WireType::kLength}));
+  EXPECT_THAT(decoder.DecodeDuration(WireType::kLength),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(DecoderTest, DurationSignConflict2) {
+  auto const data = EncodeGoogleProtobufDuration(42, {.seconds = -123, .nanos = 456});
+  Decoder decoder{data.span()};
+  ASSERT_THAT(decoder.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 42, .wire_type = WireType::kLength}));
+  EXPECT_THAT(decoder.DecodeDuration(WireType::kLength),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(DecoderTest, DecodeNegativeDuration) {
+  auto const data = EncodeGoogleProtobufDuration(42, {.seconds = -123, .nanos = -456});
+  Decoder decoder{data.span()};
+  ASSERT_THAT(decoder.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 42, .wire_type = WireType::kLength}));
+  EXPECT_THAT(decoder.DecodeDuration(WireType::kLength),
+              IsOkAndHolds(-(absl::Seconds(123) + absl::Nanoseconds(456))));
+}
+
+TEST(DecoderTest, InvalidNegativeDurationNanos) {
+  auto const data = EncodeGoogleProtobufDuration(42, {.seconds = -123, .nanos = -1000000000});
+  Decoder decoder{data.span()};
+  ASSERT_THAT(decoder.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 42, .wire_type = WireType::kLength}));
+  EXPECT_THAT(decoder.DecodeDuration(WireType::kLength), StatusIs(absl::StatusCode::kOutOfRange));
+}
+
+TEST(DecoderTest, InvalidDurationNanos) {
+  auto const data = EncodeGoogleProtobufDuration(42, {.seconds = 123, .nanos = 1000000000});
+  Decoder decoder{data.span()};
+  ASSERT_THAT(decoder.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 42, .wire_type = WireType::kLength}));
+  EXPECT_THAT(decoder.DecodeDuration(WireType::kLength), StatusIs(absl::StatusCode::kOutOfRange));
+}
+
+TEST(DecoderTest, InvalidNegativeDurationSeconds) {
+  auto const data = EncodeGoogleProtobufDuration(42, {.seconds = -315576000001, .nanos = -456});
+  Decoder decoder{data.span()};
+  ASSERT_THAT(decoder.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 42, .wire_type = WireType::kLength}));
+  EXPECT_THAT(decoder.DecodeDuration(WireType::kLength), StatusIs(absl::StatusCode::kOutOfRange));
+}
+
+TEST(DecoderTest, InvalidDurationSeconds) {
+  auto const data = EncodeGoogleProtobufDuration(42, {.seconds = 315576000001, .nanos = 456});
+  Decoder decoder{data.span()};
+  ASSERT_THAT(decoder.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 42, .wire_type = WireType::kLength}));
+  EXPECT_THAT(decoder.DecodeDuration(WireType::kLength), StatusIs(absl::StatusCode::kOutOfRange));
 }
 
 TEST(DecoderTest, GetSingleByteChildSpan) {

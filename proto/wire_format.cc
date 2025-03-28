@@ -10,10 +10,12 @@
 #include "absl/base/config.h"  // IWYU pragma: keep
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "common/utilities.h"
 #include "io/buffer.h"
 #include "io/cord.h"
+#include "proto/duration.pb.sync.h"
 
 namespace tsdb2 {
 namespace proto {
@@ -178,6 +180,27 @@ absl::StatusOr<std::vector<uint8_t>> Decoder::DecodeBytesField(WireType const wi
   std::vector<uint8_t> value{data_.begin(), data_.begin() + length};
   data_.remove_prefix(length);
   return std::move(value);
+}
+
+absl::StatusOr<absl::Duration> Decoder::DecodeDuration(WireType const wire_type) {
+  DEFINE_CONST_OR_RETURN(child_span, GetChildSpan(wire_type));
+  DEFINE_CONST_OR_RETURN(proto, ::google::protobuf::Duration::Decode(child_span));
+  int64_t const seconds = proto.seconds.value_or(0);
+  int32_t const nanos = proto.nanos.value_or(0);
+  if (seconds < 0 != nanos < 0) {
+    return absl::InvalidArgumentError("invalid duration encoding (sign conflict)");
+  }
+  static int64_t constexpr kMinSeconds = -315576000000;
+  static int64_t constexpr kMaxSeconds = 315576000000;
+  if (seconds < kMinSeconds || seconds > kMaxSeconds) {
+    return absl::OutOfRangeError("invalid duration encoding (seconds are out of range)");
+  }
+  static int32_t constexpr kMinNanos = -999999999;
+  static int32_t constexpr kMaxNanos = 999999999;
+  if (nanos < kMinNanos || nanos > kMaxNanos) {
+    return absl::OutOfRangeError("invalid duration encoding (nanoseconds are out of range)");
+  }
+  return absl::Seconds(seconds) + absl::Nanoseconds(nanos);
 }
 
 absl::StatusOr<absl::Span<uint8_t const>> Decoder::GetChildSpan(WireType const wire_type) {
@@ -699,6 +722,15 @@ void Encoder::EncodeBytesField(size_t const number, absl::Span<uint8_t const> co
   tsdb2::io::Buffer buffer{length};
   buffer.MemCpy(value.data(), length);
   cord_.Append(std::move(buffer));
+}
+
+void Encoder::EncodeDuration(size_t const number, absl::Duration const duration) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kLength});
+  static absl::Duration constexpr kOneSecond = absl::Seconds(1);
+  EncodeSubMessage(::google::protobuf::Duration::Encode({
+      .seconds = absl::ToInt64Seconds(duration),
+      .nanos = absl::ToInt64Nanoseconds(duration % kOneSecond),
+  }));
 }
 
 void Encoder::EncodeSubMessageField(size_t const number, Encoder &&child_encoder) {
