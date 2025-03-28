@@ -3,8 +3,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
+#include <limits>
 #include <memory>
 #include <optional>
+#include <queue>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -52,6 +54,8 @@ bool NFA::IsDeterministic() const { return false; }
 
 bool NFA::AssertsBeginOfInput() const { return asserts_begin_; }
 
+size_t NFA::GetMinMatchLength() const { return min_match_length_; }
+
 std::pair<size_t, size_t> NFA::GetSize() const {
   return std::make_pair(states_.size(), total_edge_count_);
 }
@@ -64,6 +68,9 @@ std::unique_ptr<AbstractAutomaton::AbstractStepper> NFA::MakeStepper(
 }
 
 bool NFA::Test(std::string_view const input) const {
+  if (input.size() < min_match_length_) {
+    return false;
+  }
   StateSet states = EpsilonClosure({initial_state_}, input, 0);
   for (size_t offset = 0; offset < input.size() && !states.empty(); ++offset) {
     StateSet next_states;
@@ -115,6 +122,9 @@ std::optional<AbstractAutomaton::RangeSet> NFA::MatchRanges(std::string_view con
 }
 
 bool NFA::PartialTest(std::string_view const input, size_t offset) const {
+  if (input.size() < offset + min_match_length_) {
+    return false;
+  }
   StateSet states = EpsilonClosure({initial_state_}, input, offset);
   if (states.contains(final_state_)) {
     return true;
@@ -183,6 +193,39 @@ size_t NFA::GetTotalEdgeCount() const {
     }
   }
   return num_edges;
+}
+
+size_t NFA::InferMinMatchLength() const {
+  static size_t constexpr kInfinity = std::numeric_limits<size_t>::max();
+  std::vector<size_t> distances(states_.size(), kInfinity);
+  distances[initial_state_] = 0;
+  // The first component of the pairs in the queue is the distance from the initial state, the
+  // second component is the state number.
+  std::priority_queue<std::pair<size_t, uint32_t>> queue;
+  queue.push(std::make_pair(0, initial_state_));
+  while (!queue.empty()) {
+    auto const [distance, state_num] = queue.top();
+    queue.pop();
+    if (distance > distances[state_num]) {
+      continue;
+    }
+    auto const& state = states_[state_num];
+    for (auto const& [ch, edges] : state.edges) {
+      for (auto const neighbor : edges) {
+        size_t const cost = distances[state_num] + static_cast<size_t>(ch != 0);
+        if (cost < distances[neighbor]) {
+          distances[neighbor] = cost;
+          queue.push(std::make_pair(cost, neighbor));
+        }
+      }
+    }
+  }
+  auto const length = distances[final_state_];
+  if (length < kInfinity) {
+    return length;
+  } else {
+    return 0;
+  }
 }
 
 bool NFA::GetAssertsBegin() const {

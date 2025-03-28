@@ -2,10 +2,13 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
+#include <queue>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/types/span.h"
@@ -62,6 +65,8 @@ bool DFA::IsDeterministic() const { return true; }
 
 bool DFA::AssertsBeginOfInput() const { return asserts_begin_; }
 
+size_t DFA::GetMinMatchLength() const { return min_match_length_; }
+
 std::pair<size_t, size_t> DFA::GetSize() const {
   return std::make_pair(states_.size(), total_edge_count_);
 }
@@ -74,6 +79,9 @@ std::unique_ptr<AbstractAutomaton::AbstractStepper> DFA::MakeStepper(
 }
 
 bool DFA::Test(std::string_view const input) const {
+  if (input.size() < min_match_length_) {
+    return false;
+  }
   uint32_t state_num = initial_state_;
   size_t offset = 0;
   while (offset < input.size()) {
@@ -138,6 +146,9 @@ std::optional<AbstractAutomaton::RangeSet> DFA::MatchRanges(std::string_view con
 }
 
 bool DFA::PartialTest(std::string_view const input, size_t offset) const {
+  if (input.size() < offset + min_match_length_) {
+    return false;
+  }
   uint32_t state_num = initial_state_;
   while (state_num != final_state_ && offset < input.size()) {
     auto const& state = states_[state_num];
@@ -210,6 +221,37 @@ size_t DFA::GetTotalEdgeCount() const {
     num_edges += state.edges.size();
   }
   return num_edges;
+}
+
+size_t DFA::InferMinMatchLength() const {
+  static size_t constexpr kInfinity = std::numeric_limits<size_t>::max();
+  std::vector<size_t> distances(states_.size(), kInfinity);
+  distances[initial_state_] = 0;
+  // The first component of the pairs in the queue is the distance from the initial state, the
+  // second component is the state number.
+  std::priority_queue<std::pair<size_t, uint32_t>> queue;
+  queue.push(std::make_pair(0, initial_state_));
+  while (!queue.empty()) {
+    auto const [distance, state_num] = queue.top();
+    queue.pop();
+    if (distance > distances[state_num]) {
+      continue;
+    }
+    auto const& state = states_[state_num];
+    for (auto const [ch, neighbor] : state.edges) {
+      size_t const cost = distances[state_num] + static_cast<size_t>(ch != 0);
+      if (cost < distances[neighbor]) {
+        distances[neighbor] = cost;
+        queue.push(std::make_pair(cost, neighbor));
+      }
+    }
+  }
+  auto const length = distances[final_state_];
+  if (length < kInfinity) {
+    return length;
+  } else {
+    return 0;
+  }
 }
 
 bool DFA::GetAssertsBegin() const {

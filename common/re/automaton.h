@@ -176,6 +176,11 @@ class AbstractAutomaton : public SimpleRefCounted {
   // corresponding automaton would still be able to match `lorem` after the begin of input.
   virtual bool AssertsBeginOfInput() const = 0;
 
+  // Returns the minim length of the strings matched by this automaton. The value is inferred at
+  // compilation time using Dijkstra's algorithm and cached in the automaton, and all testing and
+  // matching methods are optimized to skip strings shorter than this value.
+  virtual size_t GetMinMatchLength() const = 0;
+
   // Creates a stepper for the automaton. `previous_character` is the character preceding the
   // substring that the stepper will scan, or 0 if the stepper will scan a prefix of the original
   // input or the entire string. This information is needed to check possible assertions in the

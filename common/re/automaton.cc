@@ -23,13 +23,17 @@ bool AbstractAutomaton::AbstractStepper::Step(std::string_view const chars) {
 }
 
 bool AbstractAutomaton::PartialTest(std::string_view const input) const {
+  auto const min_length = GetMinMatchLength();
+  if (input.size() < min_length) {
+    return false;
+  }
   if (PartialTest(input, 0)) {
     return true;
   }
   if (AssertsBeginOfInput()) {
     return false;
   }
-  for (size_t offset = 1; offset < input.size(); ++offset) {
+  for (size_t offset = 1; offset <= input.size() - min_length; ++offset) {
     if (PartialTest(input, offset)) {
       return true;
     }
@@ -39,6 +43,10 @@ bool AbstractAutomaton::PartialTest(std::string_view const input) const {
 
 std::optional<AbstractAutomaton::CaptureSet> AbstractAutomaton::PartialMatch(
     std::string_view const input) const {
+  auto const min_length = GetMinMatchLength();
+  if (input.size() < min_length) {
+    return std::nullopt;
+  }
   auto results = PartialMatch(input, 0);
   if (results) {
     return results;
@@ -46,7 +54,7 @@ std::optional<AbstractAutomaton::CaptureSet> AbstractAutomaton::PartialMatch(
   if (AssertsBeginOfInput()) {
     return std::nullopt;
   }
-  for (size_t offset = 1; offset < input.size(); ++offset) {
+  for (size_t offset = 1; offset <= input.size() - min_length; ++offset) {
     results = PartialMatch(input, offset);
     if (results) {
       return results;
@@ -57,13 +65,17 @@ std::optional<AbstractAutomaton::CaptureSet> AbstractAutomaton::PartialMatch(
 
 bool AbstractAutomaton::PartialMatchArgs(std::string_view const input,
                                          absl::Span<std::string_view* const> const args) const {
+  auto const min_length = GetMinMatchLength();
+  if (input.size() < min_length) {
+    return false;
+  }
   if (PartialMatchArgs(input, 0, args)) {
     return true;
   }
   if (AssertsBeginOfInput()) {
     return false;
   }
-  for (size_t offset = 1; offset < input.size(); ++offset) {
+  for (size_t offset = 1; offset <= input.size() - min_length; ++offset) {
     if (PartialMatchArgs(input, offset, args)) {
       return true;
     }
@@ -73,6 +85,10 @@ bool AbstractAutomaton::PartialMatchArgs(std::string_view const input,
 
 std::optional<AbstractAutomaton::RangeSet> AbstractAutomaton::PartialMatchRanges(
     std::string_view const input) const {
+  auto const min_length = GetMinMatchLength();
+  if (input.size() < min_length) {
+    return std::nullopt;
+  }
   auto results = PartialMatchRanges(input, 0);
   if (results) {
     return results;
@@ -80,7 +96,7 @@ std::optional<AbstractAutomaton::RangeSet> AbstractAutomaton::PartialMatchRanges
   if (AssertsBeginOfInput()) {
     return std::nullopt;
   }
-  for (size_t offset = 1; offset < input.size(); ++offset) {
+  for (size_t offset = 1; offset <= input.size() - min_length; ++offset) {
     results = PartialMatchRanges(input, offset);
     if (results) {
       return results;

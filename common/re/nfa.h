@@ -110,11 +110,14 @@ class NFA final : public AbstractAutomaton {
         final_state_(final_state),
         capture_groups_(std::move(capture_groups)),
         total_edge_count_(GetTotalEdgeCount()),
+        min_match_length_(InferMinMatchLength()),
         asserts_begin_(GetAssertsBegin()) {}
 
   bool IsDeterministic() const override;
 
   bool AssertsBeginOfInput() const override;
+
+  size_t GetMinMatchLength() const override;
 
   std::pair<size_t, size_t> GetSize() const override;
 
@@ -156,6 +159,7 @@ class NFA final : public AbstractAutomaton {
                                    absl::InlinedVector<std::pair<uint32_t, CaptureManager>, 1>>;
 
   size_t GetTotalEdgeCount() const;
+  size_t InferMinMatchLength() const;
   bool GetAssertsBegin() const;
 
   // Calculates the epsilon-closure of a set of states, excluding the ones that fail to assert. The
@@ -175,12 +179,16 @@ class NFA final : public AbstractAutomaton {
   CaptureGroups const capture_groups_;
 
   size_t const total_edge_count_;
+  size_t const min_match_length_;
   bool const asserts_begin_;
 };
 
 template <typename CaptureManager>
 std::optional<CaptureManager> NFA::MatchInternal(std::string_view const input,
                                                  CaptureManager capture_manager) const {
+  if (input.size() < min_match_length_) {
+    return std::nullopt;
+  }
   StateCaptureMap<CaptureManager> states =
       EpsilonClosure<CaptureManager>({{initial_state_, std::move(capture_manager)}}, input, 0);
   for (size_t offset = 0; offset < input.size() && !states.empty(); ++offset) {
@@ -213,6 +221,9 @@ std::optional<CaptureManager> NFA::MatchInternal(std::string_view const input,
 template <typename CaptureManager>
 std::optional<CaptureManager> NFA::PartialMatchInternal(std::string_view const input, size_t offset,
                                                         CaptureManager capture_manager) const {
+  if (input.size() < offset + min_match_length_) {
+    return std::nullopt;
+  }
   std::optional<CaptureManager> result = std::nullopt;
   StateCaptureMap<CaptureManager> states =
       EpsilonClosure<CaptureManager>({{initial_state_, std::move(capture_manager)}}, input, offset);

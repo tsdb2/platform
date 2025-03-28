@@ -3455,6 +3455,63 @@ TEST_P(RegexpTest, BothBranchesAssertBeginOfInput) {
   EXPECT_THAT(pattern, DoesntPartiallyMatch("dolor ipsum amet"));
 }
 
+TEST_P(RegexpTest, MinMatchLengthOfEmptyPattern) {
+  auto const status_or_pattern = Parse("");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_EQ(pattern->GetMinMatchLength(), 0);
+}
+
+TEST_P(RegexpTest, MinMatchLengthOfFixedPattern) {
+  auto const status_or_pattern = Parse("lorem");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_EQ(pattern->GetMinMatchLength(), 5);
+}
+
+TEST_P(RegexpTest, MinMatchLengthOfOptionalPattern1) {
+  auto const status_or_pattern = Parse("(lorem)?");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_EQ(pattern->GetMinMatchLength(), 0);
+}
+
+TEST_P(RegexpTest, MinMatchLengthOfOptionalPattern2) {
+  auto const status_or_pattern = Parse("|lorem");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_EQ(pattern->GetMinMatchLength(), 0);
+}
+
+TEST_P(RegexpTest, MinMatchLengthOfOptionalPattern3) {
+  auto const status_or_pattern = Parse("lorem|");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_EQ(pattern->GetMinMatchLength(), 0);
+}
+
+TEST_P(RegexpTest, MinMatchLengthOfAlternatePattern) {
+  auto const status_or_pattern = Parse("lorem|sit");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_EQ(pattern->GetMinMatchLength(), 3);
+}
+
+TEST_P(RegexpTest, MinMatchLengthOfLoopingPattern) {
+  auto const status_or_pattern = Parse("lo*rem");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_EQ(pattern->GetMinMatchLength(), 4);
+}
+
+TEST_P(RegexpTest, MinMatchLengthOfHeavyBacktracker) {
+  auto const status_or_pattern = Parse(
+      "a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?a?aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+  ASSERT_OK(status_or_pattern);
+  auto const& pattern = status_or_pattern.value();
+  EXPECT_EQ(pattern->GetMinMatchLength(), 30);
+}
+
 TEST_P(RegexpTest, CaseSensitive) {
   auto const status_or_pattern = Parse("(lorem)", {.case_sensitive = true});
   ASSERT_OK(status_or_pattern);

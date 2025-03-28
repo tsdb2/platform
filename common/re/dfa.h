@@ -103,11 +103,14 @@ class DFA final : public AbstractAutomaton {
         final_state_(final_state),
         capture_groups_(std::move(capture_groups)),
         total_edge_count_(GetTotalEdgeCount()),
+        min_match_length_(InferMinMatchLength()),
         asserts_begin_(GetAssertsBegin()) {}
 
   bool IsDeterministic() const override;
 
   bool AssertsBeginOfInput() const override;
+
+  size_t GetMinMatchLength() const override;
 
   std::pair<size_t, size_t> GetSize() const override;
 
@@ -142,6 +145,7 @@ class DFA final : public AbstractAutomaton {
 
  private:
   size_t GetTotalEdgeCount() const;
+  size_t InferMinMatchLength() const;
   bool GetAssertsBegin() const;
 
   // Assertion helpers for Stepper.
@@ -162,11 +166,15 @@ class DFA final : public AbstractAutomaton {
   CaptureGroups const capture_groups_;
 
   size_t const total_edge_count_;
+  size_t const min_match_length_;
   bool const asserts_begin_;
 };
 
 template <typename CaptureManager>
 bool DFA::MatchInternal(std::string_view const input, CaptureManager *const capture_manager) const {
+  if (input.size() < min_match_length_) {
+    return false;
+  }
   uint32_t state_num = initial_state_;
   size_t offset = 0;
   while (offset < input.size()) {
@@ -209,6 +217,9 @@ bool DFA::MatchInternal(std::string_view const input, CaptureManager *const capt
 template <typename CaptureManager>
 bool DFA::PartialMatchInternal(std::string_view const input, size_t offset,
                                CaptureManager capture_manager) const {
+  if (input.size() < offset + min_match_length_) {
+    return false;
+  }
   bool result = false;
   uint32_t state_num = initial_state_;
   while (offset < input.size()) {
