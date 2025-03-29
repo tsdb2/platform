@@ -15,6 +15,7 @@
 #include "io/buffer.h"
 #include "io/buffer_testing.h"
 #include "proto/duration.pb.sync.h"
+#include "proto/timestamp.pb.sync.h"
 
 namespace {
 
@@ -48,6 +49,13 @@ auto Near<float>(float const value) {
 template <>
 auto Near<double>(double const value) {
   return ::testing::DoubleNear(value, 0.0001);
+}
+
+tsdb2::io::Buffer EncodeGoogleProtobufTimestamp(size_t const field_number,
+                                                ::google::protobuf::Timestamp const& timestamp) {
+  Encoder encoder;
+  encoder.EncodeSubMessageField(field_number, ::google::protobuf::Timestamp::Encode(timestamp));
+  return std::move(encoder).Flatten();
 }
 
 tsdb2::io::Buffer EncodeGoogleProtobufDuration(size_t const field_number,
@@ -662,6 +670,74 @@ TEST(DecoderTest, IncorrectWireTypeForBytes) {
   Decoder decoder{data};
   EXPECT_THAT(decoder.DecodeBytesField(WireType::kVarInt),
               StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(DecoderTest, DecodeTime) {
+  auto const data = EncodeGoogleProtobufTimestamp(42, {.seconds = 123, .nanos = 456});
+  Decoder decoder{data.span()};
+  ASSERT_THAT(decoder.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 42, .wire_type = WireType::kLength}));
+  EXPECT_THAT(decoder.DecodeTime(WireType::kLength),
+              IsOkAndHolds(absl::UnixEpoch() + absl::Seconds(123) + absl::Nanoseconds(456)));
+}
+
+TEST(DecoderTest, DecodeZeroTime) {
+  auto const data = EncodeGoogleProtobufTimestamp(42, {.seconds = 0, .nanos = 0});
+  Decoder decoder{data.span()};
+  ASSERT_THAT(decoder.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 42, .wire_type = WireType::kLength}));
+  EXPECT_THAT(decoder.DecodeTime(WireType::kLength), IsOkAndHolds(absl::UnixEpoch()));
+}
+
+TEST(DecoderTest, DecodeEmptyTime) {
+  auto const data =
+      EncodeGoogleProtobufTimestamp(42, {.seconds = std::nullopt, .nanos = std::nullopt});
+  Decoder decoder{data.span()};
+  ASSERT_THAT(decoder.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 42, .wire_type = WireType::kLength}));
+  EXPECT_THAT(decoder.DecodeTime(WireType::kLength), IsOkAndHolds(absl::UnixEpoch()));
+}
+
+TEST(DecoderTest, DecodeTimeWithoutSeconds) {
+  auto const data = EncodeGoogleProtobufTimestamp(42, {.seconds = std::nullopt, .nanos = 123});
+  Decoder decoder{data.span()};
+  ASSERT_THAT(decoder.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 42, .wire_type = WireType::kLength}));
+  EXPECT_THAT(decoder.DecodeTime(WireType::kLength),
+              IsOkAndHolds(absl::UnixEpoch() + absl::Nanoseconds(123)));
+}
+
+TEST(DecoderTest, DecodeTimeWithoutNanoseconds) {
+  auto const data = EncodeGoogleProtobufTimestamp(42, {.seconds = 456, .nanos = std::nullopt});
+  Decoder decoder{data.span()};
+  ASSERT_THAT(decoder.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 42, .wire_type = WireType::kLength}));
+  EXPECT_THAT(decoder.DecodeTime(WireType::kLength),
+              IsOkAndHolds(absl::UnixEpoch() + absl::Seconds(456)));
+}
+
+TEST(DecoderTest, DecodeTimeWithNegativeSeconds) {
+  auto const data = EncodeGoogleProtobufTimestamp(42, {.seconds = -123, .nanos = 456});
+  Decoder decoder{data.span()};
+  ASSERT_THAT(decoder.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 42, .wire_type = WireType::kLength}));
+  EXPECT_THAT(decoder.DecodeTime(WireType::kLength), StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(DecoderTest, DecodeTimeWithNegativeNanoseconds) {
+  auto const data = EncodeGoogleProtobufTimestamp(42, {.seconds = 123, .nanos = -456});
+  Decoder decoder{data.span()};
+  ASSERT_THAT(decoder.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 42, .wire_type = WireType::kLength}));
+  EXPECT_THAT(decoder.DecodeTime(WireType::kLength), StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(DecoderTest, InvalidTimeNanoseconds) {
+  auto const data = EncodeGoogleProtobufTimestamp(42, {.seconds = 123, .nanos = 1000000000});
+  Decoder decoder{data.span()};
+  ASSERT_THAT(decoder.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 42, .wire_type = WireType::kLength}));
+  EXPECT_THAT(decoder.DecodeTime(WireType::kLength), StatusIs(absl::StatusCode::kOutOfRange));
 }
 
 TEST(DecoderTest, DecodeDuration) {

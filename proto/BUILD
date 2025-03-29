@@ -10,10 +10,12 @@ cc_library(
     name = "wire_format",
     srcs = [
         "duration.pb.sync.cc",
+        "timestamp.pb.sync.cc",
         "wire_format.cc",
     ],
     hdrs = [
         "duration.pb.sync.h",
+        "timestamp.pb.sync.h",
         "wire_format.h",
     ],
     deps = [
@@ -291,6 +293,18 @@ cc_binary(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
     ],
+)
+
+proto_library(
+    name = "timestamp_proto",
+    srcs = ["timestamp.proto"],
+    visibility = ["//visibility:public"],
+)
+
+tsdb2_cc_proto_library(
+    name = "timestamp_cc_proto",
+    proto = ":timestamp_proto",
+    visibility = ["//visibility:public"],
 )
 
 proto_library(

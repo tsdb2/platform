@@ -16,6 +16,7 @@
 #include "io/buffer.h"
 #include "io/cord.h"
 #include "proto/duration.pb.sync.h"
+#include "proto/timestamp.pb.sync.h"
 
 namespace tsdb2 {
 namespace proto {
@@ -180,6 +181,21 @@ absl::StatusOr<std::vector<uint8_t>> Decoder::DecodeBytesField(WireType const wi
   std::vector<uint8_t> value{data_.begin(), data_.begin() + length};
   data_.remove_prefix(length);
   return std::move(value);
+}
+
+absl::StatusOr<absl::Time> Decoder::DecodeTime(WireType const wire_type) {
+  DEFINE_CONST_OR_RETURN(child_span, GetChildSpan(wire_type));
+  DEFINE_CONST_OR_RETURN(proto, ::google::protobuf::Timestamp::Decode(child_span));
+  int64_t const seconds = proto.seconds.value_or(0);
+  int32_t const nanos = proto.nanos.value_or(0);
+  if (seconds < 0 || nanos < 0) {
+    return absl::InvalidArgumentError("invalid timestamp encoding (must not be negative)");
+  }
+  static int32_t constexpr kMaxNanos = 999999999;
+  if (nanos > kMaxNanos) {
+    return absl::OutOfRangeError("invalid duration encoding (nanoseconds are out of range)");
+  }
+  return absl::UnixEpoch() + absl::Seconds(seconds) + absl::Nanoseconds(nanos);
 }
 
 absl::StatusOr<absl::Duration> Decoder::DecodeDuration(WireType const wire_type) {
@@ -722,6 +738,16 @@ void Encoder::EncodeBytesField(size_t const number, absl::Span<uint8_t const> co
   tsdb2::io::Buffer buffer{length};
   buffer.MemCpy(value.data(), length);
   cord_.Append(std::move(buffer));
+}
+
+void Encoder::EncodeTime(size_t const number, absl::Time const time) {
+  EncodeTag(FieldTag{.field_number = number, .wire_type = WireType::kLength});
+  auto const duration = time - absl::UnixEpoch();
+  static absl::Duration constexpr kOneSecond = absl::Seconds(1);
+  EncodeSubMessage(::google::protobuf::Timestamp::Encode({
+      .seconds = absl::ToInt64Seconds(duration),
+      .nanos = absl::ToInt64Nanoseconds(duration % kOneSecond),
+  }));
 }
 
 void Encoder::EncodeDuration(size_t const number, absl::Duration const duration) {
