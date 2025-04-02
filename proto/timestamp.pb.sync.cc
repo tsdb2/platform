@@ -24,8 +24,12 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
 ::absl::StatusOr<Timestamp> Timestamp::Decode(::absl::Span<uint8_t const> const data) {
   Timestamp proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt64Field(tag.wire_type));

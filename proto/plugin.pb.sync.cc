@@ -25,8 +25,12 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
 ::absl::StatusOr<Version> Version::Decode(::absl::Span<uint8_t const> const data) {
   Version proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32Field(tag.wire_type));
@@ -73,8 +77,12 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
     ::absl::Span<uint8_t const> const data) {
   CodeGeneratorRequest proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
@@ -132,8 +140,12 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
     ::absl::Span<uint8_t const> const data) {
   CodeGeneratorResponse::File proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
@@ -182,8 +194,12 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
     ::absl::Span<uint8_t const> const data) {
   CodeGeneratorResponse proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));

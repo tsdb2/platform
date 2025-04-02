@@ -64,12 +64,16 @@ tsdb2::io::Buffer EncodeGoogleProtobufTimestamp(size_t const field_number,
 absl::StatusOr<::google::protobuf::Timestamp> DecodeGoogleProtobufTimestamp(
     size_t const field_number, absl::Span<uint8_t const> data) {
   Decoder decoder{data};
-  DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+  if (!maybe_tag.has_value()) {
+    return absl::FailedPreconditionError("invalid Google API protobuf encoding");
+  }
+  auto const tag = maybe_tag.value();
   if (tag.field_number != field_number) {
     return absl::FailedPreconditionError(
         absl::StrCat("invalid field number: ", tag.field_number, " != ", field_number));
   }
-  DEFINE_CONST_OR_RETURN(child_span, decoder.GetChildSpan(WireType::kLength));
+  DEFINE_CONST_OR_RETURN(child_span, decoder.GetChildSpan(tag.wire_type));
   return ::google::protobuf::Timestamp::Decode(child_span);
 }
 
@@ -83,7 +87,11 @@ tsdb2::io::Buffer EncodeGoogleProtobufDuration(size_t const field_number,
 absl::StatusOr<::google::protobuf::Duration> DecodeGoogleProtobufDuration(
     size_t const field_number, absl::Span<uint8_t const> data) {
   Decoder decoder{data};
-  DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+  if (!maybe_tag.has_value()) {
+    return absl::FailedPreconditionError("invalid Google API protobuf encoding");
+  }
+  auto const tag = maybe_tag.value();
   if (tag.field_number != field_number) {
     return absl::FailedPreconditionError(
         absl::StrCat("invalid field number: ", tag.field_number, " != ", field_number));
@@ -136,6 +144,26 @@ TEST(DecoderTest, DecodeTwoByteTag) {
               IsOkAndHolds(FieldTag{.field_number = 2001, .wire_type = WireType::kVarInt}));
   EXPECT_THAT((Decoder{{0x8D, 0x7D}}.DecodeTag()),
               IsOkAndHolds(FieldTag{.field_number = 2001, .wire_type = WireType::kInt32}));
+}
+
+TEST(DecoderTest, DecodeTagSkippingGroup) {
+  Decoder decoder{{0x43, 0x08, 0x2A, 0x12, 0x03, 'F', 'O', 'O', 0x44, 0x20}};
+  EXPECT_THAT(decoder.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 4, .wire_type = WireType::kVarInt}));
+}
+
+TEST(DecoderTest, DecodeTagSkippingTwoGroups) {
+  Decoder decoder{{
+      0x43, 0x08, 0x2A, 0x12, 0x03, 'F',  'O',  'O',  0x44, 0x43,
+      0x12, 0x03, 'B',  'A',  'R',  0x08, 0x2B, 0x44, 0x20,
+  }};
+  EXPECT_THAT(decoder.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 4, .wire_type = WireType::kVarInt}));
+}
+
+TEST(DecoderTest, SkipGroupAndFinish) {
+  Decoder decoder{{0x43, 0x08, 0x2A, 0x12, 0x03, 'F', 'O', 'O', 0x44}};
+  EXPECT_THAT(decoder.DecodeTag(), IsOkAndHolds(std::nullopt));
 }
 
 TEST(DecoderTest, DecodeSingleByteInteger) {

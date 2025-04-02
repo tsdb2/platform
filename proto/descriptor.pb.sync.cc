@@ -25,8 +25,12 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
     ::absl::Span<uint8_t const> const data) {
   FileDescriptorSet proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_CONST_OR_RETURN(child_span, decoder.GetChildSpan(tag.wire_type));
@@ -53,8 +57,12 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
     ::absl::Span<uint8_t const> const data) {
   FileDescriptorProto proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
@@ -171,8 +179,12 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
     ::absl::Span<uint8_t const> const data) {
   DescriptorProto::ExtensionRange proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32Field(tag.wire_type));
@@ -215,8 +227,12 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
     ::absl::Span<uint8_t const> const data) {
   DescriptorProto::ReservedRange proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32Field(tag.wire_type));
@@ -249,8 +265,12 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
 ::absl::StatusOr<DescriptorProto> DescriptorProto::Decode(::absl::Span<uint8_t const> const data) {
   DescriptorProto proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
@@ -352,8 +372,12 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
     ::absl::Span<uint8_t const> const data) {
   ExtensionRangeOptions::Declaration proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32Field(tag.wire_type));
@@ -408,8 +432,12 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
     ::absl::Span<uint8_t const> const data) {
   ExtensionRangeOptions proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 999: {
         DEFINE_CONST_OR_RETURN(child_span, decoder.GetChildSpan(tag.wire_type));
@@ -463,8 +491,12 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
     ::absl::Span<uint8_t const> const data) {
   FieldDescriptorProto proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
@@ -566,8 +598,12 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
     ::absl::Span<uint8_t const> const data) {
   OneofDescriptorProto proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
@@ -602,8 +638,12 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
 EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const data) {
   EnumDescriptorProto::EnumReservedRange proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32Field(tag.wire_type));
@@ -637,8 +677,12 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     ::absl::Span<uint8_t const> const data) {
   EnumDescriptorProto proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
@@ -699,8 +743,12 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     ::absl::Span<uint8_t const> const data) {
   EnumValueDescriptorProto proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
@@ -742,8 +790,12 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     ::absl::Span<uint8_t const> const data) {
   ServiceDescriptorProto proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
@@ -786,8 +838,12 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     ::absl::Span<uint8_t const> const data) {
   MethodDescriptorProto proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
@@ -845,8 +901,12 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
 ::absl::StatusOr<FileOptions> FileOptions::Decode(::absl::Span<uint8_t const> const data) {
   FileOptions proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
@@ -1000,8 +1060,12 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
 ::absl::StatusOr<MessageOptions> MessageOptions::Decode(::absl::Span<uint8_t const> const data) {
   MessageOptions proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
@@ -1066,8 +1130,12 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     ::absl::Span<uint8_t const> const data) {
   FieldOptions::EditionDefault proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 3: {
         DEFINE_CONST_OR_RETURN(value,
@@ -1101,8 +1169,12 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     ::absl::Span<uint8_t const> const data) {
   FieldOptions::FeatureSupport proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_CONST_OR_RETURN(value,
@@ -1151,8 +1223,12 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
 ::absl::StatusOr<FieldOptions> FieldOptions::Decode(::absl::Span<uint8_t const> const data) {
   FieldOptions proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_CONST_OR_RETURN(
@@ -1269,8 +1345,12 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
 ::absl::StatusOr<OneofOptions> OneofOptions::Decode(::absl::Span<uint8_t const> const data) {
   OneofOptions proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_CONST_OR_RETURN(child_span, decoder.GetChildSpan(tag.wire_type));
@@ -1305,8 +1385,12 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
 ::absl::StatusOr<EnumOptions> EnumOptions::Decode(::absl::Span<uint8_t const> const data) {
   EnumOptions proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 2: {
         DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
@@ -1361,8 +1445,12 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     ::absl::Span<uint8_t const> const data) {
   EnumValueOptions proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
@@ -1417,8 +1505,12 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
 ::absl::StatusOr<ServiceOptions> ServiceOptions::Decode(::absl::Span<uint8_t const> const data) {
   ServiceOptions proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 34: {
         DEFINE_CONST_OR_RETURN(child_span, decoder.GetChildSpan(tag.wire_type));
@@ -1458,8 +1550,12 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
 ::absl::StatusOr<MethodOptions> MethodOptions::Decode(::absl::Span<uint8_t const> const data) {
   MethodOptions proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 33: {
         DEFINE_CONST_OR_RETURN(value, decoder.DecodeBoolField(tag.wire_type));
@@ -1508,8 +1604,12 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   UninterpretedOption::NamePart proto;
   ::tsdb2::common::flat_set<size_t> decoded;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_VAR_OR_RETURN(value, decoder.DecodeStringField(tag.wire_type));
@@ -1547,8 +1647,12 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     ::absl::Span<uint8_t const> const data) {
   UninterpretedOption proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 2: {
         DEFINE_CONST_OR_RETURN(child_span, decoder.GetChildSpan(tag.wire_type));
@@ -1618,8 +1722,12 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
 ::absl::StatusOr<FeatureSet> FeatureSet::Decode(::absl::Span<uint8_t const> const data) {
   FeatureSet proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_CONST_OR_RETURN(
@@ -1692,8 +1800,12 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
 FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const> const data) {
   FeatureSetDefaults::FeatureSetEditionDefault proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 3: {
         DEFINE_CONST_OR_RETURN(value,
@@ -1739,8 +1851,12 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
     ::absl::Span<uint8_t const> const data) {
   FeatureSetDefaults proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_CONST_OR_RETURN(child_span, decoder.GetChildSpan(tag.wire_type));
@@ -1786,8 +1902,12 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
     ::absl::Span<uint8_t const> const data) {
   SourceCodeInfo::Location proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         RETURN_IF_ERROR(decoder.DecodeRepeatedInt32s(tag.wire_type, &proto.path));
@@ -1834,8 +1954,12 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
 ::absl::StatusOr<SourceCodeInfo> SourceCodeInfo::Decode(::absl::Span<uint8_t const> const data) {
   SourceCodeInfo proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_CONST_OR_RETURN(child_span, decoder.GetChildSpan(tag.wire_type));
@@ -1863,8 +1987,12 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
     ::absl::Span<uint8_t const> const data) {
   GeneratedCodeInfo::Annotation proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         RETURN_IF_ERROR(decoder.DecodeRepeatedInt32s(tag.wire_type, &proto.path));
@@ -1919,8 +2047,12 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
     ::absl::Span<uint8_t const> const data) {
   GeneratedCodeInfo proto;
   ::tsdb2::proto::Decoder decoder{data};
-  while (!decoder.at_end()) {
-    DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());
+  while (true) {
+    DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
+    if (!maybe_tag.has_value()) {
+      break;
+    }
+    auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
         DEFINE_CONST_OR_RETURN(child_span, decoder.GetChildSpan(tag.wire_type));

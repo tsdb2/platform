@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -62,12 +63,20 @@ absl::StatusOr<uint64_t> Decoder::DecodeVarInt() {
   return value;
 }
 
-absl::StatusOr<FieldTag> Decoder::DecodeTag() {
-  DEFINE_CONST_OR_RETURN(tag, DecodeUInt64());
-  return FieldTag{
-      .field_number = tag >> 3,
-      .wire_type = static_cast<WireType>(tag & 7),
-  };
+absl::StatusOr<std::optional<FieldTag>> Decoder::DecodeTag() {
+  while (!at_end()) {
+    DEFINE_CONST_OR_RETURN(tag, DecodeTagInternal());
+    switch (tag.wire_type) {
+      case WireType::kDeprecatedStartGroup:
+        RETURN_IF_ERROR(SkipGroup(tag));
+        break;
+      case WireType::kDeprecatedEndGroup:
+        return absl::InvalidArgumentError("invalid group encoding");
+      default:
+        return tag;
+    }
+  }
+  return std::nullopt;
 }
 
 absl::StatusOr<int32_t> Decoder::DecodeInt32Field(WireType const wire_type) {
@@ -530,8 +539,30 @@ absl::Status Decoder::SkipRecord(WireType const wire_type) {
   return absl::OkStatus();
 }
 
+absl::Status Decoder::SkipGroup(FieldTag const start_tag) {
+  while (!at_end()) {
+    DEFINE_CONST_OR_RETURN(tag, DecodeTagInternal());
+    if (tag.field_number != start_tag.field_number) {
+      RETURN_IF_ERROR(SkipRecord(tag.wire_type));
+    } else if (tag.wire_type != WireType::kDeprecatedEndGroup) {
+      return absl::InvalidArgumentError("invalid group encoding");
+    } else {
+      return absl::OkStatus();
+    }
+  }
+  return absl::InvalidArgumentError("unexpected end of input");
+}
+
 absl::Status Decoder::EndOfInputError() {
   return absl::InvalidArgumentError("decoding error: reached end of input");
+}
+
+absl::StatusOr<FieldTag> Decoder::DecodeTagInternal() {
+  DEFINE_CONST_OR_RETURN(tag, DecodeUInt64());
+  return FieldTag{
+      .field_number = tag >> 3,
+      .wire_type = static_cast<WireType>(tag & 7),
+  };
 }
 
 absl::StatusOr<int32_t> Decoder::DecodeSInt32() {

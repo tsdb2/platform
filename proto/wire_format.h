@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -75,7 +76,7 @@ class Decoder {
 
   absl::StatusOr<uint64_t> DecodeVarInt();
 
-  absl::StatusOr<FieldTag> DecodeTag();
+  absl::StatusOr<std::optional<FieldTag>> DecodeTag();
 
   template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
   absl::StatusOr<Enum> DecodeEnumField(WireType const wire_type) {
@@ -206,11 +207,14 @@ class Decoder {
   absl::Status DecodeRepeatedDoubles(WireType wire_type, std::vector<double> *values);
 
   absl::Status SkipRecord(WireType wire_type);
+  absl::Status SkipGroup(FieldTag start_tag);
 
  private:
   static absl::Status EndOfInputError();
 
   static inline size_t constexpr kMaxVarIntBits = 64;
+
+  absl::StatusOr<FieldTag> DecodeTagInternal();
 
   absl::StatusOr<uint64_t> DecodeUInt64() { return DecodeVarInt(); }
 

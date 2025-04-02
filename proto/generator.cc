@@ -1747,10 +1747,14 @@ absl::Status Generator::EmitImplementationForScope(TextWriter* const writer, Pat
         writer->AppendLine("::tsdb2::common::flat_set<size_t> decoded;");
       }
       writer->AppendLine("::tsdb2::proto::Decoder decoder{data};");
-      writer->AppendLine("while (!decoder.at_end()) {");
+      writer->AppendLine("while (true) {");
       {
         TextWriter::IndentedScope is{writer};
-        writer->AppendLine("DEFINE_CONST_OR_RETURN(tag, decoder.DecodeTag());");
+        writer->AppendLine("DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());");
+        writer->AppendLine("if (!maybe_tag.has_value()) {");
+        writer->AppendLine("  break;");
+        writer->AppendLine("}");
+        writer->AppendLine("auto const tag = maybe_tag.value();");
         writer->AppendLine("switch (tag.field_number) {");
         {
           TextWriter::IndentedScope is{writer};
