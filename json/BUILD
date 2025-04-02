@@ -36,6 +36,7 @@ cc_library(
     hdrs = ["json_testing.h"],
     deps = [
         ":json",
+        "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",
     ],
 )
