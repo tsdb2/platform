@@ -194,7 +194,7 @@ class Generator {
   // Returns the fully qualified path of an uninterpreted option, but only if all parts are
   // extensions. Returns an empty path if one or more parts are not extensions. This function is
   // suitable for TSDB2 options such as `tsdb2.proto.indirect`.
-  static Path GetOptionPath(::google::protobuf::UninterpretedOption const& option);
+  static absl::StatusOr<Path> GetOptionPath(::google::protobuf::UninterpretedOption const& option);
 
   absl::StatusOr<std::pair<std::string, bool>> GetFieldType(
       google::protobuf::FieldDescriptorProto const& descriptor) const;

@@ -464,8 +464,10 @@ absl::StatusOr<Generator::Builder> Generator::Builder::Create(
     return absl::InvalidArgumentError(
         absl::StrCat("invalid package name: \"", absl::CEscape(package_name), "\""));
   }
-  return Builder(file_descriptor, SplitPath(package_name),
-                 absl::GetFlag(FLAGS_proto_use_raw_google_api_types));
+  Builder builder{file_descriptor, SplitPath(package_name),
+                  absl::GetFlag(FLAGS_proto_use_raw_google_api_types)};
+  RETURN_IF_ERROR(builder.CheckFieldIndirections());
+  return std::move(builder);
 }
 
 absl::StatusOr<Generator> Generator::Builder::Build() && {
@@ -490,7 +492,6 @@ absl::StatusOr<Generator> Generator::Builder::Build() && {
   }
   ASSIGN_OR_RETURN(enum_types_by_path_, GetEnumTypesByPath());
   ASSIGN_OR_RETURN(message_types_by_path_, GetMessageTypesByPath());
-  RETURN_IF_ERROR(CheckFieldIndirections());
   return Generator(
       file_descriptor_, absl::GetFlag(FLAGS_proto_emit_reflection_api), use_raw_google_api_types_,
       absl::GetFlag(
@@ -512,7 +513,7 @@ absl::Status Generator::Builder::CheckFieldIndirections() const {
           return absl::InvalidArgumentError("indirect fields must be of a message type");
         }
         DEFINE_CONST_OR_RETURN(path, GetTypePath(field.type_name.value()));
-        if (!message_types_by_path_.contains(path)) {
+        if (!use_raw_google_api_types_ && kGoogleApiTypes->contains(path)) {
           return absl::InvalidArgumentError("indirect fields must be of a message type");
         }
       }
@@ -820,17 +821,18 @@ void Generator::EmitSourceIncludes(TextWriter* const writer) const {
   EmitIncludes(*file_descriptor_, writer, kDefaultSourceIncludes);
 }
 
-Generator::Path Generator::GetOptionPath(::google::protobuf::UninterpretedOption const& option) {
-  Path path;
-  path.reserve(option.name.size());
+absl::StatusOr<Generator::Path> Generator::GetOptionPath(
+    ::google::protobuf::UninterpretedOption const& option) {
+  // TODO: resolve partially qualified paths instead of assuming they're all fully qualified.
+  std::vector<std::string> parts{""};
+  parts.reserve(option.name.size() + 1);
   for (auto const& part : option.name) {
     if (!part.is_extension) {
       return Path{};
     }
-    path.emplace_back(part.name_part);
+    parts.emplace_back(part.name_part);
   }
-  // TODO: resolve partially qualified paths?
-  return path;
+  return GetTypePath(absl::StrJoin(parts, "."));
 }
 
 absl::StatusOr<std::pair<std::string, bool>> Generator::GetFieldType(
@@ -864,7 +866,7 @@ absl::StatusOr<Generator::FieldIndirection> Generator::GetFieldIndirection(
   static tsdb2::common::NoDestructor<Path> const kIndirectOptionPath{
       Path{"tsdb2", "proto", "indirect"}};
   for (auto const& option : descriptor.options->uninterpreted_option) {
-    auto const path = GetOptionPath(option);
+    DEFINE_CONST_OR_RETURN(path, GetOptionPath(option));
     if (path == *kIndirectOptionPath) {
       if (!option.identifier_value.has_value()) {
         return absl::InvalidArgumentError("invalid value for (tsdb2.proto.indirect) option");
@@ -983,20 +985,35 @@ absl::Status Generator::EmitMessageFields(
       REQUIRE_FIELD_OR_RETURN(label, field, label);
       DEFINE_CONST_OR_RETURN(type_pair, GetFieldType(field));
       auto const& [type, primitive] = type_pair;
-      std::string deprecation;
+      std::string_view deprecation;
       if (field.options && field.options->deprecated) {
         deprecation = "ABSL_DEPRECATED(\"\") ";
       }
       switch (label) {
-        case FieldDescriptorProto::Label::LABEL_OPTIONAL:
-          if (primitive && field.default_value.has_value()) {
-            DEFINE_CONST_OR_RETURN(initializer,
-                                   GetFieldInitializer(field, type, field.default_value.value()));
-            writer->AppendLine(deprecation, type, " ", name, "{", initializer, "};");
+        case FieldDescriptorProto::Label::LABEL_OPTIONAL: {
+          if (primitive) {
+            if (field.default_value.has_value()) {
+              DEFINE_CONST_OR_RETURN(initializer,
+                                     GetFieldInitializer(field, type, field.default_value.value()));
+              writer->AppendLine(deprecation, type, " ", name, "{", initializer, "};");
+            } else {
+              writer->AppendLine(deprecation, "std::optional<", type, "> ", name, ";");
+            }
           } else {
-            writer->AppendLine(deprecation, "std::optional<", type, "> ", name, ";");
+            DEFINE_CONST_OR_RETURN(indirection, GetFieldIndirection(field));
+            switch (indirection) {
+              case FieldIndirection::kUnique:
+                writer->AppendLine(deprecation, "std::unique_ptr<", type, "> ", name, ";");
+                break;
+              case FieldIndirection::kShared:
+                writer->AppendLine(deprecation, "std::shared_ptr<", type, "> ", name, ";");
+                break;
+              default:
+                writer->AppendLine(deprecation, "std::optional<", type, "> ", name, ";");
+                break;
+            }
           }
-          break;
+        } break;
         case FieldDescriptorProto::Label::LABEL_REPEATED:
           writer->AppendLine(deprecation, "std::vector<", type, "> ", name, ";");
           break;

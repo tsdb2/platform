@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-import "google/protobuf/descriptor.proto";
+import "proto/descriptor.proto";
 
 package tsdb2.proto;
 
@@ -43,5 +43,5 @@ enum FieldIndirectionType {
 }
 
 extend google.protobuf.FieldOptions {
-  FieldIndirectionType indirect = 71104;
+  FieldIndirectionType indirect = 71104 [targets = TARGET_TYPE_FIELD, retention = RETENTION_SOURCE];
 }
