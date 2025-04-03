@@ -118,6 +118,15 @@ cc_test(
 )
 
 proto_library(
+    name = "annotations_proto",
+    srcs = ["annotations.proto"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_google_protobuf//:descriptor_proto",
+    ],
+)
+
+proto_library(
     name = "descriptor_proto",
     srcs = ["descriptor.proto"],
     visibility = ["//visibility:public"],
@@ -210,7 +219,7 @@ proto_library(
 tsdb2_cc_proto_library(
     name = "timestamp_cc_proto",
     enable_reflection = True,
-    # Set the flag below to True whenever you need to update the timestamp.pb.sync.* files.
+    # Set the flag below to True only if you need to update the timestamp.pb.sync.* files.
     internal_generate_definitions_for_google_api_types_i_dont_care_about_odr_violations = False,
     proto = ":timestamp_proto",
     use_raw_google_api_types = True,
@@ -225,7 +234,7 @@ proto_library(
 tsdb2_cc_proto_library(
     name = "duration_cc_proto",
     enable_reflection = True,
-    # Set the flag below to True whenever you need to update the duration.pb.sync.* files.
+    # Set the flag below to True only if you need to update the duration.pb.sync.* files.
     internal_generate_definitions_for_google_api_types_i_dont_care_about_odr_violations = False,
     proto = ":duration_proto",
     use_raw_google_api_types = True,
@@ -236,6 +245,7 @@ proto_library(
     testonly = True,
     srcs = ["tests.proto"],
     deps = [
+        ":annotations_proto",
         ":duration_proto",
         ":timestamp_proto",
     ],

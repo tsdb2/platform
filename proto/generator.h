@@ -123,6 +123,8 @@ class Generator {
     internal::DependencyManager flat_dependencies_;
   };
 
+  enum class FieldIndirection { kDirect, kUnique, kShared };
+
   explicit Generator(
       google::protobuf::FileDescriptorProto const* const file_descriptor,
       bool const emit_reflection_api, bool const use_raw_google_api_types,
@@ -185,8 +187,16 @@ class Generator {
   void EmitHeaderIncludes(internal::TextWriter* writer) const;
   void EmitSourceIncludes(internal::TextWriter* writer) const;
 
+  // Returns the fully qualified path of an uninterpreted option, but only if all parts are
+  // extensions. Returns an empty path if one or more parts are not extensions. This function is
+  // suitable for TSDB2 options such as `tsdb2.proto.indirect`.
+  static Path GetOptionPath(::google::protobuf::UninterpretedOption const& option);
+
   absl::StatusOr<std::pair<std::string, bool>> GetFieldType(
       google::protobuf::FieldDescriptorProto const& descriptor) const;
+
+  static absl::StatusOr<FieldIndirection> GetFieldIndirection(
+      ::google::protobuf::FieldDescriptorProto const& descriptor);
 
   absl::StatusOr<std::string> GetFieldInitializer(
       google::protobuf::FieldDescriptorProto const& descriptor, std::string_view type_name,

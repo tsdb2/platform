@@ -64,16 +64,16 @@ namespace internal {
 // recursive data structure). In those cases we cannot inline messages inside each other infinitely,
 // as doing so would simply cause a C++ compilation error. The circular dependency must necessarily
 // be broken by making one the fields involved in it a pointer rather than an `std::optional`. The
-// user is responsible for annotating such fields as "indirect", and we provide the `tsdb2.indirect`
-// annotation for that purpose. For example, the following defines the protobuf version of a binary
-// search tree:
+// user is responsible for annotating such fields as "indirect", and we provide the
+// `tsdb2.proto.indirect` annotation for that purpose. For example, the following defines the
+// protobuf version of a binary search tree:
 //
-//   import "proto/indirect.proto";
+//   import "proto/annotations.proto";
 //
 //   message TreeNode {
 //     optional string label = 1;
-//     optional TreeNode left [(tsdb2.indirect) = true] = 2;
-//     optional TreeNode right [(tsdb2.indirect) = true] = 3;
+//     optional TreeNode left = 2 [(tsdb2.proto.indirect) = INDIRECTION_UNIQUE];
+//     optional TreeNode right = 3 [(tsdb2.proto.indirect) = INDIRECTION_UNIQUE];
 //   }
 //
 // Indirect dependencies must NOT be registered in this class, so they won't contribute to the

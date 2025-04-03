@@ -89,7 +89,10 @@ auto constexpr kDefaultSourceIncludes = tsdb2::common::fixed_flat_set_of<std::st
     "proto/wire_format.h",
 });
 
-auto constexpr kGoogleApiHeaders = tsdb2::common::fixed_flat_set_of<std::string_view>({
+// TODO: add headers based on the `deps` of the build target rather than adding all and excluding
+// these.
+auto constexpr kExcludedHeaders = tsdb2::common::fixed_flat_set_of<std::string_view>({
+    "proto/annotations.pb.h",
     "proto/duration.pb.h",
     "proto/timestamp.pb.h",
 });
@@ -769,7 +772,7 @@ void Generator::EmitIncludes(google::protobuf::FileDescriptorProto const& file_d
                              internal::TextWriter* const writer,
                              tsdb2::common::flat_map<std::string, bool> headers) const {
   if (!use_raw_google_api_types_) {
-    for (auto const header : kGoogleApiHeaders) {
+    for (auto const header : kExcludedHeaders) {
       headers.erase(header);
     }
   }
@@ -788,6 +791,19 @@ void Generator::EmitHeaderIncludes(TextWriter* const writer) const {
 
 void Generator::EmitSourceIncludes(TextWriter* const writer) const {
   EmitIncludes(*file_descriptor_, writer, kDefaultSourceIncludes);
+}
+
+Generator::Path Generator::GetOptionPath(::google::protobuf::UninterpretedOption const& option) {
+  Path path;
+  path.reserve(option.name.size());
+  for (auto const& part : option.name) {
+    if (!part.is_extension) {
+      return Path{};
+    }
+    path.emplace_back(part.name_part);
+  }
+  // TODO: resolve partially qualified paths?
+  return path;
 }
 
 absl::StatusOr<std::pair<std::string, bool>> Generator::GetFieldType(
@@ -811,6 +827,35 @@ absl::StatusOr<std::pair<std::string, bool>> Generator::GetFieldType(
     return absl::InvalidArgumentError("invalid field type");
   }
   return std::make_pair(std::string(it->second), /*primitive=*/true);
+}
+
+absl::StatusOr<Generator::FieldIndirection> Generator::GetFieldIndirection(
+    ::google::protobuf::FieldDescriptorProto const& descriptor) {
+  if (!descriptor.options.has_value()) {
+    return FieldIndirection::kDirect;
+  }
+  static tsdb2::common::NoDestructor<Path> const kIndirectOptionPath{
+      Path{"tsdb2", "proto", "indirect"}};
+  for (auto const& option : descriptor.options->uninterpreted_option) {
+    auto const path = GetOptionPath(option);
+    if (path == *kIndirectOptionPath) {
+      if (!option.identifier_value.has_value()) {
+        return absl::InvalidArgumentError("invalid value for (tsdb2.proto.indirect) option");
+      }
+      std::string_view const value = option.identifier_value.value();
+      if (value == "INDIRECTION_DIRECT") {
+        return FieldIndirection::kDirect;
+      } else if (value == "INDIRECTION_UNIQUE") {
+        return FieldIndirection::kUnique;
+      } else if (value == "INDIRECTION_SHARED") {
+        return FieldIndirection::kShared;
+      } else {
+        return absl::FailedPreconditionError(absl::StrCat(
+            "unrecognized value \"", absl::CEscape(value), "\" for (tsdb2.proto.indirect) option"));
+      }
+    }
+  }
+  return FieldIndirection::kDirect;
 }
 
 absl::StatusOr<std::string> Generator::GetFieldInitializer(
