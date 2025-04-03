@@ -9,7 +9,9 @@
 #include <tuple>
 #include <utility>
 
+#include "absl/hash/hash.h"
 #include "absl/types/span.h"
+#include "common/fingerprint.h"
 #include "common/utilities.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -390,6 +392,124 @@ TEST(BufferTest, SelfSwap) {
   EXPECT_THAT(buffer.span(), ElementsAre(12, 34, 56));
 }
 
+TEST(BufferTest, CompareEmptyBuffers) {
+  Buffer b1;
+  Buffer b2;
+  EXPECT_TRUE(b1 == b2);
+  EXPECT_TRUE(b2 == b1);
+  EXPECT_FALSE(b1 != b2);
+  EXPECT_FALSE(b2 != b1);
+  EXPECT_FALSE(b1 < b2);
+  EXPECT_FALSE(b2 < b1);
+  EXPECT_TRUE(b1 <= b2);
+  EXPECT_TRUE(b2 <= b1);
+  EXPECT_FALSE(b1 > b2);
+  EXPECT_FALSE(b2 > b1);
+  EXPECT_TRUE(b1 >= b2);
+  EXPECT_TRUE(b2 >= b1);
+  EXPECT_EQ(absl::HashOf(b1), absl::HashOf(b2));
+  EXPECT_EQ(tsdb2::common::FingerprintOf(b1), tsdb2::common::FingerprintOf(b2));
+}
+
+TEST(BufferTest, CompareEmptyWithNonEmpty) {
+  Buffer b1;
+  Buffer b2{{1, 2, 3, 4, 5, 6}};
+  EXPECT_FALSE(b1 == b2);
+  EXPECT_FALSE(b2 == b1);
+  EXPECT_TRUE(b1 != b2);
+  EXPECT_TRUE(b2 != b1);
+  EXPECT_TRUE(b1 < b2);
+  EXPECT_FALSE(b2 < b1);
+  EXPECT_TRUE(b1 <= b2);
+  EXPECT_FALSE(b2 <= b1);
+  EXPECT_FALSE(b1 > b2);
+  EXPECT_TRUE(b2 > b1);
+  EXPECT_FALSE(b1 >= b2);
+  EXPECT_TRUE(b2 >= b1);
+  EXPECT_NE(absl::HashOf(b1), absl::HashOf(b2));
+  EXPECT_NE(tsdb2::common::FingerprintOf(b1), tsdb2::common::FingerprintOf(b2));
+}
+
+TEST(BufferTest, CompareDifferentBuffers) {
+  Buffer b1{{1, 2, 3, 4}};
+  Buffer b2{{5, 6, 7}};
+  EXPECT_FALSE(b1 == b2);
+  EXPECT_FALSE(b2 == b1);
+  EXPECT_TRUE(b1 != b2);
+  EXPECT_TRUE(b2 != b1);
+  EXPECT_FALSE(b1 < b2);
+  EXPECT_TRUE(b2 < b1);
+  EXPECT_FALSE(b1 <= b2);
+  EXPECT_TRUE(b2 <= b1);
+  EXPECT_TRUE(b1 > b2);
+  EXPECT_FALSE(b2 > b1);
+  EXPECT_TRUE(b1 >= b2);
+  EXPECT_FALSE(b2 >= b1);
+  EXPECT_NE(absl::HashOf(b1), absl::HashOf(b2));
+  EXPECT_NE(tsdb2::common::FingerprintOf(b1), tsdb2::common::FingerprintOf(b2));
+}
+
+TEST(BufferTest, CompareDifferentBuffersWithSameSize) {
+  Buffer b1{{1, 2, 3}};
+  Buffer b2{{4, 5, 6}};
+  EXPECT_FALSE(b1 == b2);
+  EXPECT_FALSE(b2 == b1);
+  EXPECT_TRUE(b1 != b2);
+  EXPECT_TRUE(b2 != b1);
+  EXPECT_TRUE(b1 < b2);
+  EXPECT_FALSE(b2 < b1);
+  EXPECT_TRUE(b1 <= b2);
+  EXPECT_FALSE(b2 <= b1);
+  EXPECT_FALSE(b1 > b2);
+  EXPECT_TRUE(b2 > b1);
+  EXPECT_FALSE(b1 >= b2);
+  EXPECT_TRUE(b2 >= b1);
+  EXPECT_NE(absl::HashOf(b1), absl::HashOf(b2));
+  EXPECT_NE(tsdb2::common::FingerprintOf(b1), tsdb2::common::FingerprintOf(b2));
+}
+
+TEST(BufferTest, CompareIdenticalBuffers) {
+  Buffer b1{{1, 2, 3, 4}};
+  Buffer b2{{1, 2, 3, 4}};
+  EXPECT_TRUE(b1 == b2);
+  EXPECT_TRUE(b2 == b1);
+  EXPECT_FALSE(b1 != b2);
+  EXPECT_FALSE(b2 != b1);
+  EXPECT_FALSE(b1 < b2);
+  EXPECT_FALSE(b2 < b1);
+  EXPECT_TRUE(b1 <= b2);
+  EXPECT_TRUE(b2 <= b1);
+  EXPECT_FALSE(b1 > b2);
+  EXPECT_FALSE(b2 > b1);
+  EXPECT_TRUE(b1 >= b2);
+  EXPECT_TRUE(b2 >= b1);
+  EXPECT_EQ(absl::HashOf(b1), absl::HashOf(b2));
+  EXPECT_EQ(tsdb2::common::FingerprintOf(b1), tsdb2::common::FingerprintOf(b2));
+}
+
+TEST(BufferTest, CompareEqualBuffersWithDifferentCapacities) {
+  Buffer b1{{1, 2, 3, 4, 5, 6, 7}};
+  b1.Reset();
+  b1.Advance(4);
+  Buffer b2{{1, 2, 3, 4, 8}};
+  b2.Reset();
+  b2.Advance(4);
+  EXPECT_TRUE(b1 == b2);
+  EXPECT_TRUE(b2 == b1);
+  EXPECT_FALSE(b1 != b2);
+  EXPECT_FALSE(b2 != b1);
+  EXPECT_FALSE(b1 < b2);
+  EXPECT_FALSE(b2 < b1);
+  EXPECT_TRUE(b1 <= b2);
+  EXPECT_TRUE(b2 <= b1);
+  EXPECT_FALSE(b1 > b2);
+  EXPECT_FALSE(b2 > b1);
+  EXPECT_TRUE(b1 >= b2);
+  EXPECT_TRUE(b2 >= b1);
+  EXPECT_EQ(absl::HashOf(b1), absl::HashOf(b2));
+  EXPECT_EQ(tsdb2::common::FingerprintOf(b1), tsdb2::common::FingerprintOf(b2));
+}
+
 TEST(BufferTest, AppendInt) {
   size_t constexpr capacity = 256;
   size_t constexpr offset = 10;
@@ -501,6 +621,52 @@ TEST(BufferTest, MemCpy) {
   EXPECT_EQ(buffer.at<uint32_t>(0), 42);
   EXPECT_EQ(std::strncmp(kData.data(), buffer.as_char_array() + 4, kData.size()), 0);
   EXPECT_EQ(std::strncmp(kData.data(), buffer.as_array<char>() + 4, kData.size()), 0);
+}
+
+TEST(BufferTest, Reset) {
+  std::string_view constexpr kData = "HELLO";
+  Buffer buffer{20};
+  buffer.Append<uint32_t>(42);
+  buffer.MemCpy(kData.data(), kData.size());
+  buffer.Reset();
+  EXPECT_EQ(buffer.capacity(), 20);
+  EXPECT_EQ(buffer.size(), 0);
+  EXPECT_TRUE(buffer.empty());
+}
+
+TEST(BufferTest, CloneEmpty) {
+  Buffer const b1;
+  auto const b2 = b1.Clone();
+  EXPECT_EQ(b2.capacity(), 0);
+  EXPECT_EQ(b2.size(), 0);
+  EXPECT_TRUE(b2.empty());
+  EXPECT_THAT(b2.span(), IsEmpty());
+  EXPECT_FALSE(b2.is_full());
+}
+
+TEST(BufferTest, Clone) {
+  std::string_view constexpr kData = "LOREM";
+  Buffer b1{/*capacity=*/8};
+  b1.MemCpy(kData.data(), kData.size());
+  auto const b2 = b1.Clone();
+  ASSERT_EQ(b1.capacity(), 8);
+  ASSERT_EQ(b1.size(), 5);
+  EXPECT_EQ(b2.capacity(), 5);
+  EXPECT_EQ(b2.size(), 5);
+  EXPECT_FALSE(b2.empty());
+  EXPECT_THAT(b2.span(), ElementsAreArray(kData));
+  EXPECT_TRUE(b2.is_full());
+}
+
+TEST(BufferTest, Clear) {
+  std::string_view constexpr kData = "HELLO";
+  Buffer buffer{20};
+  buffer.Append<uint32_t>(42);
+  buffer.MemCpy(kData.data(), kData.size());
+  buffer.Clear();
+  EXPECT_EQ(buffer.capacity(), 0);
+  EXPECT_EQ(buffer.size(), 0);
+  EXPECT_TRUE(buffer.empty());
 }
 
 TEST(BufferTest, Release) {

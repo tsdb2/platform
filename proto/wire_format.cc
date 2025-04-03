@@ -42,24 +42,9 @@ constexpr uint64_t ByteSwap64(uint64_t const value) {
 }  // namespace
 
 absl::StatusOr<uint64_t> Decoder::DecodeVarInt() {
-  uint64_t value = 0;
-  uint8_t byte;
-  size_t m = 0;
-  do {
-    if (data_.empty()) {
-      return EndOfInputError();
-    }
-    byte = data_.front();
-    if (m + 7 > kMaxVarIntBits) {
-      uint8_t const mask = (1 << (kMaxVarIntBits - m)) - 1;
-      if ((byte & 0x7F) > mask) {
-        return absl::InvalidArgumentError("decoding error: integer value exceeds 64 bits");
-      }
-    }
-    data_.remove_prefix(1);
-    value += (uint64_t{byte} & 0x7FULL) << m;
-    m += 7;
-  } while ((byte & 0x80) != 0);
+  DEFINE_CONST_OR_RETURN(pair, DecodeVarIntInternal());
+  auto const [value, length] = pair;
+  data_.remove_prefix(length);
   return value;
 }
 
@@ -498,44 +483,8 @@ absl::Status Decoder::DecodeRepeatedDoubles(WireType const wire_type,
 }
 
 absl::Status Decoder::SkipRecord(WireType const wire_type) {
-  if (data_.empty()) {
-    return EndOfInputError();
-  }
-  switch (wire_type) {
-    case WireType::kVarInt: {
-      size_t offset = 0;
-      while ((data_[offset] & 0x80) != 0) {
-        ++offset;
-        if (offset >= data_.size()) {
-          return EndOfInputError();
-        }
-      }
-      data_.remove_prefix(offset + 1);
-    } break;
-    case WireType::kInt64:
-      if (data_.size() < 8) {
-        return EndOfInputError();
-      } else {
-        data_.remove_prefix(8);
-      }
-      break;
-    case WireType::kLength: {
-      DEFINE_CONST_OR_RETURN(length, DecodeUInt64());
-      if (data_.size() < length) {
-        return EndOfInputError();
-      }
-      data_.remove_prefix(length);
-    } break;
-    case WireType::kInt32:
-      if (data_.size() < 4) {
-        return EndOfInputError();
-      } else {
-        data_.remove_prefix(4);
-      }
-      break;
-    default:
-      return absl::InvalidArgumentError("unrecognized wire type");
-  }
+  DEFINE_CONST_OR_RETURN(length, GetRecordLength(wire_type));
+  data_.remove_prefix(length);
   return absl::OkStatus();
 }
 
@@ -553,8 +502,83 @@ absl::Status Decoder::SkipGroup(FieldTag const start_tag) {
   return absl::InvalidArgumentError("unexpected end of input");
 }
 
+absl::Status Decoder::AddRecordToExtensionData(FieldTag const tag) {
+  DEFINE_CONST_OR_RETURN(length, GetRecordLength(tag.wire_type));
+  Encoder encoder;
+  encoder.EncodeTag(tag);
+  extension_data_.Append(std::move(encoder).Finish());
+  extension_data_.Append(tsdb2::io::Buffer(data_.subspan(0, length)));
+  data_.remove_prefix(length);
+  return absl::OkStatus();
+}
+
+tsdb2::io::Buffer Decoder::GetExtensionData() && { return std::move(extension_data_).Flatten(); }
+
 absl::Status Decoder::EndOfInputError() {
   return absl::InvalidArgumentError("decoding error: reached end of input");
+}
+
+absl::StatusOr<std::pair<uint64_t, size_t>> Decoder::DecodeVarIntInternal() const {
+  uint64_t value = 0;
+  size_t offset = 0;
+  uint8_t byte;
+  size_t m = 0;
+  do {
+    if (offset >= data_.size()) {
+      return EndOfInputError();
+    }
+    byte = data_[offset];
+    if (m + 7 > kMaxVarIntBits) {
+      uint8_t const mask = (1 << (kMaxVarIntBits - m)) - 1;
+      if ((byte & 0x7F) > mask) {
+        return absl::InvalidArgumentError("decoding error: integer value exceeds 64 bits");
+      }
+    }
+    ++offset;
+    value += (uint64_t{byte} & 0x7FULL) << m;
+    m += 7;
+  } while ((byte & 0x80) != 0);
+  return std::make_pair(value, offset);
+}
+
+absl::StatusOr<size_t> Decoder::GetRecordLength(WireType const wire_type) const {
+  switch (wire_type) {
+    case WireType::kVarInt: {
+      if (data_.empty()) {
+        return EndOfInputError();
+      }
+      size_t offset = 0;
+      while ((data_[offset] & 0x80) != 0) {
+        ++offset;
+        if (offset >= data_.size()) {
+          return EndOfInputError();
+        }
+      }
+      return offset + 1;
+    }
+    case WireType::kInt64:
+      if (data_.size() < 8) {
+        return EndOfInputError();
+      } else {
+        return 8;
+      }
+    case WireType::kLength: {
+      DEFINE_CONST_OR_RETURN(pair, DecodeVarIntInternal());
+      size_t const length = pair.first + pair.second;
+      if (length > data_.size()) {
+        return EndOfInputError();
+      }
+      return length;
+    }
+    case WireType::kInt32:
+      if (data_.size() < 4) {
+        return EndOfInputError();
+      } else {
+        return 4;
+      }
+    default:
+      return absl::InvalidArgumentError("unrecognized wire type");
+  }
 }
 
 absl::StatusOr<FieldTag> Decoder::DecodeTagInternal() {

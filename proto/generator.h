@@ -9,12 +9,14 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "common/flat_map.h"
 #include "common/flat_set.h"
+#include "proto/annotations.pb.sync.h"
 #include "proto/dependencies.h"
 #include "proto/descriptor.pb.sync.h"
 #include "proto/plugin.pb.sync.h"
@@ -58,6 +60,7 @@ class Generator {
     bool global;
     absl::Span<google::protobuf::DescriptorProto const> message_types;
     absl::Span<google::protobuf::EnumDescriptorProto const> enum_types;
+    absl::Span<google::protobuf::FieldDescriptorProto const> extensions;
   };
 
   class Builder {
@@ -85,11 +88,21 @@ class Generator {
     Builder(Builder const&) = delete;
     Builder& operator=(Builder const&) = delete;
 
+    // Checks that the (tsdb2.proto.indirect) option is applied only to optional fields of
+    // sub-message type.
+    absl::Status CheckFieldIndirections() const;
+
     absl::Status CheckGoogleApiType(PathView path) const;
+
+    absl::Status AddFieldToDependencies(PathView path,
+                                        google::protobuf::FieldDescriptorProto const& descriptor);
 
     absl::Status AddLexicalScope(LexicalScope const& scope);
 
     std::optional<std::string> MaybeGetQualifiedName(PathView path);
+
+    absl::Status AddFieldToFlatDependencies(
+        PathView path, google::protobuf::FieldDescriptorProto const& descriptor);
 
     absl::Status BuildFlatDependencies(
         std::string_view scope_name,
@@ -160,6 +173,17 @@ class Generator {
   // due to the possible presence of oneof groupings, which generate a single `std::variant`.
   static size_t GetNumGeneratedFields(google::protobuf::DescriptorProto const& message_type);
 
+  // Generates the name of an extension message. The provided descriptor must be of an extension
+  // field.
+  static absl::StatusOr<std::string> MakeExtensionName(
+      google::protobuf::FieldDescriptorProto const& descriptor);
+
+  static absl::StatusOr<std::vector<google::protobuf::DescriptorProto>> GetExtensionMessages(
+      LexicalScope const& scope);
+
+  static absl::StatusOr<absl::btree_map<Path, google::protobuf::DescriptorProto>>
+  GetAllExtensionMessages(LexicalScope const& scope);
+
   void EmitIncludes(google::protobuf::FileDescriptorProto const& file_descriptor,
                     internal::TextWriter* writer,
                     tsdb2::common::flat_map<std::string, bool> headers) const;
@@ -188,6 +212,9 @@ class Generator {
   absl::StatusOr<std::pair<std::string, bool>> GetFieldType(
       google::protobuf::FieldDescriptorProto const& descriptor) const;
 
+  static absl::StatusOr<FieldIndirectionType> GetFieldIndirection(
+      google::protobuf::FieldDescriptorProto const& descriptor);
+
   absl::StatusOr<std::string> GetFieldInitializer(
       google::protobuf::FieldDescriptorProto const& descriptor, std::string_view type_name,
       std::string_view default_value) const;
@@ -205,7 +232,14 @@ class Generator {
   absl::Status EmitMessageFields(internal::TextWriter* writer,
                                  google::protobuf::DescriptorProto const& message_type) const;
 
+  absl::Status EmitMessageHeader(internal::TextWriter* writer, LexicalScope const& scope,
+                                 google::protobuf::DescriptorProto const& message_type) const;
+
   absl::Status EmitHeaderForScope(internal::TextWriter* writer, LexicalScope const& scope) const;
+
+  absl::Status EmitDescriptorSpecializationForMessage(
+      internal::TextWriter* writer, LexicalScope const& scope,
+      google::protobuf::DescriptorProto const& message_type) const;
 
   absl::Status EmitDescriptorSpecializationsForScope(internal::TextWriter* writer,
                                                      LexicalScope const& scope) const;
@@ -262,6 +296,10 @@ class Generator {
   absl::Status EmitOneofFieldEncoding(internal::TextWriter* writer,
                                       google::protobuf::DescriptorProto const& message_type,
                                       size_t index) const;
+
+  absl::Status EmitMessageImplementation(
+      internal::TextWriter* writer, PathView prefix, LexicalScope const& scope,
+      google::protobuf::DescriptorProto const& message_type) const;
 
   absl::Status EmitImplementationForScope(internal::TextWriter* writer, PathView prefix,
                                           LexicalScope const& scope) const;

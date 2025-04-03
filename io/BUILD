@@ -18,8 +18,10 @@ cc_test(
     srcs = ["buffer_test.cc"],
     deps = [
         ":buffer",
+        "//common:fingerprint",
         "//common:testing",
         "//common:utilities",
+        "@com_google_absl//absl/hash",
         "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest_main",
     ],

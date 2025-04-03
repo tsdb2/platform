@@ -26,6 +26,7 @@ using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::testing::IsEmpty;
+using ::testing::Optional;
 using ::tsdb2::proto::Decoder;
 using ::tsdb2::proto::Encoder;
 using ::tsdb2::proto::FieldTag;
@@ -147,22 +148,25 @@ TEST(DecoderTest, DecodeTwoByteTag) {
 }
 
 TEST(DecoderTest, DecodeTagSkippingGroup) {
-  Decoder decoder{{0x43, 0x08, 0x2A, 0x12, 0x03, 'F', 'O', 'O', 0x44, 0x20}};
+  std::vector<uint8_t> const data{0x43, 0x08, 0x2A, 0x12, 0x03, 'F', 'O', 'O', 0x44, 0x20};
+  Decoder decoder{data};
   EXPECT_THAT(decoder.DecodeTag(),
               IsOkAndHolds(FieldTag{.field_number = 4, .wire_type = WireType::kVarInt}));
 }
 
 TEST(DecoderTest, DecodeTagSkippingTwoGroups) {
-  Decoder decoder{{
+  std::vector<uint8_t> const data{
       0x43, 0x08, 0x2A, 0x12, 0x03, 'F',  'O',  'O',  0x44, 0x43,
       0x12, 0x03, 'B',  'A',  'R',  0x08, 0x2B, 0x44, 0x20,
-  }};
+  };
+  Decoder decoder{data};
   EXPECT_THAT(decoder.DecodeTag(),
               IsOkAndHolds(FieldTag{.field_number = 4, .wire_type = WireType::kVarInt}));
 }
 
 TEST(DecoderTest, SkipGroupAndFinish) {
-  Decoder decoder{{0x43, 0x08, 0x2A, 0x12, 0x03, 'F', 'O', 'O', 0x44}};
+  std::vector<uint8_t> const data{0x43, 0x08, 0x2A, 0x12, 0x03, 'F', 'O', 'O', 0x44};
+  Decoder decoder{data};
   EXPECT_THAT(decoder.DecodeTag(), IsOkAndHolds(std::nullopt));
 }
 
@@ -1803,6 +1807,57 @@ TEST(DecoderTest, DecodeFields) {
               IsOkAndHolds(FieldTag{.field_number = 3, .wire_type = WireType::kInt64}));
   EXPECT_THAT(decoder.DecodeDoubleField(WireType::kInt64), IsOkAndHolds(Near(2.71828)));
   EXPECT_TRUE(decoder.at_end());
+}
+
+TEST(DecoderTest, AddRecordToExtensionData) {
+  std::vector<uint8_t> const data{
+      0x08, 0xC0, 0xC4, 0x07, 0x12, 0x0B, 's',  'a',  't',  'o',  'r',  ' ',  'a',
+      'r',  'e',  'p',  'o',  0x19, 0x90, 0xF7, 0xAA, 0x95, 0x09, 0xBF, 0x05, 0x40,
+  };
+  Decoder decoder{data};
+  EXPECT_THAT(decoder.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 1, .wire_type = WireType::kVarInt}));
+  EXPECT_THAT(decoder.DecodeUInt64Field(WireType::kVarInt), IsOkAndHolds(123456));
+  auto const status_or_maybe_tag = decoder.DecodeTag();
+  EXPECT_THAT(status_or_maybe_tag, IsOkAndHolds(Optional<FieldTag>(FieldTag{
+                                       .field_number = 2, .wire_type = WireType::kLength})));
+  EXPECT_OK(decoder.AddRecordToExtensionData(status_or_maybe_tag.value().value()));
+  EXPECT_THAT(decoder.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 3, .wire_type = WireType::kInt64}));
+  EXPECT_THAT(decoder.DecodeDoubleField(WireType::kInt64), IsOkAndHolds(Near(2.71828)));
+  EXPECT_TRUE(decoder.at_end());
+  EXPECT_THAT(std::move(decoder).GetExtensionData(),
+              BufferAsBytes(
+                  ElementsAre(0x12, 0x0B, 's', 'a', 't', 'o', 'r', ' ', 'a', 'r', 'e', 'p', 'o')));
+}
+
+TEST(DecoderTest, AddRecordsToExtensionData) {
+  std::vector<uint8_t> const data{
+      0x08, 0xC0, 0xC4, 0x07, 0x20, 0x2A, 0x19, 0x90, 0xF7, 0xAA, 0x95, 0x09, 0xBF, 0x05, 0x40,
+      0x12, 0x0B, 't',  'e',  'n',  'e',  't',  ' ',  'o',  'p',  'e',  'r',  'a',  0x28, 0x01,
+  };
+  Decoder decoder{data};
+  EXPECT_THAT(decoder.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 1, .wire_type = WireType::kVarInt}));
+  EXPECT_THAT(decoder.DecodeUInt64Field(WireType::kVarInt), IsOkAndHolds(123456));
+  auto status_or_maybe_tag = decoder.DecodeTag();
+  EXPECT_THAT(status_or_maybe_tag, IsOkAndHolds(Optional<FieldTag>(FieldTag{
+                                       .field_number = 4, .wire_type = WireType::kVarInt})));
+  EXPECT_OK(decoder.AddRecordToExtensionData(status_or_maybe_tag.value().value()));
+  EXPECT_THAT(decoder.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 3, .wire_type = WireType::kInt64}));
+  EXPECT_THAT(decoder.DecodeDoubleField(WireType::kInt64), IsOkAndHolds(Near(2.71828)));
+  status_or_maybe_tag = decoder.DecodeTag();
+  EXPECT_THAT(status_or_maybe_tag, IsOkAndHolds(Optional<FieldTag>(FieldTag{
+                                       .field_number = 2, .wire_type = WireType::kLength})));
+  EXPECT_OK(decoder.AddRecordToExtensionData(status_or_maybe_tag.value().value()));
+  EXPECT_THAT(decoder.DecodeTag(),
+              IsOkAndHolds(FieldTag{.field_number = 5, .wire_type = WireType::kVarInt}));
+  EXPECT_THAT(decoder.DecodeBoolField(WireType::kVarInt), IsOkAndHolds(true));
+  EXPECT_TRUE(decoder.at_end());
+  EXPECT_THAT(std::move(decoder).GetExtensionData(),
+              BufferAsBytes(ElementsAre(0x20, 0x2A, 0x12, 0x0B, 't', 'e', 'n', 'e', 't', ' ', 'o',
+                                        'p', 'e', 'r', 'a')));
 }
 
 class EncoderTest : public ::testing::Test {

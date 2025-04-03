@@ -1,4 +1,4 @@
-#include "proto/duration.pb.sync.h"
+#include "proto/annotations.pb.sync.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -15,15 +15,17 @@
 #include "common/flat_set.h"
 #include "common/utilities.h"
 #include "io/cord.h"
+#include "proto/descriptor.pb.sync.h"
 #include "proto/proto.h"
 #include "proto/wire_format.h"
 
-namespace google::protobuf {
+namespace tsdb2::proto {
 
 TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
 
-::absl::StatusOr<Duration> Duration::Decode(::absl::Span<uint8_t const> const data) {
-  Duration proto;
+::absl::StatusOr<google_protobuf_FieldOptions_extension>
+google_protobuf_FieldOptions_extension::Decode(::absl::Span<uint8_t const> const data) {
+  google_protobuf_FieldOptions_extension proto;
   ::tsdb2::proto::Decoder decoder{data};
   while (true) {
     DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
@@ -32,13 +34,10 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
     }
     auto const tag = maybe_tag.value();
     switch (tag.field_number) {
-      case 1: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt64Field(tag.wire_type));
-        proto.seconds.emplace(value);
-      } break;
-      case 2: {
-        DEFINE_CONST_OR_RETURN(value, decoder.DecodeInt32Field(tag.wire_type));
-        proto.nanos.emplace(value);
+      case 71104: {
+        DEFINE_CONST_OR_RETURN(
+            value, decoder.DecodeEnumField<::tsdb2::proto::FieldIndirectionType>(tag.wire_type));
+        proto.indirect.emplace(value);
       } break;
       default:
         RETURN_IF_ERROR(decoder.SkipRecord(tag.wire_type));
@@ -48,22 +47,15 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   return std::move(proto);
 }
 
-::tsdb2::io::Cord Duration::Encode(Duration const& proto) {
+::tsdb2::io::Cord google_protobuf_FieldOptions_extension::Encode(
+    google_protobuf_FieldOptions_extension const& proto) {
   ::tsdb2::proto::Encoder encoder;
-  if (proto.seconds.has_value()) {
-    encoder.EncodeInt64Field(1, proto.seconds.value());
-  }
-  if (proto.nanos.has_value()) {
-    encoder.EncodeInt32Field(2, proto.nanos.value());
+  if (proto.indirect.has_value()) {
+    encoder.EncodeEnumField(71104, proto.indirect.value());
   }
   return std::move(encoder).Finish();
 }
 
-::tsdb2::proto::MessageDescriptor<Duration, 2> const Duration::MESSAGE_DESCRIPTOR{{
-    {"seconds", &Duration::seconds},
-    {"nanos", &Duration::nanos},
-}};
-
 TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING();
 
-}  // namespace google::protobuf
+}  // namespace tsdb2::proto

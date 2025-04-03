@@ -43,6 +43,20 @@ cc_library(
 )
 
 cc_test(
+    name = "proto_test",
+    srcs = ["proto_test.cc"],
+    deps = [
+        ":runtime",
+        "//common:fingerprint",
+        "//common:testing",
+        "//io:buffer",
+        "//io:buffer_testing",
+        "@com_google_absl//absl/hash",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
     name = "wire_format_test",
     srcs = ["wire_format_test.cc"],
     deps = [
@@ -129,18 +143,44 @@ tsdb2_cc_proto_library(
     visibility = ["//visibility:public"],
 )
 
+proto_library(
+    name = "annotations_proto",
+    srcs = ["annotations.proto"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":descriptor_proto",
+    ],
+)
+
+tsdb2_cc_proto_library(
+    name = "annotations_cc_proto",
+    proto = ":annotations_proto",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":descriptor_cc_proto",
+    ],
+)
+
 cc_library(
     name = "descriptor",
-    srcs = ["descriptor.pb.sync.cc"],
-    hdrs = ["descriptor.pb.sync.h"],
+    srcs = [
+        "annotations.pb.sync.cc",
+        "descriptor.pb.sync.cc",
+    ],
+    hdrs = [
+        "annotations.pb.sync.h",
+        "descriptor.pb.sync.h",
+    ],
     deps = [
         ":runtime",
         "//common:flat_set",
         "//common:utilities",
+        "//io:buffer",
         "//io:cord",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -191,6 +231,7 @@ cc_library(
         "//common:no_destructor",
         "//common:re",
         "//common:utilities",
+        "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/flags:flag",
@@ -210,7 +251,7 @@ proto_library(
 tsdb2_cc_proto_library(
     name = "timestamp_cc_proto",
     enable_reflection = True,
-    # Set the flag below to True whenever you need to update the timestamp.pb.sync.* files.
+    # Set the flag below to True only if you need to update the timestamp.pb.sync.* files.
     internal_generate_definitions_for_google_api_types_i_dont_care_about_odr_violations = False,
     proto = ":timestamp_proto",
     use_raw_google_api_types = True,
@@ -225,7 +266,7 @@ proto_library(
 tsdb2_cc_proto_library(
     name = "duration_cc_proto",
     enable_reflection = True,
-    # Set the flag below to True whenever you need to update the duration.pb.sync.* files.
+    # Set the flag below to True only if you need to update the duration.pb.sync.* files.
     internal_generate_definitions_for_google_api_types_i_dont_care_about_odr_violations = False,
     proto = ":duration_proto",
     use_raw_google_api_types = True,
@@ -236,6 +277,7 @@ proto_library(
     testonly = True,
     srcs = ["tests.proto"],
     deps = [
+        ":annotations_proto",
         ":duration_proto",
         ":timestamp_proto",
     ],
@@ -253,6 +295,7 @@ cc_test(
     srcs = ["generator_test.cc"],
     deps = [
         ":generator",
+        ":runtime",
         ":tests_cc_proto",
         "//common:fingerprint",
         "//common:testing",

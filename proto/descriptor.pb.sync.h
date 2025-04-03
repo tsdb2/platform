@@ -2,6 +2,7 @@
 #define __TSDB2_PROTO_DESCRIPTOR_PB_H__
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <tuple>
@@ -14,6 +15,7 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "common/utilities.h"
+#include "io/buffer.h"
 #include "io/cord.h"
 #include "proto/proto.h"
 
@@ -173,7 +175,8 @@ struct FeatureSet : public ::tsdb2::proto::Message {
 
   static auto Tie(FeatureSet const& proto) {
     return std::tie(proto.field_presence, proto.enum_type, proto.repeated_field_encoding,
-                    proto.utf8_validation, proto.message_encoding, proto.json_format);
+                    proto.utf8_validation, proto.message_encoding, proto.json_format,
+                    proto.extension_data);
   }
 
   template <typename H>
@@ -211,6 +214,7 @@ struct FeatureSet : public ::tsdb2::proto::Message {
   std::optional<::google::protobuf::FeatureSet::Utf8Validation> utf8_validation;
   std::optional<::google::protobuf::FeatureSet::MessageEncoding> message_encoding;
   std::optional<::google::protobuf::FeatureSet::JsonFormat> json_format;
+  ::tsdb2::proto::ExtensionData extension_data;
 };
 
 struct ExtensionRangeOptions : public ::tsdb2::proto::Message {
@@ -280,7 +284,7 @@ struct ExtensionRangeOptions : public ::tsdb2::proto::Message {
 
   static auto Tie(ExtensionRangeOptions const& proto) {
     return std::tie(proto.uninterpreted_option, proto.declaration, proto.features,
-                    proto.verification);
+                    proto.verification, proto.extension_data);
   }
 
   template <typename H>
@@ -317,6 +321,7 @@ struct ExtensionRangeOptions : public ::tsdb2::proto::Message {
   std::optional<::google::protobuf::FeatureSet> features;
   ::google::protobuf::ExtensionRangeOptions::VerificationState verification{
       ::google::protobuf::ExtensionRangeOptions::VerificationState::UNVERIFIED};
+  ::tsdb2::proto::ExtensionData extension_data;
 };
 
 struct MessageOptions : public ::tsdb2::proto::Message {
@@ -326,7 +331,7 @@ struct MessageOptions : public ::tsdb2::proto::Message {
   static auto Tie(MessageOptions const& proto) {
     return std::tie(proto.message_set_wire_format, proto.no_standard_descriptor_accessor,
                     proto.deprecated, proto.map_entry, proto.deprecated_legacy_json_field_conflicts,
-                    proto.features, proto.uninterpreted_option);
+                    proto.features, proto.uninterpreted_option, proto.extension_data);
   }
 
   template <typename H>
@@ -365,6 +370,7 @@ struct MessageOptions : public ::tsdb2::proto::Message {
   ABSL_DEPRECATED("") std::optional<bool> deprecated_legacy_json_field_conflicts;
   std::optional<::google::protobuf::FeatureSet> features;
   std::vector<::google::protobuf::UninterpretedOption> uninterpreted_option;
+  ::tsdb2::proto::ExtensionData extension_data;
 };
 
 struct DescriptorProto : public ::tsdb2::proto::Message {
@@ -509,7 +515,7 @@ struct EnumOptions : public ::tsdb2::proto::Message {
   static auto Tie(EnumOptions const& proto) {
     return std::tie(proto.allow_alias, proto.deprecated,
                     proto.deprecated_legacy_json_field_conflicts, proto.features,
-                    proto.uninterpreted_option);
+                    proto.uninterpreted_option, proto.extension_data);
   }
 
   template <typename H>
@@ -546,6 +552,7 @@ struct EnumOptions : public ::tsdb2::proto::Message {
   ABSL_DEPRECATED("") std::optional<bool> deprecated_legacy_json_field_conflicts;
   std::optional<::google::protobuf::FeatureSet> features;
   std::vector<::google::protobuf::UninterpretedOption> uninterpreted_option;
+  ::tsdb2::proto::ExtensionData extension_data;
 };
 
 struct EnumDescriptorProto : public ::tsdb2::proto::Message {
@@ -799,7 +806,7 @@ struct FieldOptions : public ::tsdb2::proto::Message {
     return std::tie(proto.ctype, proto.packed, proto.jstype, proto.lazy, proto.unverified_lazy,
                     proto.deprecated, proto.weak, proto.debug_redact, proto.retention,
                     proto.targets, proto.edition_defaults, proto.features, proto.feature_support,
-                    proto.uninterpreted_option);
+                    proto.uninterpreted_option, proto.extension_data);
   }
 
   template <typename H>
@@ -846,6 +853,7 @@ struct FieldOptions : public ::tsdb2::proto::Message {
   std::optional<::google::protobuf::FeatureSet> features;
   std::optional<::google::protobuf::FieldOptions::FeatureSupport> feature_support;
   std::vector<::google::protobuf::UninterpretedOption> uninterpreted_option;
+  ::tsdb2::proto::ExtensionData extension_data;
 };
 
 struct EnumValueOptions : public ::tsdb2::proto::Message {
@@ -854,7 +862,7 @@ struct EnumValueOptions : public ::tsdb2::proto::Message {
 
   static auto Tie(EnumValueOptions const& proto) {
     return std::tie(proto.deprecated, proto.features, proto.debug_redact, proto.feature_support,
-                    proto.uninterpreted_option);
+                    proto.uninterpreted_option, proto.extension_data);
   }
 
   template <typename H>
@@ -891,6 +899,7 @@ struct EnumValueOptions : public ::tsdb2::proto::Message {
   bool debug_redact{false};
   std::optional<::google::protobuf::FieldOptions::FeatureSupport> feature_support;
   std::vector<::google::protobuf::UninterpretedOption> uninterpreted_option;
+  ::tsdb2::proto::ExtensionData extension_data;
 };
 
 struct EnumValueDescriptorProto : public ::tsdb2::proto::Message {
@@ -1154,7 +1163,7 @@ struct FileOptions : public ::tsdb2::proto::Message {
                     proto.cc_enable_arenas, proto.objc_class_prefix, proto.csharp_namespace,
                     proto.swift_prefix, proto.php_class_prefix, proto.php_namespace,
                     proto.php_metadata_namespace, proto.ruby_package, proto.features,
-                    proto.uninterpreted_option);
+                    proto.uninterpreted_option, proto.extension_data);
   }
 
   template <typename H>
@@ -1208,6 +1217,7 @@ struct FileOptions : public ::tsdb2::proto::Message {
   std::optional<std::string> ruby_package;
   std::optional<::google::protobuf::FeatureSet> features;
   std::vector<::google::protobuf::UninterpretedOption> uninterpreted_option;
+  ::tsdb2::proto::ExtensionData extension_data;
 };
 
 struct SourceCodeInfo : public ::tsdb2::proto::Message {
@@ -1506,7 +1516,7 @@ struct MethodOptions : public ::tsdb2::proto::Message {
 
   static auto Tie(MethodOptions const& proto) {
     return std::tie(proto.deprecated, proto.idempotency_level, proto.features,
-                    proto.uninterpreted_option);
+                    proto.uninterpreted_option, proto.extension_data);
   }
 
   template <typename H>
@@ -1543,6 +1553,7 @@ struct MethodOptions : public ::tsdb2::proto::Message {
       ::google::protobuf::MethodOptions::IdempotencyLevel::IDEMPOTENCY_UNKNOWN};
   std::optional<::google::protobuf::FeatureSet> features;
   std::vector<::google::protobuf::UninterpretedOption> uninterpreted_option;
+  ::tsdb2::proto::ExtensionData extension_data;
 };
 
 struct MethodDescriptorProto : public ::tsdb2::proto::Message {
@@ -1596,7 +1607,7 @@ struct OneofOptions : public ::tsdb2::proto::Message {
   static ::tsdb2::io::Cord Encode(OneofOptions const& proto);
 
   static auto Tie(OneofOptions const& proto) {
-    return std::tie(proto.features, proto.uninterpreted_option);
+    return std::tie(proto.features, proto.uninterpreted_option, proto.extension_data);
   }
 
   template <typename H>
@@ -1630,6 +1641,7 @@ struct OneofOptions : public ::tsdb2::proto::Message {
 
   std::optional<::google::protobuf::FeatureSet> features;
   std::vector<::google::protobuf::UninterpretedOption> uninterpreted_option;
+  ::tsdb2::proto::ExtensionData extension_data;
 };
 
 struct OneofDescriptorProto : public ::tsdb2::proto::Message {
@@ -1676,7 +1688,8 @@ struct ServiceOptions : public ::tsdb2::proto::Message {
   static ::tsdb2::io::Cord Encode(ServiceOptions const& proto);
 
   static auto Tie(ServiceOptions const& proto) {
-    return std::tie(proto.features, proto.deprecated, proto.uninterpreted_option);
+    return std::tie(proto.features, proto.deprecated, proto.uninterpreted_option,
+                    proto.extension_data);
   }
 
   template <typename H>
@@ -1711,6 +1724,7 @@ struct ServiceOptions : public ::tsdb2::proto::Message {
   std::optional<::google::protobuf::FeatureSet> features;
   bool deprecated{false};
   std::vector<::google::protobuf::UninterpretedOption> uninterpreted_option;
+  ::tsdb2::proto::ExtensionData extension_data;
 };
 
 struct ServiceDescriptorProto : public ::tsdb2::proto::Message {

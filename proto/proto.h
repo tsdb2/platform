@@ -22,12 +22,94 @@
 #include "absl/types/span.h"
 #include "common/flat_map.h"
 #include "common/utilities.h"
+#include "io/buffer.h"
 
 namespace tsdb2 {
 namespace proto {
 
 // Base class for all protobuf messages.
 struct Message {};
+
+// Handles extension data inside extensible messages.
+class ExtensionData final {
+ public:
+  explicit ExtensionData() = default;
+
+  explicit ExtensionData(tsdb2::io::Buffer data) : data_(std::move(data)) {}
+
+  ~ExtensionData() = default;
+
+  ExtensionData(ExtensionData const& other) : data_(other.data_.Clone()) {}
+
+  ExtensionData& operator=(ExtensionData const& other) {
+    if (this != &other) {
+      data_ = other.data_.Clone();
+    }
+    return *this;
+  }
+
+  ExtensionData(ExtensionData&&) noexcept = default;
+  ExtensionData& operator=(ExtensionData&&) noexcept = default;
+
+  void swap(ExtensionData& other) noexcept {
+    if (this != &other) {
+      using std::swap;  // Ensure ADL.
+      swap(data_, other.data_);
+    }
+  }
+
+  friend void swap(ExtensionData& lhs, ExtensionData& rhs) noexcept { lhs.swap(rhs); }
+
+  friend bool operator==(ExtensionData const& lhs, ExtensionData const& rhs) {
+    return lhs.data_ == rhs.data_;
+  }
+
+  friend bool operator!=(ExtensionData const& lhs, ExtensionData const& rhs) {
+    return lhs.data_ != rhs.data_;
+  }
+
+  friend bool operator<(ExtensionData const& lhs, ExtensionData const& rhs) {
+    return lhs.data_ < rhs.data_;
+  }
+
+  friend bool operator<=(ExtensionData const& lhs, ExtensionData const& rhs) {
+    return lhs.data_ <= rhs.data_;
+  }
+
+  friend bool operator>(ExtensionData const& lhs, ExtensionData const& rhs) {
+    return lhs.data_ > rhs.data_;
+  }
+
+  friend bool operator>=(ExtensionData const& lhs, ExtensionData const& rhs) {
+    return lhs.data_ >= rhs.data_;
+  }
+
+  template <typename H>
+  friend H AbslHashValue(H h, ExtensionData const& data) {
+    return H::combine(std::move(h), data.data_);
+  }
+
+  template <typename State>
+  friend State Tsdb2FingerprintValue(State state, ExtensionData const& data) {
+    return State::Combine(std::move(state), data.data_);
+  }
+
+  [[nodiscard]] bool empty() const { return data_.empty(); }
+  size_t size() const { return data_.size(); }
+  size_t capacity() const { return data_.capacity(); }
+  absl::Span<uint8_t const> span() const { return data_.span(); }
+
+  void Clear() { data_.Clear(); }
+
+  tsdb2::io::Buffer Release() {
+    tsdb2::io::Buffer buffer = std::move(data_);
+    data_ = tsdb2::io::Buffer();
+    return buffer;
+  }
+
+ private:
+  tsdb2::io::Buffer data_;
+};
 
 namespace internal {
 
@@ -200,6 +282,11 @@ struct IsDescriptorForType<Enum, Descriptor, std::enable_if_t<std::is_enum_v<Enu
 // proper synchronization. The same goes for the protobufs themselves.
 class BaseMessageDescriptor {
  public:
+  // WARNING: don't change the order and numbering of the `FieldType`, `FieldKind`, and
+  // `LabeledFieldType` enum values. Save for a few exceptions (e.g. oneof fields), the rest of the
+  // code makes assumptions about the numbering for various tasks, for example when decomposing a
+  // `LabeledFieldType` into the corresponding `FieldType` and `FieldKind`.
+
   enum class FieldType : int8_t {
     kInt32Field = 0,
     kUInt32Field = 1,
@@ -655,7 +742,17 @@ class BaseMessageDescriptor {
     template <typename SubMessage>
     explicit OptionalSubMessage(std::optional<SubMessage>* const message,
                                 BaseMessageDescriptor const& descriptor)
-        : impl_(std::make_shared<Impl<SubMessage>>(message, descriptor)) {}
+        : impl_(std::make_shared<OptionalImpl<SubMessage>>(message, descriptor)) {}
+
+    template <typename SubMessage>
+    explicit OptionalSubMessage(std::unique_ptr<SubMessage>* const message,
+                                BaseMessageDescriptor const& descriptor)
+        : impl_(std::make_shared<UniqueImpl<SubMessage>>(message, descriptor)) {}
+
+    template <typename SubMessage>
+    explicit OptionalSubMessage(std::shared_ptr<SubMessage>* const message,
+                                BaseMessageDescriptor const& descriptor)
+        : impl_(std::make_shared<SharedImpl<SubMessage>>(message, descriptor)) {}
 
     ~OptionalSubMessage() = default;
 
@@ -696,10 +793,10 @@ class BaseMessageDescriptor {
     };
 
     template <typename SubMessage>
-    class Impl : public BaseImpl {
+    class OptionalImpl : public BaseImpl {
      public:
-      explicit Impl(std::optional<SubMessage>* const message,
-                    BaseMessageDescriptor const& descriptor)
+      explicit OptionalImpl(std::optional<SubMessage>* const message,
+                            BaseMessageDescriptor const& descriptor)
           : message_(message), descriptor_(descriptor) {}
 
       BaseMessageDescriptor const& GetDescriptor() const override { return descriptor_; }
@@ -718,6 +815,64 @@ class BaseMessageDescriptor {
 
      private:
       std::optional<SubMessage>* const message_;
+      BaseMessageDescriptor const& descriptor_;
+    };
+
+    template <typename SubMessage>
+    class UniqueImpl : public BaseImpl {
+     public:
+      explicit UniqueImpl(std::unique_ptr<SubMessage>* const message,
+                          BaseMessageDescriptor const& descriptor)
+          : message_(message), descriptor_(descriptor) {}
+
+      BaseMessageDescriptor const& GetDescriptor() const override { return descriptor_; }
+
+      bool HasValue() const override { return message_->operator bool(); }
+      Message const& GetValue() const override { return *(message_->get()); }
+      Message* GetMutableValue() override { return message_->get(); }
+
+      bool Erase() override {
+        bool const result = message_->operator bool();
+        message_->reset();
+        return result;
+      }
+
+      Message* Reset() override {
+        *message_ = std::make_unique<SubMessage>();
+        return message_->get();
+      }
+
+     private:
+      std::unique_ptr<SubMessage>* const message_;
+      BaseMessageDescriptor const& descriptor_;
+    };
+
+    template <typename SubMessage>
+    class SharedImpl : public BaseImpl {
+     public:
+      explicit SharedImpl(std::shared_ptr<SubMessage>* const message,
+                          BaseMessageDescriptor const& descriptor)
+          : message_(message), descriptor_(descriptor) {}
+
+      BaseMessageDescriptor const& GetDescriptor() const override { return descriptor_; }
+
+      bool HasValue() const override { return message_->operator bool(); }
+      Message const& GetValue() const override { return *(message_->get()); }
+      Message* GetMutableValue() override { return message_->get(); }
+
+      bool Erase() override {
+        bool const result = message_->operator bool();
+        message_->reset();
+        return result;
+      }
+
+      Message* Reset() override {
+        *message_ = std::make_shared<SubMessage>();
+        return message_->get();
+      }
+
+     private:
+      std::shared_ptr<SubMessage>* const message_;
       BaseMessageDescriptor const& descriptor_;
     };
 
@@ -1629,7 +1784,17 @@ struct FieldTypes {
     template <typename SubMessage>
     explicit OptionalSubMessageField(std::optional<SubMessage> Message::*const message,
                                      BaseMessageDescriptor const& descriptor)
-        : impl_(std::make_shared<Impl<SubMessage>>(message, descriptor)) {}
+        : impl_(std::make_shared<OptionalImpl<SubMessage>>(message, descriptor)) {}
+
+    template <typename SubMessage>
+    explicit OptionalSubMessageField(std::unique_ptr<SubMessage> Message::*const message,
+                                     BaseMessageDescriptor const& descriptor)
+        : impl_(std::make_shared<UniqueImpl<SubMessage>>(message, descriptor)) {}
+
+    template <typename SubMessage>
+    explicit OptionalSubMessageField(std::shared_ptr<SubMessage> Message::*const message,
+                                     BaseMessageDescriptor const& descriptor)
+        : impl_(std::make_shared<SharedImpl<SubMessage>>(message, descriptor)) {}
 
     ~OptionalSubMessageField() = default;
 
@@ -1662,10 +1827,10 @@ struct FieldTypes {
     };
 
     template <typename SubMessage>
-    class Impl : public BaseImpl {
+    class OptionalImpl : public BaseImpl {
      public:
-      explicit Impl(std::optional<SubMessage> Message::*const message,
-                    BaseMessageDescriptor const& descriptor)
+      explicit OptionalImpl(std::optional<SubMessage> Message::*const message,
+                            BaseMessageDescriptor const& descriptor)
           : message_(message), descriptor_(descriptor) {}
 
       BaseMessageDescriptor const& GetDescriptor() const override { return descriptor_; }
@@ -1676,6 +1841,42 @@ struct FieldTypes {
 
      private:
       std::optional<SubMessage> Message::*const message_;
+      BaseMessageDescriptor const& descriptor_;
+    };
+
+    template <typename SubMessage>
+    class UniqueImpl : public BaseImpl {
+     public:
+      explicit UniqueImpl(std::unique_ptr<SubMessage> Message::*const message,
+                          BaseMessageDescriptor const& descriptor)
+          : message_(message), descriptor_(descriptor) {}
+
+      BaseMessageDescriptor const& GetDescriptor() const override { return descriptor_; }
+
+      BaseMessageDescriptor::OptionalSubMessage MakeValue(Message* const parent) const override {
+        return BaseMessageDescriptor::OptionalSubMessage(&(parent->*message_), descriptor_);
+      }
+
+     private:
+      std::unique_ptr<SubMessage> Message::*const message_;
+      BaseMessageDescriptor const& descriptor_;
+    };
+
+    template <typename SubMessage>
+    class SharedImpl : public BaseImpl {
+     public:
+      explicit SharedImpl(std::shared_ptr<SubMessage> Message::*const message,
+                          BaseMessageDescriptor const& descriptor)
+          : message_(message), descriptor_(descriptor) {}
+
+      BaseMessageDescriptor const& GetDescriptor() const override { return descriptor_; }
+
+      BaseMessageDescriptor::OptionalSubMessage MakeValue(Message* const parent) const override {
+        return BaseMessageDescriptor::OptionalSubMessage(&(parent->*message_), descriptor_);
+      }
+
+     private:
+      std::shared_ptr<SubMessage> Message::*const message_;
       BaseMessageDescriptor const& descriptor_;
     };
 

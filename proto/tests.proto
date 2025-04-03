@@ -1,5 +1,6 @@
 syntax = "proto2";
 
+import "proto/annotations.proto";
 import "proto/duration.proto";
 import "proto/timestamp.proto";
 
@@ -193,4 +194,24 @@ message Version2 {
   repeated OptionalEnumField field4 = 4;
   optional string field5 = 5;
   repeated string field6 = 6;
+}
+
+message ExtensibleMessage {
+  optional int64 field1 = 10;
+  optional string field2 = 20;
+  extensions 1000 to max;
+}
+
+extend ExtensibleMessage {
+  optional bool field3 = 1010;
+  optional double field4 = 1020;
+}
+
+message IndirectSubMessages {
+  optional OptionalEnumField direct_optional_field = 1
+      [(tsdb2.proto.indirect) = INDIRECTION_DIRECT];
+  optional OptionalEnumField unique_optional_field = 2
+      [(tsdb2.proto.indirect) = INDIRECTION_UNIQUE];
+  optional OptionalEnumField shared_optional_field = 3
+      [(tsdb2.proto.indirect) = INDIRECTION_SHARED];
 }

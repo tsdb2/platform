@@ -2,6 +2,7 @@
 #define __TSDB2_PROTO_DURATION_PB_H__
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <tuple>
@@ -14,6 +15,7 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "common/utilities.h"
+#include "io/buffer.h"
 #include "io/cord.h"
 #include "proto/proto.h"
 

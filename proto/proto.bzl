@@ -95,6 +95,7 @@ tsdb2_cc_proto_library = rule(
             default = [
                 "//common:flat_set",
                 "//common:utilities",
+                "//io:buffer",
                 "//io:cord",
                 "//proto:runtime",
                 "@com_google_absl//absl/base",

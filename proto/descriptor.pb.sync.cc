@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <tuple>
 #include <utility>
 #include <variant>
@@ -463,10 +464,11 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
         proto.verification = value;
       } break;
       default:
-        RETURN_IF_ERROR(decoder.SkipRecord(tag.wire_type));
+        RETURN_IF_ERROR(decoder.AddRecordToExtensionData(tag));
         break;
     }
   }
+  proto.extension_data = ::tsdb2::proto::ExtensionData(std::move(decoder).GetExtensionData());
   return std::move(proto);
 }
 
@@ -997,10 +999,11 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
         proto.uninterpreted_option.emplace_back(std::move(value));
       } break;
       default:
-        RETURN_IF_ERROR(decoder.SkipRecord(tag.wire_type));
+        RETURN_IF_ERROR(decoder.AddRecordToExtensionData(tag));
         break;
     }
   }
+  proto.extension_data = ::tsdb2::proto::ExtensionData(std::move(decoder).GetExtensionData());
   return std::move(proto);
 }
 
@@ -1098,10 +1101,11 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
         proto.uninterpreted_option.emplace_back(std::move(value));
       } break;
       default:
-        RETURN_IF_ERROR(decoder.SkipRecord(tag.wire_type));
+        RETURN_IF_ERROR(decoder.AddRecordToExtensionData(tag));
         break;
     }
   }
+  proto.extension_data = ::tsdb2::proto::ExtensionData(std::move(decoder).GetExtensionData());
   return std::move(proto);
 }
 
@@ -1299,10 +1303,11 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
         proto.uninterpreted_option.emplace_back(std::move(value));
       } break;
       default:
-        RETURN_IF_ERROR(decoder.SkipRecord(tag.wire_type));
+        RETURN_IF_ERROR(decoder.AddRecordToExtensionData(tag));
         break;
     }
   }
+  proto.extension_data = ::tsdb2::proto::ExtensionData(std::move(decoder).GetExtensionData());
   return std::move(proto);
 }
 
@@ -1363,10 +1368,11 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
         proto.uninterpreted_option.emplace_back(std::move(value));
       } break;
       default:
-        RETURN_IF_ERROR(decoder.SkipRecord(tag.wire_type));
+        RETURN_IF_ERROR(decoder.AddRecordToExtensionData(tag));
         break;
     }
   }
+  proto.extension_data = ::tsdb2::proto::ExtensionData(std::move(decoder).GetExtensionData());
   return std::move(proto);
 }
 
@@ -1415,10 +1421,11 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
         proto.uninterpreted_option.emplace_back(std::move(value));
       } break;
       default:
-        RETURN_IF_ERROR(decoder.SkipRecord(tag.wire_type));
+        RETURN_IF_ERROR(decoder.AddRecordToExtensionData(tag));
         break;
     }
   }
+  proto.extension_data = ::tsdb2::proto::ExtensionData(std::move(decoder).GetExtensionData());
   return std::move(proto);
 }
 
@@ -1477,10 +1484,11 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
         proto.uninterpreted_option.emplace_back(std::move(value));
       } break;
       default:
-        RETURN_IF_ERROR(decoder.SkipRecord(tag.wire_type));
+        RETURN_IF_ERROR(decoder.AddRecordToExtensionData(tag));
         break;
     }
   }
+  proto.extension_data = ::tsdb2::proto::ExtensionData(std::move(decoder).GetExtensionData());
   return std::move(proto);
 }
 
@@ -1527,10 +1535,11 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
         proto.uninterpreted_option.emplace_back(std::move(value));
       } break;
       default:
-        RETURN_IF_ERROR(decoder.SkipRecord(tag.wire_type));
+        RETURN_IF_ERROR(decoder.AddRecordToExtensionData(tag));
         break;
     }
   }
+  proto.extension_data = ::tsdb2::proto::ExtensionData(std::move(decoder).GetExtensionData());
   return std::move(proto);
 }
 
@@ -1578,10 +1587,11 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
         proto.uninterpreted_option.emplace_back(std::move(value));
       } break;
       default:
-        RETURN_IF_ERROR(decoder.SkipRecord(tag.wire_type));
+        RETURN_IF_ERROR(decoder.AddRecordToExtensionData(tag));
         break;
     }
   }
+  proto.extension_data = ::tsdb2::proto::ExtensionData(std::move(decoder).GetExtensionData());
   return std::move(proto);
 }
 
@@ -1766,10 +1776,11 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
         proto.json_format.emplace(value);
       } break;
       default:
-        RETURN_IF_ERROR(decoder.SkipRecord(tag.wire_type));
+        RETURN_IF_ERROR(decoder.AddRecordToExtensionData(tag));
         break;
     }
   }
+  proto.extension_data = ::tsdb2::proto::ExtensionData(std::move(decoder).GetExtensionData());
   return std::move(proto);
 }
 

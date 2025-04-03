@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+import "proto/descriptor.proto";
+
+package tsdb2.proto;
+
+// This field-level option specifies how a protobuf field of sub-message type is rendered in C++
+// code. It only applies to optional fields and defaults to "direct" if unspecified.
+//
+// The following types are available:
+//
+//   * "direct" means the sub-message is wrapped in an `std::optional` (default behavior),
+//   * "unique" means it's wrapped in an `std::unique_ptr`,
+//   * "shared" means it's wrapped in an `std::shared_ptr`.
+//
+// This option helps break circular message dependencies that would otherwise cause C++ compilation
+// failures if all the involved messages were inlined inside each other. For example, the following
+// defines the protobuf equivalent of a binary tree (a recursive data structure):
+//
+//   syntax = "proto3";
+//
+//   import "proto/annotations.proto";
+//
+//   message TreeNode {
+//     string label = 1;
+//     TreeNode left = 2 [(tsdb2.proto.indirect) = INDIRECTION_UNIQUE];
+//     TreeNode right = 3 [(tsdb2.proto.indirect) = INDIRECTION_UNIQUE];
+//   }
+//
+// In order to minimize heap allocations you should ~always leave this option unspecified. Use it
+// only when you need to break a circular dependency among messages. Note that a dependency cycle
+// will not cause any compilation issue if one or more of the involed fields are repeated, because
+// in that case the respective sub-messages are wrapped in `std::vector` which itself implies a
+// level of indirection.
+//
+// Indirection is not applicable to required fields because both `std::unique_ptr` and
+// `std::shared_ptr` are nullable, so the behavior must be well defined when e.g. a null pointer is
+// serialized. If you need to break a dependency cycle you must make the indirect field optional.
+enum FieldIndirectionType {
+  INDIRECTION_DIRECT = 0;
+  INDIRECTION_UNIQUE = 1;
+  INDIRECTION_SHARED = 2;
+}
+
+extend google.protobuf.FieldOptions {
+  FieldIndirectionType indirect = 71104 [targets = TARGET_TYPE_FIELD, retention = RETENTION_SOURCE];
+}

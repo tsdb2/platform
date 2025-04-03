@@ -64,9 +64,11 @@ class Buffer {
   }
 
   void swap(Buffer& other) noexcept {
-    std::swap(capacity_, other.capacity_);
-    std::swap(length_, other.length_);
-    std::swap(data_, other.data_);
+    if (this != &other) {
+      std::swap(capacity_, other.capacity_);
+      std::swap(length_, other.length_);
+      std::swap(data_, other.data_);
+    }
   }
 
   friend void swap(Buffer& lhs, Buffer& rhs) noexcept { lhs.swap(rhs); }
@@ -83,6 +85,45 @@ class Buffer {
   // Returns a pointer to the buffer.
   void* get() { return data_; }
   void const* get() const { return data_; }
+
+  // The comparison operators compare the contents of the two buffers (up to their size, not the
+  // capacity). Empty (i.e. zero-sized) buffers are considered equal regardless of their capacities.
+
+  friend bool operator==(Buffer const& lhs, Buffer const& rhs) {
+    if (lhs.length_ != rhs.length_) {
+      return false;
+    } else if (lhs.empty()) {
+      return true;
+    } else {
+      return std::memcmp(lhs.data_, rhs.data_, lhs.length_) == 0;
+    }
+  }
+
+  friend bool operator!=(Buffer const& lhs, Buffer const& rhs) { return !operator==(lhs, rhs); }
+
+  friend bool operator<(Buffer const& lhs, Buffer const& rhs) {
+    if (lhs.length_ < rhs.length_) {
+      return true;
+    } else if (lhs.empty() || rhs.length_ < lhs.length_) {
+      return false;
+    } else {
+      return std::memcmp(lhs.data_, rhs.data_, lhs.length_) < 0;
+    }
+  }
+
+  friend bool operator<=(Buffer const& lhs, Buffer const& rhs) { return !(rhs < lhs); }
+  friend bool operator>(Buffer const& lhs, Buffer const& rhs) { return rhs < lhs; }
+  friend bool operator>=(Buffer const& lhs, Buffer const& rhs) { return !(lhs < rhs); }
+
+  template <typename H>
+  friend H AbslHashValue(H h, Buffer const& buffer) {
+    return H::combine(std::move(h), buffer.span());
+  }
+
+  template <typename State>
+  friend State Tsdb2FingerprintValue(State state, Buffer const& buffer) {
+    return State::Combine(std::move(state), buffer.span());
+  }
 
   // Returns an `absl::Span` referring to this buffer's data.
   //
@@ -279,6 +320,10 @@ class Buffer {
     CHECK_LE(length_, capacity_) << "buffer overflow";
   }
 
+  // Resets the size of the buffer to 0, as if `Advance` or similar methods had never been called.
+  // The capacity and data are not changed.
+  void Reset() { length_ = 0; }
+
   // Copies `length` bytes from `source` into the buffer, advancing the size of the buffer
   // accordingly.
   //
@@ -296,6 +341,24 @@ class Buffer {
     length_ += length;
   }
 
+  // Clones this buffer into a new one with the same size and content. The capacity of the new
+  // buffer is equal to its size, so it lacks any excess capacity this buffer may have.
+  Buffer Clone() const {
+    if (data_ != nullptr) {
+      return Buffer(absl::Span<uint8_t const>(data_, length_));
+    } else {
+      return Buffer();
+    }
+  }
+
+  // Destroys the buffer, resetting it to an empty state.
+  void Clear() {
+    delete[] data_;
+    data_ = nullptr;
+    capacity_ = 0;
+    length_ = 0;
+  }
+
   // Releases ownership of the buffer, invalidating this object and returning a pointer to the
   // previously wrapped data.
   gsl::owner<uint8_t*> Release() {
@@ -307,7 +370,8 @@ class Buffer {
   }
 
  private:
-  // Copies are forbidden because they are potentially expensive.
+  // Copies are forbidden because they are potentially expensive. Instead, we provide an explicit
+  // `Clone` method.
   Buffer(Buffer const&) = delete;
   Buffer& operator=(Buffer const&) = delete;
 
