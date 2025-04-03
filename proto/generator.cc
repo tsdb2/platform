@@ -490,12 +490,35 @@ absl::StatusOr<Generator> Generator::Builder::Build() && {
   }
   ASSIGN_OR_RETURN(enum_types_by_path_, GetEnumTypesByPath());
   ASSIGN_OR_RETURN(message_types_by_path_, GetMessageTypesByPath());
+  RETURN_IF_ERROR(CheckFieldIndirections());
   return Generator(
       file_descriptor_, absl::GetFlag(FLAGS_proto_emit_reflection_api), use_raw_google_api_types_,
       absl::GetFlag(
           FLAGS_proto_internal_generate_definitions_for_google_api_types_i_dont_care_about_odr_violations),
       std::move(enum_types_by_path_), std::move(message_types_by_path_), std::move(dependencies_),
       std::move(flat_dependencies_), std::move(base_path_));
+}
+
+absl::Status Generator::Builder::CheckFieldIndirections() const {
+  for (auto const& message : file_descriptor_->message_type) {
+    for (auto const& field : message.field) {
+      DEFINE_CONST_OR_RETURN(indirection, GetFieldIndirection(field));
+      if (indirection != FieldIndirection::kDirect) {
+        REQUIRE_FIELD_OR_RETURN(label, field, label);
+        if (label != google::protobuf::FieldDescriptorProto::Label::LABEL_OPTIONAL) {
+          return absl::InvalidArgumentError("indirect fields must be optional");
+        }
+        if (!field.type_name.has_value()) {
+          return absl::InvalidArgumentError("indirect fields must be of a message type");
+        }
+        DEFINE_CONST_OR_RETURN(path, GetTypePath(field.type_name.value()));
+        if (!message_types_by_path_.contains(path)) {
+          return absl::InvalidArgumentError("indirect fields must be of a message type");
+        }
+      }
+    }
+  }
+  return absl::OkStatus();
 }
 
 absl::Status Generator::Builder::CheckGoogleApiType(PathView const path) const {
@@ -545,7 +568,9 @@ absl::Status Generator::Builder::AddLexicalScope(Generator::LexicalScope const& 
       }
       if (field.type_name.has_value()) {
         REQUIRE_FIELD_OR_RETURN(label, field, label);
-        if (label != FieldDescriptorProto::Label::LABEL_REPEATED) {
+        DEFINE_CONST_OR_RETURN(indirection, GetFieldIndirection(field));
+        if (label != FieldDescriptorProto::Label::LABEL_REPEATED &&
+            indirection == FieldIndirection::kDirect) {
           DEFINE_CONST_OR_RETURN(type_path, GetTypePath(field.type_name.value()));
           if (use_raw_google_api_types_ || !kGoogleApiTypes->contains(type_path)) {
             dependencies_.AddDependency(path, type_path, field_name);
@@ -592,7 +617,9 @@ absl::Status Generator::Builder::BuildFlatDependencies(
     for (auto const& field : message_type.field) {
       if (field.type_name.has_value()) {
         REQUIRE_FIELD_OR_RETURN(label, field, label);
-        if (label != FieldDescriptorProto::Label::LABEL_REPEATED) {
+        DEFINE_CONST_OR_RETURN(indirection, GetFieldIndirection(field));
+        if (label != FieldDescriptorProto::Label::LABEL_REPEATED &&
+            indirection == FieldIndirection::kDirect) {
           DEFINE_CONST_OR_RETURN(dependee_path, GetTypePath(field.type_name.value()));
           if (use_raw_google_api_types_ || !kGoogleApiTypes->contains(dependee_path)) {
             auto const maybe_qualified_dependee_name = MaybeGetQualifiedName(dependee_path);

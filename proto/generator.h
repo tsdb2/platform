@@ -85,6 +85,10 @@ class Generator {
     Builder(Builder const&) = delete;
     Builder& operator=(Builder const&) = delete;
 
+    // Checks that the (tsdb2.proto.indirect) option is applied only to optional fields of
+    // sub-message type.
+    absl::Status CheckFieldIndirections() const;
+
     absl::Status CheckGoogleApiType(PathView path) const;
 
     absl::Status AddLexicalScope(LexicalScope const& scope);
