@@ -209,10 +209,21 @@ class Decoder {
   absl::Status SkipRecord(WireType wire_type);
   absl::Status SkipGroup(FieldTag start_tag);
 
+  absl::Status AddRecordToExtensionData(FieldTag tag);
+  tsdb2::io::Buffer GetExtensionData() &&;
+
  private:
   static absl::Status EndOfInputError();
 
   static inline size_t constexpr kMaxVarIntBits = 64;
+
+  // Decodes a varint without advancing the `data_` span. This is the internal implementation of
+  // `DecodeVarInt`. The caller is responsible for removing the decoded prefix. The first component
+  // of the returned pair is the decoded varint, the second component is the length of the decoded
+  // prefix.
+  absl::StatusOr<std::pair<uint64_t, size_t>> DecodeVarIntInternal() const;
+
+  absl::StatusOr<size_t> GetRecordLength(WireType wire_type) const;
 
   absl::StatusOr<FieldTag> DecodeTagInternal();
 
@@ -325,6 +336,7 @@ class Decoder {
   absl::StatusOr<Decoder> DecodeChildSpan(size_t record_size);
 
   absl::Span<uint8_t const> data_;
+  tsdb2::io::Cord extension_data_;
 };
 
 class Encoder {

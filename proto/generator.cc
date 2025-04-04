@@ -73,6 +73,7 @@ auto constexpr kDefaultHeaderIncludes = tsdb2::common::fixed_flat_set_of<std::st
     "absl/time/time.h",
     "absl/types/span.h",
     "common/utilities.h",
+    "io/buffer.h",
     "io/cord.h",
     "proto/proto.h",
 });
@@ -1049,6 +1050,9 @@ absl::Status Generator::EmitMessageFields(
       }
     }
   }
+  if (!message_type.extension_range.empty()) {
+    writer->AppendLine("::tsdb2::io::Buffer extension_data;");
+  }
   return absl::OkStatus();
 }
 
@@ -1863,7 +1867,11 @@ absl::Status Generator::EmitImplementationForScope(TextWriter* const writer, Pat
           writer->AppendLine("default:");
           {
             TextWriter::IndentedScope is{writer};
-            writer->AppendLine("RETURN_IF_ERROR(decoder.SkipRecord(tag.wire_type));");
+            if (message_type.extension_range.empty()) {
+              writer->AppendLine("RETURN_IF_ERROR(decoder.SkipRecord(tag.wire_type));");
+            } else {
+              writer->AppendLine("RETURN_IF_ERROR(decoder.AddRecordToExtensionData(tag));");
+            }
             writer->AppendLine("break;");
           }
         }
@@ -1888,6 +1896,9 @@ absl::Status Generator::EmitImplementationForScope(TextWriter* const writer, Pat
             }
           }
         }
+      }
+      if (!message_type.extension_range.empty()) {
+        writer->AppendLine("proto.extension_data = std::move(decoder).GetExtensionData();");
       }
       writer->AppendLine("return std::move(proto);");
     }

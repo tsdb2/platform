@@ -64,9 +64,11 @@ class Buffer {
   }
 
   void swap(Buffer& other) noexcept {
-    std::swap(capacity_, other.capacity_);
-    std::swap(length_, other.length_);
-    std::swap(data_, other.data_);
+    if (this != &other) {
+      std::swap(capacity_, other.capacity_);
+      std::swap(length_, other.length_);
+      std::swap(data_, other.data_);
+    }
   }
 
   friend void swap(Buffer& lhs, Buffer& rhs) noexcept { lhs.swap(rhs); }
