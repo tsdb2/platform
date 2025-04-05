@@ -535,6 +535,27 @@ absl::Status Generator::Builder::CheckGoogleApiType(PathView const path) const {
   }
 }
 
+absl::Status Generator::Builder::AddFieldToDependencies(
+    PathView const path, google::protobuf::FieldDescriptorProto const& descriptor) {
+  REQUIRE_FIELD_OR_RETURN(field_name, descriptor, name);
+  if (!kIdentifierPattern->Test(field_name)) {
+    return absl::InvalidArgumentError(absl::StrCat(
+        "invalid field name \"", absl::CEscape(field_name), "\" in ", absl::StrJoin(path, ".")));
+  }
+  if (descriptor.type_name.has_value()) {
+    REQUIRE_FIELD_OR_RETURN(label, descriptor, label);
+    DEFINE_CONST_OR_RETURN(indirection, GetFieldIndirection(descriptor));
+    if (label != FieldDescriptorProto::Label::LABEL_REPEATED &&
+        indirection == FieldIndirection::kDirect) {
+      DEFINE_CONST_OR_RETURN(type_path, GetTypePath(descriptor.type_name.value()));
+      if (use_raw_google_api_types_ || !kGoogleApiTypes->contains(type_path)) {
+        dependencies_.AddDependency(path, type_path, field_name);
+      }
+    }
+  }
+  return absl::OkStatus();
+}
+
 absl::Status Generator::Builder::AddLexicalScope(Generator::LexicalScope const& scope) {
   for (auto const& enum_type : scope.enum_types) {
     REQUIRE_FIELD_OR_RETURN(name, enum_type, name);
@@ -567,22 +588,10 @@ absl::Status Generator::Builder::AddLexicalScope(Generator::LexicalScope const& 
     REQUIRE_FIELD_OR_RETURN(message_name, message_type, name);
     Path const path = JoinPath(scope.base_path, message_name);
     for (auto const& field : message_type.field) {
-      REQUIRE_FIELD_OR_RETURN(field_name, field, name);
-      if (!kIdentifierPattern->Test(field_name)) {
-        return absl::InvalidArgumentError(
-            absl::StrCat("invalid message field name: \"", absl::CEscape(field_name), "\""));
-      }
-      if (field.type_name.has_value()) {
-        REQUIRE_FIELD_OR_RETURN(label, field, label);
-        DEFINE_CONST_OR_RETURN(indirection, GetFieldIndirection(field));
-        if (label != FieldDescriptorProto::Label::LABEL_REPEATED &&
-            indirection == FieldIndirection::kDirect) {
-          DEFINE_CONST_OR_RETURN(type_path, GetTypePath(field.type_name.value()));
-          if (use_raw_google_api_types_ || !kGoogleApiTypes->contains(type_path)) {
-            dependencies_.AddDependency(path, type_path, field_name);
-          }
-        }
-      }
+      RETURN_IF_ERROR(AddFieldToDependencies(path, field));
+    }
+    for (auto const& extension_field : message_type.extension) {
+      RETURN_IF_ERROR(AddFieldToDependencies(path, extension_field));
     }
   }
   return absl::OkStatus();
@@ -599,6 +608,27 @@ std::optional<std::string> Generator::Builder::MaybeGetQualifiedName(PathView co
     }
   }
   return absl::StrJoin(path.begin() + offset, path.end(), ".");
+}
+
+absl::Status Generator::Builder::AddFieldToFlatDependencies(
+    PathView const path, google::protobuf::FieldDescriptorProto const& descriptor) {
+  if (descriptor.type_name.has_value()) {
+    REQUIRE_FIELD_OR_RETURN(label, descriptor, label);
+    DEFINE_CONST_OR_RETURN(indirection, GetFieldIndirection(descriptor));
+    if (label != FieldDescriptorProto::Label::LABEL_REPEATED &&
+        indirection == FieldIndirection::kDirect) {
+      DEFINE_CONST_OR_RETURN(dependee_path, GetTypePath(descriptor.type_name.value()));
+      if (use_raw_google_api_types_ || !kGoogleApiTypes->contains(dependee_path)) {
+        auto const maybe_qualified_dependee_name = MaybeGetQualifiedName(dependee_path);
+        if (maybe_qualified_dependee_name.has_value()) {
+          REQUIRE_FIELD_OR_RETURN(field_name, descriptor, name);
+          flat_dependencies_.AddDependency(
+              path, JoinPath(base_path_, maybe_qualified_dependee_name.value()), field_name);
+        }
+      }
+    }
+  }
+  return absl::OkStatus();
 }
 
 absl::Status Generator::Builder::BuildFlatDependencies(
@@ -621,23 +651,10 @@ absl::Status Generator::Builder::BuildFlatDependencies(
     RETURN_IF_ERROR(
         BuildFlatDependencies(qualified_name, message_type.nested_type, message_type.enum_type));
     for (auto const& field : message_type.field) {
-      if (field.type_name.has_value()) {
-        REQUIRE_FIELD_OR_RETURN(label, field, label);
-        DEFINE_CONST_OR_RETURN(indirection, GetFieldIndirection(field));
-        if (label != FieldDescriptorProto::Label::LABEL_REPEATED &&
-            indirection == FieldIndirection::kDirect) {
-          DEFINE_CONST_OR_RETURN(dependee_path, GetTypePath(field.type_name.value()));
-          if (use_raw_google_api_types_ || !kGoogleApiTypes->contains(dependee_path)) {
-            auto const maybe_qualified_dependee_name = MaybeGetQualifiedName(dependee_path);
-            if (maybe_qualified_dependee_name.has_value()) {
-              REQUIRE_FIELD_OR_RETURN(field_name, field, name);
-              flat_dependencies_.AddDependency(
-                  child_path, JoinPath(base_path_, maybe_qualified_dependee_name.value()),
-                  field_name);
-            }
-          }
-        }
-      }
+      RETURN_IF_ERROR(AddFieldToFlatDependencies(child_path, field));
+    }
+    for (auto const& extension_field : message_type.extension) {
+      RETURN_IF_ERROR(AddFieldToFlatDependencies(child_path, extension_field));
     }
   }
   return absl::OkStatus();
