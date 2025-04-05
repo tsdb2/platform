@@ -14,6 +14,7 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "common/utilities.h"
+#include "io/buffer.h"
 #include "io/cord.h"
 #include "proto/proto.h"
 
