@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/flags/flag.h"
@@ -830,6 +831,25 @@ absl::StatusOr<std::string> Generator::MakeExtensionName(
   return absl::StrCat(absl::StrJoin(path, "_"), "_extension");
 }
 
+absl::StatusOr<std::vector<google::protobuf::DescriptorProto>> Generator::GetExtensionMessages(
+    LexicalScope const& scope) {
+  absl::btree_map<std::string, std::vector<google::protobuf::FieldDescriptorProto>> extensions;
+  for (auto const& extension : scope.extensions) {
+    DEFINE_CONST_OR_RETURN(name, MakeExtensionName(extension));
+    auto const [it, unused] = extensions.try_emplace(name);
+    it->second.emplace_back(extension);
+  }
+  std::vector<google::protobuf::DescriptorProto> descriptors;
+  descriptors.reserve(extensions.size());
+  for (auto& [extension_name, extension_fields] : extensions) {
+    descriptors.emplace_back(google::protobuf::DescriptorProto{
+        .name = extension_name,
+        .field = std::move(extension_fields),
+    });
+  }
+  return std::move(descriptors);
+}
+
 void Generator::EmitIncludes(google::protobuf::FileDescriptorProto const& file_descriptor,
                              internal::TextWriter* const writer,
                              tsdb2::common::flat_map<std::string, bool> headers) const {
@@ -856,7 +876,7 @@ void Generator::EmitSourceIncludes(TextWriter* const writer) const {
 }
 
 absl::StatusOr<Generator::Path> Generator::GetOptionPath(
-    ::google::protobuf::UninterpretedOption const& option) {
+    google::protobuf::UninterpretedOption const& option) {
   // TODO: resolve partially qualified paths instead of assuming they're all fully qualified.
   std::vector<std::string> parts{""};
   parts.reserve(option.name.size() + 1);
@@ -893,7 +913,7 @@ absl::StatusOr<std::pair<std::string, bool>> Generator::GetFieldType(
 }
 
 absl::StatusOr<Generator::FieldIndirection> Generator::GetFieldIndirection(
-    ::google::protobuf::FieldDescriptorProto const& descriptor) {
+    google::protobuf::FieldDescriptorProto const& descriptor) {
   if (!descriptor.options.has_value()) {
     return FieldIndirection::kDirect;
   }
@@ -1089,6 +1109,91 @@ absl::Status Generator::EmitMessageFields(
   return absl::OkStatus();
 }
 
+absl::Status Generator::EmitMessageHeader(
+    internal::TextWriter* const writer, LexicalScope const& scope,
+    google::protobuf::DescriptorProto const& message_type) const {
+  if (message_type.options && message_type.options->deprecated) {
+    writer->AppendLine("ABSL_DEPRECATED(\"\")");
+  }
+  REQUIRE_FIELD_OR_RETURN(name, message_type, name);
+  writer->AppendLine("struct ", name, " : public ::tsdb2::proto::Message {");
+  {
+    TextWriter::IndentedScope is{writer};
+    if (emit_reflection_api_) {
+      writer->AppendLine("static ::tsdb2::proto::MessageDescriptor<", name, ", ",
+                         GetNumGeneratedFields(message_type), "> const MESSAGE_DESCRIPTOR;");
+      writer->AppendEmptyLine();
+    }
+    RETURN_IF_ERROR(EmitHeaderForScope(writer, LexicalScope{
+                                                   .base_path = JoinPath(scope.base_path, name),
+                                                   .global = false,
+                                                   .message_types = message_type.nested_type,
+                                                   .enum_types = message_type.enum_type,
+                                                   .extensions = message_type.extension,
+                                               }));
+    writer->AppendLine("static ::absl::StatusOr<", name,
+                       "> Decode(::absl::Span<uint8_t const> data);");
+    writer->AppendLine("static ::tsdb2::io::Cord Encode(", name, " const& proto);");
+    writer->AppendEmptyLine();
+    writer->AppendLine("static auto Tie(", name, " const& proto) {");
+    {
+      TextWriter::IndentedScope is{writer};
+      std::vector<std::string> params;
+      params.reserve(message_type.field.size());
+      absl::flat_hash_set<size_t> oneof_indices;
+      oneof_indices.reserve(message_type.oneof_decl.size());
+      for (auto const& field : message_type.field) {
+        if (field.oneof_index.has_value()) {
+          size_t const index = field.oneof_index.value();
+          auto const [unused_it, inserted] = oneof_indices.emplace(index);
+          if (inserted) {
+            DEFINE_CONST_OR_RETURN(oneof_decl, GetOneofDecl(message_type, index));
+            REQUIRE_FIELD_OR_RETURN(name, *oneof_decl, name);
+            params.emplace_back(absl::StrCat("proto.", name));
+          }
+        } else {
+          REQUIRE_FIELD_OR_RETURN(name, field, name);
+          params.emplace_back(absl::StrCat("proto.", name));
+        }
+      }
+      if (!message_type.extension_range.empty()) {
+        params.emplace_back("proto.extension_data");
+      }
+      writer->AppendLine("return std::tie(", absl::StrJoin(params, ", "), ");");
+    }
+    writer->AppendLine("}");
+    writer->AppendEmptyLine();
+    writer->AppendLine("template <typename H>");
+    writer->AppendLine("friend H AbslHashValue(H h, ", name, " const& proto) {");
+    {
+      TextWriter::IndentedScope is{writer};
+      writer->AppendLine("return H::combine(std::move(h), Tie(proto));");
+    }
+    writer->AppendLine("}");
+    writer->AppendEmptyLine();
+    writer->AppendLine("template <typename State>");
+    writer->AppendLine("friend State Tsdb2FingerprintValue(State state, ", name,
+                       " const& proto) {");
+    {
+      TextWriter::IndentedScope is{writer};
+      writer->AppendLine("return State::Combine(std::move(state), Tie(proto));");
+    }
+    writer->AppendLine("}");
+    writer->AppendEmptyLine();
+    for (auto const& op : {"==", "!=", "<", "<=", ">", ">="}) {
+      writer->AppendLine("friend bool operator", op, "(", name, " const& lhs, ", name,
+                         " const& rhs) { return Tie(lhs) ", op, " Tie(rhs); }");
+    }
+    if (!message_type.field.empty()) {
+      writer->AppendEmptyLine();
+    }
+    RETURN_IF_ERROR(EmitMessageFields(writer, message_type));
+  }
+  writer->AppendLine("};");
+  writer->AppendEmptyLine();
+  return absl::OkStatus();
+}
+
 absl::Status Generator::EmitHeaderForScope(TextWriter* const writer,
                                            LexicalScope const& scope) const {
   for (auto const& message_type : scope.message_types) {
@@ -1168,91 +1273,16 @@ absl::Status Generator::EmitHeaderForScope(TextWriter* const writer,
   }
   for (auto const& name : dependencies_.MakeOrder(scope.base_path)) {
     auto const it = descriptors_by_name.find(name);
-    if (it == descriptors_by_name.end()) {
-      // If not found it means `name` refers to an enum, otherwise it's a regular message. We don't
-      // need to process enums here because they're always defined at the beginning of every lexical
-      // scope.
-      continue;
+    // If not found it means `name` refers to an enum, otherwise it's a regular message. We don't
+    // need to process enums here because they're always defined at the beginning of every lexical
+    // scope.
+    if (it != descriptors_by_name.end()) {
+      RETURN_IF_ERROR(EmitMessageHeader(writer, scope, /*message_type=*/*(it->second)));
     }
-    auto const& message_type = *(it->second);
-    if (message_type.options && message_type.options->deprecated) {
-      writer->AppendLine("ABSL_DEPRECATED(\"\")");
-    }
-    writer->AppendLine("struct ", name, " : public ::tsdb2::proto::Message {");
-    {
-      TextWriter::IndentedScope is{writer};
-      if (emit_reflection_api_) {
-        writer->AppendLine("static ::tsdb2::proto::MessageDescriptor<", name, ", ",
-                           GetNumGeneratedFields(message_type), "> const MESSAGE_DESCRIPTOR;");
-        writer->AppendEmptyLine();
-      }
-      RETURN_IF_ERROR(EmitHeaderForScope(writer, LexicalScope{
-                                                     .base_path = JoinPath(scope.base_path, name),
-                                                     .global = false,
-                                                     .message_types = message_type.nested_type,
-                                                     .enum_types = message_type.enum_type,
-                                                     .extensions = message_type.extension,
-                                                 }));
-      writer->AppendLine("static ::absl::StatusOr<", name,
-                         "> Decode(::absl::Span<uint8_t const> data);");
-      writer->AppendLine("static ::tsdb2::io::Cord Encode(", name, " const& proto);");
-      writer->AppendEmptyLine();
-      writer->AppendLine("static auto Tie(", name, " const& proto) {");
-      {
-        TextWriter::IndentedScope is{writer};
-        std::vector<std::string> params;
-        params.reserve(message_type.field.size());
-        absl::flat_hash_set<size_t> oneof_indices;
-        oneof_indices.reserve(message_type.oneof_decl.size());
-        for (auto const& field : message_type.field) {
-          if (field.oneof_index.has_value()) {
-            size_t const index = field.oneof_index.value();
-            auto const [unused_it, inserted] = oneof_indices.emplace(index);
-            if (inserted) {
-              DEFINE_CONST_OR_RETURN(oneof_decl, GetOneofDecl(message_type, index));
-              REQUIRE_FIELD_OR_RETURN(name, *oneof_decl, name);
-              params.emplace_back(absl::StrCat("proto.", name));
-            }
-          } else {
-            REQUIRE_FIELD_OR_RETURN(name, field, name);
-            params.emplace_back(absl::StrCat("proto.", name));
-          }
-        }
-        if (!message_type.extension_range.empty()) {
-          params.emplace_back("proto.extension_data");
-        }
-        writer->AppendLine("return std::tie(", absl::StrJoin(params, ", "), ");");
-      }
-      writer->AppendLine("}");
-      writer->AppendEmptyLine();
-      writer->AppendLine("template <typename H>");
-      writer->AppendLine("friend H AbslHashValue(H h, ", name, " const& proto) {");
-      {
-        TextWriter::IndentedScope is{writer};
-        writer->AppendLine("return H::combine(std::move(h), Tie(proto));");
-      }
-      writer->AppendLine("}");
-      writer->AppendEmptyLine();
-      writer->AppendLine("template <typename State>");
-      writer->AppendLine("friend State Tsdb2FingerprintValue(State state, ", name,
-                         " const& proto) {");
-      {
-        TextWriter::IndentedScope is{writer};
-        writer->AppendLine("return State::Combine(std::move(state), Tie(proto));");
-      }
-      writer->AppendLine("}");
-      writer->AppendEmptyLine();
-      for (auto const& op : {"==", "!=", "<", "<=", ">", ">="}) {
-        writer->AppendLine("friend bool operator", op, "(", name, " const& lhs, ", name,
-                           " const& rhs) { return Tie(lhs) ", op, " Tie(rhs); }");
-      }
-      if (!message_type.field.empty()) {
-        writer->AppendEmptyLine();
-      }
-      RETURN_IF_ERROR(EmitMessageFields(writer, message_type));
-    }
-    writer->AppendLine("};");
-    writer->AppendEmptyLine();
+  }
+  DEFINE_CONST_OR_RETURN(extensions, GetExtensionMessages(scope));
+  for (auto const& extension : extensions) {
+    RETURN_IF_ERROR(EmitMessageHeader(writer, scope, extension));
   }
   return absl::OkStatus();
 }
@@ -1848,122 +1878,132 @@ absl::Status Generator::EmitOneofFieldEncoding(
   return absl::OkStatus();
 }
 
+absl::Status Generator::EmitMessageImplementation(
+    internal::TextWriter* const writer, PathView const prefix, LexicalScope const& scope,
+    google::protobuf::DescriptorProto const& message_type) const {
+  REQUIRE_FIELD_OR_RETURN(name, message_type, name);
+  Path const full_path = JoinPath(scope.base_path, name);
+  if (!generate_definitions_for_google_api_types_ && kGoogleApiTypes->contains(full_path)) {
+    // Never generate definitions for Google API type symbols, as they are already provided in the
+    // runtime and would cause ODR violations.
+    return absl::OkStatus();
+  }
+  Path const path = JoinPath(prefix, name);
+  RETURN_IF_ERROR(EmitImplementationForScope(writer, /*prefix=*/path,
+                                             LexicalScope{
+                                                 .base_path = full_path,
+                                                 .global = false,
+                                                 .message_types = message_type.nested_type,
+                                                 .enum_types = message_type.enum_type,
+                                                 .extensions = message_type.extension,
+                                             }));
+  auto const qualified_name = absl::StrJoin(path, "::");
+  DEFINE_CONST_OR_RETURN(has_required_fields, HasRequiredFields(message_type));
+  writer->AppendEmptyLine();
+  writer->AppendLine("::absl::StatusOr<", qualified_name, "> ", qualified_name,
+                     "::Decode(::absl::Span<uint8_t const> const data) {");
+  {
+    TextWriter::IndentedScope is{writer};
+    writer->AppendLine(qualified_name, " proto;");
+    if (has_required_fields) {
+      writer->AppendLine("::tsdb2::common::flat_set<size_t> decoded;");
+    }
+    writer->AppendLine("::tsdb2::proto::Decoder decoder{data};");
+    writer->AppendLine("while (true) {");
+    {
+      TextWriter::IndentedScope is{writer};
+      writer->AppendLine("DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());");
+      writer->AppendLine("if (!maybe_tag.has_value()) {");
+      writer->AppendLine("  break;");
+      writer->AppendLine("}");
+      writer->AppendLine("auto const tag = maybe_tag.value();");
+      writer->AppendLine("switch (tag.field_number) {");
+      {
+        TextWriter::IndentedScope is{writer};
+        absl::flat_hash_set<size_t> oneof_indices;
+        oneof_indices.reserve(message_type.oneof_decl.size());
+        for (auto const& field : message_type.field) {
+          if (field.oneof_index.has_value()) {
+            size_t const index = field.oneof_index.value();
+            auto const [unused_it, inserted] = oneof_indices.emplace(index);
+            if (inserted) {
+              RETURN_IF_ERROR(EmitOneofFieldDecoding(writer, message_type, index));
+            }
+          } else {
+            RETURN_IF_ERROR(EmitFieldDecoding(writer, field));
+          }
+        }
+        writer->AppendLine("default:");
+        {
+          TextWriter::IndentedScope is{writer};
+          if (message_type.extension_range.empty()) {
+            writer->AppendLine("RETURN_IF_ERROR(decoder.SkipRecord(tag.wire_type));");
+          } else {
+            writer->AppendLine("RETURN_IF_ERROR(decoder.AddRecordToExtensionData(tag));");
+          }
+          writer->AppendLine("break;");
+        }
+      }
+      writer->AppendLine("}");
+    }
+    writer->AppendLine("}");
+    if (has_required_fields) {
+      for (auto const& field : message_type.field) {
+        if (!field.oneof_index.has_value()) {
+          REQUIRE_FIELD_OR_RETURN(label, field, label);
+          if (label == FieldDescriptorProto::Label::LABEL_REQUIRED) {
+            REQUIRE_FIELD_OR_RETURN(number, field, number);
+            writer->AppendLine("if (!decoded.contains(", number, ")) {");
+            {
+              TextWriter::IndentedScope is{writer};
+              REQUIRE_FIELD_OR_RETURN(name, field, name);
+              writer->AppendLine("return absl::InvalidArgumentError(\"missing required field \\\"",
+                                 name, "\\\"\");");
+            }
+            writer->AppendLine("}");
+          }
+        }
+      }
+    }
+    if (!message_type.extension_range.empty()) {
+      writer->AppendLine("proto.extension_data = std::move(decoder).GetExtensionData();");
+    }
+    writer->AppendLine("return std::move(proto);");
+  }
+  writer->AppendLine("}");
+  writer->AppendEmptyLine();
+  writer->AppendLine("::tsdb2::io::Cord ", qualified_name, "::Encode(", qualified_name,
+                     " const& proto) {");
+  {
+    TextWriter::IndentedScope is{writer};
+    writer->AppendLine("::tsdb2::proto::Encoder encoder;");
+    absl::flat_hash_set<size_t> oneof_indices;
+    oneof_indices.reserve(message_type.oneof_decl.size());
+    for (auto const& field : message_type.field) {
+      if (field.oneof_index.has_value()) {
+        size_t const index = field.oneof_index.value();
+        auto const [unused_it, inserted] = oneof_indices.emplace(index);
+        if (inserted) {
+          RETURN_IF_ERROR(EmitOneofFieldEncoding(writer, message_type, index));
+        }
+      } else {
+        RETURN_IF_ERROR(EmitFieldEncoding(writer, field));
+      }
+    }
+    writer->AppendLine("return std::move(encoder).Finish();");
+  }
+  writer->AppendLine("}");
+  return absl::OkStatus();
+}
+
 absl::Status Generator::EmitImplementationForScope(TextWriter* const writer, PathView const prefix,
                                                    LexicalScope const& scope) const {
   for (auto const& message_type : scope.message_types) {
-    REQUIRE_FIELD_OR_RETURN(name, message_type, name);
-    Path const full_path = JoinPath(scope.base_path, name);
-    if (!generate_definitions_for_google_api_types_ && kGoogleApiTypes->contains(full_path)) {
-      // Never generate definitions for Google API type symbols, as they are already provided in the
-      // runtime and would cause ODR violations.
-      continue;
-    }
-    Path const path = JoinPath(prefix, name);
-    RETURN_IF_ERROR(EmitImplementationForScope(writer, /*prefix=*/path,
-                                               LexicalScope{
-                                                   .base_path = full_path,
-                                                   .global = false,
-                                                   .message_types = message_type.nested_type,
-                                                   .enum_types = message_type.enum_type,
-                                                   .extensions = message_type.extension,
-                                               }));
-    auto const qualified_name = absl::StrJoin(path, "::");
-    DEFINE_CONST_OR_RETURN(has_required_fields, HasRequiredFields(message_type));
-    writer->AppendEmptyLine();
-    writer->AppendLine("::absl::StatusOr<", qualified_name, "> ", qualified_name,
-                       "::Decode(::absl::Span<uint8_t const> const data) {");
-    {
-      TextWriter::IndentedScope is{writer};
-      writer->AppendLine(qualified_name, " proto;");
-      if (has_required_fields) {
-        writer->AppendLine("::tsdb2::common::flat_set<size_t> decoded;");
-      }
-      writer->AppendLine("::tsdb2::proto::Decoder decoder{data};");
-      writer->AppendLine("while (true) {");
-      {
-        TextWriter::IndentedScope is{writer};
-        writer->AppendLine("DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());");
-        writer->AppendLine("if (!maybe_tag.has_value()) {");
-        writer->AppendLine("  break;");
-        writer->AppendLine("}");
-        writer->AppendLine("auto const tag = maybe_tag.value();");
-        writer->AppendLine("switch (tag.field_number) {");
-        {
-          TextWriter::IndentedScope is{writer};
-          absl::flat_hash_set<size_t> oneof_indices;
-          oneof_indices.reserve(message_type.oneof_decl.size());
-          for (auto const& field : message_type.field) {
-            if (field.oneof_index.has_value()) {
-              size_t const index = field.oneof_index.value();
-              auto const [unused_it, inserted] = oneof_indices.emplace(index);
-              if (inserted) {
-                RETURN_IF_ERROR(EmitOneofFieldDecoding(writer, message_type, index));
-              }
-            } else {
-              RETURN_IF_ERROR(EmitFieldDecoding(writer, field));
-            }
-          }
-          writer->AppendLine("default:");
-          {
-            TextWriter::IndentedScope is{writer};
-            if (message_type.extension_range.empty()) {
-              writer->AppendLine("RETURN_IF_ERROR(decoder.SkipRecord(tag.wire_type));");
-            } else {
-              writer->AppendLine("RETURN_IF_ERROR(decoder.AddRecordToExtensionData(tag));");
-            }
-            writer->AppendLine("break;");
-          }
-        }
-        writer->AppendLine("}");
-      }
-      writer->AppendLine("}");
-      if (has_required_fields) {
-        for (auto const& field : message_type.field) {
-          if (!field.oneof_index.has_value()) {
-            REQUIRE_FIELD_OR_RETURN(label, field, label);
-            if (label == FieldDescriptorProto::Label::LABEL_REQUIRED) {
-              REQUIRE_FIELD_OR_RETURN(number, field, number);
-              writer->AppendLine("if (!decoded.contains(", number, ")) {");
-              {
-                TextWriter::IndentedScope is{writer};
-                REQUIRE_FIELD_OR_RETURN(name, field, name);
-                writer->AppendLine(
-                    "return absl::InvalidArgumentError(\"missing required field \\\"", name,
-                    "\\\"\");");
-              }
-              writer->AppendLine("}");
-            }
-          }
-        }
-      }
-      if (!message_type.extension_range.empty()) {
-        writer->AppendLine("proto.extension_data = std::move(decoder).GetExtensionData();");
-      }
-      writer->AppendLine("return std::move(proto);");
-    }
-    writer->AppendLine("}");
-    writer->AppendEmptyLine();
-    writer->AppendLine("::tsdb2::io::Cord ", qualified_name, "::Encode(", qualified_name,
-                       " const& proto) {");
-    {
-      TextWriter::IndentedScope is{writer};
-      writer->AppendLine("::tsdb2::proto::Encoder encoder;");
-      absl::flat_hash_set<size_t> oneof_indices;
-      oneof_indices.reserve(message_type.oneof_decl.size());
-      for (auto const& field : message_type.field) {
-        if (field.oneof_index.has_value()) {
-          size_t const index = field.oneof_index.value();
-          auto const [unused_it, inserted] = oneof_indices.emplace(index);
-          if (inserted) {
-            RETURN_IF_ERROR(EmitOneofFieldEncoding(writer, message_type, index));
-          }
-        } else {
-          RETURN_IF_ERROR(EmitFieldEncoding(writer, field));
-        }
-      }
-      writer->AppendLine("return std::move(encoder).Finish();");
-    }
-    writer->AppendLine("}");
+    RETURN_IF_ERROR(EmitMessageImplementation(writer, prefix, scope, message_type));
+  }
+  DEFINE_CONST_OR_RETURN(extensions, GetExtensionMessages(scope));
+  for (auto const& extension : extensions) {
+    RETURN_IF_ERROR(EmitMessageImplementation(writer, prefix, scope, extension));
   }
   return absl::OkStatus();
 }

@@ -209,6 +209,7 @@ cc_library(
         "//common:no_destructor",
         "//common:re",
         "//common:utilities",
+        "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/flags:flag",

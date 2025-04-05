@@ -178,6 +178,9 @@ class Generator {
   static absl::StatusOr<std::string> MakeExtensionName(
       google::protobuf::FieldDescriptorProto const& descriptor);
 
+  static absl::StatusOr<std::vector<google::protobuf::DescriptorProto>> GetExtensionMessages(
+      LexicalScope const& scope);
+
   void EmitIncludes(google::protobuf::FileDescriptorProto const& file_descriptor,
                     internal::TextWriter* writer,
                     tsdb2::common::flat_map<std::string, bool> headers) const;
@@ -206,13 +209,13 @@ class Generator {
   // Returns the fully qualified path of an uninterpreted option, but only if all parts are
   // extensions. Returns an empty path if one or more parts are not extensions. This function is
   // suitable for TSDB2 options such as `tsdb2.proto.indirect`.
-  static absl::StatusOr<Path> GetOptionPath(::google::protobuf::UninterpretedOption const& option);
+  static absl::StatusOr<Path> GetOptionPath(google::protobuf::UninterpretedOption const& option);
 
   absl::StatusOr<std::pair<std::string, bool>> GetFieldType(
       google::protobuf::FieldDescriptorProto const& descriptor) const;
 
   static absl::StatusOr<FieldIndirection> GetFieldIndirection(
-      ::google::protobuf::FieldDescriptorProto const& descriptor);
+      google::protobuf::FieldDescriptorProto const& descriptor);
 
   absl::StatusOr<std::string> GetFieldInitializer(
       google::protobuf::FieldDescriptorProto const& descriptor, std::string_view type_name,
@@ -229,6 +232,9 @@ class Generator {
                               size_t index) const;
 
   absl::Status EmitMessageFields(internal::TextWriter* writer,
+                                 google::protobuf::DescriptorProto const& message_type) const;
+
+  absl::Status EmitMessageHeader(internal::TextWriter* writer, LexicalScope const& scope,
                                  google::protobuf::DescriptorProto const& message_type) const;
 
   absl::Status EmitHeaderForScope(internal::TextWriter* writer, LexicalScope const& scope) const;
@@ -288,6 +294,10 @@ class Generator {
   absl::Status EmitOneofFieldEncoding(internal::TextWriter* writer,
                                       google::protobuf::DescriptorProto const& message_type,
                                       size_t index) const;
+
+  absl::Status EmitMessageImplementation(
+      internal::TextWriter* writer, PathView prefix, LexicalScope const& scope,
+      google::protobuf::DescriptorProto const& message_type) const;
 
   absl::Status EmitImplementationForScope(internal::TextWriter* writer, PathView prefix,
                                           LexicalScope const& scope) const;

@@ -1317,7 +1317,7 @@ TEST(GeneratorTest, Versions) {
               }));
 }
 
-TEST(GeneratorTest, ExtensibleMessage) {
+TEST(GeneratorTest, MessageExtension) {
   EXPECT_TRUE(
       (std::is_same_v<decltype(std::declval<tsdb2::proto::test::ExtensibleMessage>().field1),
                       std::optional<int64_t>>));
@@ -1327,6 +1327,16 @@ TEST(GeneratorTest, ExtensibleMessage) {
   EXPECT_TRUE((
       std::is_same_v<decltype(std::declval<tsdb2::proto::test::ExtensibleMessage>().extension_data),
                      tsdb2::io::Buffer>));
+  EXPECT_TRUE(
+      (std::is_same_v<
+          decltype(std::declval<tsdb2::proto::test::tsdb2_proto_test_ExtensibleMessage_extension>()
+                       .field3),
+          std::optional<bool>>));
+  EXPECT_TRUE(
+      (std::is_same_v<
+          decltype(std::declval<tsdb2::proto::test::tsdb2_proto_test_ExtensibleMessage_extension>()
+                       .field4),
+          std::optional<double>>));
   tsdb2::proto::test::ExtensibleMessage m;
   EXPECT_TRUE(m.extension_data.empty());
 }
