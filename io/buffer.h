@@ -86,6 +86,45 @@ class Buffer {
   void* get() { return data_; }
   void const* get() const { return data_; }
 
+  // The comparison operators compare the contents of the two buffers (up to their size, not the
+  // capacity). Empty (i.e. zero-sized) buffers are considered equal regardless of their capacities.
+
+  friend bool operator==(Buffer const& lhs, Buffer const& rhs) {
+    if (lhs.length_ != rhs.length_) {
+      return false;
+    } else if (lhs.empty()) {
+      return true;
+    } else {
+      return std::memcmp(lhs.data_, rhs.data_, lhs.length_) == 0;
+    }
+  }
+
+  friend bool operator!=(Buffer const& lhs, Buffer const& rhs) { return !operator==(lhs, rhs); }
+
+  friend bool operator<(Buffer const& lhs, Buffer const& rhs) {
+    if (lhs.length_ < rhs.length_) {
+      return true;
+    } else if (lhs.empty() || rhs.length_ < lhs.length_) {
+      return false;
+    } else {
+      return std::memcmp(lhs.data_, rhs.data_, lhs.length_) < 0;
+    }
+  }
+
+  friend bool operator<=(Buffer const& lhs, Buffer const& rhs) { return !(rhs < lhs); }
+  friend bool operator>(Buffer const& lhs, Buffer const& rhs) { return rhs < lhs; }
+  friend bool operator>=(Buffer const& lhs, Buffer const& rhs) { return !(lhs < rhs); }
+
+  template <typename H>
+  friend H AbslHashValue(H h, Buffer const& buffer) {
+    return H::combine(std::move(h), buffer.span());
+  }
+
+  template <typename State>
+  friend State Tsdb2FingerprintValue(State state, Buffer const& buffer) {
+    return State::Combine(std::move(state), buffer.span());
+  }
+
   // Returns an `absl::Span` referring to this buffer's data.
   //
   // REQUIRES: the buffer must not be empty.
@@ -281,6 +320,10 @@ class Buffer {
     CHECK_LE(length_, capacity_) << "buffer overflow";
   }
 
+  // Resets the size of the buffer to 0, as if `Advance` or similar methods had never been called.
+  // The capacity and data are not changed.
+  void Reset() { length_ = 0; }
+
   // Copies `length` bytes from `source` into the buffer, advancing the size of the buffer
   // accordingly.
   //
@@ -296,6 +339,14 @@ class Buffer {
     CHECK_LE(length_ + length, capacity_) << "buffer overflow";
     std::memcpy(data_ + length_, source, length);
     length_ += length;
+  }
+
+  // Destroys the buffer, resetting it to an empty state.
+  void Clear() {
+    delete[] data_;
+    data_ = nullptr;
+    capacity_ = 0;
+    length_ = 0;
   }
 
   // Releases ownership of the buffer, invalidating this object and returning a pointer to the

@@ -1184,6 +1184,9 @@ absl::Status Generator::EmitHeaderForScope(TextWriter* const writer,
             params.emplace_back(absl::StrCat("proto.", name));
           }
         }
+        if (!message_type.extension_range.empty()) {
+          params.emplace_back("proto.extension_data");
+        }
         writer->AppendLine("return std::tie(", absl::StrJoin(params, ", "), ");");
       }
       writer->AppendLine("}");

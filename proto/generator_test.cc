@@ -16,6 +16,7 @@
 #include "common/utilities.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "io/buffer.h"
 #include "proto/tests.pb.h"
 
 namespace {
@@ -1314,6 +1315,20 @@ TEST(GeneratorTest, Versions) {
                       tsdb2::proto::test::OptionalEnumField{.color = ColorEnum::COLOR_BLUE},
                   },
               }));
+}
+
+TEST(GeneratorTest, ExtensibleMessage) {
+  EXPECT_TRUE(
+      (std::is_same_v<decltype(std::declval<tsdb2::proto::test::ExtensibleMessage>().field1),
+                      std::optional<int64_t>>));
+  EXPECT_TRUE(
+      (std::is_same_v<decltype(std::declval<tsdb2::proto::test::ExtensibleMessage>().field2),
+                      std::optional<std::string>>));
+  EXPECT_TRUE((
+      std::is_same_v<decltype(std::declval<tsdb2::proto::test::ExtensibleMessage>().extension_data),
+                     tsdb2::io::Buffer>));
+  tsdb2::proto::test::ExtensibleMessage m;
+  EXPECT_TRUE(m.extension_data.empty());
 }
 
 }  // namespace
