@@ -148,22 +148,25 @@ TEST(DecoderTest, DecodeTwoByteTag) {
 }
 
 TEST(DecoderTest, DecodeTagSkippingGroup) {
-  Decoder decoder{{0x43, 0x08, 0x2A, 0x12, 0x03, 'F', 'O', 'O', 0x44, 0x20}};
+  std::vector<uint8_t> const data{0x43, 0x08, 0x2A, 0x12, 0x03, 'F', 'O', 'O', 0x44, 0x20};
+  Decoder decoder{data};
   EXPECT_THAT(decoder.DecodeTag(),
               IsOkAndHolds(FieldTag{.field_number = 4, .wire_type = WireType::kVarInt}));
 }
 
 TEST(DecoderTest, DecodeTagSkippingTwoGroups) {
-  Decoder decoder{{
+  std::vector<uint8_t> const data{
       0x43, 0x08, 0x2A, 0x12, 0x03, 'F',  'O',  'O',  0x44, 0x43,
       0x12, 0x03, 'B',  'A',  'R',  0x08, 0x2B, 0x44, 0x20,
-  }};
+  };
+  Decoder decoder{data};
   EXPECT_THAT(decoder.DecodeTag(),
               IsOkAndHolds(FieldTag{.field_number = 4, .wire_type = WireType::kVarInt}));
 }
 
 TEST(DecoderTest, SkipGroupAndFinish) {
-  Decoder decoder{{0x43, 0x08, 0x2A, 0x12, 0x03, 'F', 'O', 'O', 0x44}};
+  std::vector<uint8_t> const data{0x43, 0x08, 0x2A, 0x12, 0x03, 'F', 'O', 'O', 0x44};
+  Decoder decoder{data};
   EXPECT_THAT(decoder.DecodeTag(), IsOkAndHolds(std::nullopt));
 }
 
