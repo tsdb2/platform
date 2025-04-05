@@ -58,6 +58,7 @@ class Generator {
     bool global;
     absl::Span<google::protobuf::DescriptorProto const> message_types;
     absl::Span<google::protobuf::EnumDescriptorProto const> enum_types;
+    absl::Span<google::protobuf::FieldDescriptorProto const> extensions;
   };
 
   class Builder {
@@ -165,6 +166,11 @@ class Generator {
   // Returns the number of generated fields, which may be different from the number of proto fields
   // due to the possible presence of oneof groupings, which generate a single `std::variant`.
   static size_t GetNumGeneratedFields(google::protobuf::DescriptorProto const& message_type);
+
+  // Generates the name of an extension message. The provided descriptor must be of an extension
+  // field.
+  static absl::StatusOr<std::string> MakeExtensionName(
+      google::protobuf::FieldDescriptorProto const& descriptor);
 
   void EmitIncludes(google::protobuf::FileDescriptorProto const& file_descriptor,
                     internal::TextWriter* writer,

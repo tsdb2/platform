@@ -381,6 +381,7 @@ absl::StatusOr<std::string> Generator::GenerateHeaderFileContent() {
       .global = true,
       .message_types = file_descriptor_->message_type,
       .enum_types = file_descriptor_->enum_type,
+      .extensions = file_descriptor_->extension,
   };
   RETURN_IF_ERROR(EmitHeaderForScope(&writer, global_scope));
   if (!package.empty()) {
@@ -426,6 +427,7 @@ absl::StatusOr<std::string> Generator::GenerateSourceFileContent() {
       .global = true,
       .message_types = file_descriptor_->message_type,
       .enum_types = file_descriptor_->enum_type,
+      .extensions = file_descriptor_->extension,
   };
   RETURN_IF_ERROR(EmitImplementationForScope(&writer, /*prefix=*/{}, global_scope));
   if (emit_reflection_api_) {
@@ -477,6 +479,7 @@ absl::StatusOr<Generator> Generator::Builder::Build() && {
       .global = true,
       .message_types = file_descriptor_->message_type,
       .enum_types = file_descriptor_->enum_type,
+      .extensions = file_descriptor_->extension,
   };
   RETURN_IF_ERROR(AddLexicalScope(global_scope));
   RETURN_IF_ERROR(
@@ -557,6 +560,7 @@ absl::Status Generator::Builder::AddLexicalScope(Generator::LexicalScope const& 
         .global = false,
         .message_types = message_type.nested_type,
         .enum_types = message_type.enum_type,
+        .extensions = message_type.extension,
     }));
   }
   for (auto const& message_type : scope.message_types) {
@@ -653,6 +657,7 @@ absl::StatusOr<Generator::Builder::Cycles> Generator::Builder::FindCycles(
                                      .global = false,
                                      .message_types = message_type.nested_type,
                                      .enum_types = message_type.enum_type,
+                                     .extensions = message_type.extension,
                                  }));
     if (!cycles.empty()) {
       return std::move(cycles);
@@ -675,6 +680,7 @@ absl::Status Generator::Builder::GetEnumTypesByPathImpl(
         .global = false,
         .message_types = message_type.nested_type,
         .enum_types = message_type.enum_type,
+        .extensions = message_type.extension,
     };
     RETURN_IF_ERROR(GetEnumTypesByPathImpl(child_scope, descriptors));
   }
@@ -689,6 +695,7 @@ Generator::Builder::GetEnumTypesByPath() const {
       .global = true,
       .message_types = file_descriptor_->message_type,
       .enum_types = file_descriptor_->enum_type,
+      .extensions = file_descriptor_->extension,
   };
   RETURN_IF_ERROR(GetEnumTypesByPathImpl(global_scope, &descriptors));
   return std::move(descriptors);
@@ -705,6 +712,7 @@ absl::Status Generator::Builder::GetMessageTypesByPathImpl(
         .global = false,
         .message_types = message_type.nested_type,
         .enum_types = message_type.enum_type,
+        .extensions = message_type.extension,
     };
     RETURN_IF_ERROR(GetMessageTypesByPathImpl(child_scope, descriptors));
   }
@@ -719,6 +727,7 @@ Generator::Builder::GetMessageTypesByPath() const {
       .global = true,
       .message_types = file_descriptor_->message_type,
       .enum_types = file_descriptor_->enum_type,
+      .extensions = file_descriptor_->extension,
   };
   RETURN_IF_ERROR(GetMessageTypesByPathImpl(global_scope, &descriptors));
   return std::move(descriptors);
@@ -795,6 +804,13 @@ size_t Generator::GetNumGeneratedFields(google::protobuf::DescriptorProto const&
     }
   }
   return num_regular_fields + oneof_indices.size();
+}
+
+absl::StatusOr<std::string> Generator::MakeExtensionName(
+    google::protobuf::FieldDescriptorProto const& descriptor) {
+  REQUIRE_FIELD_OR_RETURN(extendee, descriptor, extendee);
+  DEFINE_CONST_OR_RETURN(path, GetTypePath(extendee));
+  return absl::StrCat(absl::StrJoin(path, "_"), "_extension");
 }
 
 void Generator::EmitIncludes(google::protobuf::FileDescriptorProto const& file_descriptor,
@@ -1158,6 +1174,7 @@ absl::Status Generator::EmitHeaderForScope(TextWriter* const writer,
                                                      .global = false,
                                                      .message_types = message_type.nested_type,
                                                      .enum_types = message_type.enum_type,
+                                                     .extensions = message_type.extension,
                                                  }));
       writer->AppendLine("static ::absl::StatusOr<", name,
                          "> Decode(::absl::Span<uint8_t const> data);");
@@ -1247,6 +1264,7 @@ absl::Status Generator::EmitDescriptorSpecializationsForScope(internal::TextWrit
         .global = false,
         .message_types = message_type.nested_type,
         .enum_types = message_type.enum_type,
+        .extensions = message_type.extension,
     };
     RETURN_IF_ERROR(EmitDescriptorSpecializationsForScope(writer, child_scope));
     writer->AppendEmptyLine();
@@ -1830,6 +1848,7 @@ absl::Status Generator::EmitImplementationForScope(TextWriter* const writer, Pat
                                                    .global = false,
                                                    .message_types = message_type.nested_type,
                                                    .enum_types = message_type.enum_type,
+                                                   .extensions = message_type.extension,
                                                }));
     auto const qualified_name = absl::StrJoin(path, "::");
     DEFINE_CONST_OR_RETURN(has_required_fields, HasRequiredFields(message_type));
