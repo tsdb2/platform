@@ -1280,17 +1280,22 @@ TEST(GeneratorTest, Nesting) {
   EXPECT_TRUE((std::is_same_v<decltype(std::declval<tsdb2::proto::test::Nesting>().field2),
                               std::optional<int32_t>>));
   EXPECT_TRUE((std::is_same_v<decltype(std::declval<tsdb2::proto::test::Nesting>().field3),
+                              std::optional<tsdb2::proto::test::Nesting::SatorEnum>>));
+  EXPECT_TRUE((std::is_same_v<decltype(std::declval<tsdb2::proto::test::Nesting>().field4),
                               std::optional<tsdb2::proto::test::Nesting::NestedMessage>>));
   tsdb2::proto::test::Nesting m;
   EXPECT_FALSE(m.field2.has_value());
   EXPECT_FALSE(m.field3.has_value());
+  EXPECT_FALSE(m.field4.has_value());
   m.field2 = -12;
-  m.field3.emplace(tsdb2::proto::test::Nesting::NestedMessage{.field1 = 34});
+  m.field3 = tsdb2::proto::test::Nesting::SatorEnum::SATOR_TENET;
+  m.field4.emplace(tsdb2::proto::test::Nesting::NestedMessage{.field1 = 34});
   auto const encoded = tsdb2::proto::test::Nesting::Encode(m).Flatten();
   EXPECT_THAT(tsdb2::proto::test::Nesting::Decode(encoded.span()),
               IsOkAndHolds(tsdb2::proto::test::Nesting{
                   .field2 = -12,
-                  .field3{tsdb2::proto::test::Nesting::NestedMessage{
+                  .field3 = tsdb2::proto::test::Nesting::SatorEnum::SATOR_TENET,
+                  .field4{tsdb2::proto::test::Nesting::NestedMessage{
                       .field1 = 34,
                   }},
               }));

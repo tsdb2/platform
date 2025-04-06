@@ -12,6 +12,7 @@
       "args": [
         "--proto_root_path=/home/jim/test/tsdb2/",
         "--proto_file_descriptor_sets=/home/jim/tsdb2/platform/bazel-bin/proto/tests_proto-descriptor-set.proto.bin",
+        "--proto_emit_reflection_api",
       ],
       "cwd": "${fileWorkspaceFolder}",
       "sourceMap": [

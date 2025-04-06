@@ -161,14 +161,27 @@ tsdb2_cc_proto_library(
     ],
 )
 
+proto_library(
+    name = "dependency_mapping_proto",
+    srcs = ["dependency_mapping.proto"],
+)
+
+tsdb2_cc_proto_library(
+    name = "dependency_mapping_cc_proto",
+    enable_reflection = True,
+    proto = ":dependency_mapping_proto",
+)
+
 cc_library(
     name = "descriptor",
     srcs = [
         "annotations.pb.sync.cc",
+        "dependency_mapping.pb.sync.cc",
         "descriptor.pb.sync.cc",
     ],
     hdrs = [
         "annotations.pb.sync.h",
+        "dependency_mapping.pb.sync.h",
         "descriptor.pb.sync.h",
     ],
     deps = [

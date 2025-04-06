@@ -18,6 +18,8 @@ cp "$SOURCE_DIR/descriptor.pb.h" ./descriptor.pb.sync.h
 cp "$SOURCE_DIR/descriptor.pb.cc" ./descriptor.pb.sync.cc
 cp "$SOURCE_DIR/annotations.pb.h" ./annotations.pb.sync.h
 cp "$SOURCE_DIR/annotations.pb.cc" ./annotations.pb.sync.cc
+cp "$SOURCE_DIR/dependency_mapping.pb.h" ./dependency_mapping.pb.sync.h
+cp "$SOURCE_DIR/dependency_mapping.pb.cc" ./dependency_mapping.pb.sync.cc
 cp "$SOURCE_DIR/plugin.pb.h" ./plugin.pb.sync.h
 cp "$SOURCE_DIR/plugin.pb.cc" ./plugin.pb.sync.cc
 cp "$SOURCE_DIR/timestamp.pb.h" ./timestamp.pb.sync.h
@@ -39,6 +41,8 @@ amend_file ./descriptor.pb.sync.h
 amend_file ./descriptor.pb.sync.cc
 amend_file ./annotations.pb.sync.h
 amend_file ./annotations.pb.sync.cc
+amend_file ./dependency_mapping.pb.sync.h
+amend_file ./dependency_mapping.pb.sync.cc
 amend_file ./plugin.pb.sync.h
 amend_file ./plugin.pb.sync.cc
 amend_file ./timestamp.pb.sync.h

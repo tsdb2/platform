@@ -94,7 +94,7 @@ class Generator {
 
     absl::Status CheckGoogleApiType(PathView path) const;
 
-    absl::Status AddFieldToDependencies(PathView path,
+    absl::Status AddFieldToDependencies(PathView dependee_path,
                                         google::protobuf::FieldDescriptorProto const& descriptor);
 
     absl::Status AddLexicalScope(LexicalScope const& scope);
@@ -102,7 +102,7 @@ class Generator {
     std::optional<std::string> MaybeGetQualifiedName(PathView path);
 
     absl::Status AddFieldToFlatDependencies(
-        PathView path, google::protobuf::FieldDescriptorProto const& descriptor);
+        PathView dependent_path, google::protobuf::FieldDescriptorProto const& descriptor);
 
     absl::Status BuildFlatDependencies(
         std::string_view scope_name,

@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package tsdb2.proto;
+
+// Defines a mapping from .proto definition files to the corresponding C++ headers. Used internally
+// by the code generator.
+message DependencyMapping {
+  // The key is a .proto file path, the value is the corresponding C++ header file path.
+  message Dependency {
+    string key = 1;
+    string value = 2;
+  }
+
+  // Entry keys must be unique.
+  //
+  // TODO: convert to a map.
+  repeated Dependency dependency = 1;
+}

@@ -16,12 +16,13 @@ def _join_path(*paths):
 
 def _cc_proto_library_impl(ctx):
     proto_info = ctx.attr.proto[ProtoInfo]
-    cc_infos = [
-        dep[CcInfo]
-        for dep in ctx.attr._runtime_deps
-    ] + [
+    cc_proto_infos = [
         dep[CcInfo]
         for dep in ctx.attr.deps
+    ]
+    cc_infos = cc_proto_infos + [
+        dep[CcInfo]
+        for dep in ctx.attr._runtime_deps
     ]
     generated_header_files = []
     generated_source_files = []
@@ -76,6 +77,7 @@ def _cc_proto_library_impl(ctx):
     )
     return [
         DefaultInfo(files = depset(generated_files)),
+        proto_info,
         CcInfo(
             compilation_context = compilation_context,
             linking_context = linking_context,
@@ -89,7 +91,7 @@ tsdb2_cc_proto_library = rule(
         "enable_reflection": attr.bool(),
         "use_raw_google_api_types": attr.bool(),
         "internal_generate_definitions_for_google_api_types_i_dont_care_about_odr_violations": attr.bool(),
-        "deps": attr.label_list(providers = [CcInfo]),
+        "deps": attr.label_list(providers = [ProtoInfo, CcInfo]),
         "_generator": attr.label(default = "//proto:generate", executable = True, cfg = "exec"),
         "_runtime_deps": attr.label_list(
             default = [

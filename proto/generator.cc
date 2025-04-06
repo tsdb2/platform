@@ -540,11 +540,12 @@ absl::Status Generator::Builder::CheckGoogleApiType(PathView const path) const {
 }
 
 absl::Status Generator::Builder::AddFieldToDependencies(
-    PathView const path, google::protobuf::FieldDescriptorProto const& descriptor) {
+    PathView const dependee_path, google::protobuf::FieldDescriptorProto const& descriptor) {
   REQUIRE_FIELD_OR_RETURN(field_name, descriptor, name);
   if (!kIdentifierPattern->Test(field_name)) {
-    return absl::InvalidArgumentError(absl::StrCat(
-        "invalid field name \"", absl::CEscape(field_name), "\" in ", absl::StrJoin(path, ".")));
+    return absl::InvalidArgumentError(absl::StrCat("invalid field name \"",
+                                                   absl::CEscape(field_name), "\" in ",
+                                                   absl::StrJoin(dependee_path, ".")));
   }
   if (descriptor.type_name.has_value()) {
     REQUIRE_FIELD_OR_RETURN(label, descriptor, label);
@@ -553,7 +554,7 @@ absl::Status Generator::Builder::AddFieldToDependencies(
         indirection == FieldIndirectionType::INDIRECTION_DIRECT) {
       DEFINE_CONST_OR_RETURN(type_path, GetTypePath(descriptor.type_name.value()));
       if (use_raw_google_api_types_ || !kGoogleApiTypes->contains(type_path)) {
-        dependencies_.AddDependency(path, type_path, field_name);
+        dependencies_.AddDependency(dependee_path, type_path, field_name);
       }
     }
   }
@@ -615,7 +616,7 @@ std::optional<std::string> Generator::Builder::MaybeGetQualifiedName(PathView co
 }
 
 absl::Status Generator::Builder::AddFieldToFlatDependencies(
-    PathView const path, google::protobuf::FieldDescriptorProto const& descriptor) {
+    PathView const dependent_path, google::protobuf::FieldDescriptorProto const& descriptor) {
   if (descriptor.type_name.has_value()) {
     REQUIRE_FIELD_OR_RETURN(label, descriptor, label);
     DEFINE_CONST_OR_RETURN(indirection, GetFieldIndirection(descriptor));
@@ -627,7 +628,8 @@ absl::Status Generator::Builder::AddFieldToFlatDependencies(
         if (maybe_qualified_dependee_name.has_value()) {
           REQUIRE_FIELD_OR_RETURN(field_name, descriptor, name);
           flat_dependencies_.AddDependency(
-              path, JoinPath(base_path_, maybe_qualified_dependee_name.value()), field_name);
+              dependent_path, JoinPath(base_path_, maybe_qualified_dependee_name.value()),
+              field_name);
         }
       }
     }
@@ -642,23 +644,23 @@ absl::Status Generator::Builder::BuildFlatDependencies(
   for (auto const& enum_type : enum_types) {
     REQUIRE_FIELD_OR_RETURN(name, enum_type, name);
     auto const qualified_name = scope_name.empty() ? name : absl::StrCat(scope_name, ".", name);
-    Path const path = JoinPath(base_path_, SplitPath(qualified_name));
-    RETURN_IF_ERROR(CheckGoogleApiType(path));
-    flat_dependencies_.AddNode(path);
+    RETURN_IF_ERROR(CheckGoogleApiType(JoinPath(base_path_, SplitPath(qualified_name))));
+    Path const flat_path = JoinPath(base_path_, qualified_name);
+    flat_dependencies_.AddNode(flat_path);
   }
   for (auto const& message_type : message_types) {
     REQUIRE_FIELD_OR_RETURN(name, message_type, name);
     auto const qualified_name = scope_name.empty() ? name : absl::StrCat(scope_name, ".", name);
-    Path const child_path = JoinPath(base_path_, SplitPath(qualified_name));
-    RETURN_IF_ERROR(CheckGoogleApiType(child_path));
-    flat_dependencies_.AddNode(child_path);
+    RETURN_IF_ERROR(CheckGoogleApiType(JoinPath(base_path_, SplitPath(qualified_name))));
+    Path const flat_child_path = JoinPath(base_path_, qualified_name);
+    flat_dependencies_.AddNode(flat_child_path);
     RETURN_IF_ERROR(
         BuildFlatDependencies(qualified_name, message_type.nested_type, message_type.enum_type));
     for (auto const& field : message_type.field) {
-      RETURN_IF_ERROR(AddFieldToFlatDependencies(child_path, field));
+      RETURN_IF_ERROR(AddFieldToFlatDependencies(flat_child_path, field));
     }
     for (auto const& extension_field : message_type.extension) {
-      RETURN_IF_ERROR(AddFieldToFlatDependencies(child_path, extension_field));
+      RETURN_IF_ERROR(AddFieldToFlatDependencies(flat_child_path, extension_field));
     }
   }
   return absl::OkStatus();
