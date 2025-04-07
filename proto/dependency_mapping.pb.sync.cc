@@ -94,17 +94,17 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   return std::move(encoder).Finish();
 }
 
+::tsdb2::proto::MessageDescriptor<DependencyMapping::Dependency, 2> const
+    DependencyMapping::Dependency::MESSAGE_DESCRIPTOR{{
+        {"key", &DependencyMapping::Dependency::key},
+        {"value", &DependencyMapping::Dependency::value},
+    }};
+
 ::tsdb2::proto::MessageDescriptor<DependencyMapping, 1> const DependencyMapping::MESSAGE_DESCRIPTOR{
     {
         {"dependency", ::tsdb2::proto::RepeatedSubMessageField<DependencyMapping>(
                            &DependencyMapping::dependency,
                            ::tsdb2::proto::DependencyMapping::Dependency::MESSAGE_DESCRIPTOR)},
-    }};
-
-::tsdb2::proto::MessageDescriptor<DependencyMapping::Dependency, 2> const
-    DependencyMapping::Dependency::MESSAGE_DESCRIPTOR{{
-        {"key", &DependencyMapping::Dependency::key},
-        {"value", &DependencyMapping::Dependency::value},
     }};
 
 TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING();
