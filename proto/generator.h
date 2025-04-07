@@ -99,6 +99,9 @@ class Generator {
 
     absl::Status AddLexicalScope(LexicalScope const& scope);
 
+    // Converts an absolute path to a partially qualified name relative to the `base_path_` (i.e.
+    // the current proto package). Returns an empty optional if the absolute path is outside the
+    // `base_path_`.
     std::optional<std::string> MaybeGetQualifiedName(PathView path);
 
     absl::Status AddFieldToFlatDependencies(

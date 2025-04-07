@@ -486,18 +486,13 @@ absl::StatusOr<Generator> Generator::Builder::Build() && {
       .extensions = file_descriptor_->extension,
   };
   RETURN_IF_ERROR(AddLexicalScope(global_scope));
-  RETURN_IF_ERROR(
-      BuildFlatDependencies("", file_descriptor_->message_type, file_descriptor_->enum_type));
   DEFINE_CONST_OR_RETURN(cycles, FindCycles(global_scope));
   if (!cycles.empty()) {
     return absl::InvalidArgumentError(
         absl::StrCat("message dependency cycle detected: ", MakeCycleMessage(cycles.front())));
   }
-  auto const flat_cycles = flat_dependencies_.FindCycles(base_path_);
-  if (!flat_cycles.empty()) {
-    return absl::InvalidArgumentError(
-        absl::StrCat("message dependency cycle detected: ", MakeCycleMessage(flat_cycles.front())));
-  }
+  RETURN_IF_ERROR(
+      BuildFlatDependencies("", file_descriptor_->message_type, file_descriptor_->enum_type));
   ASSIGN_OR_RETURN(enum_types_by_path_, GetEnumTypesByPath());
   ASSIGN_OR_RETURN(message_types_by_path_, GetMessageTypesByPath());
   return Generator(
@@ -618,19 +613,17 @@ std::optional<std::string> Generator::Builder::MaybeGetQualifiedName(PathView co
 absl::Status Generator::Builder::AddFieldToFlatDependencies(
     PathView const dependent_path, google::protobuf::FieldDescriptorProto const& descriptor) {
   if (descriptor.type_name.has_value()) {
-    REQUIRE_FIELD_OR_RETURN(label, descriptor, label);
-    DEFINE_CONST_OR_RETURN(indirection, GetFieldIndirection(descriptor));
-    if (label != FieldDescriptorProto::Label::LABEL_REPEATED &&
-        indirection == FieldIndirectionType::INDIRECTION_DIRECT) {
-      DEFINE_CONST_OR_RETURN(dependee_path, GetTypePath(descriptor.type_name.value()));
-      if (use_raw_google_api_types_ || !kGoogleApiTypes->contains(dependee_path)) {
-        auto const maybe_qualified_dependee_name = MaybeGetQualifiedName(dependee_path);
-        if (maybe_qualified_dependee_name.has_value()) {
-          REQUIRE_FIELD_OR_RETURN(field_name, descriptor, name);
-          flat_dependencies_.AddDependency(
-              dependent_path, JoinPath(base_path_, maybe_qualified_dependee_name.value()),
-              field_name);
-        }
+    DEFINE_CONST_OR_RETURN(dependee_path, GetTypePath(descriptor.type_name.value()));
+    if (use_raw_google_api_types_ || !kGoogleApiTypes->contains(dependee_path)) {
+      auto const maybe_qualified_dependee_name = MaybeGetQualifiedName(dependee_path);
+      // `MaybeGetQualifiedName` returns `std::nullopt` for names that are outside the current
+      // package / base path. We don't need to (and cannot) do anything for those because they are
+      // defined in a different .proto file, so we skip the corresponding dependency here.
+      if (maybe_qualified_dependee_name.has_value()) {
+        REQUIRE_FIELD_OR_RETURN(field_name, descriptor, name);
+        flat_dependencies_.AddDependency(
+            dependent_path, JoinPath(base_path_, maybe_qualified_dependee_name.value()),
+            field_name);
       }
     }
   }

@@ -185,9 +185,14 @@ class DependencyManager {
   // Returns the list of protobuf messages belonging to the lexical scope identified by `base_path`
   // in the order they need to be defined in.
   //
-  // REQUIRES: `FindCycles` MUST have returned an empty array before calling this function because
-  // the behavior of the ordering algorithm is undefined if there are any cycles (it may loop
-  // indefinitely, trigger a stack overflow, etc.).
+  // The underlying algorithm performs a depth-first visit of the dependency graph. The visit is
+  // guarded against cycles so the algorithm won't loop indefinitely if one or more cycles are
+  // present, but in that case the nodes involved in the cycle(s) are returned in an arbitrary
+  // order.
+  //
+  // Regardless of the presence of cycles, the returned order is guaranteed to be deterministic and
+  // independent of the order the nodes and edges were initially added to the graph or other
+  // factors.
   std::vector<std::string> MakeOrder(PathView base_path) const;
 
  private:

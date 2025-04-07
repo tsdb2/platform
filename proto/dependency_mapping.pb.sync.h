@@ -26,9 +26,13 @@ namespace tsdb2::proto {
 struct DependencyMapping;
 
 struct DependencyMapping : public ::tsdb2::proto::Message {
+  static ::tsdb2::proto::MessageDescriptor<DependencyMapping, 1> const MESSAGE_DESCRIPTOR;
+
   struct Dependency;
 
   struct Dependency : public ::tsdb2::proto::Message {
+    static ::tsdb2::proto::MessageDescriptor<Dependency, 2> const MESSAGE_DESCRIPTOR;
+
     static ::absl::StatusOr<Dependency> Decode(::absl::Span<uint8_t const> data);
     static ::tsdb2::io::Cord Encode(Dependency const& proto);
 
@@ -102,6 +106,20 @@ struct DependencyMapping : public ::tsdb2::proto::Message {
   }
 
   std::vector<::tsdb2::proto::DependencyMapping::Dependency> dependency;
+};
+
+}  // namespace tsdb2::proto
+
+namespace tsdb2::proto {
+
+template <>
+inline auto const& GetMessageDescriptor<::tsdb2::proto::DependencyMapping::Dependency>() {
+  return ::tsdb2::proto::DependencyMapping::Dependency::MESSAGE_DESCRIPTOR;
+};
+
+template <>
+inline auto const& GetMessageDescriptor<::tsdb2::proto::DependencyMapping>() {
+  return ::tsdb2::proto::DependencyMapping::MESSAGE_DESCRIPTOR;
 };
 
 }  // namespace tsdb2::proto
