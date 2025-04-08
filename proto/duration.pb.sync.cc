@@ -1,22 +1,6 @@
 #include "proto/duration.pb.sync.h"
 
-#include <cstddef>
-#include <cstdint>
-#include <functional>
-#include <memory>
-#include <tuple>
-#include <utility>
-#include <variant>
-
-#include "absl/status/status.h"
-#include "absl/status/statusor.h"
-#include "absl/time/time.h"
-#include "absl/types/span.h"
-#include "common/flat_set.h"
-#include "common/utilities.h"
-#include "io/cord.h"
-#include "proto/proto.h"
-#include "proto/wire_format.h"
+#include "proto/runtime.h"
 
 namespace google::protobuf {
 

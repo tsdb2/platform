@@ -1,23 +1,7 @@
 #ifndef __TSDB2_PROTO_DESCRIPTOR_PB_H__
 #define __TSDB2_PROTO_DESCRIPTOR_PB_H__
 
-#include <cstdint>
-#include <memory>
-#include <optional>
-#include <string>
-#include <tuple>
-#include <utility>
-#include <variant>
-#include <vector>
-
-#include "absl/base/attributes.h"
-#include "absl/status/statusor.h"
-#include "absl/time/time.h"
-#include "absl/types/span.h"
-#include "common/utilities.h"
-#include "io/buffer.h"
-#include "io/cord.h"
-#include "proto/proto.h"
+#include "proto/runtime.h"
 
 TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
 
@@ -174,9 +158,9 @@ struct FeatureSet : public ::tsdb2::proto::Message {
   static ::tsdb2::io::Cord Encode(FeatureSet const& proto);
 
   static auto Tie(FeatureSet const& proto) {
-    return std::tie(proto.field_presence, proto.enum_type, proto.repeated_field_encoding,
-                    proto.utf8_validation, proto.message_encoding, proto.json_format,
-                    proto.extension_data);
+    return ::tsdb2::proto::Tie(proto.field_presence, proto.enum_type, proto.repeated_field_encoding,
+                               proto.utf8_validation, proto.message_encoding, proto.json_format,
+                               proto.extension_data);
   }
 
   template <typename H>
@@ -240,7 +224,8 @@ struct ExtensionRangeOptions : public ::tsdb2::proto::Message {
     static ::tsdb2::io::Cord Encode(Declaration const& proto);
 
     static auto Tie(Declaration const& proto) {
-      return std::tie(proto.number, proto.full_name, proto.type, proto.reserved, proto.repeated);
+      return ::tsdb2::proto::Tie(proto.number, proto.full_name, proto.type, proto.reserved,
+                                 proto.repeated);
     }
 
     template <typename H>
@@ -283,8 +268,9 @@ struct ExtensionRangeOptions : public ::tsdb2::proto::Message {
   static ::tsdb2::io::Cord Encode(ExtensionRangeOptions const& proto);
 
   static auto Tie(ExtensionRangeOptions const& proto) {
-    return std::tie(proto.uninterpreted_option, proto.declaration, proto.features,
-                    proto.verification, proto.extension_data);
+    return ::tsdb2::proto::Tie(proto.uninterpreted_option, proto.declaration,
+                               ::tsdb2::proto::OptionalSubMessageRef(proto.features),
+                               proto.verification, proto.extension_data);
   }
 
   template <typename H>
@@ -329,9 +315,11 @@ struct MessageOptions : public ::tsdb2::proto::Message {
   static ::tsdb2::io::Cord Encode(MessageOptions const& proto);
 
   static auto Tie(MessageOptions const& proto) {
-    return std::tie(proto.message_set_wire_format, proto.no_standard_descriptor_accessor,
-                    proto.deprecated, proto.map_entry, proto.deprecated_legacy_json_field_conflicts,
-                    proto.features, proto.uninterpreted_option, proto.extension_data);
+    return ::tsdb2::proto::Tie(proto.message_set_wire_format, proto.no_standard_descriptor_accessor,
+                               proto.deprecated, proto.map_entry,
+                               proto.deprecated_legacy_json_field_conflicts,
+                               ::tsdb2::proto::OptionalSubMessageRef(proto.features),
+                               proto.uninterpreted_option, proto.extension_data);
   }
 
   template <typename H>
@@ -382,7 +370,8 @@ struct DescriptorProto : public ::tsdb2::proto::Message {
     static ::tsdb2::io::Cord Encode(ExtensionRange const& proto);
 
     static auto Tie(ExtensionRange const& proto) {
-      return std::tie(proto.start, proto.end, proto.options);
+      return ::tsdb2::proto::Tie(proto.start, proto.end,
+                                 ::tsdb2::proto::OptionalSubMessageRef(proto.options));
     }
 
     template <typename H>
@@ -423,7 +412,9 @@ struct DescriptorProto : public ::tsdb2::proto::Message {
     static ::absl::StatusOr<ReservedRange> Decode(::absl::Span<uint8_t const> data);
     static ::tsdb2::io::Cord Encode(ReservedRange const& proto);
 
-    static auto Tie(ReservedRange const& proto) { return std::tie(proto.start, proto.end); }
+    static auto Tie(ReservedRange const& proto) {
+      return ::tsdb2::proto::Tie(proto.start, proto.end);
+    }
 
     template <typename H>
     friend H AbslHashValue(H h, ReservedRange const& proto) {
@@ -462,9 +453,10 @@ struct DescriptorProto : public ::tsdb2::proto::Message {
   static ::tsdb2::io::Cord Encode(DescriptorProto const& proto);
 
   static auto Tie(DescriptorProto const& proto) {
-    return std::tie(proto.name, proto.field, proto.extension, proto.nested_type, proto.enum_type,
-                    proto.extension_range, proto.oneof_decl, proto.options, proto.reserved_range,
-                    proto.reserved_name);
+    return ::tsdb2::proto::Tie(proto.name, proto.field, proto.extension, proto.nested_type,
+                               proto.enum_type, proto.extension_range, proto.oneof_decl,
+                               ::tsdb2::proto::OptionalSubMessageRef(proto.options),
+                               proto.reserved_range, proto.reserved_name);
   }
 
   template <typename H>
@@ -513,9 +505,10 @@ struct EnumOptions : public ::tsdb2::proto::Message {
   static ::tsdb2::io::Cord Encode(EnumOptions const& proto);
 
   static auto Tie(EnumOptions const& proto) {
-    return std::tie(proto.allow_alias, proto.deprecated,
-                    proto.deprecated_legacy_json_field_conflicts, proto.features,
-                    proto.uninterpreted_option, proto.extension_data);
+    return ::tsdb2::proto::Tie(proto.allow_alias, proto.deprecated,
+                               proto.deprecated_legacy_json_field_conflicts,
+                               ::tsdb2::proto::OptionalSubMessageRef(proto.features),
+                               proto.uninterpreted_option, proto.extension_data);
   }
 
   template <typename H>
@@ -562,7 +555,9 @@ struct EnumDescriptorProto : public ::tsdb2::proto::Message {
     static ::absl::StatusOr<EnumReservedRange> Decode(::absl::Span<uint8_t const> data);
     static ::tsdb2::io::Cord Encode(EnumReservedRange const& proto);
 
-    static auto Tie(EnumReservedRange const& proto) { return std::tie(proto.start, proto.end); }
+    static auto Tie(EnumReservedRange const& proto) {
+      return ::tsdb2::proto::Tie(proto.start, proto.end);
+    }
 
     template <typename H>
     friend H AbslHashValue(H h, EnumReservedRange const& proto) {
@@ -601,8 +596,9 @@ struct EnumDescriptorProto : public ::tsdb2::proto::Message {
   static ::tsdb2::io::Cord Encode(EnumDescriptorProto const& proto);
 
   static auto Tie(EnumDescriptorProto const& proto) {
-    return std::tie(proto.name, proto.value, proto.options, proto.reserved_range,
-                    proto.reserved_name);
+    return ::tsdb2::proto::Tie(proto.name, proto.value,
+                               ::tsdb2::proto::OptionalSubMessageRef(proto.options),
+                               proto.reserved_range, proto.reserved_name);
   }
 
   template <typename H>
@@ -720,7 +716,9 @@ struct FieldOptions : public ::tsdb2::proto::Message {
     static ::absl::StatusOr<EditionDefault> Decode(::absl::Span<uint8_t const> data);
     static ::tsdb2::io::Cord Encode(EditionDefault const& proto);
 
-    static auto Tie(EditionDefault const& proto) { return std::tie(proto.edition, proto.value); }
+    static auto Tie(EditionDefault const& proto) {
+      return ::tsdb2::proto::Tie(proto.edition, proto.value);
+    }
 
     template <typename H>
     friend H AbslHashValue(H h, EditionDefault const& proto) {
@@ -760,8 +758,8 @@ struct FieldOptions : public ::tsdb2::proto::Message {
     static ::tsdb2::io::Cord Encode(FeatureSupport const& proto);
 
     static auto Tie(FeatureSupport const& proto) {
-      return std::tie(proto.edition_introduced, proto.edition_deprecated, proto.deprecation_warning,
-                      proto.edition_removed);
+      return ::tsdb2::proto::Tie(proto.edition_introduced, proto.edition_deprecated,
+                                 proto.deprecation_warning, proto.edition_removed);
     }
 
     template <typename H>
@@ -803,10 +801,12 @@ struct FieldOptions : public ::tsdb2::proto::Message {
   static ::tsdb2::io::Cord Encode(FieldOptions const& proto);
 
   static auto Tie(FieldOptions const& proto) {
-    return std::tie(proto.ctype, proto.packed, proto.jstype, proto.lazy, proto.unverified_lazy,
-                    proto.deprecated, proto.weak, proto.debug_redact, proto.retention,
-                    proto.targets, proto.edition_defaults, proto.features, proto.feature_support,
-                    proto.uninterpreted_option, proto.extension_data);
+    return ::tsdb2::proto::Tie(
+        proto.ctype, proto.packed, proto.jstype, proto.lazy, proto.unverified_lazy,
+        proto.deprecated, proto.weak, proto.debug_redact, proto.retention, proto.targets,
+        proto.edition_defaults, ::tsdb2::proto::OptionalSubMessageRef(proto.features),
+        ::tsdb2::proto::OptionalSubMessageRef(proto.feature_support), proto.uninterpreted_option,
+        proto.extension_data);
   }
 
   template <typename H>
@@ -861,8 +861,10 @@ struct EnumValueOptions : public ::tsdb2::proto::Message {
   static ::tsdb2::io::Cord Encode(EnumValueOptions const& proto);
 
   static auto Tie(EnumValueOptions const& proto) {
-    return std::tie(proto.deprecated, proto.features, proto.debug_redact, proto.feature_support,
-                    proto.uninterpreted_option, proto.extension_data);
+    return ::tsdb2::proto::Tie(
+        proto.deprecated, ::tsdb2::proto::OptionalSubMessageRef(proto.features), proto.debug_redact,
+        ::tsdb2::proto::OptionalSubMessageRef(proto.feature_support), proto.uninterpreted_option,
+        proto.extension_data);
   }
 
   template <typename H>
@@ -907,7 +909,8 @@ struct EnumValueDescriptorProto : public ::tsdb2::proto::Message {
   static ::tsdb2::io::Cord Encode(EnumValueDescriptorProto const& proto);
 
   static auto Tie(EnumValueDescriptorProto const& proto) {
-    return std::tie(proto.name, proto.number, proto.options);
+    return ::tsdb2::proto::Tie(proto.name, proto.number,
+                               ::tsdb2::proto::OptionalSubMessageRef(proto.options));
   }
 
   template <typename H>
@@ -952,7 +955,9 @@ struct FeatureSetDefaults : public ::tsdb2::proto::Message {
     static ::tsdb2::io::Cord Encode(FeatureSetEditionDefault const& proto);
 
     static auto Tie(FeatureSetEditionDefault const& proto) {
-      return std::tie(proto.edition, proto.overridable_features, proto.fixed_features);
+      return ::tsdb2::proto::Tie(proto.edition,
+                                 ::tsdb2::proto::OptionalSubMessageRef(proto.overridable_features),
+                                 ::tsdb2::proto::OptionalSubMessageRef(proto.fixed_features));
     }
 
     template <typename H>
@@ -999,7 +1004,7 @@ struct FeatureSetDefaults : public ::tsdb2::proto::Message {
   static ::tsdb2::io::Cord Encode(FeatureSetDefaults const& proto);
 
   static auto Tie(FeatureSetDefaults const& proto) {
-    return std::tie(proto.defaults, proto.minimum_edition, proto.maximum_edition);
+    return ::tsdb2::proto::Tie(proto.defaults, proto.minimum_edition, proto.maximum_edition);
   }
 
   template <typename H>
@@ -1088,9 +1093,10 @@ struct FieldDescriptorProto : public ::tsdb2::proto::Message {
   static ::tsdb2::io::Cord Encode(FieldDescriptorProto const& proto);
 
   static auto Tie(FieldDescriptorProto const& proto) {
-    return std::tie(proto.name, proto.number, proto.label, proto.type, proto.type_name,
-                    proto.extendee, proto.default_value, proto.oneof_index, proto.json_name,
-                    proto.options, proto.proto3_optional);
+    return ::tsdb2::proto::Tie(
+        proto.name, proto.number, proto.label, proto.type, proto.type_name, proto.extendee,
+        proto.default_value, proto.oneof_index, proto.json_name,
+        ::tsdb2::proto::OptionalSubMessageRef(proto.options), proto.proto3_optional);
   }
 
   template <typename H>
@@ -1156,14 +1162,15 @@ struct FileOptions : public ::tsdb2::proto::Message {
   static ::tsdb2::io::Cord Encode(FileOptions const& proto);
 
   static auto Tie(FileOptions const& proto) {
-    return std::tie(proto.java_package, proto.java_outer_classname, proto.java_multiple_files,
-                    proto.java_generate_equals_and_hash, proto.java_string_check_utf8,
-                    proto.optimize_for, proto.go_package, proto.cc_generic_services,
-                    proto.java_generic_services, proto.py_generic_services, proto.deprecated,
-                    proto.cc_enable_arenas, proto.objc_class_prefix, proto.csharp_namespace,
-                    proto.swift_prefix, proto.php_class_prefix, proto.php_namespace,
-                    proto.php_metadata_namespace, proto.ruby_package, proto.features,
-                    proto.uninterpreted_option, proto.extension_data);
+    return ::tsdb2::proto::Tie(
+        proto.java_package, proto.java_outer_classname, proto.java_multiple_files,
+        proto.java_generate_equals_and_hash, proto.java_string_check_utf8, proto.optimize_for,
+        proto.go_package, proto.cc_generic_services, proto.java_generic_services,
+        proto.py_generic_services, proto.deprecated, proto.cc_enable_arenas,
+        proto.objc_class_prefix, proto.csharp_namespace, proto.swift_prefix, proto.php_class_prefix,
+        proto.php_namespace, proto.php_metadata_namespace, proto.ruby_package,
+        ::tsdb2::proto::OptionalSubMessageRef(proto.features), proto.uninterpreted_option,
+        proto.extension_data);
   }
 
   template <typename H>
@@ -1228,8 +1235,8 @@ struct SourceCodeInfo : public ::tsdb2::proto::Message {
     static ::tsdb2::io::Cord Encode(Location const& proto);
 
     static auto Tie(Location const& proto) {
-      return std::tie(proto.path, proto.span, proto.leading_comments, proto.trailing_comments,
-                      proto.leading_detached_comments);
+      return ::tsdb2::proto::Tie(proto.path, proto.span, proto.leading_comments,
+                                 proto.trailing_comments, proto.leading_detached_comments);
     }
 
     template <typename H>
@@ -1267,7 +1274,7 @@ struct SourceCodeInfo : public ::tsdb2::proto::Message {
   static ::absl::StatusOr<SourceCodeInfo> Decode(::absl::Span<uint8_t const> data);
   static ::tsdb2::io::Cord Encode(SourceCodeInfo const& proto);
 
-  static auto Tie(SourceCodeInfo const& proto) { return std::tie(proto.location); }
+  static auto Tie(SourceCodeInfo const& proto) { return ::tsdb2::proto::Tie(proto.location); }
 
   template <typename H>
   friend H AbslHashValue(H h, SourceCodeInfo const& proto) {
@@ -1306,10 +1313,11 @@ struct FileDescriptorProto : public ::tsdb2::proto::Message {
   static ::tsdb2::io::Cord Encode(FileDescriptorProto const& proto);
 
   static auto Tie(FileDescriptorProto const& proto) {
-    return std::tie(proto.name, proto.package, proto.dependency, proto.public_dependency,
-                    proto.weak_dependency, proto.message_type, proto.enum_type, proto.service,
-                    proto.extension, proto.options, proto.source_code_info, proto.syntax,
-                    proto.edition);
+    return ::tsdb2::proto::Tie(
+        proto.name, proto.package, proto.dependency, proto.public_dependency, proto.weak_dependency,
+        proto.message_type, proto.enum_type, proto.service, proto.extension,
+        ::tsdb2::proto::OptionalSubMessageRef(proto.options),
+        ::tsdb2::proto::OptionalSubMessageRef(proto.source_code_info), proto.syntax, proto.edition);
   }
 
   template <typename H>
@@ -1360,7 +1368,7 @@ struct FileDescriptorSet : public ::tsdb2::proto::Message {
   static ::absl::StatusOr<FileDescriptorSet> Decode(::absl::Span<uint8_t const> data);
   static ::tsdb2::io::Cord Encode(FileDescriptorSet const& proto);
 
-  static auto Tie(FileDescriptorSet const& proto) { return std::tie(proto.file); }
+  static auto Tie(FileDescriptorSet const& proto) { return ::tsdb2::proto::Tie(proto.file); }
 
   template <typename H>
   friend H AbslHashValue(H h, FileDescriptorSet const& proto) {
@@ -1418,7 +1426,8 @@ struct GeneratedCodeInfo : public ::tsdb2::proto::Message {
     static ::tsdb2::io::Cord Encode(Annotation const& proto);
 
     static auto Tie(Annotation const& proto) {
-      return std::tie(proto.path, proto.source_file, proto.begin, proto.end, proto.semantic);
+      return ::tsdb2::proto::Tie(proto.path, proto.source_file, proto.begin, proto.end,
+                                 proto.semantic);
     }
 
     template <typename H>
@@ -1460,7 +1469,7 @@ struct GeneratedCodeInfo : public ::tsdb2::proto::Message {
   static ::absl::StatusOr<GeneratedCodeInfo> Decode(::absl::Span<uint8_t const> data);
   static ::tsdb2::io::Cord Encode(GeneratedCodeInfo const& proto);
 
-  static auto Tie(GeneratedCodeInfo const& proto) { return std::tie(proto.annotation); }
+  static auto Tie(GeneratedCodeInfo const& proto) { return ::tsdb2::proto::Tie(proto.annotation); }
 
   template <typename H>
   friend H AbslHashValue(H h, GeneratedCodeInfo const& proto) {
@@ -1515,8 +1524,9 @@ struct MethodOptions : public ::tsdb2::proto::Message {
   static ::tsdb2::io::Cord Encode(MethodOptions const& proto);
 
   static auto Tie(MethodOptions const& proto) {
-    return std::tie(proto.deprecated, proto.idempotency_level, proto.features,
-                    proto.uninterpreted_option, proto.extension_data);
+    return ::tsdb2::proto::Tie(proto.deprecated, proto.idempotency_level,
+                               ::tsdb2::proto::OptionalSubMessageRef(proto.features),
+                               proto.uninterpreted_option, proto.extension_data);
   }
 
   template <typename H>
@@ -1561,8 +1571,9 @@ struct MethodDescriptorProto : public ::tsdb2::proto::Message {
   static ::tsdb2::io::Cord Encode(MethodDescriptorProto const& proto);
 
   static auto Tie(MethodDescriptorProto const& proto) {
-    return std::tie(proto.name, proto.input_type, proto.output_type, proto.options,
-                    proto.client_streaming, proto.server_streaming);
+    return ::tsdb2::proto::Tie(proto.name, proto.input_type, proto.output_type,
+                               ::tsdb2::proto::OptionalSubMessageRef(proto.options),
+                               proto.client_streaming, proto.server_streaming);
   }
 
   template <typename H>
@@ -1607,7 +1618,8 @@ struct OneofOptions : public ::tsdb2::proto::Message {
   static ::tsdb2::io::Cord Encode(OneofOptions const& proto);
 
   static auto Tie(OneofOptions const& proto) {
-    return std::tie(proto.features, proto.uninterpreted_option, proto.extension_data);
+    return ::tsdb2::proto::Tie(::tsdb2::proto::OptionalSubMessageRef(proto.features),
+                               proto.uninterpreted_option, proto.extension_data);
   }
 
   template <typename H>
@@ -1648,7 +1660,9 @@ struct OneofDescriptorProto : public ::tsdb2::proto::Message {
   static ::absl::StatusOr<OneofDescriptorProto> Decode(::absl::Span<uint8_t const> data);
   static ::tsdb2::io::Cord Encode(OneofDescriptorProto const& proto);
 
-  static auto Tie(OneofDescriptorProto const& proto) { return std::tie(proto.name, proto.options); }
+  static auto Tie(OneofDescriptorProto const& proto) {
+    return ::tsdb2::proto::Tie(proto.name, ::tsdb2::proto::OptionalSubMessageRef(proto.options));
+  }
 
   template <typename H>
   friend H AbslHashValue(H h, OneofDescriptorProto const& proto) {
@@ -1688,8 +1702,8 @@ struct ServiceOptions : public ::tsdb2::proto::Message {
   static ::tsdb2::io::Cord Encode(ServiceOptions const& proto);
 
   static auto Tie(ServiceOptions const& proto) {
-    return std::tie(proto.features, proto.deprecated, proto.uninterpreted_option,
-                    proto.extension_data);
+    return ::tsdb2::proto::Tie(::tsdb2::proto::OptionalSubMessageRef(proto.features),
+                               proto.deprecated, proto.uninterpreted_option, proto.extension_data);
   }
 
   template <typename H>
@@ -1732,7 +1746,8 @@ struct ServiceDescriptorProto : public ::tsdb2::proto::Message {
   static ::tsdb2::io::Cord Encode(ServiceDescriptorProto const& proto);
 
   static auto Tie(ServiceDescriptorProto const& proto) {
-    return std::tie(proto.name, proto.method, proto.options);
+    return ::tsdb2::proto::Tie(proto.name, proto.method,
+                               ::tsdb2::proto::OptionalSubMessageRef(proto.options));
   }
 
   template <typename H>
@@ -1776,7 +1791,9 @@ struct UninterpretedOption : public ::tsdb2::proto::Message {
     static ::absl::StatusOr<NamePart> Decode(::absl::Span<uint8_t const> data);
     static ::tsdb2::io::Cord Encode(NamePart const& proto);
 
-    static auto Tie(NamePart const& proto) { return std::tie(proto.name_part, proto.is_extension); }
+    static auto Tie(NamePart const& proto) {
+      return ::tsdb2::proto::Tie(proto.name_part, proto.is_extension);
+    }
 
     template <typename H>
     friend H AbslHashValue(H h, NamePart const& proto) {
@@ -1811,9 +1828,9 @@ struct UninterpretedOption : public ::tsdb2::proto::Message {
   static ::tsdb2::io::Cord Encode(UninterpretedOption const& proto);
 
   static auto Tie(UninterpretedOption const& proto) {
-    return std::tie(proto.name, proto.identifier_value, proto.positive_int_value,
-                    proto.negative_int_value, proto.double_value, proto.string_value,
-                    proto.aggregate_value);
+    return ::tsdb2::proto::Tie(proto.name, proto.identifier_value, proto.positive_int_value,
+                               proto.negative_int_value, proto.double_value, proto.string_value,
+                               proto.aggregate_value);
   }
 
   template <typename H>

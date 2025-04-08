@@ -14,8 +14,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "common/flat_map.h"
-#include "common/flat_set.h"
 #include "proto/annotations.pb.sync.h"
 #include "proto/dependencies.h"
 #include "proto/descriptor.pb.sync.h"
@@ -187,30 +185,7 @@ class Generator {
   static absl::StatusOr<absl::btree_map<Path, google::protobuf::DescriptorProto>>
   GetAllExtensionMessages(LexicalScope const& scope);
 
-  void EmitIncludes(google::protobuf::FileDescriptorProto const& file_descriptor,
-                    internal::TextWriter* writer,
-                    tsdb2::common::flat_map<std::string, bool> headers) const;
-
-  template <typename DefaultHeaderSet>
-  void EmitIncludes(google::protobuf::FileDescriptorProto const& file_descriptor,
-                    internal::TextWriter* const writer,
-                    DefaultHeaderSet const& default_headers) const {
-    tsdb2::common::flat_map<std::string, bool> headers;
-    headers.reserve(default_headers.size() + file_descriptor.dependency.size());
-    for (auto const default_dependency : default_headers) {
-      headers.try_emplace(std::string(default_dependency), false);
-    }
-    tsdb2::common::flat_set<size_t> const public_dependency_indexes{
-        file_descriptor.public_dependency.begin(), file_descriptor.public_dependency.end()};
-    for (size_t i = 0; i < file_descriptor.dependency.size(); ++i) {
-      headers.try_emplace(generator::MakeHeaderFileName(file_descriptor.dependency[i]),
-                          /*public=*/public_dependency_indexes.contains(i));
-    }
-    EmitIncludes(file_descriptor, writer, std::move(headers));
-  }
-
-  void EmitHeaderIncludes(internal::TextWriter* writer) const;
-  void EmitSourceIncludes(internal::TextWriter* writer) const;
+  void EmitIncludes(internal::TextWriter* writer) const;
 
   absl::StatusOr<std::pair<std::string, bool>> GetFieldType(
       google::protobuf::FieldDescriptorProto const& descriptor) const;

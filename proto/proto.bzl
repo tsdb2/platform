@@ -93,21 +93,7 @@ tsdb2_cc_proto_library = rule(
         "internal_generate_definitions_for_google_api_types_i_dont_care_about_odr_violations": attr.bool(),
         "deps": attr.label_list(providers = [ProtoInfo, CcInfo]),
         "_generator": attr.label(default = "//proto:generate", executable = True, cfg = "exec"),
-        "_runtime_deps": attr.label_list(
-            default = [
-                "//common:flat_set",
-                "//common:utilities",
-                "//io:buffer",
-                "//io:cord",
-                "//proto:runtime",
-                "@com_google_absl//absl/base",
-                "@com_google_absl//absl/status",
-                "@com_google_absl//absl/status:statusor",
-                "@com_google_absl//absl/time",
-                "@com_google_absl//absl/types:span",
-            ],
-            providers = [CcInfo],
-        ),
+        "_runtime_deps": attr.label_list(default = ["//proto:runtime"], providers = [CcInfo]),
 
         # TODO: remove this attribute when https://github.com/bazelbuild/bazel/issues/7260 is
         # resolved. See instructions at

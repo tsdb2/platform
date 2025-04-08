@@ -18,6 +18,8 @@ cc_library(
     hdrs = [
         "duration.pb.sync.h",
         "proto.h",
+        "reflection.h",
+        "runtime.h",
         "text_format.h",
         "time_util.h",
         "timestamp.pb.sync.h",
@@ -51,6 +53,7 @@ cc_test(
         "//common:testing",
         "//io:buffer",
         "//io:buffer_testing",
+        "//proto/tests:field_test_cc_proto",
         "@com_google_absl//absl/hash",
         "@com_google_googletest//:gtest_main",
     ],
@@ -123,8 +126,12 @@ cc_test(
     srcs = ["text_format_test.cc"],
     deps = [
         ":runtime",
-        ":tests_cc_proto",
         "//common:testing",
+        "//proto/tests:field_test_cc_proto",
+        "//proto/tests:indirection_test_cc_proto",
+        "//proto/tests:map_test_cc_proto",
+        "//proto/tests:oneof_test_cc_proto",
+        "//proto/tests:time_field_test_cc_proto",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_googletest//:gtest_main",
@@ -186,15 +193,6 @@ cc_library(
     ],
     deps = [
         ":runtime",
-        "//common:flat_set",
-        "//common:utilities",
-        "//io:buffer",
-        "//io:cord",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/time",
-        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -219,13 +217,6 @@ cc_library(
     deps = [
         ":descriptor",
         ":runtime",
-        "//common:flat_set",
-        "//common:utilities",
-        "//io:cord",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -285,34 +276,20 @@ tsdb2_cc_proto_library(
     use_raw_google_api_types = True,
 )
 
-proto_library(
-    name = "tests_proto",
-    testonly = True,
-    srcs = ["tests.proto"],
-    deps = [
-        ":annotations_proto",
-        ":duration_proto",
-        ":timestamp_proto",
-    ],
-)
-
-tsdb2_cc_proto_library(
-    name = "tests_cc_proto",
-    testonly = True,
-    enable_reflection = True,
-    proto = ":tests_proto",
-)
-
 cc_test(
     name = "generator_test",
     srcs = ["generator_test.cc"],
     deps = [
         ":generator",
         ":runtime",
-        ":tests_cc_proto",
         "//common:fingerprint",
         "//common:testing",
         "//common:utilities",
+        "//proto/tests:field_test_cc_proto",
+        "//proto/tests:indirection_test_cc_proto",
+        "//proto/tests:map_test_cc_proto",
+        "//proto/tests:oneof_test_cc_proto",
+        "//proto/tests:time_field_test_cc_proto",
         "@com_google_absl//absl/hash",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/time",
@@ -325,9 +302,13 @@ cc_test(
     srcs = ["reflection_test.cc"],
     deps = [
         ":runtime",
-        ":tests_cc_proto",
         "//common:testing",
         "//common:utilities",
+        "//proto/tests:field_test_cc_proto",
+        "//proto/tests:indirection_test_cc_proto",
+        "//proto/tests:map_test_cc_proto",
+        "//proto/tests:oneof_test_cc_proto",
+        "//proto/tests:time_field_test_cc_proto",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/time",

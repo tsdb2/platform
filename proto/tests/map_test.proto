@@ -1,0 +1,14 @@
+syntax = "proto2";
+
+package tsdb2.proto.test;
+
+message MapFields {
+  map<string, string> string_keys = 1;
+  map<bool, string> bool_keys = 2;
+  map<int32, string> int32_keys = 3;
+  map<int64, string> int64_keys = 4;
+  map<uint32, string> uint32_keys = 5;
+  map<uint64, string> uint64_keys = 6;
+  map<sint32, string> sint32_keys = 7;
+  map<sint64, string> sint64_keys = 8;
+}

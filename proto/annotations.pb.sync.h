@@ -1,24 +1,8 @@
 #ifndef __TSDB2_PROTO_ANNOTATIONS_PB_H__
 #define __TSDB2_PROTO_ANNOTATIONS_PB_H__
 
-#include <cstdint>
-#include <memory>
-#include <optional>
-#include <string>
-#include <tuple>
-#include <utility>
-#include <variant>
-#include <vector>
-
-#include "absl/base/attributes.h"
-#include "absl/status/statusor.h"
-#include "absl/time/time.h"
-#include "absl/types/span.h"
-#include "common/utilities.h"
-#include "io/buffer.h"
-#include "io/cord.h"
 #include "proto/descriptor.pb.sync.h"
-#include "proto/proto.h"
+#include "proto/runtime.h"
 
 TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
 
@@ -46,7 +30,7 @@ struct google_protobuf_FieldOptions_extension : public ::tsdb2::proto::Message {
   static ::tsdb2::io::Cord Encode(google_protobuf_FieldOptions_extension const& proto);
 
   static auto Tie(google_protobuf_FieldOptions_extension const& proto) {
-    return std::tie(proto.indirect);
+    return ::tsdb2::proto::Tie(proto.indirect);
   }
 
   template <typename H>

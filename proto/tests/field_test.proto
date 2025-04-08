@@ -1,9 +1,5 @@
 syntax = "proto2";
 
-import "proto/annotations.proto";
-import "proto/duration.proto";
-import "proto/timestamp.proto";
-
 package tsdb2.proto.test;
 
 enum ColorEnum {
@@ -100,70 +96,6 @@ message RequiredSubMessageField {
   required OptionalEnumField field = 21;
 }
 
-message OptionalTimestampField {
-  optional google.protobuf.Timestamp field = 22;
-}
-
-message RepeatedTimestampField {
-  repeated google.protobuf.Timestamp field = 23;
-}
-
-message RequiredTimestampField {
-  required google.protobuf.Timestamp field = 24;
-}
-
-message OptionalDurationField {
-  optional google.protobuf.Duration field = 25;
-}
-
-message RepeatedDurationField {
-  repeated google.protobuf.Duration field = 26;
-}
-
-message RequiredDurationField {
-  required google.protobuf.Duration field = 27;
-}
-
-message OneOfField {
-  oneof field {
-    int32 int32_variant = 10;
-    int64 int64_variant = 20;
-    string string_variant = 30;
-    ColorEnum enum_variant = 40;
-    OptionalStringField submessage_variant = 50;
-    google.protobuf.Timestamp time_field = 60;
-    google.protobuf.Duration duration_field = 70;
-  }
-}
-
-message SomeOneOfFields {
-  optional int32 int32_field = 10;
-  optional int64 int64_field = 20;
-  oneof field {
-    int32 int32_variant = 30;
-    string string_variant = 40;
-    ColorEnum enum_variant = 50;
-    OptionalStringField submessage_variant = 60;
-    google.protobuf.Timestamp time_field = 70;
-    google.protobuf.Duration duration_field = 80;
-  }
-  optional string string_field = 90;
-  optional bool bool_field = 100;
-}
-
-message OneOfFieldWithRepeatedVariants {
-  optional string string_field1 = 10;
-  optional bool bool_field1 = 20;
-  oneof field {
-    int32 int32_variant1 = 30;
-    int32 int32_variant2 = 40;
-    string string_variant1 = 50;
-    string string_variant2 = 60;
-  }
-  optional string string_field2 = 70;
-  optional bool bool_field2 = 80;
-}
-
 message Nesting {
   enum SatorEnum {
     SATOR_AREPO = 0;
@@ -195,35 +127,4 @@ message Version2 {
   repeated OptionalEnumField field4 = 4;
   optional string field5 = 5;
   repeated string field6 = 6;
-}
-
-message ExtensibleMessage {
-  optional int64 field1 = 10;
-  optional string field2 = 20;
-  extensions 1000 to max;
-}
-
-extend ExtensibleMessage {
-  optional bool field3 = 1010;
-  optional double field4 = 1020;
-}
-
-message IndirectSubMessages {
-  optional OptionalEnumField direct_optional_field = 1
-      [(tsdb2.proto.indirect) = INDIRECTION_DIRECT];
-  optional OptionalEnumField unique_optional_field = 2
-      [(tsdb2.proto.indirect) = INDIRECTION_UNIQUE];
-  optional OptionalEnumField shared_optional_field = 3
-      [(tsdb2.proto.indirect) = INDIRECTION_SHARED];
-}
-
-message MapFields {
-  map<string, string> string_keys = 1;
-  map<bool, string> bool_keys = 2;
-  map<int32, string> int32_keys = 3;
-  map<int64, string> int64_keys = 4;
-  map<uint32, string> uint32_keys = 5;
-  map<uint64, string> uint64_keys = 6;
-  map<sint32, string> sint32_keys = 7;
-  map<sint64, string> sint64_keys = 8;
 }

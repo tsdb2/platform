@@ -1,0 +1,30 @@
+syntax = "proto2";
+
+import "proto/duration.proto";
+import "proto/timestamp.proto";
+
+package tsdb2.proto.test;
+
+message OptionalTimestampField {
+  optional google.protobuf.Timestamp field = 22;
+}
+
+message RepeatedTimestampField {
+  repeated google.protobuf.Timestamp field = 23;
+}
+
+message RequiredTimestampField {
+  required google.protobuf.Timestamp field = 24;
+}
+
+message OptionalDurationField {
+  optional google.protobuf.Duration field = 25;
+}
+
+message RepeatedDurationField {
+  repeated google.protobuf.Duration field = 26;
+}
+
+message RequiredDurationField {
+  required google.protobuf.Duration field = 27;
+}

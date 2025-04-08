@@ -4,7 +4,11 @@
 #include "absl/status/status_matchers.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "proto/tests.pb.h"
+#include "proto/tests/field_test.pb.h"
+#include "proto/tests/indirection_test.pb.h"
+#include "proto/tests/map_test.pb.h"
+#include "proto/tests/oneof_test.pb.h"
+#include "proto/tests/time_field_test.pb.h"
 
 namespace {
 

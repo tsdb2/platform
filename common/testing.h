@@ -102,7 +102,7 @@ class Pointee2Impl : public MatcherInterface<Pointer const&> {
 template <typename Inner>
 class Pointee2 {
  public:
-  explicit Pointee2(Inner&& inner) : inner_(std::move(inner)) {}
+  explicit Pointee2(Inner inner) : inner_(std::move(inner)) {}
 
   template <typename Pointer>
   operator Matcher<Pointer>() const {  // NOLINT(google-explicit-constructor)

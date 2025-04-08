@@ -1,0 +1,57 @@
+syntax = "proto2";
+
+import "proto/duration.proto";
+import "proto/timestamp.proto";
+
+package tsdb2.proto.test;
+
+enum SatorEnum {
+  SATOR_AREPO = 0;
+  SATOR_TENET = 1;
+  SATOR_OPERA = 2;
+  SATOR_ROTAS = 3;
+}
+
+message OneofTestSubMessage {
+  optional string foo = 1;
+}
+
+message OneOfField {
+  oneof field {
+    int32 int32_variant = 10;
+    int64 int64_variant = 20;
+    string string_variant = 30;
+    SatorEnum enum_variant = 40;
+    OneofTestSubMessage submessage_variant = 50;
+    google.protobuf.Timestamp time_field = 60;
+    google.protobuf.Duration duration_field = 70;
+  }
+}
+
+message SomeOneOfFields {
+  optional int32 int32_field = 10;
+  optional int64 int64_field = 20;
+  oneof field {
+    int32 int32_variant = 30;
+    string string_variant = 40;
+    SatorEnum enum_variant = 50;
+    OneofTestSubMessage submessage_variant = 60;
+    google.protobuf.Timestamp time_field = 70;
+    google.protobuf.Duration duration_field = 80;
+  }
+  optional string string_field = 90;
+  optional bool bool_field = 100;
+}
+
+message OneOfFieldWithRepeatedVariants {
+  optional string string_field1 = 10;
+  optional bool bool_field1 = 20;
+  oneof field {
+    int32 int32_variant1 = 30;
+    int32 int32_variant2 = 40;
+    string string_variant1 = 50;
+    string string_variant2 = 60;
+  }
+  optional string string_field2 = 70;
+  optional bool bool_field2 = 80;
+}

@@ -1,6 +1,7 @@
 #include "proto/generator.h"
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <type_traits>
@@ -17,18 +18,25 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "proto/proto.h"
-#include "proto/tests.pb.h"
+#include "proto/tests/field_test.pb.h"
+#include "proto/tests/indirection_test.pb.h"
+#include "proto/tests/map_test.pb.h"
+#include "proto/tests/oneof_test.pb.h"
+#include "proto/tests/time_field_test.pb.h"
 
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
+using ::testing::AllOf;
 using ::testing::ElementsAre;
 using ::testing::Field;
 using ::testing::IsEmpty;
 using ::testing::Optional;
+using ::testing::Pointee2;
 using ::tsdb2::proto::generator::MakeHeaderFileName;
 using ::tsdb2::proto::generator::MakeSourceFileName;
 using ::tsdb2::proto::test::ColorEnum;
+using ::tsdb2::proto::test::SatorEnum;
 
 TEST(GeneratorTest, MakeHeaderFileName) {
   EXPECT_EQ(MakeHeaderFileName("foo.proto"), "foo.pb.h");
@@ -830,10 +838,10 @@ TEST(GeneratorTest, RequiredDurationField) {
 }
 
 TEST(GeneratorTest, OneOfFieldVariant1) {
-  using ::tsdb2::proto::test::OptionalStringField;
+  using ::tsdb2::proto::test::OneofTestSubMessage;
   EXPECT_TRUE((std::is_same_v<decltype(std::declval<tsdb2::proto::test::OneOfField>().field),
-                              std::variant<std::monostate, int32_t, int64_t, std::string, ColorEnum,
-                                           OptionalStringField, absl::Time, absl::Duration>>));
+                              std::variant<std::monostate, int32_t, int64_t, std::string, SatorEnum,
+                                           OneofTestSubMessage, absl::Time, absl::Duration>>));
   tsdb2::proto::test::OneOfField m1;
   tsdb2::proto::test::OneOfField m2{.field{std::in_place_index<1>, 42}};
   EXPECT_NE(absl::HashOf(m1), absl::HashOf(m2));
@@ -858,10 +866,10 @@ TEST(GeneratorTest, OneOfFieldVariant1) {
 }
 
 TEST(GeneratorTest, OneOfFieldVariant2) {
-  using ::tsdb2::proto::test::OptionalStringField;
+  using ::tsdb2::proto::test::OneofTestSubMessage;
   EXPECT_TRUE((std::is_same_v<decltype(std::declval<tsdb2::proto::test::OneOfField>().field),
-                              std::variant<std::monostate, int32_t, int64_t, std::string, ColorEnum,
-                                           OptionalStringField, absl::Time, absl::Duration>>));
+                              std::variant<std::monostate, int32_t, int64_t, std::string, SatorEnum,
+                                           OneofTestSubMessage, absl::Time, absl::Duration>>));
   tsdb2::proto::test::OneOfField m1;
   tsdb2::proto::test::OneOfField m2{.field{std::in_place_index<2>, 42}};
   EXPECT_NE(absl::HashOf(m1), absl::HashOf(m2));
@@ -886,10 +894,10 @@ TEST(GeneratorTest, OneOfFieldVariant2) {
 }
 
 TEST(GeneratorTest, OneOfFieldVariant3) {
-  using ::tsdb2::proto::test::OptionalStringField;
+  using ::tsdb2::proto::test::OneofTestSubMessage;
   EXPECT_TRUE((std::is_same_v<decltype(std::declval<tsdb2::proto::test::OneOfField>().field),
-                              std::variant<std::monostate, int32_t, int64_t, std::string, ColorEnum,
-                                           OptionalStringField, absl::Time, absl::Duration>>));
+                              std::variant<std::monostate, int32_t, int64_t, std::string, SatorEnum,
+                                           OneofTestSubMessage, absl::Time, absl::Duration>>));
   tsdb2::proto::test::OneOfField m1;
   tsdb2::proto::test::OneOfField m2{.field{std::in_place_index<3>, "lorem"}};
   EXPECT_NE(absl::HashOf(m1), absl::HashOf(m2));
@@ -914,12 +922,12 @@ TEST(GeneratorTest, OneOfFieldVariant3) {
 }
 
 TEST(GeneratorTest, OneOfFieldVariant4) {
-  using ::tsdb2::proto::test::OptionalStringField;
+  using ::tsdb2::proto::test::OneofTestSubMessage;
   EXPECT_TRUE((std::is_same_v<decltype(std::declval<tsdb2::proto::test::OneOfField>().field),
-                              std::variant<std::monostate, int32_t, int64_t, std::string, ColorEnum,
-                                           OptionalStringField, absl::Time, absl::Duration>>));
+                              std::variant<std::monostate, int32_t, int64_t, std::string, SatorEnum,
+                                           OneofTestSubMessage, absl::Time, absl::Duration>>));
   tsdb2::proto::test::OneOfField m1;
-  tsdb2::proto::test::OneOfField m2{.field{std::in_place_index<4>, ColorEnum::COLOR_GREEN}};
+  tsdb2::proto::test::OneOfField m2{.field{std::in_place_index<4>, SatorEnum::SATOR_AREPO}};
   EXPECT_NE(absl::HashOf(m1), absl::HashOf(m2));
   EXPECT_NE(tsdb2::common::FingerprintOf(m1), tsdb2::common::FingerprintOf(m2));
   EXPECT_FALSE(m1 == m2);
@@ -928,7 +936,7 @@ TEST(GeneratorTest, OneOfFieldVariant4) {
   EXPECT_TRUE(m1 <= m2);
   EXPECT_FALSE(m1 > m2);
   EXPECT_FALSE(m1 >= m2);
-  m1.field.emplace<4>(ColorEnum::COLOR_GREEN);
+  m1.field.emplace<4>(SatorEnum::SATOR_AREPO);
   EXPECT_EQ(absl::HashOf(m1), absl::HashOf(m2));
   EXPECT_EQ(tsdb2::common::FingerprintOf(m1), tsdb2::common::FingerprintOf(m2));
   EXPECT_TRUE(m1 == m2);
@@ -942,13 +950,13 @@ TEST(GeneratorTest, OneOfFieldVariant4) {
 }
 
 TEST(GeneratorTest, OneOfFieldVariant5) {
-  using ::tsdb2::proto::test::OptionalStringField;
+  using ::tsdb2::proto::test::OneofTestSubMessage;
   EXPECT_TRUE((std::is_same_v<decltype(std::declval<tsdb2::proto::test::OneOfField>().field),
-                              std::variant<std::monostate, int32_t, int64_t, std::string, ColorEnum,
-                                           OptionalStringField, absl::Time, absl::Duration>>));
+                              std::variant<std::monostate, int32_t, int64_t, std::string, SatorEnum,
+                                           OneofTestSubMessage, absl::Time, absl::Duration>>));
   tsdb2::proto::test::OneOfField m1;
   tsdb2::proto::test::OneOfField m2{
-      .field{std::in_place_index<5>, tsdb2::proto::test::OptionalStringField{.field = "sator"}}};
+      .field{std::in_place_index<5>, tsdb2::proto::test::OneofTestSubMessage{.foo = "sator"}}};
   EXPECT_NE(absl::HashOf(m1), absl::HashOf(m2));
   EXPECT_NE(tsdb2::common::FingerprintOf(m1), tsdb2::common::FingerprintOf(m2));
   EXPECT_FALSE(m1 == m2);
@@ -957,7 +965,7 @@ TEST(GeneratorTest, OneOfFieldVariant5) {
   EXPECT_TRUE(m1 <= m2);
   EXPECT_FALSE(m1 > m2);
   EXPECT_FALSE(m1 >= m2);
-  m1.field.emplace<5>(tsdb2::proto::test::OptionalStringField{.field = "sator"});
+  m1.field.emplace<5>(tsdb2::proto::test::OneofTestSubMessage{.foo = "sator"});
   EXPECT_EQ(absl::HashOf(m1), absl::HashOf(m2));
   EXPECT_EQ(tsdb2::common::FingerprintOf(m1), tsdb2::common::FingerprintOf(m2));
   EXPECT_TRUE(m1 == m2);
@@ -971,7 +979,7 @@ TEST(GeneratorTest, OneOfFieldVariant5) {
 }
 
 TEST(GeneratorTest, SomeOneOfFields) {
-  using ::tsdb2::proto::test::OptionalStringField;
+  using ::tsdb2::proto::test::OneofTestSubMessage;
   EXPECT_TRUE(
       (std::is_same_v<decltype(std::declval<tsdb2::proto::test::SomeOneOfFields>().int32_field),
                       std::optional<int32_t>>));
@@ -979,8 +987,8 @@ TEST(GeneratorTest, SomeOneOfFields) {
       (std::is_same_v<decltype(std::declval<tsdb2::proto::test::SomeOneOfFields>().int64_field),
                       std::optional<int64_t>>));
   EXPECT_TRUE((std::is_same_v<decltype(std::declval<tsdb2::proto::test::SomeOneOfFields>().field),
-                              std::variant<std::monostate, int32_t, std::string, ColorEnum,
-                                           OptionalStringField, absl::Time, absl::Duration>>));
+                              std::variant<std::monostate, int32_t, std::string, SatorEnum,
+                                           OneofTestSubMessage, absl::Time, absl::Duration>>));
   EXPECT_TRUE(
       (std::is_same_v<decltype(std::declval<tsdb2::proto::test::SomeOneOfFields>().string_field),
                       std::optional<std::string>>));
@@ -1021,7 +1029,6 @@ TEST(GeneratorTest, SomeOneOfFields) {
 }
 
 TEST(GeneratorTest, OneOfFieldWithRepeatedVariants1) {
-  using ::tsdb2::proto::test::OptionalStringField;
   EXPECT_TRUE(
       (std::is_same_v<decltype(std::declval<tsdb2::proto::test::OneOfFieldWithRepeatedVariants>()
                                    .string_field1),
@@ -1344,6 +1351,57 @@ TEST(GeneratorTest, MessageExtension) {
           std::optional<double>>));
   tsdb2::proto::test::ExtensibleMessage m;
   EXPECT_TRUE(m.extension_data.empty());
+}
+
+TEST(GeneratorTest, FieldIndirection) {
+  using ::tsdb2::proto::test::IndirectionTestMessage;
+  using ::tsdb2::proto::test::IndirectSubMessages;
+  EXPECT_TRUE((std::is_same_v<decltype(std::declval<IndirectSubMessages>().direct_optional_field),
+                              std::optional<IndirectionTestMessage>>));
+  EXPECT_TRUE((std::is_same_v<decltype(std::declval<IndirectSubMessages>().unique_optional_field),
+                              std::unique_ptr<IndirectionTestMessage>>));
+  EXPECT_TRUE((std::is_same_v<decltype(std::declval<IndirectSubMessages>().shared_optional_field),
+                              std::shared_ptr<IndirectionTestMessage>>));
+  IndirectSubMessages m1;
+  IndirectSubMessages m2{
+      .direct_optional_field = IndirectionTestMessage{.foo = "lorem"},
+      .unique_optional_field =
+          std::make_unique<IndirectionTestMessage>(IndirectionTestMessage{.foo = "ipsum"}),
+      .shared_optional_field =
+          std::make_shared<IndirectionTestMessage>(IndirectionTestMessage{.foo = "dolor"}),
+  };
+  EXPECT_FALSE(m1.direct_optional_field.has_value());
+  EXPECT_FALSE(m1.unique_optional_field.operator bool());
+  EXPECT_FALSE(m1.shared_optional_field.operator bool());
+  EXPECT_NE(absl::HashOf(m1), absl::HashOf(m2));
+  EXPECT_NE(tsdb2::common::FingerprintOf(m1), tsdb2::common::FingerprintOf(m2));
+  EXPECT_FALSE(m1 == m2);
+  EXPECT_TRUE(m1 != m2);
+  EXPECT_TRUE(m1 < m2);
+  EXPECT_TRUE(m1 <= m2);
+  EXPECT_FALSE(m1 > m2);
+  EXPECT_FALSE(m1 >= m2);
+  m1.direct_optional_field.emplace(IndirectionTestMessage{.foo = "lorem"});
+  m1.unique_optional_field =
+      std::make_unique<IndirectionTestMessage>(IndirectionTestMessage{.foo = "ipsum"});
+  m1.shared_optional_field =
+      std::make_shared<IndirectionTestMessage>(IndirectionTestMessage{.foo = "dolor"});
+  EXPECT_EQ(absl::HashOf(m1), absl::HashOf(m2));
+  EXPECT_EQ(tsdb2::common::FingerprintOf(m1), tsdb2::common::FingerprintOf(m2));
+  EXPECT_TRUE(m1 == m2);
+  EXPECT_FALSE(m1 != m2);
+  EXPECT_FALSE(m1 < m2);
+  EXPECT_TRUE(m1 <= m2);
+  EXPECT_FALSE(m1 > m2);
+  EXPECT_TRUE(m1 >= m2);
+  auto const encoded = IndirectSubMessages::Encode(m1).Flatten();
+  EXPECT_THAT(IndirectSubMessages::Decode(encoded.span()),
+              IsOkAndHolds(AllOf(Field(&IndirectSubMessages::direct_optional_field,
+                                       Optional(m2.direct_optional_field.value())),
+                                 Field(&IndirectSubMessages::unique_optional_field,
+                                       Pointee2(*(m2.unique_optional_field))),
+                                 Field(&IndirectSubMessages::shared_optional_field,
+                                       Pointee2(*(m2.shared_optional_field))))));
 }
 
 }  // namespace

@@ -1,24 +1,8 @@
 #ifndef __TSDB2_PROTO_PLUGIN_PB_H__
 #define __TSDB2_PROTO_PLUGIN_PB_H__
 
-#include <cstdint>
-#include <memory>
-#include <optional>
-#include <string>
-#include <tuple>
-#include <utility>
-#include <variant>
-#include <vector>
-
-#include "absl/base/attributes.h"
-#include "absl/status/statusor.h"
-#include "absl/time/time.h"
-#include "absl/types/span.h"
-#include "common/utilities.h"
-#include "io/buffer.h"
-#include "io/cord.h"
 #include "proto/descriptor.pb.sync.h"
-#include "proto/proto.h"
+#include "proto/runtime.h"
 
 TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
 
@@ -33,7 +17,7 @@ struct Version : public ::tsdb2::proto::Message {
   static ::tsdb2::io::Cord Encode(Version const& proto);
 
   static auto Tie(Version const& proto) {
-    return std::tie(proto.major, proto.minor, proto.patch, proto.suffix);
+    return ::tsdb2::proto::Tie(proto.major, proto.minor, proto.patch, proto.suffix);
   }
 
   template <typename H>
@@ -64,8 +48,9 @@ struct CodeGeneratorRequest : public ::tsdb2::proto::Message {
   static ::tsdb2::io::Cord Encode(CodeGeneratorRequest const& proto);
 
   static auto Tie(CodeGeneratorRequest const& proto) {
-    return std::tie(proto.file_to_generate, proto.parameter, proto.proto_file,
-                    proto.source_file_descriptors, proto.compiler_version);
+    return ::tsdb2::proto::Tie(proto.file_to_generate, proto.parameter, proto.proto_file,
+                               proto.source_file_descriptors,
+                               ::tsdb2::proto::OptionalSubMessageRef(proto.compiler_version));
   }
 
   template <typename H>
@@ -128,7 +113,8 @@ struct CodeGeneratorResponse : public ::tsdb2::proto::Message {
     static ::tsdb2::io::Cord Encode(File const& proto);
 
     static auto Tie(File const& proto) {
-      return std::tie(proto.name, proto.insertion_point, proto.content, proto.generated_code_info);
+      return ::tsdb2::proto::Tie(proto.name, proto.insertion_point, proto.content,
+                                 ::tsdb2::proto::OptionalSubMessageRef(proto.generated_code_info));
     }
 
     template <typename H>
@@ -158,8 +144,8 @@ struct CodeGeneratorResponse : public ::tsdb2::proto::Message {
   static ::tsdb2::io::Cord Encode(CodeGeneratorResponse const& proto);
 
   static auto Tie(CodeGeneratorResponse const& proto) {
-    return std::tie(proto.error, proto.supported_features, proto.minimum_edition,
-                    proto.maximum_edition, proto.file);
+    return ::tsdb2::proto::Tie(proto.error, proto.supported_features, proto.minimum_edition,
+                               proto.maximum_edition, proto.file);
   }
 
   template <typename H>

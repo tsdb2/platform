@@ -1,0 +1,29 @@
+syntax = "proto2";
+
+import "proto/annotations.proto";
+
+package tsdb2.proto.test;
+
+message IndirectionTestMessage {
+  optional string foo = 1;
+}
+
+message ExtensibleMessage {
+  optional int64 field1 = 10;
+  optional string field2 = 20;
+  extensions 1000 to max;
+}
+
+extend ExtensibleMessage {
+  optional bool field3 = 1010;
+  optional double field4 = 1020;
+}
+
+message IndirectSubMessages {
+  optional IndirectionTestMessage direct_optional_field = 1
+      [(tsdb2.proto.indirect) = INDIRECTION_DIRECT];
+  optional IndirectionTestMessage unique_optional_field = 2
+      [(tsdb2.proto.indirect) = INDIRECTION_UNIQUE];
+  optional IndirectionTestMessage shared_optional_field = 3
+      [(tsdb2.proto.indirect) = INDIRECTION_SHARED];
+}

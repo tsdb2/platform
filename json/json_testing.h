@@ -73,7 +73,7 @@ class JsonFieldMatcher<field_name, tsdb2::json::Object<Fields...>>
 template <char const field_name[], typename Inner>
 class JsonFieldImpl {
  public:
-  explicit JsonFieldImpl(Inner&& inner) : inner_(std::move(inner)) {}
+  explicit JsonFieldImpl(Inner inner) : inner_(std::move(inner)) {}
 
   template <typename Object>
   operator ::testing::Matcher<Object>() const {  // NOLINT(google-explicit-constructor)

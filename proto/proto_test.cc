@@ -1,5 +1,7 @@
 #include "proto/proto.h"
 
+#include <memory>
+#include <optional>
 #include <string_view>
 #include <utility>
 
@@ -9,6 +11,7 @@
 #include "gtest/gtest.h"
 #include "io/buffer.h"
 #include "io/buffer_testing.h"
+#include "proto/tests/field_test.pb.h"
 
 namespace {
 
@@ -16,7 +19,284 @@ using ::testing::ElementsAreArray;
 using ::testing::IsEmpty;
 using ::tsdb2::io::Buffer;
 using ::tsdb2::proto::ExtensionData;
+using ::tsdb2::proto::OptionalSubMessageRef;
+using ::tsdb2::proto::test::OptionalStringField;
 using ::tsdb2::testing::io::BufferAsString;
+
+TEST(OptionalSubMessageRefTest, EmptyVsEmpty) {
+  OptionalSubMessageRef<OptionalStringField> ref1;
+  OptionalSubMessageRef<OptionalStringField> ref2;
+  EXPECT_TRUE(ref1 == ref2);
+  EXPECT_TRUE(ref2 == ref1);
+  EXPECT_FALSE(ref1 != ref2);
+  EXPECT_FALSE(ref2 != ref1);
+  EXPECT_FALSE(ref1 < ref2);
+  EXPECT_FALSE(ref2 < ref1);
+  EXPECT_TRUE(ref1 <= ref2);
+  EXPECT_TRUE(ref2 <= ref1);
+  EXPECT_FALSE(ref1 > ref2);
+  EXPECT_FALSE(ref2 > ref1);
+  EXPECT_TRUE(ref1 >= ref2);
+  EXPECT_TRUE(ref2 >= ref1);
+  EXPECT_EQ(absl::HashOf(ref1), absl::HashOf(ref2));
+  EXPECT_EQ(tsdb2::common::FingerprintOf(ref1), tsdb2::common::FingerprintOf(ref2));
+}
+
+TEST(OptionalSubMessageRefTest, EmptyVsEmptyOptional) {
+  OptionalSubMessageRef<OptionalStringField> ref1;
+  std::optional<OptionalStringField> field;
+  OptionalSubMessageRef<OptionalStringField> ref2{field};
+  EXPECT_TRUE(ref1 == ref2);
+  EXPECT_TRUE(ref2 == ref1);
+  EXPECT_FALSE(ref1 != ref2);
+  EXPECT_FALSE(ref2 != ref1);
+  EXPECT_FALSE(ref1 < ref2);
+  EXPECT_FALSE(ref2 < ref1);
+  EXPECT_TRUE(ref1 <= ref2);
+  EXPECT_TRUE(ref2 <= ref1);
+  EXPECT_FALSE(ref1 > ref2);
+  EXPECT_FALSE(ref2 > ref1);
+  EXPECT_TRUE(ref1 >= ref2);
+  EXPECT_TRUE(ref2 >= ref1);
+  EXPECT_EQ(absl::HashOf(ref1), absl::HashOf(ref2));
+  EXPECT_EQ(tsdb2::common::FingerprintOf(ref1), tsdb2::common::FingerprintOf(ref2));
+}
+
+TEST(OptionalSubMessageRefTest, EmptyVsOptional) {
+  OptionalSubMessageRef<OptionalStringField> ref1;
+  std::optional<OptionalStringField> field{std::in_place, OptionalStringField{.field = "lorem"}};
+  OptionalSubMessageRef<OptionalStringField> ref2{field};
+  EXPECT_FALSE(ref1 == ref2);
+  EXPECT_FALSE(ref2 == ref1);
+  EXPECT_TRUE(ref1 != ref2);
+  EXPECT_TRUE(ref2 != ref1);
+  EXPECT_TRUE(ref1 < ref2);
+  EXPECT_FALSE(ref2 < ref1);
+  EXPECT_TRUE(ref1 <= ref2);
+  EXPECT_FALSE(ref2 <= ref1);
+  EXPECT_FALSE(ref1 > ref2);
+  EXPECT_TRUE(ref2 > ref1);
+  EXPECT_FALSE(ref1 >= ref2);
+  EXPECT_TRUE(ref2 >= ref1);
+  EXPECT_NE(absl::HashOf(ref1), absl::HashOf(ref2));
+  EXPECT_NE(tsdb2::common::FingerprintOf(ref1), tsdb2::common::FingerprintOf(ref2));
+}
+
+TEST(OptionalSubMessageRefTest, EmptyVsEmptyUnique) {
+  OptionalSubMessageRef<OptionalStringField> ref1;
+  std::unique_ptr<OptionalStringField> field;
+  OptionalSubMessageRef<OptionalStringField> ref2{field};
+  EXPECT_TRUE(ref1 == ref2);
+  EXPECT_TRUE(ref2 == ref1);
+  EXPECT_FALSE(ref1 != ref2);
+  EXPECT_FALSE(ref2 != ref1);
+  EXPECT_FALSE(ref1 < ref2);
+  EXPECT_FALSE(ref2 < ref1);
+  EXPECT_TRUE(ref1 <= ref2);
+  EXPECT_TRUE(ref2 <= ref1);
+  EXPECT_FALSE(ref1 > ref2);
+  EXPECT_FALSE(ref2 > ref1);
+  EXPECT_TRUE(ref1 >= ref2);
+  EXPECT_TRUE(ref2 >= ref1);
+  EXPECT_EQ(absl::HashOf(ref1), absl::HashOf(ref2));
+  EXPECT_EQ(tsdb2::common::FingerprintOf(ref1), tsdb2::common::FingerprintOf(ref2));
+}
+
+TEST(OptionalSubMessageRefTest, EmptyVsUnique) {
+  OptionalSubMessageRef<OptionalStringField> ref1;
+  std::unique_ptr<OptionalStringField> field =
+      std::make_unique<OptionalStringField>(OptionalStringField{.field = "lorem"});
+  OptionalSubMessageRef<OptionalStringField> ref2{field};
+  EXPECT_FALSE(ref1 == ref2);
+  EXPECT_FALSE(ref2 == ref1);
+  EXPECT_TRUE(ref1 != ref2);
+  EXPECT_TRUE(ref2 != ref1);
+  EXPECT_TRUE(ref1 < ref2);
+  EXPECT_FALSE(ref2 < ref1);
+  EXPECT_TRUE(ref1 <= ref2);
+  EXPECT_FALSE(ref2 <= ref1);
+  EXPECT_FALSE(ref1 > ref2);
+  EXPECT_TRUE(ref2 > ref1);
+  EXPECT_FALSE(ref1 >= ref2);
+  EXPECT_TRUE(ref2 >= ref1);
+  EXPECT_NE(absl::HashOf(ref1), absl::HashOf(ref2));
+  EXPECT_NE(tsdb2::common::FingerprintOf(ref1), tsdb2::common::FingerprintOf(ref2));
+}
+
+TEST(OptionalSubMessageRefTest, EmptyVsEmptyShared) {
+  OptionalSubMessageRef<OptionalStringField> ref1;
+  std::shared_ptr<OptionalStringField> field;
+  OptionalSubMessageRef<OptionalStringField> ref2{field};
+  EXPECT_TRUE(ref1 == ref2);
+  EXPECT_TRUE(ref2 == ref1);
+  EXPECT_FALSE(ref1 != ref2);
+  EXPECT_FALSE(ref2 != ref1);
+  EXPECT_FALSE(ref1 < ref2);
+  EXPECT_FALSE(ref2 < ref1);
+  EXPECT_TRUE(ref1 <= ref2);
+  EXPECT_TRUE(ref2 <= ref1);
+  EXPECT_FALSE(ref1 > ref2);
+  EXPECT_FALSE(ref2 > ref1);
+  EXPECT_TRUE(ref1 >= ref2);
+  EXPECT_TRUE(ref2 >= ref1);
+  EXPECT_EQ(absl::HashOf(ref1), absl::HashOf(ref2));
+  EXPECT_EQ(tsdb2::common::FingerprintOf(ref1), tsdb2::common::FingerprintOf(ref2));
+}
+
+TEST(OptionalSubMessageRefTest, EmptyVsShared) {
+  OptionalSubMessageRef<OptionalStringField> ref1;
+  std::shared_ptr<OptionalStringField> field =
+      std::make_shared<OptionalStringField>(OptionalStringField{.field = "lorem"});
+  OptionalSubMessageRef<OptionalStringField> ref2{field};
+  EXPECT_FALSE(ref1 == ref2);
+  EXPECT_FALSE(ref2 == ref1);
+  EXPECT_TRUE(ref1 != ref2);
+  EXPECT_TRUE(ref2 != ref1);
+  EXPECT_TRUE(ref1 < ref2);
+  EXPECT_FALSE(ref2 < ref1);
+  EXPECT_TRUE(ref1 <= ref2);
+  EXPECT_FALSE(ref2 <= ref1);
+  EXPECT_FALSE(ref1 > ref2);
+  EXPECT_TRUE(ref2 > ref1);
+  EXPECT_FALSE(ref1 >= ref2);
+  EXPECT_TRUE(ref2 >= ref1);
+  EXPECT_NE(absl::HashOf(ref1), absl::HashOf(ref2));
+  EXPECT_NE(tsdb2::common::FingerprintOf(ref1), tsdb2::common::FingerprintOf(ref2));
+}
+
+TEST(OptionalSubMessageRefTest, EqualOptionals) {
+  std::optional<OptionalStringField> field1{std::in_place, OptionalStringField{.field = "lorem"}};
+  OptionalSubMessageRef<OptionalStringField> ref1{field1};
+  std::optional<OptionalStringField> field2{std::in_place, OptionalStringField{.field = "lorem"}};
+  OptionalSubMessageRef<OptionalStringField> ref2{field2};
+  EXPECT_TRUE(ref1 == ref2);
+  EXPECT_TRUE(ref2 == ref1);
+  EXPECT_FALSE(ref1 != ref2);
+  EXPECT_FALSE(ref2 != ref1);
+  EXPECT_FALSE(ref1 < ref2);
+  EXPECT_FALSE(ref2 < ref1);
+  EXPECT_TRUE(ref1 <= ref2);
+  EXPECT_TRUE(ref2 <= ref1);
+  EXPECT_FALSE(ref1 > ref2);
+  EXPECT_FALSE(ref2 > ref1);
+  EXPECT_TRUE(ref1 >= ref2);
+  EXPECT_TRUE(ref2 >= ref1);
+  EXPECT_EQ(absl::HashOf(ref1), absl::HashOf(ref2));
+  EXPECT_EQ(tsdb2::common::FingerprintOf(ref1), tsdb2::common::FingerprintOf(ref2));
+}
+
+TEST(OptionalSubMessageRefTest, DifferentOptionals) {
+  std::optional<OptionalStringField> field1{std::in_place, OptionalStringField{.field = "ipsum"}};
+  OptionalSubMessageRef<OptionalStringField> ref1{field1};
+  std::optional<OptionalStringField> field2{std::in_place, OptionalStringField{.field = "lorem"}};
+  OptionalSubMessageRef<OptionalStringField> ref2{field2};
+  EXPECT_FALSE(ref1 == ref2);
+  EXPECT_FALSE(ref2 == ref1);
+  EXPECT_TRUE(ref1 != ref2);
+  EXPECT_TRUE(ref2 != ref1);
+  EXPECT_TRUE(ref1 < ref2);
+  EXPECT_FALSE(ref2 < ref1);
+  EXPECT_TRUE(ref1 <= ref2);
+  EXPECT_FALSE(ref2 <= ref1);
+  EXPECT_FALSE(ref1 > ref2);
+  EXPECT_TRUE(ref2 > ref1);
+  EXPECT_FALSE(ref1 >= ref2);
+  EXPECT_TRUE(ref2 >= ref1);
+  EXPECT_NE(absl::HashOf(ref1), absl::HashOf(ref2));
+  EXPECT_NE(tsdb2::common::FingerprintOf(ref1), tsdb2::common::FingerprintOf(ref2));
+}
+
+TEST(OptionalSubMessageRefTest, EqualUnique) {
+  std::unique_ptr<OptionalStringField> field1 =
+      std::make_unique<OptionalStringField>(OptionalStringField{.field = "lorem"});
+  OptionalSubMessageRef<OptionalStringField> ref1{field1};
+  std::unique_ptr<OptionalStringField> field2 =
+      std::make_unique<OptionalStringField>(OptionalStringField{.field = "lorem"});
+  OptionalSubMessageRef<OptionalStringField> ref2{field2};
+  EXPECT_TRUE(ref1 == ref2);
+  EXPECT_TRUE(ref2 == ref1);
+  EXPECT_FALSE(ref1 != ref2);
+  EXPECT_FALSE(ref2 != ref1);
+  EXPECT_FALSE(ref1 < ref2);
+  EXPECT_FALSE(ref2 < ref1);
+  EXPECT_TRUE(ref1 <= ref2);
+  EXPECT_TRUE(ref2 <= ref1);
+  EXPECT_FALSE(ref1 > ref2);
+  EXPECT_FALSE(ref2 > ref1);
+  EXPECT_TRUE(ref1 >= ref2);
+  EXPECT_TRUE(ref2 >= ref1);
+  EXPECT_EQ(absl::HashOf(ref1), absl::HashOf(ref2));
+  EXPECT_EQ(tsdb2::common::FingerprintOf(ref1), tsdb2::common::FingerprintOf(ref2));
+}
+
+TEST(OptionalSubMessageRefTest, DifferentUnique) {
+  std::unique_ptr<OptionalStringField> field1 =
+      std::make_unique<OptionalStringField>(OptionalStringField{.field = "ipsum"});
+  OptionalSubMessageRef<OptionalStringField> ref1{field1};
+  std::unique_ptr<OptionalStringField> field2 =
+      std::make_unique<OptionalStringField>(OptionalStringField{.field = "lorem"});
+  OptionalSubMessageRef<OptionalStringField> ref2{field2};
+  EXPECT_FALSE(ref1 == ref2);
+  EXPECT_FALSE(ref2 == ref1);
+  EXPECT_TRUE(ref1 != ref2);
+  EXPECT_TRUE(ref2 != ref1);
+  EXPECT_TRUE(ref1 < ref2);
+  EXPECT_FALSE(ref2 < ref1);
+  EXPECT_TRUE(ref1 <= ref2);
+  EXPECT_FALSE(ref2 <= ref1);
+  EXPECT_FALSE(ref1 > ref2);
+  EXPECT_TRUE(ref2 > ref1);
+  EXPECT_FALSE(ref1 >= ref2);
+  EXPECT_TRUE(ref2 >= ref1);
+  EXPECT_NE(absl::HashOf(ref1), absl::HashOf(ref2));
+  EXPECT_NE(tsdb2::common::FingerprintOf(ref1), tsdb2::common::FingerprintOf(ref2));
+}
+
+TEST(OptionalSubMessageRefTest, EqualShared) {
+  std::shared_ptr<OptionalStringField> field1 =
+      std::make_shared<OptionalStringField>(OptionalStringField{.field = "lorem"});
+  OptionalSubMessageRef<OptionalStringField> ref1{field1};
+  std::shared_ptr<OptionalStringField> field2 =
+      std::make_shared<OptionalStringField>(OptionalStringField{.field = "lorem"});
+  OptionalSubMessageRef<OptionalStringField> ref2{field2};
+  EXPECT_TRUE(ref1 == ref2);
+  EXPECT_TRUE(ref2 == ref1);
+  EXPECT_FALSE(ref1 != ref2);
+  EXPECT_FALSE(ref2 != ref1);
+  EXPECT_FALSE(ref1 < ref2);
+  EXPECT_FALSE(ref2 < ref1);
+  EXPECT_TRUE(ref1 <= ref2);
+  EXPECT_TRUE(ref2 <= ref1);
+  EXPECT_FALSE(ref1 > ref2);
+  EXPECT_FALSE(ref2 > ref1);
+  EXPECT_TRUE(ref1 >= ref2);
+  EXPECT_TRUE(ref2 >= ref1);
+  EXPECT_EQ(absl::HashOf(ref1), absl::HashOf(ref2));
+  EXPECT_EQ(tsdb2::common::FingerprintOf(ref1), tsdb2::common::FingerprintOf(ref2));
+}
+
+TEST(OptionalSubMessageRefTest, DifferentShared) {
+  std::shared_ptr<OptionalStringField> field1 =
+      std::make_shared<OptionalStringField>(OptionalStringField{.field = "ipsum"});
+  OptionalSubMessageRef<OptionalStringField> ref1{field1};
+  std::shared_ptr<OptionalStringField> field2 =
+      std::make_shared<OptionalStringField>(OptionalStringField{.field = "lorem"});
+  OptionalSubMessageRef<OptionalStringField> ref2{field2};
+  EXPECT_FALSE(ref1 == ref2);
+  EXPECT_FALSE(ref2 == ref1);
+  EXPECT_TRUE(ref1 != ref2);
+  EXPECT_TRUE(ref2 != ref1);
+  EXPECT_TRUE(ref1 < ref2);
+  EXPECT_FALSE(ref2 < ref1);
+  EXPECT_TRUE(ref1 <= ref2);
+  EXPECT_FALSE(ref2 <= ref1);
+  EXPECT_FALSE(ref1 > ref2);
+  EXPECT_TRUE(ref2 > ref1);
+  EXPECT_FALSE(ref1 >= ref2);
+  EXPECT_TRUE(ref2 >= ref1);
+  EXPECT_NE(absl::HashOf(ref1), absl::HashOf(ref2));
+  EXPECT_NE(tsdb2::common::FingerprintOf(ref1), tsdb2::common::FingerprintOf(ref2));
+}
 
 TEST(ExtensionDataTest, DefaultConstruction) {
   ExtensionData const ed;

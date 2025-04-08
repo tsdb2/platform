@@ -1,30 +1,14 @@
 #include "proto/dependency_mapping.pb.sync.h"
 
-#include <cstddef>
-#include <cstdint>
-#include <functional>
-#include <memory>
-#include <tuple>
-#include <utility>
-#include <variant>
+#include "proto/runtime.h"
 
-#include "absl/status/status.h"
-#include "absl/status/statusor.h"
-#include "absl/time/time.h"
-#include "absl/types/span.h"
-#include "common/flat_set.h"
-#include "common/utilities.h"
-#include "io/cord.h"
-#include "proto/proto.h"
-#include "proto/wire_format.h"
-
-namespace tsdb2::proto {
+namespace tsdb2::proto::internal {
 
 TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
 
-::absl::StatusOr<DependencyMapping::Dependency> DependencyMapping::Dependency::Decode(
+::absl::StatusOr<DependencyMapping::DependencyEntry> DependencyMapping::DependencyEntry::Decode(
     ::absl::Span<uint8_t const> const data) {
-  DependencyMapping::Dependency proto;
+  DependencyMapping::DependencyEntry proto;
   ::tsdb2::proto::Decoder decoder{data};
   while (true) {
     DEFINE_CONST_OR_RETURN(maybe_tag, decoder.DecodeTag());
@@ -49,8 +33,8 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   return std::move(proto);
 }
 
-::tsdb2::io::Cord DependencyMapping::Dependency::Encode(
-    DependencyMapping::Dependency const& proto) {
+::tsdb2::io::Cord DependencyMapping::DependencyEntry::Encode(
+    DependencyMapping::DependencyEntry const& proto) {
   ::tsdb2::proto::Encoder encoder;
   if (proto.key.has_value()) {
     encoder.EncodeStringField(1, proto.key.value());
@@ -74,8 +58,9 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
     switch (tag.field_number) {
       case 1: {
         DEFINE_CONST_OR_RETURN(child_span, decoder.GetChildSpan(tag.wire_type));
-        DEFINE_VAR_OR_RETURN(value,
-                             ::tsdb2::proto::DependencyMapping::Dependency::Decode(child_span));
+        DEFINE_VAR_OR_RETURN(
+            value,
+            ::tsdb2::proto::internal::DependencyMapping::DependencyEntry::Decode(child_span));
         proto.dependency.emplace_back(std::move(value));
       } break;
       default:
@@ -89,24 +74,26 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
 ::tsdb2::io::Cord DependencyMapping::Encode(DependencyMapping const& proto) {
   ::tsdb2::proto::Encoder encoder;
   for (auto const& value : proto.dependency) {
-    encoder.EncodeSubMessageField(1, ::tsdb2::proto::DependencyMapping::Dependency::Encode(value));
+    encoder.EncodeSubMessageField(
+        1, ::tsdb2::proto::internal::DependencyMapping::DependencyEntry::Encode(value));
   }
   return std::move(encoder).Finish();
 }
 
-::tsdb2::proto::MessageDescriptor<DependencyMapping::Dependency, 2> const
-    DependencyMapping::Dependency::MESSAGE_DESCRIPTOR{{
-        {"key", &DependencyMapping::Dependency::key},
-        {"value", &DependencyMapping::Dependency::value},
+::tsdb2::proto::MessageDescriptor<DependencyMapping::DependencyEntry, 2> const
+    DependencyMapping::DependencyEntry::MESSAGE_DESCRIPTOR{{
+        {"key", &DependencyMapping::DependencyEntry::key},
+        {"value", &DependencyMapping::DependencyEntry::value},
     }};
 
 ::tsdb2::proto::MessageDescriptor<DependencyMapping, 1> const DependencyMapping::MESSAGE_DESCRIPTOR{
     {
-        {"dependency", ::tsdb2::proto::RepeatedSubMessageField<DependencyMapping>(
-                           &DependencyMapping::dependency,
-                           ::tsdb2::proto::DependencyMapping::Dependency::MESSAGE_DESCRIPTOR)},
+        {"dependency",
+         ::tsdb2::proto::RepeatedSubMessageField<DependencyMapping>(
+             &DependencyMapping::dependency,
+             ::tsdb2::proto::internal::DependencyMapping::DependencyEntry::MESSAGE_DESCRIPTOR)},
     }};
 
 TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING();
 
-}  // namespace tsdb2::proto
+}  // namespace tsdb2::proto::internal

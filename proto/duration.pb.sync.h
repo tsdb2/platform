@@ -1,23 +1,7 @@
 #ifndef __TSDB2_PROTO_DURATION_PB_H__
 #define __TSDB2_PROTO_DURATION_PB_H__
 
-#include <cstdint>
-#include <memory>
-#include <optional>
-#include <string>
-#include <tuple>
-#include <utility>
-#include <variant>
-#include <vector>
-
-#include "absl/base/attributes.h"
-#include "absl/status/statusor.h"
-#include "absl/time/time.h"
-#include "absl/types/span.h"
-#include "common/utilities.h"
-#include "io/buffer.h"
-#include "io/cord.h"
-#include "proto/proto.h"
+#include "proto/runtime.h"
 
 TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
 
@@ -31,7 +15,7 @@ struct Duration : public ::tsdb2::proto::Message {
   static ::absl::StatusOr<Duration> Decode(::absl::Span<uint8_t const> data);
   static ::tsdb2::io::Cord Encode(Duration const& proto);
 
-  static auto Tie(Duration const& proto) { return std::tie(proto.seconds, proto.nanos); }
+  static auto Tie(Duration const& proto) { return ::tsdb2::proto::Tie(proto.seconds, proto.nanos); }
 
   template <typename H>
   friend H AbslHashValue(H h, Duration const& proto) {

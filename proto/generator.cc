@@ -69,29 +69,6 @@ tsdb2::common::NoDestructor<tsdb2::common::RE> const kPackagePattern{
 tsdb2::common::NoDestructor<tsdb2::common::RE> const kIdentifierPattern{
     tsdb2::common::RE::CreateOrDie("^[_A-Za-z][_A-Za-z0-9]*$")};
 
-auto constexpr kDefaultHeaderIncludes = tsdb2::common::fixed_flat_set_of<std::string_view>({
-    "absl/base/attributes.h",
-    "absl/status/statusor.h",
-    "absl/time/time.h",
-    "absl/types/span.h",
-    "common/utilities.h",
-    "io/buffer.h",
-    "io/cord.h",
-    "proto/proto.h",
-});
-
-auto constexpr kDefaultSourceIncludes = tsdb2::common::fixed_flat_set_of<std::string_view>({
-    "absl/status/status.h",
-    "absl/status/statusor.h",
-    "absl/time/time.h",
-    "absl/types/span.h",
-    "common/flat_set.h",
-    "common/utilities.h",
-    "io/cord.h",
-    "proto/proto.h",
-    "proto/wire_format.h",
-});
-
 // TODO: add headers based on the `deps` of the build target rather than adding all and excluding
 // these.
 auto constexpr kExcludedHeaders = tsdb2::common::fixed_flat_set_of<std::string_view>({
@@ -361,16 +338,7 @@ absl::StatusOr<std::string> Generator::GenerateHeaderFileContent() {
   writer.AppendUnindentedLine("#ifndef ", header_guard_name);
   writer.AppendUnindentedLine("#define ", header_guard_name);
   writer.AppendEmptyLine();
-  writer.AppendUnindentedLine("#include <cstdint>");
-  writer.AppendUnindentedLine("#include <memory>");
-  writer.AppendUnindentedLine("#include <optional>");
-  writer.AppendUnindentedLine("#include <string>");
-  writer.AppendUnindentedLine("#include <tuple>");
-  writer.AppendUnindentedLine("#include <utility>");
-  writer.AppendUnindentedLine("#include <variant>");
-  writer.AppendUnindentedLine("#include <vector>");
-  writer.AppendEmptyLine();
-  EmitHeaderIncludes(&writer);
+  EmitIncludes(&writer);
   writer.AppendEmptyLine();
   writer.AppendLine("TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();");
   writer.AppendEmptyLine();
@@ -410,15 +378,7 @@ absl::StatusOr<std::string> Generator::GenerateSourceFileContent() {
   auto const header_path = generator::MakeHeaderFileName(name);
   writer.AppendUnindentedLine("#include \"", header_path, "\"");
   writer.AppendEmptyLine();
-  writer.AppendUnindentedLine("#include <cstddef>");
-  writer.AppendUnindentedLine("#include <cstdint>");
-  writer.AppendUnindentedLine("#include <functional>");
-  writer.AppendUnindentedLine("#include <memory>");
-  writer.AppendUnindentedLine("#include <tuple>");
-  writer.AppendUnindentedLine("#include <utility>");
-  writer.AppendUnindentedLine("#include <variant>");
-  writer.AppendEmptyLine();
-  EmitSourceIncludes(&writer);
+  EmitIncludes(&writer);
   DEFINE_CONST_OR_RETURN(package, GetCppPackage());
   if (!package.empty()) {
     writer.AppendEmptyLine();
@@ -873,9 +833,16 @@ Generator::GetAllExtensionMessages(LexicalScope const& scope) {
   return std::move(extensions);
 }
 
-void Generator::EmitIncludes(google::protobuf::FileDescriptorProto const& file_descriptor,
-                             TextWriter* const writer,
-                             tsdb2::common::flat_map<std::string, bool> headers) const {
+void Generator::EmitIncludes(TextWriter* const writer) const {
+  tsdb2::common::flat_map<std::string, bool> headers;
+  headers.reserve(file_descriptor_->dependency.size() + 1);
+  headers.try_emplace("proto/runtime.h", false);
+  tsdb2::common::flat_set<size_t> const public_dependency_indexes{
+      file_descriptor_->public_dependency.begin(), file_descriptor_->public_dependency.end()};
+  for (size_t i = 0; i < file_descriptor_->dependency.size(); ++i) {
+    headers.try_emplace(generator::MakeHeaderFileName(file_descriptor_->dependency[i]),
+                        /*public=*/public_dependency_indexes.contains(i));
+  }
   if (!use_raw_google_api_types_) {
     for (auto const header : kExcludedHeaders) {
       headers.erase(header);
@@ -888,14 +855,6 @@ void Generator::EmitIncludes(google::protobuf::FileDescriptorProto const& file_d
       writer->AppendUnindentedLine("#include \"", header, "\"");
     }
   }
-}
-
-void Generator::EmitHeaderIncludes(TextWriter* const writer) const {
-  EmitIncludes(*file_descriptor_, writer, kDefaultHeaderIncludes);
-}
-
-void Generator::EmitSourceIncludes(TextWriter* const writer) const {
-  EmitIncludes(*file_descriptor_, writer, kDefaultSourceIncludes);
 }
 
 absl::StatusOr<std::pair<std::string, bool>> Generator::GetFieldType(
@@ -1153,13 +1112,26 @@ absl::Status Generator::EmitMessageHeader(
           }
         } else {
           REQUIRE_FIELD_OR_RETURN(name, field, name);
-          params.emplace_back(absl::StrCat("proto.", name));
+          bool wrap_optional_submessage = false;
+          if (field.type_name.has_value()) {
+            REQUIRE_FIELD_OR_RETURN(label, field, label);
+            if (label == google::protobuf::FieldDescriptorProto::Label::LABEL_OPTIONAL) {
+              DEFINE_CONST_OR_RETURN(is_message, IsMessage(field.type_name.value()));
+              wrap_optional_submessage = is_message;
+            }
+          }
+          if (wrap_optional_submessage) {
+            params.emplace_back(
+                absl::StrCat("::tsdb2::proto::OptionalSubMessageRef(proto.", name, ")"));
+          } else {
+            params.emplace_back(absl::StrCat("proto.", name));
+          }
         }
       }
       if (!message_type.extension_range.empty()) {
         params.emplace_back("proto.extension_data");
       }
-      writer->AppendLine("return std::tie(", absl::StrJoin(params, ", "), ");");
+      writer->AppendLine("return ::tsdb2::proto::Tie(", absl::StrJoin(params, ", "), ");");
     }
     writer->AppendLine("}");
     writer->AppendEmptyLine();
