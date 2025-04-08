@@ -11,6 +11,7 @@
 
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/hash/hash.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -53,6 +54,25 @@ class Generator {
   absl::StatusOr<google::protobuf::compiler::CodeGeneratorResponse::File> GenerateSourceFile();
 
  private:
+  // Transparent hash & equal functors for indexing `Path`s in hash tables and looking them up by
+  // `PathView`.
+  struct PathHashEq {
+    struct Hash {
+      using is_transparent = void;
+      size_t operator()(PathView const path) const { return absl::HashOf(path); }
+    };
+    struct Eq {
+      using is_transparent = void;
+      bool operator()(PathView const lhs, PathView const rhs) const { return lhs == rhs; }
+    };
+  };
+
+  using EnumsByPath = absl::flat_hash_map<Path, google::protobuf::EnumDescriptorProto,
+                                          PathHashEq::Hash, PathHashEq::Eq>;
+
+  using MessagesByPath = absl::flat_hash_map<Path, google::protobuf::DescriptorProto,
+                                             PathHashEq::Hash, PathHashEq::Eq>;
+
   struct LexicalScope {
     Path base_path;
     bool global;
@@ -90,6 +110,10 @@ class Generator {
     // sub-message type.
     absl::Status CheckFieldIndirections() const;
 
+    // Checks that the (tsdb2.proto.map_type) option is applied only to map fields and that the keys
+    // of trie maps are strings.
+    absl::Status CheckMapTypes() const;
+
     absl::Status CheckGoogleApiType(PathView path) const;
 
     absl::Status AddFieldToDependencies(PathView dependee_path,
@@ -112,39 +136,32 @@ class Generator {
 
     absl::StatusOr<Cycles> FindCycles(LexicalScope const& scope) const;
 
-    static absl::Status GetEnumTypesByPathImpl(
-        LexicalScope const& scope,
-        absl::flat_hash_map<Path, google::protobuf::EnumDescriptorProto>* descriptors);
+    static absl::Status GetEnumTypesByPathImpl(LexicalScope const& scope, EnumsByPath* descriptors);
 
-    absl::StatusOr<absl::flat_hash_map<Path, google::protobuf::EnumDescriptorProto>>
-    GetEnumTypesByPath() const;
+    absl::StatusOr<EnumsByPath> GetEnumTypesByPath() const;
 
-    static absl::Status GetMessageTypesByPathImpl(
-        LexicalScope const& scope,
-        absl::flat_hash_map<Path, google::protobuf::DescriptorProto>* descriptor);
+    static absl::Status GetMessageTypesByPathImpl(LexicalScope const& scope,
+                                                  MessagesByPath* descriptor);
 
-    absl::StatusOr<absl::flat_hash_map<Path, google::protobuf::DescriptorProto>>
-    GetMessageTypesByPath() const;
+    absl::StatusOr<MessagesByPath> GetMessageTypesByPath() const;
 
     google::protobuf::FileDescriptorProto const* file_descriptor_;
     Path base_path_;
     bool use_raw_google_api_types_;
 
-    absl::flat_hash_map<Path, google::protobuf::EnumDescriptorProto> enum_types_by_path_;
-    absl::flat_hash_map<Path, google::protobuf::DescriptorProto> message_types_by_path_;
+    EnumsByPath enum_types_by_path_;
+    MessagesByPath message_types_by_path_;
 
     internal::DependencyManager dependencies_;
     internal::DependencyManager flat_dependencies_;
   };
 
-  explicit Generator(
-      google::protobuf::FileDescriptorProto const* const file_descriptor,
-      bool const emit_reflection_api, bool const use_raw_google_api_types,
-      bool const generate_definitions_for_google_api_types,
-      absl::flat_hash_map<Path, google::protobuf::EnumDescriptorProto> enum_types_by_path,
-      absl::flat_hash_map<Path, google::protobuf::DescriptorProto> message_types_by_path,
-      internal::DependencyManager dependencies, internal::DependencyManager flat_dependencies,
-      Path base_path)
+  explicit Generator(google::protobuf::FileDescriptorProto const* const file_descriptor,
+                     bool const emit_reflection_api, bool const use_raw_google_api_types,
+                     bool const generate_definitions_for_google_api_types,
+                     EnumsByPath enum_types_by_path, MessagesByPath message_types_by_path,
+                     internal::DependencyManager dependencies,
+                     internal::DependencyManager flat_dependencies, Path base_path)
       : file_descriptor_(file_descriptor),
         emit_reflection_api_(emit_reflection_api),
         use_raw_google_api_types_(use_raw_google_api_types),
@@ -203,9 +220,36 @@ class Generator {
   absl::StatusOr<bool> FieldIsWrappedInOptional(
       google::protobuf::FieldDescriptorProto const& descriptor) const;
 
-  absl::Status EmitOneofField(internal::TextWriter* writer,
-                              google::protobuf::DescriptorProto const& message_type,
-                              size_t index) const;
+  static absl::StatusOr<std::optional<MapType>> GetMapType(
+      google::protobuf::FieldDescriptorProto const& descriptor);
+
+  absl::StatusOr<std::string> MakeMapSignature(
+      google::protobuf::FieldDescriptorProto const& descriptor,
+      google::protobuf::DescriptorProto const& entry_message_type) const;
+
+  static absl::StatusOr<std::string_view> GetMapDescriptorName(
+      google::protobuf::FieldDescriptorProto const& descriptor);
+
+  // Returns nullptr if `path` doesn't refer to a map entry message.
+  google::protobuf::DescriptorProto const* GetMapEntry(PathView path) const;
+
+  bool IsMapEntry(PathView const path) const { return GetMapEntry(path) != nullptr; }
+
+  // Indicates whether the specified message type has unordered map types, in which case the ordered
+  // comparison operators cannot be emitted.
+  absl::StatusOr<bool> HasUnorderedMaps(
+      google::protobuf::DescriptorProto const& message_type) const;
+
+  static absl::StatusOr<std::pair<google::protobuf::FieldDescriptorProto const*,
+                                  google::protobuf::FieldDescriptorProto const*>>
+  GetMapEntryFields(google::protobuf::DescriptorProto const& entry_message_type);
+
+  absl::Status EmitFieldDeclaration(internal::TextWriter* writer,
+                                    google::protobuf::FieldDescriptorProto const& field) const;
+
+  absl::Status EmitOneofFieldDeclaration(internal::TextWriter* writer,
+                                         google::protobuf::DescriptorProto const& message_type,
+                                         size_t index) const;
 
   absl::Status EmitMessageFields(internal::TextWriter* writer,
                                  google::protobuf::DescriptorProto const& message_type) const;
@@ -232,8 +276,8 @@ class Generator {
                                            google::protobuf::FieldDescriptorProto const& descriptor,
                                            bool required);
 
-  static absl::Status EmitObjectDecoding(internal::TextWriter* writer,
-                                         google::protobuf::FieldDescriptorProto const& descriptor);
+  absl::Status EmitObjectDecoding(internal::TextWriter* writer,
+                                  google::protobuf::FieldDescriptorProto const& descriptor) const;
 
   absl::Status EmitEnumDecoding(internal::TextWriter* writer,
                                 google::protobuf::FieldDescriptorProto const& descriptor) const;
@@ -265,8 +309,8 @@ class Generator {
       internal::TextWriter* writer, google::protobuf::FieldDescriptorProto const& descriptor,
       bool is_optional);
 
-  static absl::Status EmitObjectFieldEncoding(
-      internal::TextWriter* writer, google::protobuf::FieldDescriptorProto const& descriptor);
+  absl::Status EmitObjectFieldEncoding(
+      internal::TextWriter* writer, google::protobuf::FieldDescriptorProto const& descriptor) const;
 
   absl::Status EmitFieldEncoding(internal::TextWriter* writer,
                                  google::protobuf::FieldDescriptorProto const& descriptor) const;
@@ -290,9 +334,11 @@ class Generator {
       internal::TextWriter* writer, std::string_view qualified_parent_name,
       google::protobuf::FieldDescriptorProto const& descriptor, bool is_optional);
 
-  static absl::Status EmitObjectFieldDescriptor(
+  absl::StatusOr<std::string> GetMapValueDescriptorName(PathView entry_path) const;
+
+  absl::Status EmitObjectFieldDescriptor(
       internal::TextWriter* writer, std::string_view qualified_parent_name,
-      google::protobuf::FieldDescriptorProto const& descriptor);
+      google::protobuf::FieldDescriptorProto const& descriptor) const;
 
   absl::Status EmitFieldDescriptor(internal::TextWriter* writer,
                                    std::string_view qualified_parent_name,
@@ -312,8 +358,8 @@ class Generator {
   bool emit_reflection_api_;
   bool use_raw_google_api_types_;
   bool generate_definitions_for_google_api_types_;
-  absl::flat_hash_map<Path, google::protobuf::EnumDescriptorProto> enum_types_by_path_;
-  absl::flat_hash_map<Path, google::protobuf::DescriptorProto> message_types_by_path_;
+  EnumsByPath enum_types_by_path_;
+  MessagesByPath message_types_by_path_;
   internal::DependencyManager dependencies_;
   internal::DependencyManager flat_dependencies_;
   Path base_path_;

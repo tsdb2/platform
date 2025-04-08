@@ -19,6 +19,7 @@
 #include "common/utilities.h"
 #include "io/buffer.h"
 #include "io/cord.h"
+#include "proto/proto.h"
 
 namespace tsdb2 {
 namespace proto {
@@ -109,6 +110,21 @@ class Decoder {
   absl::StatusOr<absl::Duration> DecodeDurationField(WireType wire_type);
 
   absl::StatusOr<absl::Span<uint8_t const>> GetChildSpan(WireType wire_type);
+
+  template <typename MapEntry, typename Map,
+            std::enable_if_t<internal::IsMapEntryV<MapEntry>, bool> = true>
+  absl::Status DecodeMapEntry(WireType const wire_type, Map *const map) {
+    DEFINE_CONST_OR_RETURN(child_span, GetChildSpan(wire_type));
+    DEFINE_VAR_OR_RETURN(entry, MapEntry::Decode(child_span));
+    if (!entry.key.has_value()) {
+      entry.key.emplace();
+    }
+    if (!entry.value.has_value()) {
+      entry.value.emplace();
+    }
+    map->insert_or_assign(std::move(entry.key).value(), std::move(entry.value).value());
+    return absl::OkStatus();
+  }
 
   template <typename Integer>
   absl::StatusOr<Integer> DecodeInteger();

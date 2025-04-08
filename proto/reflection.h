@@ -4,16 +4,22 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <tuple>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 #include <variant>
 #include <vector>
 
+#include "absl/container/btree_map.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/node_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
@@ -21,6 +27,7 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "common/flat_map.h"
+#include "common/trie_map.h"
 #include "common/utilities.h"
 #include "proto/proto.h"
 
@@ -73,8 +80,8 @@ static inline bool constexpr CheckDescriptorsForTypesV =
 // enum type through the generated `<EnumType>_ENUM_DESCRIPTOR` globals, where `<EnumType>` is the
 // name of the enum type.
 //
-// NOTE: the whole reflection API is NOT thread-safe. It's the user's responsibility to ensure
-// proper synchronization. The same goes for the protobufs themselves.
+// NOTE: the whole reflection API is NOT thread-safe, only thread-friendly. It's the user's
+// responsibility to ensure proper synchronization. The same goes for the protobufs themselves.
 class BaseEnumDescriptor {
  public:
   explicit BaseEnumDescriptor() = default;
@@ -187,6 +194,55 @@ struct IsDescriptorForType<Enum, Descriptor, std::enable_if_t<std::is_enum_v<Enu
       std::is_base_of_v<BaseEnumDescriptor, std::decay_t<Descriptor>>;
 };
 
+// TODO: can we remove the *Impl versions of these definitions in C++20, after switching from SFINAE
+// to concepts?
+
+template <typename EntryMessage, std::enable_if_t<internal::IsMapEntryV<EntryMessage>, bool> = true>
+using StdMapImpl = std::map<MapKeyType<EntryMessage>, MapValueType<EntryMessage>>;
+
+template <typename EntryMessage>
+using StdMap = StdMapImpl<EntryMessage>;
+
+template <typename EntryMessage, std::enable_if_t<internal::IsMapEntryV<EntryMessage>, bool> = true>
+using StdUnorderedMapImpl =
+    std::unordered_map<MapKeyType<EntryMessage>, MapValueType<EntryMessage>>;
+
+template <typename EntryMessage>
+using StdUnorderedMap = StdUnorderedMapImpl<EntryMessage>;
+
+template <typename EntryMessage, std::enable_if_t<internal::IsMapEntryV<EntryMessage>, bool> = true>
+using FlatHashMapImpl = absl::flat_hash_map<MapKeyType<EntryMessage>, MapValueType<EntryMessage>>;
+
+template <typename EntryMessage>
+using FlatHashMap = FlatHashMapImpl<EntryMessage>;
+
+template <typename EntryMessage, std::enable_if_t<internal::IsMapEntryV<EntryMessage>, bool> = true>
+using NodeHashMapImpl = absl::node_hash_map<MapKeyType<EntryMessage>, MapValueType<EntryMessage>>;
+
+template <typename EntryMessage>
+using NodeHashMap = NodeHashMapImpl<EntryMessage>;
+
+template <typename EntryMessage, std::enable_if_t<internal::IsMapEntryV<EntryMessage>, bool> = true>
+using BtreeMapImpl = absl::btree_map<MapKeyType<EntryMessage>, MapValueType<EntryMessage>>;
+
+template <typename EntryMessage>
+using BtreeMap = BtreeMapImpl<EntryMessage>;
+
+template <typename EntryMessage, std::enable_if_t<internal::IsMapEntryV<EntryMessage>, bool> = true>
+using FlatMapImpl = tsdb2::common::flat_map<MapKeyType<EntryMessage>, MapValueType<EntryMessage>>;
+
+template <typename EntryMessage>
+using FlatMap = FlatMapImpl<EntryMessage>;
+
+template <typename EntryMessage,
+          std::enable_if_t<internal::IsMapEntryV<EntryMessage> &&
+                               std::is_same_v<MapKeyType<EntryMessage>, std::string>,
+                           bool> = true>
+using TrieMapImpl = tsdb2::common::trie_map<MapValueType<EntryMessage>>;
+
+template <typename EntryMessage>
+using TrieMap = TrieMapImpl<EntryMessage>;
+
 }  // namespace internal
 
 // Base class for all message descriptors (see the `MessageDescriptor` template below).
@@ -194,13 +250,13 @@ struct IsDescriptorForType<Enum, Descriptor, std::enable_if_t<std::is_enum_v<Enu
 // You must not create instances of this class. Instances are already provided in every generated
 // message type through the `MESSAGE_DESCRIPTOR` static property.
 //
-// NOTE: the whole reflection API is NOT thread-safe. It's the user's responsibility to ensure
-// proper synchronization. The same goes for the protobufs themselves.
+// NOTE: the whole reflection API is NOT thread-safe, only thread-friendly. It's the user's
+// responsibility to ensure proper synchronization. The same goes for the protobufs themselves.
 class BaseMessageDescriptor {
  public:
   // WARNING: don't change the order and numbering of the `FieldType`, `FieldKind`, and
   // `LabeledFieldType` enum values. Save for a few exceptions (e.g. oneof fields), the rest of the
-  // code makes assumptions about the numbering for various tasks, for example when decomposing a
+  // code makes assumptions about the numbering for various purposes, for example when decomposing a
   // `LabeledFieldType` into the corresponding `FieldType` and `FieldKind`.
 
   enum class FieldType : int8_t {
@@ -217,14 +273,16 @@ class BaseMessageDescriptor {
     kDurationField = 10,
     kEnumField = 11,
     kSubMessageField = 12,
-    kOneOfField = 13,
+    kMapField = 13,
+    kOneOfField = 14,
   };
 
   enum class FieldKind : int8_t {
     kRaw = 0,
     kOptional = 1,
     kRepeated = 2,
-    kOneOf = 3,
+    kMap = 3,
+    kOneOf = 4,
   };
 
   enum class LabeledFieldType : int8_t {
@@ -267,7 +325,8 @@ class BaseMessageDescriptor {
     kRawSubMessageField = 36,
     kOptionalSubMessageField = 37,
     kRepeatedSubMessageField = 38,
-    kOneOfField = 39,
+    kMapField = 39,
+    kOneOfField = 40,
   };
 
   // Keeps information about an enum-typed field.
@@ -795,7 +854,7 @@ class BaseMessageDescriptor {
     std::shared_ptr<BaseImpl> impl_;
   };
 
-  // Keeps information about a message-typed optional field. This is essentially a pair of a pointer
+  // Keeps information about a message-typed repeated field. This is essentially a pair of a pointer
   // to the message array and its `BaseMessageDescriptor`.
   class RepeatedSubMessage final {
    public:
@@ -968,6 +1027,332 @@ class BaseMessageDescriptor {
       std::vector<SubMessage>* const messages_;
       BaseMessageDescriptor const& descriptor_;
     };
+
+    std::shared_ptr<BaseImpl> impl_;
+  };
+
+  using MapKey = std::variant<int32_t, uint32_t, int64_t, uint64_t, bool, std::string>;
+
+  using MapValue =
+      std::variant<int32_t, uint32_t, int64_t, uint64_t, bool, std::string, std::vector<uint8_t>,
+                   double, float, absl::Time, absl::Duration, RawEnum const, RawSubMessage const>;
+
+  using MapValueRef = std::variant<int32_t*, uint32_t*, int64_t*, uint64_t*, bool*, std::string*,
+                                   std::vector<uint8_t>*, double*, float*, absl::Time*,
+                                   absl::Duration*, RawEnum, RawSubMessage>;
+
+  class Map final {
+   private:
+    class BaseImpl {
+     public:
+      class Iterator {
+       public:
+        explicit Iterator() = default;
+        virtual ~Iterator() = default;
+
+        virtual bool operator==(Iterator const& other) const = 0;
+
+        virtual std::pair<MapKey, MapValueRef> operator*() const = 0;
+
+       private:
+        Iterator(Iterator const&) = delete;
+        Iterator& operator=(Iterator const&) = delete;
+        Iterator(Iterator&&) = delete;
+        Iterator& operator=(Iterator&&) = delete;
+      };
+
+      explicit BaseImpl() = default;
+      virtual ~BaseImpl() = default;
+
+      virtual bool IsOrdered() const = 0;
+      virtual BaseMessageDescriptor const& GetEntryDescriptor() const = 0;
+
+      virtual size_t GetSize() const = 0;
+      virtual bool IsEmpty() const = 0;
+
+      virtual void Clear() = 0;
+      virtual void Reserve(size_t size) = 0;
+
+      virtual absl::StatusOr<bool> Contains(MapKey const& key) const = 0;
+      virtual absl::StatusOr<std::shared_ptr<Iterator>> Find(MapKey const& key) const = 0;
+
+      virtual absl::StatusOr<bool> Erase(MapKey const& key) = 0;
+
+      // TODO
+
+     private:
+      BaseImpl(BaseImpl const&) = delete;
+      BaseImpl& operator=(BaseImpl const&) = delete;
+      BaseImpl(BaseImpl&&) = delete;
+      BaseImpl& operator=(BaseImpl&&) = delete;
+    };
+
+   public:
+    class iterator final {
+     public:
+      explicit iterator() = default;
+      ~iterator() = default;
+
+      iterator(iterator const&) = default;
+      iterator& operator=(iterator const&) = default;
+
+      iterator(iterator&&) noexcept = default;
+      iterator& operator=(iterator&&) noexcept = default;
+
+      void swap(iterator& other) noexcept { std::swap(it_, other.it_); }
+      friend void swap(iterator& lhs, iterator& rhs) noexcept { lhs.swap(rhs); }
+
+      friend bool operator==(iterator const& lhs, iterator const& rhs) {
+        return lhs.it_ == rhs.it_ || *(lhs.it_) == *(rhs.it_);
+      }
+
+      friend bool operator!=(iterator const& lhs, iterator const& rhs) {
+        return !operator==(lhs, rhs);
+      }
+
+      std::pair<MapKey, MapValueRef> operator*() const { return it_->operator*(); }
+
+     private:
+      friend class Map;
+
+      explicit iterator(std::shared_ptr<BaseImpl::Iterator> it) : it_(std::move(it)) {}
+
+      std::shared_ptr<BaseImpl::Iterator> it_;
+    };
+
+    template <template <typename> class MapType, typename EntryMessage, typename ValueDescriptor>
+    static Map Create(MapType<EntryMessage>* const map,
+                      BaseMessageDescriptor const& entry_descriptor,
+                      ValueDescriptor const& value_descriptor) {
+      return Map(std::make_shared<Impl<MapType, EntryMessage, ValueDescriptor>>(
+          map, entry_descriptor, value_descriptor));
+    }
+
+    ~Map() = default;
+
+    Map(Map const&) = default;
+    Map& operator=(Map const&) = default;
+
+    Map(Map&&) noexcept = default;
+    Map& operator=(Map&&) noexcept = default;
+
+    bool is_ordered() const { return impl_->IsOrdered(); }
+    BaseMessageDescriptor const& entry_descriptor() const { return impl_->GetEntryDescriptor(); }
+
+    size_t size() const { return impl_->GetSize(); }
+    [[nodiscard]] bool empty() const { return impl_->IsEmpty(); }
+
+    void Clear() { impl_->Clear(); }
+    void Reserve(size_t const size) { impl_->Reserve(size); }
+
+    absl::StatusOr<bool> Contains(MapKey const& key) const { return impl_->Contains(key); }
+
+    absl::StatusOr<iterator> Find(MapKey const& key) {
+      DEFINE_VAR_OR_RETURN(it, impl_->Find(key));
+      return iterator(std::move(it));
+    }
+
+    absl::StatusOr<bool> Erase(MapKey const& key) { return impl_->Erase(key); }
+
+    // TODO
+
+   private:
+    struct WrapKey final {
+      MapKey operator()(int32_t const key) const { return key; }
+      MapKey operator()(int64_t const key) const { return key; }
+      MapKey operator()(uint32_t const key) const { return key; }
+      MapKey operator()(uint64_t const key) const { return key; }
+      MapKey operator()(bool const key) const { return key; }
+      MapKey operator()(std::string_view const key) const { return std::string(key); }
+    };
+
+    template <typename ValueDescriptor>
+    class WrapValueRef final {
+     public:
+      explicit WrapValueRef(ValueDescriptor const& value_descriptor)
+          : value_descriptor_(value_descriptor) {}
+
+      MapValueRef operator()(int32_t& value) const { return &value; }
+      MapValueRef operator()(int64_t& value) const { return &value; }
+      MapValueRef operator()(uint32_t& value) const { return &value; }
+      MapValueRef operator()(uint64_t& value) const { return &value; }
+      MapValueRef operator()(bool& value) const { return &value; }
+      MapValueRef operator()(std::string& value) const { return &value; }
+      MapValueRef operator()(std::vector<uint8_t>& value) const { return &value; }
+      MapValueRef operator()(double& value) const { return &value; }
+      MapValueRef operator()(float& value) const { return &value; }
+      MapValueRef operator()(absl::Time& value) const { return &value; }
+      MapValueRef operator()(absl::Duration& value) const { return &value; }
+
+      template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+      MapValueRef operator()(Enum& value) const {
+        return RawEnum(&value, value_descriptor_);
+      }
+
+      template <typename SubMessage,
+                std::enable_if_t<std::is_base_of_v<Message, SubMessage>, bool> = true>
+      MapValueRef operator()(SubMessage& value) const {
+        return RawSubMessage(&value, value_descriptor_);
+      }
+
+     private:
+      ValueDescriptor const& value_descriptor_;
+    };
+
+    template <typename Key>
+    struct UnwrapKey final {
+      template <typename Alias = Key, std::enable_if_t<std::is_same_v<Alias, int32_t>, bool> = true>
+      absl::StatusOr<Key> operator()(int32_t const key) const {
+        return key;
+      }
+
+      template <typename Alias = Key,
+                std::enable_if_t<std::is_same_v<Alias, uint32_t>, bool> = true>
+      absl::StatusOr<Key> operator()(uint32_t const key) const {
+        return key;
+      }
+
+      template <typename Alias = Key, std::enable_if_t<std::is_same_v<Alias, int64_t>, bool> = true>
+      absl::StatusOr<Key> operator()(int64_t const key) const {
+        return key;
+      }
+
+      template <typename Alias = Key,
+                std::enable_if_t<std::is_same_v<Alias, uint64_t>, bool> = true>
+      absl::StatusOr<Key> operator()(uint64_t const key) const {
+        return key;
+      }
+
+      template <typename Alias = Key, std::enable_if_t<std::is_same_v<Alias, bool>, bool> = true>
+      absl::StatusOr<Key> operator()(bool const key) const {
+        return key;
+      }
+
+      template <typename Alias = Key,
+                std::enable_if_t<std::is_same_v<Alias, std::string>, bool> = true>
+      absl::StatusOr<Key> operator()(std::string_view const key) const {
+        return std::string(key);
+      }
+
+      template <typename Arg, typename Alias = Key,
+                std::enable_if_t<!std::is_same_v<Alias, Arg>, bool> = true>
+      absl::StatusOr<Key> operator()(Arg&& arg) const {
+        return absl::FailedPreconditionError("invalid key type");
+      }
+    };
+
+    template <template <typename> class MapType, typename EntryMessage, typename ValueDescriptor,
+              std::enable_if_t<internal::IsMapEntryV<EntryMessage> &&
+                                   internal::IsDescriptorForTypeV<
+                                       internal::MapValueType<EntryMessage>, ValueDescriptor>,
+                               bool> = true>
+    class Impl final : public BaseImpl {
+     public:
+      class Iterator final : public BaseImpl::Iterator {
+       public:
+        explicit Iterator(BaseMessageDescriptor const& entry_descriptor,
+                          ValueDescriptor const& value_descriptor)
+            : entry_descriptor_(entry_descriptor), value_descriptor_(value_descriptor) {}
+
+        explicit Iterator(BaseMessageDescriptor const& entry_descriptor,
+                          ValueDescriptor const& value_descriptor,
+                          typename MapType<EntryMessage>::iterator it)
+            : entry_descriptor_(entry_descriptor),
+              value_descriptor_(value_descriptor),
+              it_(std::move(it)) {}
+
+        bool operator==(BaseImpl::Iterator const& other) const override {
+          // Since exceptions are disabled, dynamic reference casts are unsafe because they can't
+          // throw `std::bad_cast` when they receive the incorrect type. Dynamic pointer casts are
+          // safe, we just need to check for nullptr.
+          Iterator const* const downcast = dynamic_cast<Iterator const*>(&other);
+          if (downcast != nullptr) {
+            return it_ == downcast->it_;
+          } else {
+            return false;
+          }
+        }
+
+        std::pair<MapKey, MapValueRef> operator*() const override {
+          return std::make_pair(WrapKey{}(it_->first),
+                                WrapValueRef{value_descriptor_}(it_->second));
+        }
+
+       private:
+        BaseMessageDescriptor const& entry_descriptor_;
+        ValueDescriptor const& value_descriptor_;
+        typename MapType<EntryMessage>::iterator it_;
+      };
+
+      explicit Impl(MapType<EntryMessage>* const map, BaseMessageDescriptor const& entry_descriptor,
+                    ValueDescriptor const& value_descriptor)
+          : map_(map), entry_descriptor_(entry_descriptor), value_descriptor_(value_descriptor) {}
+
+      bool IsOrdered() const override { return false; }
+      BaseMessageDescriptor const& GetEntryDescriptor() const override { return entry_descriptor_; }
+
+      size_t GetSize() const override { return map_->size(); }
+      bool IsEmpty() const override { return map_->empty(); }
+
+      void Clear() override { map_->clear(); }
+      void Reserve(size_t const size) override { CapacityReserver{map_}(size); }
+
+      absl::StatusOr<bool> Contains(MapKey const& key) const override {
+        DEFINE_CONST_OR_RETURN(raw_key,
+                               std::visit(UnwrapKey<internal::MapKeyType<EntryMessage>>{}, key));
+        // TODO: switch to `contains` in C++20.
+        return map_->count(raw_key) != 0;
+      }
+
+      absl::StatusOr<std::shared_ptr<BaseImpl::Iterator>> Find(MapKey const& key) const override {
+        DEFINE_CONST_OR_RETURN(raw_key,
+                               std::visit(UnwrapKey<internal::MapKeyType<EntryMessage>>{}, key));
+        return std::make_shared<Iterator>(entry_descriptor_, value_descriptor_,
+                                          map_->find(raw_key));
+      }
+
+      absl::StatusOr<bool> Erase(MapKey const& key) override {
+        DEFINE_CONST_OR_RETURN(raw_key,
+                               std::visit(UnwrapKey<internal::MapKeyType<EntryMessage>>{}, key));
+        auto const it = map_->find(raw_key);
+        if (it != map_->end()) {
+          map_->erase(raw_key);
+          return true;
+        } else {
+          return false;
+        }
+      }
+
+     private:
+      // Calls `reserve` for map types supporting that operations, otherwise it's a no-op.
+      template <typename Map = MapType<EntryMessage>, typename Enable = void>
+      class CapacityReserver {
+       public:
+        explicit CapacityReserver(Map* const map) : map_(map) {}
+
+        void operator()(size_t const size) const {}
+
+       private:
+        Map* const map_;
+      };
+
+      template <typename Map>
+      class CapacityReserver<Map, std::void_t<decltype(&Map::reserve)>> {
+       public:
+        explicit CapacityReserver(Map* const map) : map_(map) {}
+
+        void operator()(size_t const size) const { map_->reserve(size); }
+
+       private:
+        Map* const map_;
+      };
+
+      MapType<EntryMessage>* const map_;
+      BaseMessageDescriptor const& entry_descriptor_;
+      ValueDescriptor const& value_descriptor_;
+    };
+
+    explicit Map(std::shared_ptr<BaseImpl> impl) : impl_(std::move(impl)) {}
 
     std::shared_ptr<BaseImpl> impl_;
   };
@@ -1192,7 +1577,7 @@ class BaseMessageDescriptor {
       float*, std::optional<float>*, std::vector<float>*, absl::Time*, std::optional<absl::Time>*,
       std::vector<absl::Time>*, absl::Duration*, std::optional<absl::Duration>*,
       std::vector<absl::Duration>*, RawEnum, OptionalEnum, RepeatedEnum, RawSubMessage,
-      OptionalSubMessage, RepeatedSubMessage, OneOf>;
+      OptionalSubMessage, RepeatedSubMessage, Map, OneOf>;
 
   using ConstFieldValue = std::variant<
       int32_t const*, std::optional<int32_t> const*, std::vector<int32_t> const*, uint32_t const*,
@@ -1207,7 +1592,8 @@ class BaseMessageDescriptor {
       std::vector<float> const*, absl::Time const*, std::optional<absl::Time> const*,
       std::vector<absl::Time> const*, absl::Duration const*, std::optional<absl::Duration> const*,
       std::vector<absl::Duration> const*, RawEnum const, OptionalEnum const, RepeatedEnum const,
-      RawSubMessage const, OptionalSubMessage const, RepeatedSubMessage const, OneOf const>;
+      RawSubMessage const, OptionalSubMessage const, RepeatedSubMessage const, Map const,
+      OneOf const>;
 
   explicit constexpr BaseMessageDescriptor() = default;
   virtual ~BaseMessageDescriptor() = default;
@@ -1223,11 +1609,15 @@ class BaseMessageDescriptor {
   absl::StatusOr<std::pair<FieldType, FieldKind>> GetFieldTypeAndKind(
       std::string_view const field_name) const {
     DEFINE_CONST_OR_RETURN(labeled_type, GetLabeledFieldType(field_name));
-    if (labeled_type != LabeledFieldType::kOneOfField) {
-      auto const index = tsdb2::util::to_underlying(labeled_type);
-      return std::make_pair(static_cast<FieldType>(index / 3), static_cast<FieldKind>(index % 3));
-    } else {
-      return std::make_pair(FieldType::kOneOfField, FieldKind::kOneOf);
+    switch (labeled_type) {
+      case LabeledFieldType::kMapField:
+        return std::make_pair(FieldType::kMapField, FieldKind::kMap);
+      case LabeledFieldType::kOneOfField:
+        return std::make_pair(FieldType::kOneOfField, FieldKind::kOneOf);
+      default: {
+        auto const index = tsdb2::util::to_underlying(labeled_type);
+        return std::make_pair(static_cast<FieldType>(index / 3), static_cast<FieldKind>(index % 3));
+      }
     }
   }
 
@@ -1242,6 +1632,15 @@ class BaseMessageDescriptor {
     DEFINE_CONST_OR_RETURN(type_and_kind, GetFieldTypeAndKind(field_name));
     return type_and_kind.second;
   }
+
+  // Returns the descriptor of the specified field if it's an enum, or an error status otherwise.
+  virtual absl::StatusOr<BaseEnumDescriptor const*> GetEnumFieldDescriptor(
+      std::string_view field_name) const = 0;
+
+  // Returns the descriptor of the specified field if it's a sub-message, or an error status
+  // otherwise.
+  virtual absl::StatusOr<BaseMessageDescriptor const*> GetSubMessageFieldDescriptor(
+      std::string_view field_name) const = 0;
 
   // Returns a const pointer to the value of a field from its name. The returned type is an
   // `std::variant` that wraps all possible types. Sub-message types are further wrapped in a proxy
@@ -1857,6 +2256,126 @@ struct FieldTypes {
     std::shared_ptr<BaseImpl> impl_;
   };
 
+  class MapField final {
+   public:
+    template <typename EntryMessage, typename ValueDescriptor>
+    static MapField FromStdMap(internal::StdMap<EntryMessage> Message::*const map,
+                               BaseMessageDescriptor const& entry_descriptor,
+                               ValueDescriptor const& value_descriptor) {
+      return MapField(std::make_shared<Impl<internal::StdMap, EntryMessage, ValueDescriptor>>(
+          map, entry_descriptor, value_descriptor));
+    }
+
+    template <typename EntryMessage, typename ValueDescriptor>
+    static MapField FromStdUnorderedMap(internal::StdUnorderedMap<EntryMessage> Message::*const map,
+                                        BaseMessageDescriptor const& entry_descriptor,
+                                        ValueDescriptor const& value_descriptor) {
+      return MapField(
+          std::make_shared<Impl<internal::StdUnorderedMap, EntryMessage, ValueDescriptor>>(
+              map, entry_descriptor, value_descriptor));
+    }
+
+    template <typename EntryMessage, typename ValueDescriptor>
+    static MapField FromFlatHashMap(internal::FlatHashMap<EntryMessage> Message::*const map,
+                                    BaseMessageDescriptor const& entry_descriptor,
+                                    ValueDescriptor const& value_descriptor) {
+      return MapField(std::make_shared<Impl<internal::FlatHashMap, EntryMessage, ValueDescriptor>>(
+          map, entry_descriptor, value_descriptor));
+    }
+
+    template <typename EntryMessage, typename ValueDescriptor>
+    static MapField FromNodeHashMap(internal::NodeHashMap<EntryMessage> Message::*const map,
+                                    BaseMessageDescriptor const& entry_descriptor,
+                                    ValueDescriptor const& value_descriptor) {
+      return MapField(std::make_shared<Impl<internal::NodeHashMap, EntryMessage, ValueDescriptor>>(
+          map, entry_descriptor, value_descriptor));
+    }
+
+    template <typename EntryMessage, typename ValueDescriptor>
+    static MapField FromBtreeMap(internal::BtreeMap<EntryMessage> Message::*const map,
+                                 BaseMessageDescriptor const& entry_descriptor,
+                                 ValueDescriptor const& value_descriptor) {
+      return MapField(std::make_shared<Impl<internal::BtreeMap, EntryMessage, ValueDescriptor>>(
+          map, entry_descriptor, value_descriptor));
+    }
+
+    template <typename EntryMessage, typename ValueDescriptor>
+    static MapField FromFlatMap(internal::FlatMap<EntryMessage> Message::*const map,
+                                BaseMessageDescriptor const& entry_descriptor,
+                                ValueDescriptor const& value_descriptor) {
+      return MapField(std::make_shared<Impl<internal::FlatMap, EntryMessage, ValueDescriptor>>(
+          map, entry_descriptor, value_descriptor));
+    }
+
+    template <typename EntryMessage, typename ValueDescriptor>
+    static MapField FromTrieMap(internal::TrieMap<EntryMessage> Message::*const map,
+                                BaseMessageDescriptor const& entry_descriptor,
+                                ValueDescriptor const& value_descriptor) {
+      return MapField(std::make_shared<Impl<internal::TrieMap, EntryMessage, ValueDescriptor>>(
+          map, entry_descriptor, value_descriptor));
+    }
+
+    ~MapField() = default;
+
+    MapField(MapField const&) = default;
+    MapField& operator=(MapField const&) = default;
+
+    MapField(MapField&&) noexcept = default;
+    MapField& operator=(MapField&&) noexcept = default;
+
+    BaseMessageDescriptor const& entry_descriptor() const { return impl_->GetEntryDescriptor(); }
+
+    BaseMessageDescriptor::Map MakeValue(Message* const parent) const {
+      return impl_->MakeValue(parent);
+    }
+
+   private:
+    class BaseImpl {
+     public:
+      explicit BaseImpl() = default;
+      virtual ~BaseImpl() = default;
+
+      virtual BaseMessageDescriptor const& GetEntryDescriptor() const = 0;
+
+      virtual BaseMessageDescriptor::Map MakeValue(Message* parent) const = 0;
+
+     private:
+      BaseImpl(BaseImpl const&) = delete;
+      BaseImpl& operator=(BaseImpl const&) = delete;
+      BaseImpl(BaseImpl&&) = delete;
+      BaseImpl& operator=(BaseImpl&&) = delete;
+    };
+
+    template <template <typename> class MapType, typename EntryMessage, typename ValueDescriptor,
+              std::enable_if_t<internal::IsMapEntryV<EntryMessage> &&
+                                   internal::IsDescriptorForTypeV<
+                                       internal::MapValueType<EntryMessage>, ValueDescriptor>,
+                               bool> = true>
+    class Impl final : public BaseImpl {
+     public:
+      explicit Impl(MapType<EntryMessage> Message::*const map,
+                    BaseMessageDescriptor const& entry_descriptor,
+                    ValueDescriptor const& value_descriptor)
+          : map_(map), entry_descriptor_(entry_descriptor), value_descriptor_(value_descriptor) {}
+
+      BaseMessageDescriptor const& GetEntryDescriptor() const override { return entry_descriptor_; }
+
+      BaseMessageDescriptor::Map MakeValue(Message* const parent) const override {
+        return BaseMessageDescriptor::Map::Create<MapType, EntryMessage, ValueDescriptor>(
+            &(parent->*map_), entry_descriptor_, value_descriptor_);
+      }
+
+     private:
+      MapType<EntryMessage> Message::*const map_;
+      BaseMessageDescriptor const& entry_descriptor_;
+      ValueDescriptor const& value_descriptor_;
+    };
+
+    explicit MapField(std::shared_ptr<BaseImpl> impl) : impl_(std::move(impl)) {}
+
+    std::shared_ptr<BaseImpl> impl_;
+  };
+
   class OneOfField final {
    public:
     template <typename Variant, typename Descriptors>
@@ -1930,7 +2449,7 @@ struct FieldTypes {
       OptionalFloatField, RepeatedFloatField, RawTimeField, OptionalTimeField, RepeatedTimeField,
       RawDurationField, OptionalDurationField, RepeatedDurationField, RawEnumField,
       OptionalEnumField, RepeatedEnumField, RawSubMessageField, OptionalSubMessageField,
-      RepeatedSubMessageField, OneOfField>;
+      RepeatedSubMessageField, MapField, OneOfField>;
 };
 
 template <typename Message>
@@ -1951,6 +2470,62 @@ using OptionalSubMessageField = typename FieldTypes<Message>::OptionalSubMessage
 template <typename Message>
 using RepeatedSubMessageField = typename FieldTypes<Message>::RepeatedSubMessageField;
 
+template <typename Message, typename EntryMessage, typename ValueDescriptor>
+inline typename FieldTypes<Message>::MapField StdMapField(
+    internal::StdMap<EntryMessage> Message::*const field,
+    BaseMessageDescriptor const& entry_descriptor, ValueDescriptor const& value_descriptor) {
+  return FieldTypes<Message>::MapField::template FromStdMap<EntryMessage, ValueDescriptor>(
+      field, entry_descriptor, value_descriptor);
+}
+
+template <typename Message, typename EntryMessage, typename ValueDescriptor>
+inline typename FieldTypes<Message>::MapField StdUnorderedMapField(
+    internal::StdUnorderedMap<EntryMessage> Message::*const field,
+    BaseMessageDescriptor const& entry_descriptor, ValueDescriptor const& value_descriptor) {
+  return FieldTypes<Message>::MapField::template FromStdUnorderedMap<EntryMessage, ValueDescriptor>(
+      field, entry_descriptor, value_descriptor);
+}
+
+template <typename Message, typename EntryMessage, typename ValueDescriptor>
+inline typename FieldTypes<Message>::MapField FlatHashMapField(
+    internal::FlatHashMap<EntryMessage> Message::*const field,
+    BaseMessageDescriptor const& entry_descriptor, ValueDescriptor const& value_descriptor) {
+  return FieldTypes<Message>::MapField::template FromFlatHashMap<EntryMessage, ValueDescriptor>(
+      field, entry_descriptor, value_descriptor);
+}
+
+template <typename Message, typename EntryMessage, typename ValueDescriptor>
+inline typename FieldTypes<Message>::MapField NodeHashMapField(
+    internal::NodeHashMap<EntryMessage> Message::*const field,
+    BaseMessageDescriptor const& entry_descriptor, ValueDescriptor const& value_descriptor) {
+  return FieldTypes<Message>::MapField::template FromNodeHashMap<EntryMessage, ValueDescriptor>(
+      field, entry_descriptor, value_descriptor);
+}
+
+template <typename Message, typename EntryMessage, typename ValueDescriptor>
+inline typename FieldTypes<Message>::MapField BtreeMapField(
+    internal::BtreeMap<EntryMessage> Message::*const field,
+    BaseMessageDescriptor const& entry_descriptor, ValueDescriptor const& value_descriptor) {
+  return FieldTypes<Message>::MapField::template FromBtreeMap<EntryMessage, ValueDescriptor>(
+      field, entry_descriptor, value_descriptor);
+}
+
+template <typename Message, typename EntryMessage, typename ValueDescriptor>
+inline typename FieldTypes<Message>::MapField FlatMapField(
+    internal::FlatMap<EntryMessage> Message::*const field,
+    BaseMessageDescriptor const& entry_descriptor, ValueDescriptor const& value_descriptor) {
+  return FieldTypes<Message>::MapField::template FromFlatMap<EntryMessage, ValueDescriptor>(
+      field, entry_descriptor, value_descriptor);
+}
+
+template <typename Message, typename EntryMessage, typename ValueDescriptor>
+inline typename FieldTypes<Message>::MapField TrieMapField(
+    internal::TrieMap<EntryMessage> Message::*const field,
+    BaseMessageDescriptor const& entry_descriptor, ValueDescriptor const& value_descriptor) {
+  return FieldTypes<Message>::MapField::template FromTrieMap<EntryMessage, ValueDescriptor>(
+      field, entry_descriptor, value_descriptor);
+}
+
 template <typename Message>
 using OneOfField = typename FieldTypes<Message>::OneOfField;
 
@@ -1961,6 +2536,8 @@ class MessageDescriptor final : public BaseMessageDescriptor, public FieldTypes<
   using BaseMessageDescriptor::ConstFieldValue;
   using BaseMessageDescriptor::FieldValue;
   using BaseMessageDescriptor::LabeledFieldType;
+  using BaseMessageDescriptor::Map;
+  using BaseMessageDescriptor::OneOf;
   using BaseMessageDescriptor::OptionalSubMessage;
   using BaseMessageDescriptor::RawEnum;
   using BaseMessageDescriptor::RawSubMessage;
@@ -1986,6 +2563,26 @@ class MessageDescriptor final : public BaseMessageDescriptor, public FieldTypes<
     }
   }
 
+  absl::StatusOr<BaseEnumDescriptor const*> GetEnumFieldDescriptor(
+      std::string_view const field_name) const override {
+    auto const it = field_ptrs_.find(field_name);
+    if (it == field_ptrs_.end()) {
+      return absl::InvalidArgumentError(
+          absl::StrCat("unknown field \"", absl::CEscape(field_name), "\""));
+    }
+    return std::visit(ExtractEnumDescriptor(), it->second);
+  }
+
+  absl::StatusOr<BaseMessageDescriptor const*> GetSubMessageFieldDescriptor(
+      std::string_view const field_name) const override {
+    auto const it = field_ptrs_.find(field_name);
+    if (it == field_ptrs_.end()) {
+      return absl::InvalidArgumentError(
+          absl::StrCat("unknown field \"", absl::CEscape(field_name), "\""));
+    }
+    return std::visit(ExtractSubMessageDescriptor(), it->second);
+  }
+
   absl::StatusOr<ConstFieldValue> GetConstFieldValue(
       tsdb2::proto::Message const& message, std::string_view const field_name) const override {
     auto const it = field_ptrs_.find(field_name);
@@ -2007,6 +2604,44 @@ class MessageDescriptor final : public BaseMessageDescriptor, public FieldTypes<
   }
 
  private:
+  struct ExtractEnumDescriptor {
+    absl::StatusOr<BaseEnumDescriptor const*> operator()(RawEnum const& field) const {
+      return &(field.descriptor());
+    }
+
+    absl::StatusOr<BaseEnumDescriptor const*> operator()(OptionalEnum const& field) const {
+      return &(field.descriptor());
+    }
+
+    absl::StatusOr<BaseEnumDescriptor const*> operator()(RepeatedEnum const& field) const {
+      return &(field.descriptor());
+    }
+
+    template <typename Arg>
+    absl::StatusOr<BaseEnumDescriptor const*> operator()(Arg&& arg) const {
+      return absl::FailedPreconditionError("not an enum field");
+    }
+  };
+
+  struct ExtractSubMessageDescriptor {
+    absl::StatusOr<BaseMessageDescriptor const*> operator()(RawSubMessage const& field) const {
+      return &(field.descriptor());
+    }
+
+    absl::StatusOr<BaseMessageDescriptor const*> operator()(OptionalSubMessage const& field) const {
+      return &(field.descriptor());
+    }
+
+    absl::StatusOr<BaseMessageDescriptor const*> operator()(RepeatedSubMessage const& field) const {
+      return &(field.descriptor());
+    }
+
+    template <typename Arg>
+    absl::StatusOr<BaseMessageDescriptor const*> operator()(Arg&& arg) const {
+      return absl::FailedPreconditionError("not a sub-message field");
+    }
+  };
+
   class ConstFieldPointerVisitor {
    public:
     explicit ConstFieldPointerVisitor(Message const& message) : message_(message) {}
@@ -2183,6 +2818,11 @@ class MessageDescriptor final : public BaseMessageDescriptor, public FieldTypes<
                              field.MakeValue(const_cast<Message*>(&message_)));
     }
 
+    ConstFieldValue operator()(typename FieldTypes::MapField const& field) const {
+      return ConstFieldValue(std::in_place_type<Map const>,
+                             field.MakeValue(const_cast<Message*>(&message_)));
+    }
+
     ConstFieldValue operator()(typename FieldTypes::OneOfField const& field) const {
       return ConstFieldValue(std::in_place_type<OneOf const>,
                              field.MakeValue(const_cast<Message*>(&message_)));
@@ -2354,6 +2994,10 @@ class MessageDescriptor final : public BaseMessageDescriptor, public FieldTypes<
       return FieldValue(std::in_place_type<RepeatedSubMessage>, field.MakeValue(message_));
     }
 
+    FieldValue operator()(typename FieldTypes::MapField const& field) const {
+      return FieldValue(std::in_place_type<Map>, field.MakeValue(message_));
+    }
+
     FieldValue operator()(typename FieldTypes::OneOfField const& field) const {
       return FieldValue(std::in_place_type<OneOf>, field.MakeValue(message_));
     }
@@ -2383,6 +3027,8 @@ class MessageDescriptor<Message, 0> final : public BaseMessageDescriptor,
   using BaseMessageDescriptor::ConstFieldValue;
   using BaseMessageDescriptor::FieldValue;
   using BaseMessageDescriptor::LabeledFieldType;
+  using BaseMessageDescriptor::Map;
+  using BaseMessageDescriptor::OneOf;
   using BaseMessageDescriptor::OptionalSubMessage;
   using BaseMessageDescriptor::RawEnum;
   using BaseMessageDescriptor::RawSubMessage;
@@ -2396,6 +3042,18 @@ class MessageDescriptor<Message, 0> final : public BaseMessageDescriptor,
   absl::Span<std::string_view const> GetAllFieldNames() const override { return {}; }
 
   absl::StatusOr<LabeledFieldType> GetLabeledFieldType(
+      std::string_view const field_name) const override {
+    return absl::InvalidArgumentError(
+        absl::StrCat("unknown field \"", absl::CEscape(field_name), "\""));
+  }
+
+  absl::StatusOr<BaseEnumDescriptor const*> GetEnumFieldDescriptor(
+      std::string_view const field_name) const override {
+    return absl::InvalidArgumentError(
+        absl::StrCat("unknown field \"", absl::CEscape(field_name), "\""));
+  }
+
+  absl::StatusOr<BaseMessageDescriptor const*> GetSubMessageFieldDescriptor(
       std::string_view const field_name) const override {
     return absl::InvalidArgumentError(
         absl::StrCat("unknown field \"", absl::CEscape(field_name), "\""));
@@ -2452,6 +3110,13 @@ auto const& GetEnumDescriptor();
 //
 template <typename Message>
 auto const& GetMessageDescriptor();
+
+// Empty descriptor used as a placeholder in those contexts where a descriptor is required but the
+// described value is neither an enum nor a proto message.
+//
+// We use `std::monostate` as its type because that's the same descriptor type we use in primitive
+// variants of oneof fields.
+extern std::monostate const kVoidDescriptor;
 
 }  // namespace proto
 }  // namespace tsdb2

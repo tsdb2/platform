@@ -70,6 +70,10 @@ proto_library(
     name = "map_test_proto",
     testonly = True,
     srcs = ["map_test.proto"],
+    deps = [
+        "//proto:duration_proto",
+        "//proto:timestamp_proto",
+    ],
 )
 
 tsdb2_cc_proto_library(
@@ -77,4 +81,18 @@ tsdb2_cc_proto_library(
     testonly = True,
     enable_reflection = True,
     proto = ":map_test_proto",
+)
+
+proto_library(
+    name = "map_type_test_proto",
+    testonly = True,
+    srcs = ["map_type_test.proto"],
+    deps = ["//proto:annotations_proto"],
+)
+
+tsdb2_cc_proto_library(
+    name = "map_type_test_cc_proto",
+    testonly = True,
+    enable_reflection = True,
+    proto = ":map_type_test_proto",
 )

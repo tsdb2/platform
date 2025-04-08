@@ -78,20 +78,8 @@ struct DependencyMapping : public ::tsdb2::proto::Message {
   friend bool operator!=(DependencyMapping const& lhs, DependencyMapping const& rhs) {
     return Tie(lhs) != Tie(rhs);
   }
-  friend bool operator<(DependencyMapping const& lhs, DependencyMapping const& rhs) {
-    return Tie(lhs) < Tie(rhs);
-  }
-  friend bool operator<=(DependencyMapping const& lhs, DependencyMapping const& rhs) {
-    return Tie(lhs) <= Tie(rhs);
-  }
-  friend bool operator>(DependencyMapping const& lhs, DependencyMapping const& rhs) {
-    return Tie(lhs) > Tie(rhs);
-  }
-  friend bool operator>=(DependencyMapping const& lhs, DependencyMapping const& rhs) {
-    return Tie(lhs) >= Tie(rhs);
-  }
 
-  std::vector<::tsdb2::proto::internal::DependencyMapping::DependencyEntry> dependency;
+  ::absl::flat_hash_map<std::string, std::string> dependency;
 };
 
 }  // namespace tsdb2::proto::internal

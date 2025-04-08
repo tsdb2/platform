@@ -24,13 +24,33 @@ inline State Tsdb2FingerprintValue(State state, FieldIndirectionType const& valu
   return State::Combine(std::move(state), ::tsdb2::util::to_underlying(value));
 }
 
+enum class MapType {
+  MAP_TYPE_STD_MAP = 0,
+  MAP_TYPE_STD_UNORDERED_MAP = 1,
+  MAP_TYPE_ABSL_FLAT_HASH_MAP = 2,
+  MAP_TYPE_ABSL_NODE_HASH_MAP = 3,
+  MAP_TYPE_ABSL_BTREE_MAP = 4,
+  MAP_TYPE_TSDB2_FLAT_MAP = 5,
+  MAP_TYPE_TSDB2_TRIE_MAP = 6,
+};
+
+template <typename H>
+inline H AbslHashValue(H h, MapType const& value) {
+  return H::combine(std::move(h), ::tsdb2::util::to_underlying(value));
+}
+
+template <typename State>
+inline State Tsdb2FingerprintValue(State state, MapType const& value) {
+  return State::Combine(std::move(state), ::tsdb2::util::to_underlying(value));
+}
+
 struct google_protobuf_FieldOptions_extension : public ::tsdb2::proto::Message {
   static ::absl::StatusOr<google_protobuf_FieldOptions_extension> Decode(
       ::absl::Span<uint8_t const> data);
   static ::tsdb2::io::Cord Encode(google_protobuf_FieldOptions_extension const& proto);
 
   static auto Tie(google_protobuf_FieldOptions_extension const& proto) {
-    return ::tsdb2::proto::Tie(proto.indirect);
+    return ::tsdb2::proto::Tie(proto.indirect, proto.map_type);
   }
 
   template <typename H>
@@ -70,6 +90,7 @@ struct google_protobuf_FieldOptions_extension : public ::tsdb2::proto::Message {
   }
 
   std::optional<::tsdb2::proto::FieldIndirectionType> indirect;
+  std::optional<::tsdb2::proto::MapType> map_type;
 };
 
 }  // namespace tsdb2::proto

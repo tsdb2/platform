@@ -1,10 +1,12 @@
 syntax = "proto3";
 
+import "proto/annotations.proto";
+
 package tsdb2.proto.internal;
 
 // Defines a mapping from .proto definition files to the corresponding C++ headers. Used internally
 // by the code generator.
 message DependencyMapping {
   // Keys are .proto file paths, values are the corresponding C++ header file paths.
-  map<string, string> dependency = 1;
+  map<string, string> dependency = 1 [(tsdb2.proto.map_type) = MAP_TYPE_ABSL_FLAT_HASH_MAP];
 }

@@ -1,19 +1,26 @@
 #include "proto/generator.h"
 
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 #include <variant>
 #include <vector>
 
+#include "absl/container/btree_map.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/node_hash_map.h"
 #include "absl/hash/hash.h"
 #include "absl/status/status_matchers.h"
 #include "absl/time/time.h"
 #include "common/fingerprint.h"
+#include "common/flat_map.h"
 #include "common/testing.h"
+#include "common/trie_map.h"
 #include "common/utilities.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -21,6 +28,7 @@
 #include "proto/tests/field_test.pb.h"
 #include "proto/tests/indirection_test.pb.h"
 #include "proto/tests/map_test.pb.h"
+#include "proto/tests/map_type_test.pb.h"
 #include "proto/tests/oneof_test.pb.h"
 #include "proto/tests/time_field_test.pb.h"
 
@@ -1330,27 +1338,62 @@ TEST(GeneratorTest, Versions) {
 }
 
 TEST(GeneratorTest, MessageExtension) {
+  using ::tsdb2::proto::test::ExtensibleMessage;
+  using ::tsdb2::proto::test::tsdb2_proto_test_ExtensibleMessage_extension;
   EXPECT_TRUE(
-      (std::is_same_v<decltype(std::declval<tsdb2::proto::test::ExtensibleMessage>().field1),
-                      std::optional<int64_t>>));
+      (std::is_same_v<decltype(std::declval<ExtensibleMessage>().field1), std::optional<int64_t>>));
+  EXPECT_TRUE((std::is_same_v<decltype(std::declval<ExtensibleMessage>().field2),
+                              std::optional<std::string>>));
+  EXPECT_TRUE((std::is_same_v<decltype(std::declval<ExtensibleMessage>().extension_data),
+                              tsdb2::proto::ExtensionData>));
   EXPECT_TRUE(
-      (std::is_same_v<decltype(std::declval<tsdb2::proto::test::ExtensibleMessage>().field2),
-                      std::optional<std::string>>));
-  EXPECT_TRUE((
-      std::is_same_v<decltype(std::declval<tsdb2::proto::test::ExtensibleMessage>().extension_data),
-                     tsdb2::proto::ExtensionData>));
+      (std::is_same_v<decltype(std::declval<tsdb2_proto_test_ExtensibleMessage_extension>().field3),
+                      std::optional<bool>>));
   EXPECT_TRUE(
-      (std::is_same_v<
-          decltype(std::declval<tsdb2::proto::test::tsdb2_proto_test_ExtensibleMessage_extension>()
-                       .field3),
-          std::optional<bool>>));
-  EXPECT_TRUE(
-      (std::is_same_v<
-          decltype(std::declval<tsdb2::proto::test::tsdb2_proto_test_ExtensibleMessage_extension>()
-                       .field4),
-          std::optional<double>>));
-  tsdb2::proto::test::ExtensibleMessage m;
-  EXPECT_TRUE(m.extension_data.empty());
+      (std::is_same_v<decltype(std::declval<tsdb2_proto_test_ExtensibleMessage_extension>().field4),
+                      std::optional<double>>));
+  ExtensibleMessage m1{
+      .field1 = 42,
+      .field2 = "lorem",
+      .extension_data{
+          tsdb2_proto_test_ExtensibleMessage_extension::Encode({.field3 = true, .field4 = 3.14})
+              .Flatten()},
+  };
+  ExtensibleMessage m2{
+      .field1 = 42,
+      .field2 = "lorem",
+      .extension_data{
+          tsdb2_proto_test_ExtensibleMessage_extension::Encode({.field3 = true, .field4 = 3.14})
+              .Flatten()},
+  };
+  ExtensibleMessage m3{
+      .field1 = 42,
+      .field2 = "lorem",
+  };
+  EXPECT_TRUE(m1 == m2);
+  EXPECT_TRUE(m2 == m1);
+  EXPECT_FALSE(m1 == m3);
+  EXPECT_FALSE(m1 != m2);
+  EXPECT_FALSE(m2 != m1);
+  EXPECT_TRUE(m1 != m3);
+  EXPECT_FALSE(m1 < m2);
+  EXPECT_FALSE(m2 < m1);
+  EXPECT_FALSE(m1 < m3);
+  EXPECT_TRUE(m1 <= m2);
+  EXPECT_TRUE(m2 <= m1);
+  EXPECT_FALSE(m1 <= m3);
+  EXPECT_FALSE(m1 > m2);
+  EXPECT_FALSE(m2 > m1);
+  EXPECT_TRUE(m1 > m3);
+  EXPECT_TRUE(m1 >= m2);
+  EXPECT_TRUE(m2 >= m1);
+  EXPECT_TRUE(m1 >= m3);
+  EXPECT_EQ(absl::HashOf(m1), absl::HashOf(m2));
+  EXPECT_EQ(tsdb2::common::FingerprintOf(m1), tsdb2::common::FingerprintOf(m2));
+  EXPECT_NE(absl::HashOf(m1), absl::HashOf(m3));
+  EXPECT_NE(tsdb2::common::FingerprintOf(m1), tsdb2::common::FingerprintOf(m3));
+  auto const encoded = ExtensibleMessage::Encode(m1).Flatten();
+  EXPECT_THAT(ExtensibleMessage::Decode(encoded.span()), IsOkAndHolds(m2));
 }
 
 TEST(GeneratorTest, FieldIndirection) {
@@ -1402,6 +1445,174 @@ TEST(GeneratorTest, FieldIndirection) {
                                        Pointee2(*(m2.unique_optional_field))),
                                  Field(&IndirectSubMessages::shared_optional_field,
                                        Pointee2(*(m2.shared_optional_field))))));
+}
+
+TEST(GeneratorTest, MapFields) {
+  using ::tsdb2::proto::test::MapFields;
+  EXPECT_TRUE((std::is_same_v<decltype(std::declval<MapFields>().string_keys),
+                              std::map<std::string, std::string>>));
+  EXPECT_TRUE(
+      (std::is_same_v<decltype(std::declval<MapFields>().bool_keys), std::map<bool, std::string>>));
+  EXPECT_TRUE((std::is_same_v<decltype(std::declval<MapFields>().int32_keys),
+                              std::map<int32_t, std::string>>));
+  EXPECT_TRUE((std::is_same_v<decltype(std::declval<MapFields>().int64_keys),
+                              std::map<int64_t, std::string>>));
+  EXPECT_TRUE((std::is_same_v<decltype(std::declval<MapFields>().uint32_keys),
+                              std::map<uint32_t, std::string>>));
+  EXPECT_TRUE((std::is_same_v<decltype(std::declval<MapFields>().uint64_keys),
+                              std::map<uint64_t, std::string>>));
+  EXPECT_TRUE((std::is_same_v<decltype(std::declval<MapFields>().sint32_keys),
+                              std::map<int32_t, std::string>>));
+  EXPECT_TRUE((std::is_same_v<decltype(std::declval<MapFields>().sint64_keys),
+                              std::map<int64_t, std::string>>));
+  EXPECT_TRUE((std::is_same_v<decltype(std::declval<MapFields>().int_values),
+                              std::map<std::string, int64_t>>));
+  EXPECT_TRUE((std::is_same_v<decltype(std::declval<MapFields>().bool_values),
+                              std::map<std::string, bool>>));
+  EXPECT_TRUE((std::is_same_v<decltype(std::declval<MapFields>().bytes_values),
+                              std::map<std::string, std::vector<uint8_t>>>));
+  EXPECT_TRUE((std::is_same_v<decltype(std::declval<MapFields>().float_values),
+                              std::map<std::string, float>>));
+  EXPECT_TRUE((std::is_same_v<decltype(std::declval<MapFields>().time_values),
+                              std::map<std::string, absl::Time>>));
+  EXPECT_TRUE((std::is_same_v<decltype(std::declval<MapFields>().duration_values),
+                              std::map<std::string, absl::Duration>>));
+  MapFields m1{
+      .string_keys{{"foo", "bar"}, {"bar", "baz"}},
+      .bool_keys{{false, "lorem"}, {true, "ipsum"}},
+      .int32_keys{{42, "foo"}, {43, "bar"}},
+      .int_values{{"foo", 12}, {"bar", 34}},
+      .bool_values{{"foo", true}, {"bar", false}},
+  };
+  MapFields m2{
+      .string_keys{{"foo", "bar"}, {"bar", "baz"}},
+      .bool_keys{{false, "lorem"}, {true, "ipsum"}},
+      .int32_keys{{42, "foo"}, {43, "bar"}},
+      .int_values{{"foo", 12}, {"bar", 34}},
+      .bool_values{{"foo", true}, {"bar", false}},
+  };
+  MapFields m3{
+      .string_keys{{"bar", "foo"}, {"baz", "bar"}},
+      .bool_keys{{true, "lorem"}, {false, "dolor"}},
+      .int32_keys{{42, "bar"}, {43, "baz"}},
+      .int_values{{"foo", 56}, {"bar", 78}},
+      .bool_values{{"foo", false}, {"bar", true}},
+  };
+  EXPECT_TRUE(m1 == m2);
+  EXPECT_TRUE(m2 == m1);
+  EXPECT_FALSE(m1 == m3);
+  EXPECT_FALSE(m1 != m2);
+  EXPECT_FALSE(m2 != m1);
+  EXPECT_TRUE(m1 != m3);
+  EXPECT_FALSE(m1 < m2);
+  EXPECT_FALSE(m2 < m1);
+  EXPECT_TRUE(m1 < m3);
+  EXPECT_TRUE(m1 <= m2);
+  EXPECT_TRUE(m2 <= m1);
+  EXPECT_TRUE(m1 <= m3);
+  EXPECT_FALSE(m1 > m2);
+  EXPECT_FALSE(m2 > m1);
+  EXPECT_FALSE(m1 > m3);
+  EXPECT_TRUE(m1 >= m2);
+  EXPECT_TRUE(m2 >= m1);
+  EXPECT_FALSE(m1 >= m3);
+  EXPECT_EQ(absl::HashOf(m1), absl::HashOf(m2));
+  EXPECT_EQ(tsdb2::common::FingerprintOf(m1), tsdb2::common::FingerprintOf(m2));
+  EXPECT_NE(absl::HashOf(m1), absl::HashOf(m3));
+  EXPECT_NE(tsdb2::common::FingerprintOf(m1), tsdb2::common::FingerprintOf(m3));
+  auto const encoded = MapFields::Encode(m1).Flatten();
+  EXPECT_THAT(MapFields::Decode(encoded.span()), IsOkAndHolds(m2));
+}
+
+TEST(GeneratorTest, OrderedMapTypes) {
+  using ::tsdb2::proto::test::OrderedMapTypes;
+  EXPECT_TRUE((std::is_same_v<decltype(std::declval<OrderedMapTypes>().std_map),
+                              std::map<std::string, int64_t>>));
+  EXPECT_TRUE((std::is_same_v<decltype(std::declval<OrderedMapTypes>().btree_map),
+                              absl::btree_map<std::string, int64_t>>));
+  EXPECT_TRUE((std::is_same_v<decltype(std::declval<OrderedMapTypes>().flat_map),
+                              tsdb2::common::flat_map<std::string, int64_t>>));
+  EXPECT_TRUE((std::is_same_v<decltype(std::declval<OrderedMapTypes>().trie_map),
+                              tsdb2::common::trie_map<int64_t>>));
+  OrderedMapTypes m1{
+      .std_map{{"foo", 12}, {"bar", 34}},
+      .btree_map{{"bar", 34}, {"baz", 56}},
+      .flat_map{{"baz", 56}, {"qux", 78}},
+      .trie_map{{"qux", 78}, {"foo", 90}},
+  };
+  OrderedMapTypes m2{
+      .std_map{{"foo", 12}, {"bar", 34}},
+      .btree_map{{"bar", 34}, {"baz", 56}},
+      .flat_map{{"baz", 56}, {"qux", 78}},
+      .trie_map{{"qux", 78}, {"foo", 90}},
+  };
+  OrderedMapTypes m3{
+      .std_map{{"foo", 120}, {"bar", 340}},
+      .btree_map{{"bar", 340}, {"baz", 560}},
+      .flat_map{{"baz", 560}, {"qux", 780}},
+      .trie_map{{"qux", 780}, {"foo", 900}},
+  };
+  EXPECT_TRUE(m1 == m2);
+  EXPECT_TRUE(m2 == m1);
+  EXPECT_FALSE(m1 == m3);
+  EXPECT_FALSE(m1 != m2);
+  EXPECT_FALSE(m2 != m1);
+  EXPECT_TRUE(m1 != m3);
+  EXPECT_FALSE(m1 < m2);
+  EXPECT_FALSE(m2 < m1);
+  EXPECT_TRUE(m1 < m3);
+  EXPECT_TRUE(m1 <= m2);
+  EXPECT_TRUE(m2 <= m1);
+  EXPECT_TRUE(m1 <= m3);
+  EXPECT_FALSE(m1 > m2);
+  EXPECT_FALSE(m2 > m1);
+  EXPECT_FALSE(m1 > m3);
+  EXPECT_TRUE(m1 >= m2);
+  EXPECT_TRUE(m2 >= m1);
+  EXPECT_FALSE(m1 >= m3);
+  EXPECT_EQ(absl::HashOf(m1), absl::HashOf(m2));
+  EXPECT_EQ(tsdb2::common::FingerprintOf(m1), tsdb2::common::FingerprintOf(m2));
+  EXPECT_NE(absl::HashOf(m1), absl::HashOf(m3));
+  EXPECT_NE(tsdb2::common::FingerprintOf(m1), tsdb2::common::FingerprintOf(m3));
+  auto const encoded = OrderedMapTypes::Encode(m1).Flatten();
+  EXPECT_THAT(OrderedMapTypes::Decode(encoded.span()), IsOkAndHolds(m2));
+}
+
+TEST(GeneratorTest, UnorderedMapTypes) {
+  using ::tsdb2::proto::test::UnorderedMapTypes;
+  EXPECT_TRUE((std::is_same_v<decltype(std::declval<UnorderedMapTypes>().std_unordered_map),
+                              std::unordered_map<std::string, int64_t>>));
+  EXPECT_TRUE((std::is_same_v<decltype(std::declval<UnorderedMapTypes>().flat_hash_map),
+                              absl::flat_hash_map<std::string, int64_t>>));
+  EXPECT_TRUE((std::is_same_v<decltype(std::declval<UnorderedMapTypes>().node_hash_map),
+                              absl::node_hash_map<std::string, int64_t>>));
+  UnorderedMapTypes m1{
+      .std_unordered_map{{"foo", 12}, {"bar", 34}},
+      .flat_hash_map{{"bar", 34}, {"baz", 56}},
+      .node_hash_map{{"baz", 56}, {"qux", 78}},
+  };
+  UnorderedMapTypes m2{
+      .std_unordered_map{{"foo", 12}, {"bar", 34}},
+      .flat_hash_map{{"bar", 34}, {"baz", 56}},
+      .node_hash_map{{"baz", 56}, {"qux", 78}},
+  };
+  UnorderedMapTypes m3{
+      .std_unordered_map{{"foo", 120}, {"bar", 340}},
+      .flat_hash_map{{"bar", 340}, {"baz", 560}},
+      .node_hash_map{{"baz", 560}, {"qux", 780}},
+  };
+  EXPECT_TRUE(m1 == m2);
+  EXPECT_TRUE(m2 == m1);
+  EXPECT_FALSE(m1 == m3);
+  EXPECT_FALSE(m1 != m2);
+  EXPECT_FALSE(m2 != m1);
+  EXPECT_TRUE(m1 != m3);
+  EXPECT_EQ(absl::HashOf(m1), absl::HashOf(m2));
+  EXPECT_EQ(tsdb2::common::FingerprintOf(m1), tsdb2::common::FingerprintOf(m2));
+  EXPECT_NE(absl::HashOf(m1), absl::HashOf(m3));
+  EXPECT_NE(tsdb2::common::FingerprintOf(m1), tsdb2::common::FingerprintOf(m3));
+  auto const encoded = UnorderedMapTypes::Encode(m1).Flatten();
+  EXPECT_THAT(UnorderedMapTypes::Decode(encoded.span()), IsOkAndHolds(m2));
 }
 
 }  // namespace

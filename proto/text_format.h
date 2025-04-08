@@ -21,6 +21,7 @@
 #include "common/utilities.h"
 #include "proto/duration.pb.sync.h"
 #include "proto/proto.h"
+#include "proto/reflection.h"
 #include "proto/time_util.h"
 #include "proto/timestamp.pb.sync.h"
 
@@ -164,6 +165,10 @@ class Parser {
 
     absl::Status operator()(BaseMessageDescriptor::RepeatedSubMessage& field) const {
       return parent_->ParseMessageArray(&field);
+    }
+
+    absl::Status operator()(BaseMessageDescriptor::Map& field) const {
+      return parent_->ParseMap(&field);
     }
 
     absl::Status operator()(BaseMessageDescriptor::OneOf& field) const {
@@ -325,6 +330,7 @@ class Parser {
 
   absl::Status ParseMessage(BaseMessageDescriptor const& descriptor, Message* proto);
   absl::Status ParseMessageArray(BaseMessageDescriptor::RepeatedSubMessage* field);
+  absl::Status ParseMap(BaseMessageDescriptor::Map* field);
 
   std::string_view input_;
 };

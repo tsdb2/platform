@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+import "proto/annotations.proto";
+
+package tsdb2.proto.test;
+
+message OrderedMapTypes {
+  map<string, int64> std_map = 1 [(tsdb2.proto.map_type) = MAP_TYPE_STD_MAP];
+  map<string, int64> btree_map = 2 [(tsdb2.proto.map_type) = MAP_TYPE_ABSL_BTREE_MAP];
+  map<string, int64> flat_map = 3 [(tsdb2.proto.map_type) = MAP_TYPE_TSDB2_FLAT_MAP];
+  map<string, int64> trie_map = 4 [(tsdb2.proto.map_type) = MAP_TYPE_TSDB2_TRIE_MAP];
+}
+
+message UnorderedMapTypes {
+  map<string, int64> std_unordered_map = 1 [(tsdb2.proto.map_type) = MAP_TYPE_STD_UNORDERED_MAP];
+  map<string, int64> flat_hash_map = 2 [(tsdb2.proto.map_type) = MAP_TYPE_ABSL_FLAT_HASH_MAP];
+  map<string, int64> node_hash_map = 3 [(tsdb2.proto.map_type) = MAP_TYPE_ABSL_NODE_HASH_MAP];
+}

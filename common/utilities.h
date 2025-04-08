@@ -87,6 +87,16 @@ inline absl::Status ReturnIfError_GetStatus(absl::StatusOr<T> const& status_or) 
     }                                                                  \
   } while (false)
 
+// Like `RETURN_IF_ERROR`, but replaces any error status that `expression` may return with the
+// specified one.
+#define REPLACE_ERROR(expression, error) \
+  do {                                   \
+    auto status = (expression);          \
+    if (!status.ok()) {                  \
+      return (error);                    \
+    }                                    \
+  } while (false)
+
 // Evaluates the right-hand side assuming it returns an `absl::StatusOr`. If the returned status is
 // OK the wrapped value is assigned to the left-hand side, otherwise returns prematurely with the
 // error status.
@@ -113,6 +123,18 @@ inline absl::Status ReturnIfError_GetStatus(absl::StatusOr<T> const& status_or) 
     }                                             \
   } while (false)
 
+// Like `ASSIGN_OR_RETURN`, but replaces any error status that `rhs` may return with the specified
+// one.
+#define ASSIGN_OR_REPLACE_ERROR(lhs, rhs, error)  \
+  do {                                            \
+    auto status_or_value = (rhs);                 \
+    if (status_or_value.ok()) {                   \
+      (lhs) = std::move(status_or_value).value(); \
+    } else {                                      \
+      return (error);                             \
+    }                                             \
+  } while (false)
+
 // Declares a new variable with the given `type` and `name`, evaluates the provided `expression`
 // assuming it returns an `absl::StatusOr`, then if the returned status is OK the wrapped value is
 // assigned to the variable, otherwise returns prematurely with the error status.
@@ -130,14 +152,27 @@ inline absl::Status ReturnIfError_GetStatus(absl::StatusOr<T> const& status_or) 
 // REQUIRES: `type` must be movable and default-constructible.
 #define ASSIGN_VAR_OR_RETURN(type, name, expression) \
   type name;                                         \
-  {                                                  \
+  do {                                               \
     auto status_or_value = (expression);             \
     if (status_or_value.ok()) {                      \
       name = std::move(status_or_value).value();     \
     } else {                                         \
       return std::move(status_or_value).status();    \
     }                                                \
-  }
+  } while (false)
+
+// Like `ASSIGN_VAR_OR_RETURN`, but replaces any error status that `expression` may return with the
+// specified one.
+#define ASSIGN_VAR_OR_REPLACE_ERROR(type, name, expression, error) \
+  type name;                                                       \
+  do {                                                             \
+    auto status_or_value = (expression);                           \
+    if (status_or_value.ok()) {                                    \
+      name = std::move(status_or_value).value();                   \
+    } else {                                                       \
+      return (error);                                              \
+    }                                                              \
+  } while (false)
 
 // Evaluates the provided `expression` assuming it returns an `absl::StatusOr` and, if the status is
 // OK, assigns the wrapped value to a new variable named with `name`. If the returned status is not
@@ -162,6 +197,15 @@ inline absl::Status ReturnIfError_GetStatus(absl::StatusOr<T> const& status_or) 
   }                                              \
   auto& name = status_or_##name.value();
 
+// Like `DEFINE_VAR_OR_RETURN`, but replaces any error status that `expression` may return with the
+// specified one.
+#define DEFINE_VAR_OR_REPLACE_ERROR(name, expression, error) \
+  auto status_or_##name = (expression);                      \
+  if (!(status_or_##name).ok()) {                            \
+    return (error);                                          \
+  }                                                          \
+  auto& name = status_or_##name.value();
+
 // Like `DEFINE_VAR_OR_RETURN` but the resulting variable is const.
 #define DEFINE_CONST_OR_RETURN(name, expression) \
   auto status_or_##name = (expression);          \
@@ -170,12 +214,29 @@ inline absl::Status ReturnIfError_GetStatus(absl::StatusOr<T> const& status_or) 
   }                                              \
   auto const& name = status_or_##name.value();
 
+// Like `DEFINE_CONST_OR_RETURN`, but replaces any error status that `expression` may return with
+// the specified one.
+#define DEFINE_CONST_OR_REPLACE_ERROR(name, expression, error) \
+  auto status_or_##name = (expression);                        \
+  if (!(status_or_##name).ok()) {                              \
+    return (error);                                            \
+  }                                                            \
+  auto const& name = status_or_##name.value();
+
 // Like `DEFINE_VAR_OR_RETURN` and `DEFINE_CONST_OR_RETURN` but it doesn't define any variable named
 // with `name`, only the intermediate `status_or_*` variable. This is useful for scoped objects.
 #define DEFINE_OR_RETURN(name, expression)       \
   auto const status_or_##name = (expression);    \
   if (!(status_or_##name).ok()) {                \
     return std::move(status_or_##name).status(); \
+  }
+
+// Like `DEFINE_OR_RETURN`, but replaces any error status that `expression` may return with the
+// specified one.
+#define DEFINE_OR_REPLACE_ERROR(name, expression, error) \
+  auto const status_or_##name = (expression);            \
+  if (!(status_or_##name).ok()) {                        \
+    return (error);                                      \
   }
 
 #endif  // __TSDB2_COMMON_UTILITIES_H__

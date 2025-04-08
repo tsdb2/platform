@@ -14,6 +14,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "io/buffer.h"
+#include "io/cord.h"
 
 namespace tsdb2 {
 namespace proto {
@@ -150,10 +151,58 @@ auto Tie(Fields&&... fields) {
   return std::tuple(internal::MakeRef{std::forward<Fields>(fields)}()...);
 }
 
+namespace internal {
+
+template <typename Field, typename Enable = void>
+struct IsOptionalDefaultConstructibleField : std::false_type {};
+
+template <typename Inner>
+struct IsOptionalDefaultConstructibleField<std::optional<Inner>,
+                                           std::enable_if_t<std::is_default_constructible_v<Inner>>>
+    : std::true_type {};
+
+template <typename MapEntry>
+using IsMapEntry =
+    std::conjunction<std::is_base_of<Message, MapEntry>,
+                     IsOptionalDefaultConstructibleField<decltype(std::declval<MapEntry>().key)>,
+                     IsOptionalDefaultConstructibleField<decltype(std::declval<MapEntry>().value)>>;
+
+template <typename MapEntry>
+inline bool constexpr IsMapEntryV = IsMapEntry<MapEntry>::value;
+
+template <typename Field>
+struct RemoveOptional;
+
+template <typename Key>
+struct RemoveOptional<std::optional<Key>> {
+  using Type = Key;
+};
+
+template <typename Key>
+using RemoveOptionalT = typename RemoveOptional<Key>::Type;
+
+template <typename MapEntry, std::enable_if_t<IsMapEntryV<MapEntry>, bool> = true>
+struct MapKey {
+  using Type = RemoveOptionalT<std::decay_t<decltype(std::declval<MapEntry>().key)>>;
+};
+
+template <typename MapEntry>
+using MapKeyType = typename MapKey<MapEntry>::Type;
+
+template <typename MapEntry, std::enable_if_t<IsMapEntryV<MapEntry>, bool> = true>
+struct MapValue {
+  using Type = RemoveOptionalT<std::decay_t<decltype(std::declval<MapEntry>().value)>>;
+};
+
+template <typename MapEntry>
+using MapValueType = typename MapValue<MapEntry>::Type;
+
+}  // namespace internal
+
 // Handles extension data inside extensible messages.
 class ExtensionData final {
  public:
-  explicit ExtensionData() = default;
+  ExtensionData() = default;
 
   explicit ExtensionData(tsdb2::io::Buffer data) : data_(std::move(data)) {}
 
@@ -220,6 +269,8 @@ class ExtensionData final {
   absl::Span<uint8_t const> span() const { return data_.span(); }
 
   void Clear() { data_.Clear(); }
+
+  void AppendTo(tsdb2::io::Cord* const cord) const { cord->Append(data_.Clone()); }
 
   tsdb2::io::Buffer Release() {
     tsdb2::io::Buffer buffer = std::move(data_);

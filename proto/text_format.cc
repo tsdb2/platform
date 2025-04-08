@@ -17,6 +17,7 @@
 #include "common/re.h"
 #include "common/utilities.h"
 #include "proto/proto.h"
+#include "proto/reflection.h"
 
 namespace tsdb2 {
 namespace proto {
@@ -277,6 +278,13 @@ absl::Status Parser::ParseMessageArray(BaseMessageDescriptor::RepeatedSubMessage
     RETURN_IF_ERROR(ParseMessage(descriptor, field->Append()));
     ConsumeSeparators();
   }
+  return absl::OkStatus();
+}
+
+absl::Status Parser::ParseMap(BaseMessageDescriptor::Map* const field) {
+  field->Clear();
+  ConsumeSeparators();
+  // TODO
   return absl::OkStatus();
 }
 

@@ -23,6 +23,11 @@ google_protobuf_FieldOptions_extension::Decode(::absl::Span<uint8_t const> const
             value, decoder.DecodeEnumField<::tsdb2::proto::FieldIndirectionType>(tag.wire_type));
         proto.indirect.emplace(value);
       } break;
+      case 71105: {
+        DEFINE_CONST_OR_RETURN(value,
+                               decoder.DecodeEnumField<::tsdb2::proto::MapType>(tag.wire_type));
+        proto.map_type.emplace(value);
+      } break;
       default:
         RETURN_IF_ERROR(decoder.SkipRecord(tag.wire_type));
         break;
@@ -36,6 +41,9 @@ google_protobuf_FieldOptions_extension::Decode(::absl::Span<uint8_t const> const
   ::tsdb2::proto::Encoder encoder;
   if (proto.indirect.has_value()) {
     encoder.EncodeEnumField(71104, proto.indirect.value());
+  }
+  if (proto.map_type.has_value()) {
+    encoder.EncodeEnumField(71105, proto.map_type.value());
   }
   return std::move(encoder).Finish();
 }

@@ -42,6 +42,40 @@ enum FieldIndirectionType {
   INDIRECTION_SHARED = 2;
 }
 
+// This field-level option specifies how a map field is rendered in generated code.
+//
+// Example:
+//
+//   syntax = "proto3";
+//
+//   import "proto/annotations.proto";
+//
+//   message Foo {
+//     message Bar { /* ... */ }
+//
+//     map<int64, string> bar_map = 1 [(tsdb2.proto.map_type) = MAP_TYPE_BTREE_MAP];
+//     map<string, Baz> bar_map = 2 [(tsdb2.proto.map_type) = MAP_TYPE_TSDB2_TRIE_MAP];
+//   }
+//
+// WARNING: some of the available map types are not ordered and not comparable with the less-than
+// operator, as a result they will make the whole containing message not comparable with the <, <=,
+// >, and >= operators. Only the == and != comparison operators will be available in such messages.
+// Note that not being order-comparable will also prevent a message from being included in other
+// comparable messages. The unordered map types that cause this issue are `std::unordered_map`,
+// `absl::flat_hash_map`, and `absl::node_hash_map`.
+//
+// NOTE: the keys of a TSDB2 trie map must always be strings.
+enum MapType {
+  MAP_TYPE_STD_MAP = 0;
+  MAP_TYPE_STD_UNORDERED_MAP = 1;
+  MAP_TYPE_ABSL_FLAT_HASH_MAP = 2;
+  MAP_TYPE_ABSL_NODE_HASH_MAP = 3;
+  MAP_TYPE_ABSL_BTREE_MAP = 4;
+  MAP_TYPE_TSDB2_FLAT_MAP = 5;
+  MAP_TYPE_TSDB2_TRIE_MAP = 6;
+}
+
 extend google.protobuf.FieldOptions {
   FieldIndirectionType indirect = 71104 [targets = TARGET_TYPE_FIELD, retention = RETENTION_SOURCE];
+  MapType map_type = 71105 [targets = TARGET_TYPE_FIELD, retention = RETENTION_SOURCE];
 }

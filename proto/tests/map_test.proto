@@ -1,9 +1,13 @@
-syntax = "proto2";
+syntax = "proto3";
+
+import "proto/duration.proto";
+import "proto/timestamp.proto";
 
 package tsdb2.proto.test;
 
 message MapFields {
   map<string, string> string_keys = 1;
+
   map<bool, string> bool_keys = 2;
   map<int32, string> int32_keys = 3;
   map<int64, string> int64_keys = 4;
@@ -11,4 +15,23 @@ message MapFields {
   map<uint64, string> uint64_keys = 6;
   map<sint32, string> sint32_keys = 7;
   map<sint64, string> sint64_keys = 8;
+
+  enum Lorem {
+    LOREM_IPSUM = 0;
+    LOREM_DOLOR = 1;
+    LOREM_AMET = 2;
+  }
+
+  message Inner {
+    string foo = 1;
+  }
+
+  map<string, int64> int_values = 9;
+  map<string, bool> bool_values = 10;
+  map<string, bytes> bytes_values = 11;
+  map<string, float> float_values = 12;
+  map<string, Lorem> enum_values = 13;
+  map<string, google.protobuf.Timestamp> time_values = 14;
+  map<string, google.protobuf.Duration> duration_values = 15;
+  map<string, Inner> message_values = 16;
 }

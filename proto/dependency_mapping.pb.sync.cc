@@ -57,11 +57,9 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
     auto const tag = maybe_tag.value();
     switch (tag.field_number) {
       case 1: {
-        DEFINE_CONST_OR_RETURN(child_span, decoder.GetChildSpan(tag.wire_type));
-        DEFINE_VAR_OR_RETURN(
-            value,
-            ::tsdb2::proto::internal::DependencyMapping::DependencyEntry::Decode(child_span));
-        proto.dependency.emplace_back(std::move(value));
+        RETURN_IF_ERROR(
+            decoder.DecodeMapEntry<::tsdb2::proto::internal::DependencyMapping::DependencyEntry>(
+                tag.wire_type, &proto.dependency));
       } break;
       default:
         RETURN_IF_ERROR(decoder.SkipRecord(tag.wire_type));
@@ -73,9 +71,10 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
 
 ::tsdb2::io::Cord DependencyMapping::Encode(DependencyMapping const& proto) {
   ::tsdb2::proto::Encoder encoder;
-  for (auto const& value : proto.dependency) {
+  for (auto const& [key, value] : proto.dependency) {
     encoder.EncodeSubMessageField(
-        1, ::tsdb2::proto::internal::DependencyMapping::DependencyEntry::Encode(value));
+        1, ::tsdb2::proto::internal::DependencyMapping::DependencyEntry::Encode(
+               {.key = key, .value = value}));
   }
   return std::move(encoder).Finish();
 }
@@ -89,9 +88,11 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
 ::tsdb2::proto::MessageDescriptor<DependencyMapping, 1> const DependencyMapping::MESSAGE_DESCRIPTOR{
     {
         {"dependency",
-         ::tsdb2::proto::RepeatedSubMessageField<DependencyMapping>(
+         ::tsdb2::proto::FlatHashMapField<
+             DependencyMapping, ::tsdb2::proto::internal::DependencyMapping::DependencyEntry>(
              &DependencyMapping::dependency,
-             ::tsdb2::proto::internal::DependencyMapping::DependencyEntry::MESSAGE_DESCRIPTOR)},
+             ::tsdb2::proto::internal::DependencyMapping::DependencyEntry::MESSAGE_DESCRIPTOR,
+             ::tsdb2::proto::kVoidDescriptor)},
     }};
 
 TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING();
