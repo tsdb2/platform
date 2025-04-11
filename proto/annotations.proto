@@ -53,8 +53,8 @@ enum FieldIndirectionType {
 //   message Foo {
 //     message Bar { /* ... */ }
 //
-//     map<int64, string> bar_map = 1 [(tsdb2.proto.map_type) = MAP_TYPE_BTREE_MAP];
-//     map<string, Baz> bar_map = 2 [(tsdb2.proto.map_type) = MAP_TYPE_TSDB2_TRIE_MAP];
+//     map<int64, string> string_map = 1 [(tsdb2.proto.map_type) = MAP_TYPE_BTREE_MAP];
+//     map<string, Bar> bar_map = 2 [(tsdb2.proto.map_type) = MAP_TYPE_TSDB2_TRIE_MAP];
 //   }
 //
 // WARNING: some of the available map types are not ordered and not comparable with the less-than
