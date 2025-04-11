@@ -470,7 +470,9 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
                                   ::google::protobuf::FeatureSet::Encode(proto.features.value()));
   }
   encoder.EncodeEnumField(3, proto.verification);
-  return std::move(encoder).Finish();
+  auto cord = std::move(encoder).Finish();
+  proto.extension_data.AppendTo(&cord);
+  return cord;
 }
 
 ::absl::StatusOr<FieldDescriptorProto> FieldDescriptorProto::Decode(
@@ -1041,7 +1043,9 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   for (auto const& value : proto.uninterpreted_option) {
     encoder.EncodeSubMessageField(999, ::google::protobuf::UninterpretedOption::Encode(value));
   }
-  return std::move(encoder).Finish();
+  auto cord = std::move(encoder).Finish();
+  proto.extension_data.AppendTo(&cord);
+  return cord;
 }
 
 ::absl::StatusOr<MessageOptions> MessageOptions::Decode(::absl::Span<uint8_t const> const data) {
@@ -1111,7 +1115,9 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   for (auto const& value : proto.uninterpreted_option) {
     encoder.EncodeSubMessageField(999, ::google::protobuf::UninterpretedOption::Encode(value));
   }
-  return std::move(encoder).Finish();
+  auto cord = std::move(encoder).Finish();
+  proto.extension_data.AppendTo(&cord);
+  return cord;
 }
 
 ::absl::StatusOr<FieldOptions::EditionDefault> FieldOptions::EditionDefault::Decode(
@@ -1328,7 +1334,9 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   for (auto const& value : proto.uninterpreted_option) {
     encoder.EncodeSubMessageField(999, ::google::protobuf::UninterpretedOption::Encode(value));
   }
-  return std::move(encoder).Finish();
+  auto cord = std::move(encoder).Finish();
+  proto.extension_data.AppendTo(&cord);
+  return cord;
 }
 
 ::absl::StatusOr<OneofOptions> OneofOptions::Decode(::absl::Span<uint8_t const> const data) {
@@ -1369,7 +1377,9 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   for (auto const& value : proto.uninterpreted_option) {
     encoder.EncodeSubMessageField(999, ::google::protobuf::UninterpretedOption::Encode(value));
   }
-  return std::move(encoder).Finish();
+  auto cord = std::move(encoder).Finish();
+  proto.extension_data.AppendTo(&cord);
+  return cord;
 }
 
 ::absl::StatusOr<EnumOptions> EnumOptions::Decode(::absl::Span<uint8_t const> const data) {
@@ -1429,7 +1439,9 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   for (auto const& value : proto.uninterpreted_option) {
     encoder.EncodeSubMessageField(999, ::google::protobuf::UninterpretedOption::Encode(value));
   }
-  return std::move(encoder).Finish();
+  auto cord = std::move(encoder).Finish();
+  proto.extension_data.AppendTo(&cord);
+  return cord;
 }
 
 ::absl::StatusOr<EnumValueOptions> EnumValueOptions::Decode(
@@ -1491,7 +1503,9 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   for (auto const& value : proto.uninterpreted_option) {
     encoder.EncodeSubMessageField(999, ::google::protobuf::UninterpretedOption::Encode(value));
   }
-  return std::move(encoder).Finish();
+  auto cord = std::move(encoder).Finish();
+  proto.extension_data.AppendTo(&cord);
+  return cord;
 }
 
 ::absl::StatusOr<ServiceOptions> ServiceOptions::Decode(::absl::Span<uint8_t const> const data) {
@@ -1537,7 +1551,9 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   for (auto const& value : proto.uninterpreted_option) {
     encoder.EncodeSubMessageField(999, ::google::protobuf::UninterpretedOption::Encode(value));
   }
-  return std::move(encoder).Finish();
+  auto cord = std::move(encoder).Finish();
+  proto.extension_data.AppendTo(&cord);
+  return cord;
 }
 
 ::absl::StatusOr<MethodOptions> MethodOptions::Decode(::absl::Span<uint8_t const> const data) {
@@ -1590,7 +1606,9 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   for (auto const& value : proto.uninterpreted_option) {
     encoder.EncodeSubMessageField(999, ::google::protobuf::UninterpretedOption::Encode(value));
   }
-  return std::move(encoder).Finish();
+  auto cord = std::move(encoder).Finish();
+  proto.extension_data.AppendTo(&cord);
+  return cord;
 }
 
 ::absl::StatusOr<UninterpretedOption::NamePart> UninterpretedOption::NamePart::Decode(
@@ -1788,7 +1806,9 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   if (proto.json_format.has_value()) {
     encoder.EncodeEnumField(6, proto.json_format.value());
   }
-  return std::move(encoder).Finish();
+  auto cord = std::move(encoder).Finish();
+  proto.extension_data.AppendTo(&cord);
+  return cord;
 }
 
 ::absl::StatusOr<FeatureSetDefaults::FeatureSetEditionDefault>
