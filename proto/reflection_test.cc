@@ -1,3 +1,5 @@
+#include "proto/reflection.h"
+
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -23,6 +25,7 @@ namespace {
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::_;
+using ::testing::AllOf;
 using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::IsEmpty;
@@ -1009,5 +1012,128 @@ TEST(ReflectionTest, RepeatedDurationFieldValues) {
   EXPECT_THAT(message.field, ElementsAre(absl::Seconds(12), absl::Seconds(34), absl::Seconds(56),
                                          absl::Seconds(78)));
 }
+
+TEST(ReflectionTest, OneOfField) {
+  EXPECT_EQ(&tsdb2::proto::GetMessageDescriptor<tsdb2::proto::test::OneOfField>(),
+            &tsdb2::proto::test::OneOfField::MESSAGE_DESCRIPTOR);
+  auto const& descriptor = tsdb2::proto::test::OneOfField::MESSAGE_DESCRIPTOR;
+  EXPECT_THAT(descriptor.GetAllFieldNames(), ElementsAre("field"));
+  EXPECT_THAT(descriptor.GetLabeledFieldType("field"),
+              IsOkAndHolds(BaseMessageDescriptor::LabeledFieldType::kOneOfField));
+  EXPECT_THAT(descriptor.GetLabeledFieldType("lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(descriptor.GetFieldTypeAndKind("field"),
+              IsOkAndHolds(Pair(BaseMessageDescriptor::FieldType::kOneOfField,
+                                BaseMessageDescriptor::FieldKind::kOneOf)));
+  EXPECT_THAT(descriptor.GetFieldTypeAndKind("lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(descriptor.GetFieldType("field"),
+              IsOkAndHolds(BaseMessageDescriptor::FieldType::kOneOfField));
+  EXPECT_THAT(descriptor.GetFieldType("lorem"), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(descriptor.GetFieldKind("field"),
+              IsOkAndHolds(BaseMessageDescriptor::FieldKind::kOneOf));
+  EXPECT_THAT(descriptor.GetFieldKind("lorem"), StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(ReflectionTest, EmptyOneOfField) {
+  auto const& descriptor = tsdb2::proto::test::OneOfField::MESSAGE_DESCRIPTOR;
+  tsdb2::proto::test::OneOfField message;
+  tsdb2::proto::Message const& ref = message;
+  EXPECT_THAT(descriptor.GetConstFieldValue(ref, "field"),
+              IsOkAndHolds(VariantWith<tsdb2::proto::BaseMessageDescriptor::OneOf const>(AllOf(
+                  Property(&tsdb2::proto::BaseMessageDescriptor::OneOf::size, 8),
+                  Property(&tsdb2::proto::BaseMessageDescriptor::OneOf::index, 0),
+                  Property(&tsdb2::proto::BaseMessageDescriptor::OneOf::GetType, Eq(std::nullopt)),
+                  Property(&tsdb2::proto::BaseMessageDescriptor::OneOf::GetConstValue,
+                           Eq(std::nullopt))))));
+  EXPECT_THAT(descriptor.GetConstFieldValue(ref, "lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  tsdb2::proto::Message* const ptr = &message;
+  EXPECT_THAT(descriptor.GetFieldValue(ptr, "field"),
+              IsOkAndHolds(VariantWith<tsdb2::proto::BaseMessageDescriptor::OneOf>(AllOf(
+                  Property(&tsdb2::proto::BaseMessageDescriptor::OneOf::size, 8),
+                  Property(&tsdb2::proto::BaseMessageDescriptor::OneOf::index, 0),
+                  Property(&tsdb2::proto::BaseMessageDescriptor::OneOf::GetType, Eq(std::nullopt)),
+                  Property(&tsdb2::proto::BaseMessageDescriptor::OneOf::GetConstValue,
+                           Eq(std::nullopt))))));
+  EXPECT_THAT(descriptor.GetFieldValue(ptr, "lorem"), StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(ReflectionTest, OneOfFieldEnumValue) {
+  auto const& descriptor = tsdb2::proto::test::OneOfField::MESSAGE_DESCRIPTOR;
+  tsdb2::proto::test::OneOfField message{.field{tsdb2::proto::test::SatorEnum::SATOR_TENET}};
+  tsdb2::proto::Message const& ref = message;
+  EXPECT_THAT(descriptor.GetConstFieldValue(ref, "field"),
+              IsOkAndHolds(VariantWith<tsdb2::proto::BaseMessageDescriptor::OneOf const>(AllOf(
+                  Property(&tsdb2::proto::BaseMessageDescriptor::OneOf::size, 8),
+                  Property(&tsdb2::proto::BaseMessageDescriptor::OneOf::index, 4),
+                  Property(&tsdb2::proto::BaseMessageDescriptor::OneOf::GetType,
+                           Optional(tsdb2::proto::BaseMessageDescriptor::FieldType::kEnumField)),
+                  Property(&tsdb2::proto::BaseMessageDescriptor::OneOf::GetConstValue,
+                           Optional(VariantWith<tsdb2::proto::BaseMessageDescriptor::RawEnum const>(
+                               Property(&tsdb2::proto::BaseMessageDescriptor::RawEnum::GetValue,
+                                        IsOkAndHolds("SATOR_TENET")))))))));
+  EXPECT_THAT(descriptor.GetConstFieldValue(ref, "lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  tsdb2::proto::Message* const ptr = &message;
+  EXPECT_THAT(descriptor.GetFieldValue(ptr, "field"),
+              IsOkAndHolds(VariantWith<tsdb2::proto::BaseMessageDescriptor::OneOf>(AllOf(
+                  Property(&tsdb2::proto::BaseMessageDescriptor::OneOf::size, 8),
+                  Property(&tsdb2::proto::BaseMessageDescriptor::OneOf::index, 4),
+                  Property(&tsdb2::proto::BaseMessageDescriptor::OneOf::GetType,
+                           Optional(tsdb2::proto::BaseMessageDescriptor::FieldType::kEnumField)),
+                  Property(&tsdb2::proto::BaseMessageDescriptor::OneOf::GetConstValue,
+                           Optional(VariantWith<tsdb2::proto::BaseMessageDescriptor::RawEnum const>(
+                               Property(&tsdb2::proto::BaseMessageDescriptor::RawEnum::GetValue,
+                                        IsOkAndHolds("SATOR_TENET")))))))));
+  EXPECT_THAT(descriptor.GetFieldValue(ptr, "lorem"), StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(ReflectionTest, SetOneOfFieldValue) {
+  auto const& descriptor = tsdb2::proto::test::OneOfField::MESSAGE_DESCRIPTOR;
+  tsdb2::proto::test::OneOfField message{.field{tsdb2::proto::test::SatorEnum::SATOR_AREPO}};
+  tsdb2::proto::Message* const ptr = &message;
+  auto status_or_field = descriptor.GetFieldValue(ptr, "field");
+  EXPECT_OK(status_or_field);
+  EXPECT_OK(std::get<tsdb2::proto::BaseMessageDescriptor::OneOf>(status_or_field.value())
+                .SetValue(6, absl::UnixEpoch() + absl::Seconds(42)));
+  EXPECT_THAT(message.field, VariantWith<absl::Time>(absl::UnixEpoch() + absl::Seconds(42)));
+}
+
+TEST(ReflectionTest, OneOfFieldWithRepeatedVariants) {
+  EXPECT_EQ(
+      &tsdb2::proto::GetMessageDescriptor<tsdb2::proto::test::OneOfFieldWithRepeatedVariants>(),
+      &tsdb2::proto::test::OneOfFieldWithRepeatedVariants::MESSAGE_DESCRIPTOR);
+  auto const& descriptor = tsdb2::proto::test::OneOfFieldWithRepeatedVariants::MESSAGE_DESCRIPTOR;
+  EXPECT_THAT(descriptor.GetAllFieldNames(),
+              ElementsAre("bool_field1", "bool_field2", "field", "string_field1", "string_field2"));
+  EXPECT_THAT(descriptor.GetLabeledFieldType("string_field1"),
+              IsOkAndHolds(BaseMessageDescriptor::LabeledFieldType::kOptionalStringField));
+  EXPECT_THAT(descriptor.GetLabeledFieldType("bool_field1"),
+              IsOkAndHolds(BaseMessageDescriptor::LabeledFieldType::kOptionalBoolField));
+  EXPECT_THAT(descriptor.GetLabeledFieldType("field"),
+              IsOkAndHolds(BaseMessageDescriptor::LabeledFieldType::kOneOfField));
+  EXPECT_THAT(descriptor.GetLabeledFieldType("string_field2"),
+              IsOkAndHolds(BaseMessageDescriptor::LabeledFieldType::kOptionalStringField));
+  EXPECT_THAT(descriptor.GetLabeledFieldType("bool_field2"),
+              IsOkAndHolds(BaseMessageDescriptor::LabeledFieldType::kOptionalBoolField));
+  EXPECT_THAT(descriptor.GetLabeledFieldType("lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(descriptor.GetFieldTypeAndKind("field"),
+              IsOkAndHolds(Pair(BaseMessageDescriptor::FieldType::kOneOfField,
+                                BaseMessageDescriptor::FieldKind::kOneOf)));
+  EXPECT_THAT(descriptor.GetFieldTypeAndKind("lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(descriptor.GetFieldType("field"),
+              IsOkAndHolds(BaseMessageDescriptor::FieldType::kOneOfField));
+  EXPECT_THAT(descriptor.GetFieldType("lorem"), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(descriptor.GetFieldKind("field"),
+              IsOkAndHolds(BaseMessageDescriptor::FieldKind::kOneOf));
+  EXPECT_THAT(descriptor.GetFieldKind("lorem"), StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+// TODO: test indirect fields.
+
+// TODO: test maps.
 
 }  // namespace

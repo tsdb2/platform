@@ -1033,9 +1033,9 @@ class BaseMessageDescriptor {
 
   using MapKey = std::variant<int32_t, uint32_t, int64_t, uint64_t, bool, std::string>;
 
-  using MapValue =
-      std::variant<int32_t, uint32_t, int64_t, uint64_t, bool, std::string, std::vector<uint8_t>,
-                   double, float, absl::Time, absl::Duration, RawEnum const, RawSubMessage const>;
+  using MapValue = std::variant<int32_t, uint32_t, int64_t, uint64_t, bool, std::string_view,
+                                absl::Span<uint8_t const>, double, float, absl::Time,
+                                absl::Duration, RawEnum const, RawSubMessage const>;
 
   using MapValueRef = std::variant<int32_t*, uint32_t*, int64_t*, uint64_t*, bool*, std::string*,
                                    std::vector<uint8_t>*, double*, float*, absl::Time*,
@@ -1052,7 +1052,12 @@ class BaseMessageDescriptor {
 
         virtual bool operator==(Iterator const& other) const = 0;
 
-        virtual std::pair<MapKey, MapValueRef> operator*() const = 0;
+        virtual std::shared_ptr<Iterator> Clone() const = 0;
+
+        virtual std::pair<MapKey, MapValueRef> Dereference() const = 0;
+        virtual std::pair<MapKey, MapValue> DereferenceConst() const = 0;
+
+        virtual void Advance() = 0;
 
        private:
         Iterator(Iterator const&) = delete;
@@ -1070,6 +1075,9 @@ class BaseMessageDescriptor {
       virtual size_t GetSize() const = 0;
       virtual bool IsEmpty() const = 0;
 
+      virtual std::shared_ptr<Iterator> MakeBeginIterator() const = 0;
+      virtual std::shared_ptr<Iterator> MakeEndIterator() const = 0;
+
       virtual void Clear() = 0;
       virtual void Reserve(size_t size) = 0;
 
@@ -1077,8 +1085,6 @@ class BaseMessageDescriptor {
       virtual absl::StatusOr<std::shared_ptr<Iterator>> Find(MapKey const& key) const = 0;
 
       virtual absl::StatusOr<bool> Erase(MapKey const& key) = 0;
-
-      // TODO
 
      private:
       BaseImpl(BaseImpl const&) = delete;
@@ -1090,7 +1096,7 @@ class BaseMessageDescriptor {
    public:
     class iterator final {
      public:
-      explicit iterator() = default;
+      iterator() = default;
       ~iterator() = default;
 
       iterator(iterator const&) = default;
@@ -1110,12 +1116,47 @@ class BaseMessageDescriptor {
         return !operator==(lhs, rhs);
       }
 
-      std::pair<MapKey, MapValueRef> operator*() const { return it_->operator*(); }
+      std::pair<MapKey, MapValueRef> operator*() const { return it_->Dereference(); }
 
      private:
       friend class Map;
 
       explicit iterator(std::shared_ptr<BaseImpl::Iterator> it) : it_(std::move(it)) {}
+
+      std::shared_ptr<BaseImpl::Iterator> it_;
+    };
+
+    class const_iterator final {
+     public:
+      const_iterator() = default;
+
+      explicit const_iterator(iterator const& other) : it_(other.it_) {}
+
+      ~const_iterator() = default;
+
+      const_iterator(const_iterator const&) = default;
+      const_iterator& operator=(const_iterator const&) = default;
+
+      const_iterator(const_iterator&&) noexcept = default;
+      const_iterator& operator=(const_iterator&&) noexcept = default;
+
+      void swap(const_iterator& other) noexcept { std::swap(it_, other.it_); }
+      friend void swap(const_iterator& lhs, const_iterator& rhs) noexcept { lhs.swap(rhs); }
+
+      friend bool operator==(const_iterator const& lhs, const_iterator const& rhs) {
+        return lhs.it_ == rhs.it_ || *(lhs.it_) == *(rhs.it_);
+      }
+
+      friend bool operator!=(const_iterator const& lhs, const_iterator const& rhs) {
+        return !operator==(lhs, rhs);
+      }
+
+      std::pair<MapKey, MapValue> operator*() const { return it_->DereferenceConst(); }
+
+     private:
+      friend class Map;
+
+      explicit const_iterator(std::shared_ptr<BaseImpl::Iterator> it) : it_(std::move(it)) {}
 
       std::shared_ptr<BaseImpl::Iterator> it_;
     };
@@ -1142,6 +1183,14 @@ class BaseMessageDescriptor {
     size_t size() const { return impl_->GetSize(); }
     [[nodiscard]] bool empty() const { return impl_->IsEmpty(); }
 
+    iterator begin() { return iterator(impl_->MakeBeginIterator()); }
+    const_iterator begin() const { return const_iterator(impl_->MakeBeginIterator()); }
+    const_iterator cbegin() const { return const_iterator(impl_->MakeBeginIterator()); }
+
+    iterator end() { return iterator(impl_->MakeEndIterator()); }
+    const_iterator end() const { return const_iterator(impl_->MakeEndIterator()); }
+    const_iterator cend() const { return const_iterator(impl_->MakeEndIterator()); }
+
     void Clear() { impl_->Clear(); }
     void Reserve(size_t const size) { impl_->Reserve(size); }
 
@@ -1152,9 +1201,12 @@ class BaseMessageDescriptor {
       return iterator(std::move(it));
     }
 
-    absl::StatusOr<bool> Erase(MapKey const& key) { return impl_->Erase(key); }
+    absl::StatusOr<const_iterator> Find(MapKey const& key) const {
+      DEFINE_VAR_OR_RETURN(it, impl_->Find(key));
+      return const_iterator(std::move(it));
+    }
 
-    // TODO
+    absl::StatusOr<bool> Erase(MapKey const& key) { return impl_->Erase(key); }
 
    private:
     struct WrapKey final {
@@ -1192,6 +1244,42 @@ class BaseMessageDescriptor {
       template <typename SubMessage,
                 std::enable_if_t<std::is_base_of_v<Message, SubMessage>, bool> = true>
       MapValueRef operator()(SubMessage& value) const {
+        return RawSubMessage(&value, value_descriptor_);
+      }
+
+     private:
+      ValueDescriptor const& value_descriptor_;
+    };
+
+    template <typename ValueDescriptor>
+    class WrapValue final {
+     public:
+      explicit WrapValue(ValueDescriptor const& value_descriptor)
+          : value_descriptor_(value_descriptor) {}
+
+      MapValue operator()(int32_t const value) const { return value; }
+      MapValue operator()(int64_t const value) const { return value; }
+      MapValue operator()(uint32_t const value) const { return value; }
+      MapValue operator()(uint64_t const value) const { return value; }
+      MapValue operator()(bool const value) const { return value; }
+      MapValue operator()(std::string_view const value) const { return value; }
+      MapValue operator()(double const value) const { return value; }
+      MapValue operator()(float const value) const { return value; }
+      MapValue operator()(absl::Time const value) const { return value; }
+      MapValue operator()(absl::Duration const value) const { return value; }
+
+      MapValue operator()(std::vector<uint8_t> const& value) const {
+        return absl::Span<uint8_t const>(value);
+      }
+
+      template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+      MapValue operator()(Enum& value) const {
+        return RawEnum(&value, value_descriptor_);
+      }
+
+      template <typename SubMessage,
+                std::enable_if_t<std::is_base_of_v<Message, SubMessage>, bool> = true>
+      MapValue operator()(SubMessage& value) const {
         return RawSubMessage(&value, value_descriptor_);
       }
 
@@ -1273,10 +1361,20 @@ class BaseMessageDescriptor {
           }
         }
 
-        std::pair<MapKey, MapValueRef> operator*() const override {
+        std::shared_ptr<BaseImpl::Iterator> Clone() const override {
+          return std::make_shared<Iterator>(entry_descriptor_, value_descriptor_, it_);
+        }
+
+        std::pair<MapKey, MapValueRef> Dereference() const override {
           return std::make_pair(WrapKey{}(it_->first),
                                 WrapValueRef{value_descriptor_}(it_->second));
         }
+
+        std::pair<MapKey, MapValue> DereferenceConst() const override {
+          return std::make_pair(WrapKey{}(it_->first), WrapValue{value_descriptor_}(it_->second));
+        }
+
+        void Advance() override { ++it_; }
 
        private:
         BaseMessageDescriptor const& entry_descriptor_;
@@ -1293,6 +1391,14 @@ class BaseMessageDescriptor {
 
       size_t GetSize() const override { return map_->size(); }
       bool IsEmpty() const override { return map_->empty(); }
+
+      std::shared_ptr<BaseImpl::Iterator> MakeBeginIterator() const override {
+        return std::make_shared<Iterator>(entry_descriptor_, value_descriptor_, map_->begin());
+      }
+
+      std::shared_ptr<BaseImpl::Iterator> MakeEndIterator() const override {
+        return std::make_shared<Iterator>(entry_descriptor_, value_descriptor_, map_->end());
+      }
 
       void Clear() override { map_->clear(); }
       void Reserve(size_t const size) override { CapacityReserver{map_}(size); }
@@ -1388,7 +1494,7 @@ class BaseMessageDescriptor {
     size_t size() const { return impl_->GetSize(); }
 
     // Returns the index of the currently held variant. 0 means the currently held variant is the
-    // leading monostate, meaning the variant is effectively empty.
+    // leading monostate, meaning the variant is empty.
     size_t index() const { return impl_->GetIndex(); }
 
     absl::StatusOr<FieldType> GetTypeAt(size_t const index) const {
