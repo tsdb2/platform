@@ -518,6 +518,13 @@ TEST(RegexpTest, ReplaceFirstWithRefNotTriggered) {
               StatusIs(absl::StatusCode::kFailedPrecondition));
 }
 
+TEST(RegexpTest, ReplaceFirstWithDefaultCaptureIndex) {
+  auto const status_or_re = RE::Create("(bar) (baz)");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceFirst("foo bar baz qux", "lorem"), IsOkAndHolds("foo lorem baz qux"));
+}
+
 TEST(RegexpTest, StaticReplaceFirst) {
   EXPECT_THAT(RE::StrReplaceFirst("foo bar baz bar qux", "bar", "lorem"),
               IsOkAndHolds("foo lorem baz bar qux"));
@@ -653,6 +660,13 @@ TEST(RegexpTest, ReplaceAllWithRefNotTriggered) {
   auto const& re = status_or_re.value();
   EXPECT_THAT(re.StrReplaceAll("foo lorem ipsum amet baz", 0, "b\\2\\1"),
               StatusIs(absl::StatusCode::kFailedPrecondition));
+}
+
+TEST(RegexpTest, ReplaceAllWithDefaultCaptureIndex) {
+  auto const status_or_re = RE::Create("(bar) (baz)");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_THAT(re.StrReplaceAll("foo bar baz qux", "lorem"), IsOkAndHolds("foo lorem baz qux"));
 }
 
 TEST(RegexpTest, StaticReplaceAll) {

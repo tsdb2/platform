@@ -22,6 +22,16 @@ namespace proto {
 // Base class for all protobuf messages.
 struct Message {};
 
+template <typename Type, typename Enable = void>
+struct IsProtoMessage : public std::false_type {};
+
+template <typename Type>
+struct IsProtoMessage<Type, std::enable_if_t<std::is_base_of_v<Message, Type>>>
+    : public std::true_type {};
+
+template <typename Type>
+inline bool constexpr IsProtoMessageV = IsProtoMessage<Type>::value;
+
 // Allows for meaningful hashing and comparisons between optional sub-message fields regardless of
 // their indirection type.
 template <typename SubMessage>

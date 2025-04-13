@@ -18,6 +18,7 @@ cc_library(
     ],
     hdrs = [
         "duration.pb.sync.h",
+        "flag.h",
         "proto.h",
         "reflection.h",
         "runtime.h",
@@ -328,6 +329,17 @@ cc_test(
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "flag_test",
+    srcs = ["flag_test.cc"],
+    deps = [
+        ":runtime",
+        "//common:testing",
+        "//proto/tests:field_test_cc_proto",
+        "@com_google_absl//absl/flags:flag",
     ],
 )
 

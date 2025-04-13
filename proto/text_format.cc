@@ -262,30 +262,22 @@ absl::Status Parser::ParseMessage(BaseMessageDescriptor const& descriptor, Messa
   return RequirePrefix(delimiter);
 }
 
-absl::Status Parser::ParseMessageArray(BaseMessageDescriptor::RepeatedSubMessage* const field) {
-  field->Clear();
-  ConsumeSeparators();
-  RETURN_IF_ERROR(ExpectPrefix("["));
-  ConsumeSeparators();
-  auto const& descriptor = field->descriptor();
-  if (!ConsumePrefix("]")) {
-    RETURN_IF_ERROR(ParseMessage(descriptor, field->Append()));
-    ConsumeSeparators();
-  }
-  while (!ConsumePrefix("]")) {
-    RETURN_IF_ERROR(RequirePrefix(","));
-    ConsumeSeparators();
-    RETURN_IF_ERROR(ParseMessage(descriptor, field->Append()));
-    ConsumeSeparators();
-  }
-  return absl::OkStatus();
-}
-
 absl::Status Parser::ParseMap(BaseMessageDescriptor::Map* const field) {
-  field->Clear();
   ConsumeSeparators();
-  // TODO
-  return absl::OkStatus();
+  std::string_view delimiter;
+  if (ConsumePrefix("{")) {
+    delimiter = "}";
+  } else if (ConsumePrefix("<")) {
+    delimiter = ">";
+  } else {
+    return InvalidSyntaxError();
+  }
+  auto const& entry_descriptor = field->entry_descriptor();
+  auto const proto = entry_descriptor.CreateInstance();
+  RETURN_IF_ERROR(ParseFields(entry_descriptor, proto.get()));
+  // TODO: insert in the map.
+  ConsumeSeparators();
+  return RequirePrefix(delimiter);
 }
 
 }  // namespace text

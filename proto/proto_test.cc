@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <utility>
 
@@ -20,8 +21,15 @@ using ::testing::IsEmpty;
 using ::tsdb2::io::Buffer;
 using ::tsdb2::proto::ExtensionData;
 using ::tsdb2::proto::OptionalSubMessageRef;
+using ::tsdb2::proto::test::ColorEnum;
 using ::tsdb2::proto::test::OptionalStringField;
 using ::tsdb2::testing::io::BufferAsString;
+
+TEST(ProtoTest, IsProtoMessage) {
+  EXPECT_TRUE(tsdb2::proto::IsProtoMessageV<OptionalStringField>);
+  EXPECT_FALSE(tsdb2::proto::IsProtoMessageV<ColorEnum>);
+  EXPECT_FALSE(tsdb2::proto::IsProtoMessageV<std::string>);
+}
 
 TEST(OptionalSubMessageRefTest, EmptyVsEmpty) {
   OptionalSubMessageRef<OptionalStringField> ref1;

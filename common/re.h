@@ -412,6 +412,15 @@ class RE {
   absl::StatusOr<std::string> StrReplaceFirst(std::string_view input, size_t capture_index,
                                               std::string_view replacement) const;
 
+  // This `StrReplaceFirst` overload defaults the `capture_index` parameter to 0.
+  //
+  // NOTE: the capture group must still be present in the regular expression pattern, otherwise this
+  // method will always return an error status.
+  absl::StatusOr<std::string> StrReplaceFirst(std::string_view input,
+                                              std::string_view replacement) const {
+    return StrReplaceFirst(input, /*capture_index=*/0, replacement);
+  }
+
   // Like `StrReplaceFirst` but replaces all substrings matching the regular expression, not just
   // the first.
   //
@@ -419,6 +428,15 @@ class RE {
   // string has a cluster of overlapping matches only the first match in the cluster is replaced.
   absl::StatusOr<std::string> StrReplaceAll(std::string_view input, size_t capture_index,
                                             std::string_view replacement) const;
+
+  // This `StrReplaceAll` overload defaults the `capture_index` parameter to 0.
+  //
+  // NOTE: the capture group must still be present in the regular expression pattern, otherwise this
+  // method will always return an error status.
+  absl::StatusOr<std::string> StrReplaceAll(std::string_view input,
+                                            std::string_view replacement) const {
+    return StrReplaceAll(input, /*capture_index=*/0, replacement);
+  }
 
  private:
   template <typename Label, typename Allocator>

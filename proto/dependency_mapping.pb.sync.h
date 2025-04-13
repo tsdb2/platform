@@ -12,7 +12,48 @@ struct DependencyMapping;
 struct DependencyMapping : public ::tsdb2::proto::Message {
   static ::tsdb2::proto::MessageDescriptor<DependencyMapping, 1> const MESSAGE_DESCRIPTOR;
 
+  struct Dependency;
   struct DependencyEntry;
+
+  struct Dependency : public ::tsdb2::proto::Message {
+    static ::tsdb2::proto::MessageDescriptor<Dependency, 1> const MESSAGE_DESCRIPTOR;
+
+    static ::absl::StatusOr<Dependency> Decode(::absl::Span<uint8_t const> data);
+    static ::tsdb2::io::Cord Encode(Dependency const& proto);
+
+    static auto Tie(Dependency const& proto) { return ::tsdb2::proto::Tie(proto.cc_header); }
+
+    template <typename H>
+    friend H AbslHashValue(H h, Dependency const& proto) {
+      return H::combine(std::move(h), Tie(proto));
+    }
+
+    template <typename State>
+    friend State Tsdb2FingerprintValue(State state, Dependency const& proto) {
+      return State::Combine(std::move(state), Tie(proto));
+    }
+
+    friend bool operator==(Dependency const& lhs, Dependency const& rhs) {
+      return Tie(lhs) == Tie(rhs);
+    }
+    friend bool operator!=(Dependency const& lhs, Dependency const& rhs) {
+      return Tie(lhs) != Tie(rhs);
+    }
+    friend bool operator<(Dependency const& lhs, Dependency const& rhs) {
+      return Tie(lhs) < Tie(rhs);
+    }
+    friend bool operator<=(Dependency const& lhs, Dependency const& rhs) {
+      return Tie(lhs) <= Tie(rhs);
+    }
+    friend bool operator>(Dependency const& lhs, Dependency const& rhs) {
+      return Tie(lhs) > Tie(rhs);
+    }
+    friend bool operator>=(Dependency const& lhs, Dependency const& rhs) {
+      return Tie(lhs) >= Tie(rhs);
+    }
+
+    std::vector<std::string> cc_header;
+  };
 
   struct DependencyEntry : public ::tsdb2::proto::Message {
     static ::tsdb2::proto::MessageDescriptor<DependencyEntry, 2> const MESSAGE_DESCRIPTOR;
@@ -21,7 +62,7 @@ struct DependencyMapping : public ::tsdb2::proto::Message {
     static ::tsdb2::io::Cord Encode(DependencyEntry const& proto);
 
     static auto Tie(DependencyEntry const& proto) {
-      return ::tsdb2::proto::Tie(proto.key, proto.value);
+      return ::tsdb2::proto::Tie(proto.key, ::tsdb2::proto::OptionalSubMessageRef(proto.value));
     }
 
     template <typename H>
@@ -54,7 +95,7 @@ struct DependencyMapping : public ::tsdb2::proto::Message {
     }
 
     std::optional<std::string> key;
-    std::optional<std::string> value;
+    std::optional<::tsdb2::proto::internal::DependencyMapping::Dependency> value;
   };
 
   static ::absl::StatusOr<DependencyMapping> Decode(::absl::Span<uint8_t const> data);
@@ -79,12 +120,18 @@ struct DependencyMapping : public ::tsdb2::proto::Message {
     return Tie(lhs) != Tie(rhs);
   }
 
-  ::absl::flat_hash_map<std::string, std::string> dependency;
+  ::absl::flat_hash_map<std::string, ::tsdb2::proto::internal::DependencyMapping::Dependency>
+      dependency;
 };
 
 }  // namespace tsdb2::proto::internal
 
 namespace tsdb2::proto {
+
+template <>
+inline auto const& GetMessageDescriptor<::tsdb2::proto::internal::DependencyMapping::Dependency>() {
+  return ::tsdb2::proto::internal::DependencyMapping::Dependency::MESSAGE_DESCRIPTOR;
+};
 
 template <>
 inline auto const&

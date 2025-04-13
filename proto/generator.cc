@@ -30,10 +30,15 @@
 #include "common/utilities.h"
 #include "proto/annotations.pb.sync.h"
 #include "proto/dependencies.h"
+#include "proto/dependency_mapping.pb.sync.h"
 #include "proto/descriptor.pb.sync.h"
+#include "proto/flag.h"  // IWYU pragma: keep
 #include "proto/plugin.pb.sync.h"
 #include "proto/proto.h"
 #include "proto/text_writer.h"
+
+ABSL_FLAG(tsdb2::proto::internal::DependencyMapping, proto_dependency_mapping, {},
+          "Proto dependency mapping.");
 
 ABSL_FLAG(
     bool, proto_emit_reflection_api, false,
@@ -1116,6 +1121,23 @@ Generator::GetMapEntryFields(google::protobuf::DescriptorProto const& entry_mess
   return std::make_pair(key_field, value_field);
 }
 
+absl::Status Generator::EmitForwardDeclarations(TextWriter* const writer,
+                                                LexicalScope const& scope) {
+  tsdb2::common::flat_set<std::string_view> message_names;
+  message_names.reserve(scope.message_types.size());
+  for (auto const& message_type : scope.message_types) {
+    REQUIRE_FIELD_OR_RETURN(name, message_type, name);
+    message_names.emplace(name);
+  }
+  for (auto const name : message_names) {
+    writer->AppendLine("struct ", name, ";");
+  }
+  if (!scope.message_types.empty()) {
+    writer->AppendEmptyLine();
+  }
+  return absl::OkStatus();
+}
+
 absl::Status Generator::EmitFieldDeclaration(
     TextWriter* const writer, google::protobuf::FieldDescriptorProto const& field) const {
   REQUIRE_FIELD_OR_RETURN(name, field, name);
@@ -1347,13 +1369,7 @@ absl::Status Generator::EmitMessageHeader(
 
 absl::Status Generator::EmitHeaderForScope(TextWriter* const writer,
                                            LexicalScope const& scope) const {
-  for (auto const& message_type : scope.message_types) {
-    REQUIRE_FIELD_OR_RETURN(name, message_type, name);
-    writer->AppendLine("struct ", name, ";");
-  }
-  if (!scope.message_types.empty()) {
-    writer->AppendEmptyLine();
-  }
+  RETURN_IF_ERROR(EmitForwardDeclarations(writer, scope));
   for (auto const& enum_type : scope.enum_types) {
     REQUIRE_FIELD_OR_RETURN(name, enum_type, name);
     if (enum_type.options && enum_type.options->deprecated) {

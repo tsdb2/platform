@@ -34,9 +34,7 @@ class Parser {
   explicit Parser(std::string_view const input) : input_(input) {}
 
   template <typename Message,
-            std::enable_if_t<
-                std::is_base_of_v<BaseMessageDescriptor, decltype(Message::MESSAGE_DESCRIPTOR)>,
-                bool> = true>
+            std::enable_if_t<IsProtoMessageV<Message> && HasProtoReflectionV<Message>, bool> = true>
   absl::StatusOr<Message> Parse() {
     Message proto;
     RETURN_IF_ERROR(ParseFields(Message::MESSAGE_DESCRIPTOR, &proto));
@@ -47,7 +45,8 @@ class Parser {
     return std::move(proto);
   }
 
-  template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+  template <typename Enum,
+            std::enable_if_t<std::is_enum_v<Enum> && HasProtoReflectionV<Enum>, bool> = true>
   absl::StatusOr<Enum> Parse() {
     DEFINE_CONST_OR_RETURN(value_name, ParseEnum());
     ConsumeSeparators();
@@ -164,7 +163,7 @@ class Parser {
     }
 
     absl::Status operator()(BaseMessageDescriptor::RepeatedSubMessage& field) const {
-      return parent_->ParseMessageArray(&field);
+      return parent_->ParseMessage(field.descriptor(), field.Append());
     }
 
     absl::Status operator()(BaseMessageDescriptor::Map& field) const {
@@ -329,21 +328,38 @@ class Parser {
   absl::Status ParseFields(BaseMessageDescriptor const& descriptor, Message* proto);
 
   absl::Status ParseMessage(BaseMessageDescriptor const& descriptor, Message* proto);
-  absl::Status ParseMessageArray(BaseMessageDescriptor::RepeatedSubMessage* field);
   absl::Status ParseMap(BaseMessageDescriptor::Map* field);
 
   std::string_view input_;
 };
 
 template <typename Proto>
-absl::StatusOr<Proto> Parse(std::string_view const text) {
+inline absl::StatusOr<Proto> Parse(std::string_view const text) {
   return Parser{text}.Parse<Proto>();
 }
 
 class Stringifier {
  public:
-  // TODO
+  struct Options {
+    bool compressed = false;
+  };
+
+  explicit Stringifier(Options options) : options_(options) {}
+
+  template <typename Proto>
+  std::string Stringify(Proto const& proto) {
+    // TODO
+    return "";
+  }
+
+ private:
+  Options const options_;
 };
+
+template <typename Proto>
+inline std::string Stringify(Proto const& proto, Stringifier::Options const& options = {}) {
+  return Stringifier{options}.Stringify(proto);
+}
 
 }  // namespace text
 }  // namespace proto

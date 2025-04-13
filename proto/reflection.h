@@ -194,7 +194,7 @@ struct IsDescriptorForType<Enum, Descriptor, std::enable_if_t<std::is_enum_v<Enu
       std::is_base_of_v<BaseEnumDescriptor, std::decay_t<Descriptor>>;
 };
 
-// TODO: can we remove the *Impl versions of these definitions in C++20, after switching from SFINAE
+// TODO: can we remove the *Impl versions of these definitions in C++20, after migrating from SFINAE
 // to concepts?
 
 template <typename EntryMessage, std::enable_if_t<internal::IsMapEntryV<EntryMessage>, bool> = true>
@@ -1739,6 +1739,9 @@ class BaseMessageDescriptor {
     return type_and_kind.second;
   }
 
+  // Creates a new (default-initialized) instance of the described message.
+  virtual std::unique_ptr<Message> CreateInstance() const = 0;
+
   // Returns the descriptor of the specified field if it's an enum, or an error status otherwise.
   virtual absl::StatusOr<BaseEnumDescriptor const*> GetEnumFieldDescriptor(
       std::string_view field_name) const = 0;
@@ -2669,6 +2672,10 @@ class MessageDescriptor final : public BaseMessageDescriptor, public FieldTypes<
     }
   }
 
+  std::unique_ptr<tsdb2::proto::Message> CreateInstance() const override {
+    return std::make_unique<Message>();
+  }
+
   absl::StatusOr<BaseEnumDescriptor const*> GetEnumFieldDescriptor(
       std::string_view const field_name) const override {
     auto const it = field_ptrs_.find(field_name);
@@ -3153,6 +3160,10 @@ class MessageDescriptor<Message, 0> final : public BaseMessageDescriptor,
         absl::StrCat("unknown field \"", absl::CEscape(field_name), "\""));
   }
 
+  std::unique_ptr<tsdb2::proto::Message> CreateInstance() const override {
+    return std::make_unique<Message>();
+  }
+
   absl::StatusOr<BaseEnumDescriptor const*> GetEnumFieldDescriptor(
       std::string_view const field_name) const override {
     return absl::InvalidArgumentError(
@@ -3223,6 +3234,26 @@ auto const& GetMessageDescriptor();
 // We use `std::monostate` as its type because that's the same descriptor type we use in primitive
 // variants of oneof fields.
 extern std::monostate const kVoidDescriptor;
+
+template <typename Type, typename Enable = void>
+struct HasProtoReflection : public std::false_type {};
+
+template <typename Type>
+struct HasProtoReflection<
+    Type, std::enable_if_t<IsProtoMessageV<Type> &&
+                           std::is_base_of_v<BaseMessageDescriptor,
+                                             std::decay_t<decltype(Type::MESSAGE_DESCRIPTOR)>>>>
+    : public std::true_type {};
+
+template <typename Type>
+struct HasProtoReflection<
+    Type, std::enable_if_t<std::is_enum_v<Type> &&
+                           std::is_base_of_v<BaseEnumDescriptor,
+                                             std::decay_t<decltype(GetEnumDescriptor<Type>())>>>>
+    : public std::true_type {};
+
+template <typename Type>
+inline bool constexpr HasProtoReflectionV = HasProtoReflection<Type>::value;
 
 }  // namespace proto
 }  // namespace tsdb2

@@ -14,6 +14,21 @@ def _replace_extension(path, extension):
 def _join_path(*paths):
     return "/".join([path.strip("/") for path in paths])
 
+def _make_dependency_mapping(deps):
+    mapping = dict()
+    for dep in deps:
+        (proto_info, cc_info) = (dep[ProtoInfo], dep[CcInfo])
+        for proto_source in proto_info.direct_sources:
+            proto_source_path = proto_source.path
+            if proto_source_path not in mapping:
+                mapping[proto_source_path] = set()
+            for header in cc_info.compilation_context.direct_public_headers:
+                mapping[proto_source_path].add(header.path)
+    return struct(dependency = {
+        key: struct(cc_header = [header for header in headers])
+        for key, headers in mapping.items()
+    })
+
 def _cc_proto_library_impl(ctx):
     proto_info = ctx.attr.proto[ProtoInfo]
     cc_proto_infos = [
@@ -45,6 +60,7 @@ def _cc_proto_library_impl(ctx):
         arguments = [
             "--proto_root_path=" + _join_path(ctx.genfiles_dir.path, proto_info.proto_source_root),
             "--proto_file_descriptor_sets=" + proto_info.direct_descriptor_set.path,
+            "--proto_dependency_mapping=" + proto.encode_text(_make_dependency_mapping(ctx.attr.deps)),
             "--proto_emit_reflection_api" if ctx.attr.enable_reflection else "--noproto_emit_reflection_api",
             "--proto_use_raw_google_api_types" if ctx.attr.use_raw_google_api_types else "--noproto_use_raw_google_api_types",
             "--proto_internal_generate_definitions_for_google_api_types_i_dont_care_about_odr_violations" if ctx.attr.internal_generate_definitions_for_google_api_types_i_dont_care_about_odr_violations else "--noproto_internal_generate_definitions_for_google_api_types_i_dont_care_about_odr_violations",

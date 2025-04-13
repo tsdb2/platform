@@ -244,6 +244,9 @@ class Generator {
                                   google::protobuf::FieldDescriptorProto const*>>
   GetMapEntryFields(google::protobuf::DescriptorProto const& entry_message_type);
 
+  static absl::Status EmitForwardDeclarations(internal::TextWriter* writer,
+                                              LexicalScope const& scope);
+
   absl::Status EmitFieldDeclaration(internal::TextWriter* writer,
                                     google::protobuf::FieldDescriptorProto const& field) const;
 
