@@ -114,12 +114,12 @@ void Parser::ConsumeSeparators() {
 }
 
 absl::StatusOr<std::string_view> Parser::ConsumePattern(tsdb2::common::RE const& pattern) {
-  std::string_view number;
-  if (!pattern.MatchPrefixArgs(input_, &number)) {
+  std::string_view match;
+  if (!pattern.MatchPrefixArgs(input_, &match)) {
     return InvalidSyntaxError();
   }
-  input_.remove_prefix(number.size());
-  return number;
+  input_.remove_prefix(match.size());
+  return match;
 }
 
 absl::StatusOr<std::string_view> Parser::ConsumeIdentifier() {
@@ -198,26 +198,6 @@ absl::StatusOr<std::string_view> Parser::ParseEnum() {
   return ConsumeIdentifier();
 }
 
-absl::StatusOr<std::vector<std::string_view>> Parser::ParseEnumArray() {
-  std::vector<std::string_view> values;
-  ConsumeSeparators();
-  RETURN_IF_ERROR(ExpectPrefix("["));
-  ConsumeSeparators();
-  if (!ConsumePrefix("]")) {
-    DEFINE_CONST_OR_RETURN(value, ParseEnum());
-    values.emplace_back(value);
-    ConsumeSeparators();
-  }
-  while (!ConsumePrefix("]")) {
-    RETURN_IF_ERROR(RequirePrefix(","));
-    ConsumeSeparators();
-    DEFINE_CONST_OR_RETURN(value, ParseEnum());
-    values.emplace_back(value);
-    ConsumeSeparators();
-  }
-  return std::move(values);
-}
-
 absl::Status Parser::ParseFields(BaseMessageDescriptor const& descriptor, Message* const proto) {
   ConsumeSeparators();
   tsdb2::common::flat_set<std::string> parsed_fields;
@@ -232,8 +212,8 @@ absl::Status Parser::ParseFields(BaseMessageDescriptor const& descriptor, Messag
     ConsumeSeparators();
     DEFINE_CONST_OR_RETURN(type_and_kind, descriptor.GetFieldTypeAndKind(field_name));
     auto const [field_type, field_kind] = type_and_kind;
-    if (field_type != BaseMessageDescriptor::FieldType::kSubMessageField ||
-        field_kind == BaseMessageDescriptor::FieldKind::kRepeated) {
+    if (field_type != BaseMessageDescriptor::FieldType::kSubMessageField &&
+        field_type != BaseMessageDescriptor::FieldType::kMapField) {
       RETURN_IF_ERROR(RequirePrefix(":"));
     } else {
       ConsumePrefix(":");

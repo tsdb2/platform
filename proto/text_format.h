@@ -134,8 +134,8 @@ class Parser {
 
     template <typename Element>
     absl::Status operator()(std::vector<Element>* const field) const {
-      DEFINE_VAR_OR_RETURN(values, parent_->ParseArray<Element>());
-      *field = std::move(values);
+      DEFINE_VAR_OR_RETURN(value, parent_->ParseValue<Element>());
+      field->emplace_back(std::move(value));
       return absl::OkStatus();
     }
 
@@ -150,8 +150,8 @@ class Parser {
     }
 
     absl::Status operator()(BaseMessageDescriptor::RepeatedEnum& field) const {
-      DEFINE_CONST_OR_RETURN(names, parent_->ParseEnumArray());
-      return field.SetAllValues(names);
+      DEFINE_CONST_OR_RETURN(name, parent_->ParseEnum());
+      return field.AppendValue(name);
     }
 
     absl::Status operator()(BaseMessageDescriptor::RawSubMessage& field) const {
@@ -301,29 +301,7 @@ class Parser {
     return ValueParser<Value>{}(this);
   }
 
-  template <typename Element>
-  absl::StatusOr<std::vector<Element>> ParseArray() {
-    std::vector<Element> values;
-    ConsumeSeparators();
-    RETURN_IF_ERROR(ExpectPrefix("["));
-    ConsumeSeparators();
-    if (!ConsumePrefix("]")) {
-      DEFINE_VAR_OR_RETURN(value, ParseValue<Element>());
-      values.emplace_back(std::move(value));
-      ConsumeSeparators();
-    }
-    while (!ConsumePrefix("]")) {
-      RETURN_IF_ERROR(RequirePrefix(","));
-      ConsumeSeparators();
-      DEFINE_VAR_OR_RETURN(value, ParseValue<Element>());
-      values.emplace_back(std::move(value));
-      ConsumeSeparators();
-    }
-    return std::move(values);
-  }
-
   absl::StatusOr<std::string_view> ParseEnum();
-  absl::StatusOr<std::vector<std::string_view>> ParseEnumArray();
 
   absl::Status ParseFields(BaseMessageDescriptor const& descriptor, Message* proto);
 

@@ -379,12 +379,40 @@ TEST(ReflectionTest, RepeatedEnumField) {
   auto& field = std::get<BaseMessageDescriptor::RepeatedEnum>(status_or_field.value());
   EXPECT_TRUE(field.AllValuesAreKnown());
   EXPECT_THAT(field, ElementsAre("COLOR_RED", "COLOR_GREEN", "COLOR_BLUE"));
+  EXPECT_TRUE(const_field.AllValuesAreKnown());
+  EXPECT_THAT(const_field, ElementsAre("COLOR_RED", "COLOR_GREEN", "COLOR_BLUE"));
+}
+
+TEST(ReflectionTest, RepeatedEnumFieldValues) {
+  auto const& descriptor = tsdb2::proto::test::RepeatedEnumField::MESSAGE_DESCRIPTOR;
+  tsdb2::proto::test::RepeatedEnumField message{.color{
+      ColorEnum::COLOR_RED,
+      ColorEnum::COLOR_GREEN,
+      ColorEnum::COLOR_BLUE,
+  }};
+  tsdb2::proto::Message* const ptr = &message;
+  auto status_or_field = descriptor.GetFieldValue(ptr, "color");
+  EXPECT_OK(status_or_field);
+  auto& field = std::get<BaseMessageDescriptor::RepeatedEnum>(status_or_field.value());
+  tsdb2::proto::Message const& ref = message;
+  auto const status_or_const_field = descriptor.GetConstFieldValue(ref, "color");
+  EXPECT_OK(status_or_const_field);
+  auto const& const_field =
+      std::get<BaseMessageDescriptor::RepeatedEnum const>(status_or_const_field.value());
+  EXPECT_TRUE(field.AllValuesAreKnown());
+  EXPECT_THAT(field, ElementsAre("COLOR_RED", "COLOR_GREEN", "COLOR_BLUE"));
   EXPECT_OK(field.SetAllValues({"COLOR_CYAN", "COLOR_MAGENTA"}));
   EXPECT_TRUE(field.AllValuesAreKnown());
   EXPECT_THAT(field, ElementsAre("COLOR_CYAN", "COLOR_MAGENTA"));
   EXPECT_TRUE(const_field.AllValuesAreKnown());
   EXPECT_THAT(const_field, ElementsAre("COLOR_CYAN", "COLOR_MAGENTA"));
-  EXPECT_THAT(message.color, ElementsAre(ColorEnum::COLOR_CYAN, ColorEnum::COLOR_MAGENTA));
+  EXPECT_OK(field.AppendValue("COLOR_YELLOW"));
+  EXPECT_TRUE(field.AllValuesAreKnown());
+  EXPECT_THAT(field, ElementsAre("COLOR_CYAN", "COLOR_MAGENTA", "COLOR_YELLOW"));
+  EXPECT_TRUE(const_field.AllValuesAreKnown());
+  EXPECT_THAT(const_field, ElementsAre("COLOR_CYAN", "COLOR_MAGENTA", "COLOR_YELLOW"));
+  EXPECT_THAT(message.color, ElementsAre(ColorEnum::COLOR_CYAN, ColorEnum::COLOR_MAGENTA,
+                                         ColorEnum::COLOR_YELLOW));
   EXPECT_OK(field.SetAllValues({"COLOR_RED", "COLOR_CYAN", "COLOR_GREEN", "COLOR_MAGENTA"}));
   EXPECT_TRUE(field.AllValuesAreKnown());
   EXPECT_THAT(field, ElementsAre("COLOR_RED", "COLOR_CYAN", "COLOR_GREEN", "COLOR_MAGENTA"));

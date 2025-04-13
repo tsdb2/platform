@@ -614,6 +614,8 @@ class BaseMessageDescriptor {
     const_iterator end() const { return const_iterator(*this, impl_->GetSize()); }
     const_iterator cend() const { return const_iterator(*this, impl_->GetSize()); }
 
+    absl::Status AppendValue(std::string_view const name) { return impl_->AppendValue(name); }
+
     absl::Status SetAllValues(absl::Span<std::string_view const> const names) {
       return impl_->SetAllValues(names);
     }
@@ -633,6 +635,8 @@ class BaseMessageDescriptor {
       virtual absl::StatusOr<std::string_view> GetValueAt(size_t index) const = 0;
 
       virtual int64_t GetUnderlyingValueAt(size_t index) const = 0;
+
+      virtual absl::Status AppendValue(std::string_view name) = 0;
 
       virtual absl::Status SetAllValues(absl::Span<std::string_view const> names) = 0;
 
@@ -667,6 +671,12 @@ class BaseMessageDescriptor {
 
       int64_t GetUnderlyingValueAt(size_t const index) const override {
         return tsdb2::util::to_underlying(values_->at(index));
+      }
+
+      absl::Status AppendValue(std::string_view name) override {
+        DEFINE_CONST_OR_RETURN(value, descriptor_.GetNameValue(name));
+        values_->emplace_back(value);
+        return absl::OkStatus();
       }
 
       absl::Status SetAllValues(absl::Span<std::string_view const> names) override {
