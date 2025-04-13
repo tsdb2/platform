@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -10,6 +11,7 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "common/flat_map.h"
 #include "common/flat_set.h"
@@ -198,20 +200,24 @@ absl::StatusOr<std::string_view> Parser::ParseEnum() {
   return ConsumeIdentifier();
 }
 
-absl::Status Parser::ParseFields(BaseMessageDescriptor const& descriptor, Message* const proto) {
+absl::Status Parser::ParseFields(BaseMessageDescriptor const& descriptor, Message* const proto,
+                                 std::optional<std::string_view> const delimiter) {
   ConsumeSeparators();
   tsdb2::common::flat_set<std::string> parsed_fields;
   parsed_fields.reserve(descriptor.GetAllFieldNames().size());
-  while (!input_.empty()) {
+  while (!(input_.empty() || (delimiter && absl::StartsWith(input_, *delimiter)))) {
     DEFINE_CONST_OR_RETURN(field_name, ConsumeIdentifier());
-    auto const [unused, inserted] = parsed_fields.emplace(field_name);
-    if (!inserted) {
-      return absl::InvalidArgumentError(
-          absl::StrCat("field \"", field_name, "\" specified multiple times"));
-    }
-    ConsumeSeparators();
     DEFINE_CONST_OR_RETURN(type_and_kind, descriptor.GetFieldTypeAndKind(field_name));
     auto const [field_type, field_kind] = type_and_kind;
+    if (field_kind != BaseMessageDescriptor::FieldKind::kRepeated &&
+        field_kind != BaseMessageDescriptor::FieldKind::kMap) {
+      auto const [unused, inserted] = parsed_fields.emplace(field_name);
+      if (!inserted) {
+        return absl::InvalidArgumentError(
+            absl::StrCat("non-repeated field \"", field_name, "\" specified multiple times"));
+      }
+    }
+    ConsumeSeparators();
     if (field_type != BaseMessageDescriptor::FieldType::kSubMessageField &&
         field_type != BaseMessageDescriptor::FieldType::kMapField) {
       RETURN_IF_ERROR(RequirePrefix(":"));
@@ -237,7 +243,7 @@ absl::Status Parser::ParseMessage(BaseMessageDescriptor const& descriptor, Messa
   } else {
     return InvalidSyntaxError();
   }
-  RETURN_IF_ERROR(ParseFields(descriptor, proto));
+  RETURN_IF_ERROR(ParseFields(descriptor, proto, delimiter));
   ConsumeSeparators();
   return RequirePrefix(delimiter);
 }
@@ -254,7 +260,7 @@ absl::Status Parser::ParseMap(BaseMessageDescriptor::Map* const field) {
   }
   auto const& entry_descriptor = field->entry_descriptor();
   auto const proto = entry_descriptor.CreateInstance();
-  RETURN_IF_ERROR(ParseFields(entry_descriptor, proto.get()));
+  RETURN_IF_ERROR(ParseFields(entry_descriptor, proto.get(), delimiter));
   // TODO: insert in the map.
   ConsumeSeparators();
   return RequirePrefix(delimiter);

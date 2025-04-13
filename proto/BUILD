@@ -337,9 +337,11 @@ cc_test(
     srcs = ["flag_test.cc"],
     deps = [
         ":runtime",
+        "//common:flag_override",
         "//common:testing",
         "//proto/tests:field_test_cc_proto",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_googletest//:gtest_main",
     ],
 )
 

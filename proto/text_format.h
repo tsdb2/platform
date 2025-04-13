@@ -37,7 +37,7 @@ class Parser {
             std::enable_if_t<IsProtoMessageV<Message> && HasProtoReflectionV<Message>, bool> = true>
   absl::StatusOr<Message> Parse() {
     Message proto;
-    RETURN_IF_ERROR(ParseFields(Message::MESSAGE_DESCRIPTOR, &proto));
+    RETURN_IF_ERROR(ParseFields(Message::MESSAGE_DESCRIPTOR, &proto, /*delimiter=*/std::nullopt));
     ConsumeSeparators();
     if (!input_.empty()) {
       return InvalidSyntaxError();
@@ -303,7 +303,8 @@ class Parser {
 
   absl::StatusOr<std::string_view> ParseEnum();
 
-  absl::Status ParseFields(BaseMessageDescriptor const& descriptor, Message* proto);
+  absl::Status ParseFields(BaseMessageDescriptor const& descriptor, Message* proto,
+                           std::optional<std::string_view> delimiter);
 
   absl::Status ParseMessage(BaseMessageDescriptor const& descriptor, Message* proto);
   absl::Status ParseMap(BaseMessageDescriptor::Map* field);

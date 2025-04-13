@@ -1,6 +1,9 @@
-#include "proto/flag.h"
+#include "proto/flag.h"  // IWYU pragma: keep
+
+#include <string>
 
 #include "absl/flags/flag.h"
+#include "common/flag_override.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "proto/tests/field_test.pb.h"
@@ -11,17 +14,18 @@ namespace {
 
 using ::testing::Field;
 using ::testing::Optional;
+using ::tsdb2::common::testing::FlagOverride;
 using ::tsdb2::proto::test::OptionalStringField;
 
 TEST(ProtoFlagTest, DefaultValue) {
   EXPECT_THAT(absl::GetFlag(FLAGS_test_flag),
-              Field(&OptionalStringField::field, Optional("lorem")));
+              Field(&OptionalStringField::field, Optional<std::string>("lorem")));
 }
 
 TEST(ProtoFlagTest, OverriddenValue) {
-  absl::SetFlag(&FLAGS_test_flag, {.field = "ipsum"});
+  FlagOverride fo{&FLAGS_test_flag, OptionalStringField{.field = "ipsum"}};
   EXPECT_THAT(absl::GetFlag(FLAGS_test_flag),
-              Field(&OptionalStringField::field, Optional("ipsum")));
+              Field(&OptionalStringField::field, Optional<std::string>("ipsum")));
 }
 
 }  // namespace
