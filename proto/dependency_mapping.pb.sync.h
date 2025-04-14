@@ -10,13 +10,13 @@ namespace tsdb2::proto::internal {
 struct DependencyMapping;
 
 struct DependencyMapping : public ::tsdb2::proto::Message {
-  static ::tsdb2::proto::MessageDescriptor<DependencyMapping, 1> const MESSAGE_DESCRIPTOR;
+  static ::tsdb2::proto::MessageDescriptor<DependencyMapping, 1, 0> const MESSAGE_DESCRIPTOR;
 
   struct Dependency;
   struct DependencyEntry;
 
   struct Dependency : public ::tsdb2::proto::Message {
-    static ::tsdb2::proto::MessageDescriptor<Dependency, 1> const MESSAGE_DESCRIPTOR;
+    static ::tsdb2::proto::MessageDescriptor<Dependency, 1, 0> const MESSAGE_DESCRIPTOR;
 
     static ::absl::StatusOr<Dependency> Decode(::absl::Span<uint8_t const> data);
     static ::tsdb2::io::Cord Encode(Dependency const& proto);
@@ -56,7 +56,7 @@ struct DependencyMapping : public ::tsdb2::proto::Message {
   };
 
   struct DependencyEntry : public ::tsdb2::proto::Message {
-    static ::tsdb2::proto::MessageDescriptor<DependencyEntry, 2> const MESSAGE_DESCRIPTOR;
+    static ::tsdb2::proto::MessageDescriptor<DependencyEntry, 2, 0> const MESSAGE_DESCRIPTOR;
 
     static ::absl::StatusOr<DependencyEntry> Decode(::absl::Span<uint8_t const> data);
     static ::tsdb2::io::Cord Encode(DependencyEntry const& proto);

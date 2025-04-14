@@ -14,8 +14,10 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/charconv.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/strip.h"
 #include "absl/time/time.h"
+#include "common/flat_set.h"
 #include "common/no_destructor.h"
 #include "common/re.h"
 #include "common/utilities.h"
@@ -31,7 +33,12 @@ namespace text {
 
 class Parser {
  public:
-  explicit Parser(std::string_view const input) : input_(input) {}
+  struct Options {
+    bool fast_skipping = false;
+  };
+
+  explicit Parser(std::string_view const input, Options const& options)
+      : options_(options), input_(input) {}
 
   template <typename Message,
             std::enable_if_t<IsProtoMessageV<Message> && HasProtoReflectionV<Message>, bool> = true>
@@ -186,7 +193,7 @@ class Parser {
 
   static absl::Status InvalidFormatError() {
     // TODO: include row and column numbers in the error message.
-    return absl::InvalidArgumentError("invalid TextFormat proto format");
+    return absl::FailedPreconditionError("invalid TextFormat proto format");
   }
 
   static tsdb2::common::NoDestructor<tsdb2::common::RE> const kFieldSeparatorPattern;
@@ -200,9 +207,6 @@ class Parser {
 
   // Consumes the specified prefix or returns a syntax error.
   absl::Status RequirePrefix(std::string_view prefix);
-
-  // Consumes the specified prefix or returns a format error.
-  absl::Status ExpectPrefix(std::string_view prefix);
 
   void ConsumeWhitespace();
 
@@ -283,7 +287,7 @@ class Parser {
     char const last = number.back();
     if (last != 'F' && last != 'f') {
       if constexpr (std::is_same_v<float, Float>) {
-        return absl::InvalidArgumentError("float value expected but double found");
+        return absl::FailedPreconditionError("float value expected but double found");
       }
     } else {
       number.remove_suffix(1);
@@ -303,18 +307,24 @@ class Parser {
 
   absl::StatusOr<std::string_view> ParseEnum();
 
+  static tsdb2::common::flat_set<std::string> GetRequiredFieldNames(
+      BaseMessageDescriptor const& descriptor);
+
   absl::Status ParseFields(BaseMessageDescriptor const& descriptor, Message* proto,
                            std::optional<std::string_view> delimiter);
 
   absl::Status ParseMessage(BaseMessageDescriptor const& descriptor, Message* proto);
   absl::Status ParseMap(BaseMessageDescriptor::Map* field);
 
+  Options const options_;
+
   std::string_view input_;
 };
 
 template <typename Proto>
-inline absl::StatusOr<Proto> Parse(std::string_view const text) {
-  return Parser{text}.Parse<Proto>();
+inline absl::StatusOr<Proto> Parse(std::string_view const text,
+                                   Parser::Options const& options = {}) {
+  return Parser{text, options}.Parse<Proto>();
 }
 
 class Stringifier {
@@ -323,12 +333,24 @@ class Stringifier {
     bool compressed = false;
   };
 
-  explicit Stringifier(Options options) : options_(options) {}
+  explicit Stringifier(Options const& options) : options_(options) {}
 
-  template <typename Proto>
-  std::string Stringify(Proto const& proto) {
+  template <typename Message,
+            std::enable_if_t<IsProtoMessageV<Message> && HasProtoReflectionV<Message>, bool> = true>
+  std::string Stringify(Message const& value) {
     // TODO
     return "";
+  }
+
+  template <typename Enum,
+            std::enable_if_t<std::is_enum_v<Enum> && HasProtoReflectionV<Enum>, bool> = true>
+  std::string Stringify(Enum const value) {
+    auto const status_or_name = GetEnumDescriptor<Enum>().GetValueName(value);
+    if (status_or_name.ok()) {
+      return std::string(status_or_name.value());
+    } else {
+      return absl::StrCat(tsdb2::util::to_underlying(value));
+    }
   }
 
  private:

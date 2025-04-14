@@ -7,29 +7,29 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
 
 namespace google::protobuf {
 
-struct FileDescriptorSet;
-struct FileDescriptorProto;
 struct DescriptorProto;
-struct ExtensionRangeOptions;
-struct FieldDescriptorProto;
-struct OneofDescriptorProto;
 struct EnumDescriptorProto;
-struct EnumValueDescriptorProto;
-struct ServiceDescriptorProto;
-struct MethodDescriptorProto;
-struct FileOptions;
-struct MessageOptions;
-struct FieldOptions;
-struct OneofOptions;
 struct EnumOptions;
+struct EnumValueDescriptorProto;
 struct EnumValueOptions;
-struct ServiceOptions;
-struct MethodOptions;
-struct UninterpretedOption;
+struct ExtensionRangeOptions;
 struct FeatureSet;
 struct FeatureSetDefaults;
-struct SourceCodeInfo;
+struct FieldDescriptorProto;
+struct FieldOptions;
+struct FileDescriptorProto;
+struct FileDescriptorSet;
+struct FileOptions;
 struct GeneratedCodeInfo;
+struct MessageOptions;
+struct MethodDescriptorProto;
+struct MethodOptions;
+struct OneofDescriptorProto;
+struct OneofOptions;
+struct ServiceDescriptorProto;
+struct ServiceOptions;
+struct SourceCodeInfo;
+struct UninterpretedOption;
 
 enum class Edition {
   EDITION_UNKNOWN = 0,

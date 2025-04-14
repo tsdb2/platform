@@ -811,17 +811,19 @@ absl::StatusOr<bool> Generator::IsEnum(std::string_view proto_type_name) const {
   return !is_message;
 }
 
-absl::StatusOr<bool> Generator::HasRequiredFields(
+absl::StatusOr<tsdb2::common::flat_set<std::string_view>> Generator::GetRequiredFieldNames(
     google::protobuf::DescriptorProto const& descriptor) {
+  tsdb2::common::flat_set<std::string_view> names;
   for (auto const& field : descriptor.field) {
     if (!field.oneof_index.has_value()) {
       REQUIRE_FIELD_OR_RETURN(label, field, label);
       if (label == FieldDescriptorProto::Label::LABEL_REQUIRED) {
-        return true;
+        REQUIRE_FIELD_OR_RETURN(name, field, name);
+        names.emplace(name);
       }
     }
   }
-  return false;
+  return std::move(names);
 }
 
 absl::StatusOr<google::protobuf::OneofDescriptorProto const*> Generator::GetOneofDecl(
@@ -1275,8 +1277,10 @@ absl::Status Generator::EmitMessageHeader(
   {
     TextWriter::IndentedScope is{writer};
     if (emit_reflection_api_) {
+      DEFINE_CONST_OR_RETURN(num_required_fields, GetNumRequiredFields(message_type));
       writer->AppendLine("static ::tsdb2::proto::MessageDescriptor<", name, ", ",
-                         GetNumGeneratedFields(message_type), "> const MESSAGE_DESCRIPTOR;");
+                         GetNumGeneratedFields(message_type), ", ", num_required_fields,
+                         "> const MESSAGE_DESCRIPTOR;");
       writer->AppendEmptyLine();
     }
     RETURN_IF_ERROR(EmitHeaderForScope(writer, LexicalScope{
@@ -2427,11 +2431,13 @@ absl::Status Generator::EmitMessageReflectionDescriptor(
   writer->AppendEmptyLine();
   auto const qualified_name = absl::StrJoin(path, "::");
   if (message_type.field.empty()) {
-    writer->AppendLine("::tsdb2::proto::MessageDescriptor<", qualified_name, ", 0> const ",
+    writer->AppendLine("::tsdb2::proto::MessageDescriptor<", qualified_name, ", 0, 0> const ",
                        qualified_name, "::MESSAGE_DESCRIPTOR{};");
   } else {
     size_t const num_fields = GetNumGeneratedFields(message_type);
-    writer->AppendLine("::tsdb2::proto::MessageDescriptor<", qualified_name, ", ", num_fields,
+    DEFINE_CONST_OR_RETURN(required_field_names, GetRequiredFieldNames(message_type));
+    writer->AppendLine("::tsdb2::proto::MessageDescriptor<", qualified_name, ", /*num_fields=*/",
+                       num_fields, ", /*num_required_fields=*/", required_field_names.size(),
                        "> const ", qualified_name, "::MESSAGE_DESCRIPTOR{{");
     {
       absl::flat_hash_set<size_t> oneof_indices;
@@ -2450,7 +2456,17 @@ absl::Status Generator::EmitMessageReflectionDescriptor(
         }
       }
     }
-    writer->AppendLine("}};");
+    if (required_field_names.empty()) {
+      writer->AppendLine("}};");
+    } else {
+      std::vector<std::string> quoted_field_names;
+      quoted_field_names.reserve(required_field_names.size());
+      for (auto const name : required_field_names) {
+        quoted_field_names.emplace_back(absl::StrCat("\"", name, "\""));
+      }
+      writer->AppendLine("}, /*required_field_names=*/{", absl::StrJoin(quoted_field_names, ", "),
+                         "}};");
+    }
   }
   return absl::OkStatus();
 }

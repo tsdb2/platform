@@ -8,9 +8,9 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
 
 namespace google::protobuf::compiler {
 
-struct Version;
 struct CodeGeneratorRequest;
 struct CodeGeneratorResponse;
+struct Version;
 
 struct Version : public ::tsdb2::proto::Message {
   static ::absl::StatusOr<Version> Decode(::absl::Span<uint8_t const> data);

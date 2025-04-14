@@ -15,6 +15,8 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "common/flat_set.h"
+#include "common/utilities.h"
 #include "proto/annotations.pb.sync.h"
 #include "proto/dependencies.h"
 #include "proto/descriptor.pb.sync.h"
@@ -181,8 +183,20 @@ class Generator {
   absl::StatusOr<bool> IsMessage(std::string_view proto_type_name) const;
   absl::StatusOr<bool> IsEnum(std::string_view proto_type_name) const;
 
-  static absl::StatusOr<bool> HasRequiredFields(
+  static absl::StatusOr<tsdb2::common::flat_set<std::string_view>> GetRequiredFieldNames(
       google::protobuf::DescriptorProto const& descriptor);
+
+  static absl::StatusOr<size_t> GetNumRequiredFields(
+      google::protobuf::DescriptorProto const& descriptor) {
+    DEFINE_CONST_OR_RETURN(names, GetRequiredFieldNames(descriptor));
+    return names.size();
+  }
+
+  static absl::StatusOr<bool> HasRequiredFields(
+      google::protobuf::DescriptorProto const& descriptor) {
+    DEFINE_CONST_OR_RETURN(num_fields, GetNumRequiredFields(descriptor));
+    return num_fields != 0;
+  }
 
   static absl::StatusOr<google::protobuf::OneofDescriptorProto const*> GetOneofDecl(
       google::protobuf::DescriptorProto const& message_type, size_t index);

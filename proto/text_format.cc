@@ -13,6 +13,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "common/flat_map.h"
 #include "common/flat_set.h"
 #include "common/no_destructor.h"
@@ -84,14 +85,6 @@ absl::Status Parser::RequirePrefix(std::string_view const prefix) {
     return absl::OkStatus();
   } else {
     return InvalidSyntaxError();
-  }
-}
-
-absl::Status Parser::ExpectPrefix(std::string_view const prefix) {
-  if (ConsumePrefix(prefix)) {
-    return absl::OkStatus();
-  } else {
-    return InvalidFormatError();
   }
 }
 
@@ -200,20 +193,33 @@ absl::StatusOr<std::string_view> Parser::ParseEnum() {
   return ConsumeIdentifier();
 }
 
+tsdb2::common::flat_set<std::string> Parser::GetRequiredFieldNames(
+    BaseMessageDescriptor const& descriptor) {
+  auto const required_fields = descriptor.GetRequiredFieldNames();
+  tsdb2::common::flat_set<std::string> missing_required_fields;
+  missing_required_fields.reserve(required_fields.size());
+  for (auto const name : required_fields) {
+    missing_required_fields.emplace(name);
+  }
+  return missing_required_fields;
+}
+
 absl::Status Parser::ParseFields(BaseMessageDescriptor const& descriptor, Message* const proto,
                                  std::optional<std::string_view> const delimiter) {
   ConsumeSeparators();
+  auto missing_required_fields = GetRequiredFieldNames(descriptor);
   tsdb2::common::flat_set<std::string> parsed_fields;
   parsed_fields.reserve(descriptor.GetAllFieldNames().size());
   while (!(input_.empty() || (delimiter && absl::StartsWith(input_, *delimiter)))) {
     DEFINE_CONST_OR_RETURN(field_name, ConsumeIdentifier());
+    missing_required_fields.erase(field_name);
     DEFINE_CONST_OR_RETURN(type_and_kind, descriptor.GetFieldTypeAndKind(field_name));
     auto const [field_type, field_kind] = type_and_kind;
     if (field_kind != BaseMessageDescriptor::FieldKind::kRepeated &&
         field_kind != BaseMessageDescriptor::FieldKind::kMap) {
       auto const [unused, inserted] = parsed_fields.emplace(field_name);
       if (!inserted) {
-        return absl::InvalidArgumentError(
+        return absl::FailedPreconditionError(
             absl::StrCat("non-repeated field \"", field_name, "\" specified multiple times"));
       }
     }
@@ -230,7 +236,13 @@ absl::Status Parser::ParseFields(BaseMessageDescriptor const& descriptor, Messag
     RETURN_IF_ERROR(ConsumePattern(*kFieldSeparatorPattern));
     ConsumeSeparators();
   }
-  return absl::OkStatus();
+  if (missing_required_fields.empty()) {
+    return absl::OkStatus();
+  } else {
+    return absl::FailedPreconditionError(
+        absl::StrCat("the following required fields are missing: ",
+                     absl::StrJoin(missing_required_fields, ", ")));
+  }
 }
 
 absl::Status Parser::ParseMessage(BaseMessageDescriptor const& descriptor, Message* const proto) {

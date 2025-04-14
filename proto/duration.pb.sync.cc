@@ -43,10 +43,11 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   return std::move(encoder).Finish();
 }
 
-::tsdb2::proto::MessageDescriptor<Duration, 2> const Duration::MESSAGE_DESCRIPTOR{{
-    {"seconds", &Duration::seconds},
-    {"nanos", &Duration::nanos},
-}};
+::tsdb2::proto::MessageDescriptor<Duration, /*num_fields=*/2, /*num_required_fields=*/0> const
+    Duration::MESSAGE_DESCRIPTOR{{
+        {"seconds", &Duration::seconds},
+        {"nanos", &Duration::nanos},
+    }};
 
 TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING();
 

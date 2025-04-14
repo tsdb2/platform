@@ -33,6 +33,7 @@ cc_library(
         "//common:flat_set",
         "//common:no_destructor",
         "//common:re",
+        "//common:to_array",
         "//common:trie_map",
         "//common:utilities",
         "//io:buffer",

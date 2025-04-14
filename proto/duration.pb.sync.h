@@ -10,7 +10,7 @@ namespace google::protobuf {
 struct Duration;
 
 struct Duration : public ::tsdb2::proto::Message {
-  static ::tsdb2::proto::MessageDescriptor<Duration, 2> const MESSAGE_DESCRIPTOR;
+  static ::tsdb2::proto::MessageDescriptor<Duration, 2, 0> const MESSAGE_DESCRIPTOR;
 
   static ::absl::StatusOr<Duration> Decode(::absl::Span<uint8_t const> data);
   static ::tsdb2::io::Cord Encode(Duration const& proto);
