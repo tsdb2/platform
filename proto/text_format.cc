@@ -68,6 +68,9 @@ tsdb2::common::NoDestructor<tsdb2::common::RE> const Parser::kFieldSeparatorPatt
 tsdb2::common::NoDestructor<tsdb2::common::RE> const Parser::kIdentifierPattern{
     tsdb2::common::RE::CreateOrDie("([A-Za-z_][A-Za-z0-9_]*)")};
 
+tsdb2::common::NoDestructor<tsdb2::common::RE> const Parser::kStringPattern{
+    tsdb2::common::RE::CreateOrDie("(\"((?:[^\"]|\\\\\")*)\")")};
+
 tsdb2::common::NoDestructor<tsdb2::common::RE> const Parser::kIntegerPattern{
     tsdb2::common::RE::CreateOrDie("(0|[1-9][0-9]*)")};
 
@@ -213,8 +216,13 @@ absl::Status Parser::ParseFields(BaseMessageDescriptor const& descriptor, Messag
   while (!(input_.empty() || (delimiter && absl::StartsWith(input_, *delimiter)))) {
     DEFINE_CONST_OR_RETURN(field_name, ConsumeIdentifier());
     missing_required_fields.erase(field_name);
-    DEFINE_CONST_OR_RETURN(type_and_kind, descriptor.GetFieldTypeAndKind(field_name));
-    auto const [field_type, field_kind] = type_and_kind;
+    auto const status_or_type_kind = descriptor.GetFieldTypeAndKind(field_name);
+    if (!status_or_type_kind.ok()) {
+      RETURN_IF_ERROR(SkipField());
+      ConsumeSeparators();
+      continue;
+    }
+    auto const [field_type, field_kind] = status_or_type_kind.value();
     if (field_kind != BaseMessageDescriptor::FieldKind::kRepeated &&
         field_kind != BaseMessageDescriptor::FieldKind::kMap) {
       auto const [unused, inserted] = parsed_fields.emplace(field_name);
@@ -260,7 +268,15 @@ absl::Status Parser::ParseMessage(BaseMessageDescriptor const& descriptor, Messa
   return RequirePrefix(delimiter);
 }
 
-absl::Status Parser::ParseMap(BaseMessageDescriptor::Map* const field) {
+absl::Status Parser::ParseMapEntry(BaseMessageDescriptor::Map* const field) {
+  auto const& entry_descriptor = field->entry_descriptor();
+  auto const proto = entry_descriptor.CreateInstance();
+  RETURN_IF_ERROR(ParseMessage(entry_descriptor, proto.get()));
+  // TODO: insert in the map.
+  return absl::OkStatus();
+}
+
+absl::Status Parser::SkipSubMessage() {
   ConsumeSeparators();
   std::string_view delimiter;
   if (ConsumePrefix("{")) {
@@ -270,12 +286,37 @@ absl::Status Parser::ParseMap(BaseMessageDescriptor::Map* const field) {
   } else {
     return InvalidSyntaxError();
   }
-  auto const& entry_descriptor = field->entry_descriptor();
-  auto const proto = entry_descriptor.CreateInstance();
-  RETURN_IF_ERROR(ParseFields(entry_descriptor, proto.get(), delimiter));
-  // TODO: insert in the map.
   ConsumeSeparators();
-  return RequirePrefix(delimiter);
+  while (!ConsumePrefix(delimiter)) {
+    RETURN_IF_ERROR(ConsumeIdentifier());
+    RETURN_IF_ERROR(SkipField());
+    ConsumeSeparators();
+  }
+  return absl::OkStatus();
+}
+
+absl::Status Parser::SkipField() {
+  ConsumeSeparators();
+  if (!ConsumePrefix(":")) {
+    return SkipSubMessage();
+  }
+  ConsumeSeparators();
+  std::string_view prefix;
+  for (auto const& pattern : {
+           *kIdentifierPattern,
+           *kStringPattern,
+           *kIntegerPattern,
+           *kHexPattern,
+           *kOctalPattern,
+           *kFloatPattern,
+       }) {
+    if (pattern.MatchPrefixArgs(input_, &prefix)) {
+      input_.remove_prefix(prefix.size());
+      return absl::OkStatus();
+    }
+  }
+  // All else failing, this must be a sub-message.
+  return SkipSubMessage();
 }
 
 }  // namespace text

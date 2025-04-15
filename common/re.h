@@ -250,6 +250,9 @@ class RE {
   // Checks if the provided `input` string matches this compiled regular expression.
   bool Test(std::string_view const input) const { return automaton_->Test(input); }
 
+  // Checks if the regular expression matches a prefix of the provided `input` string.
+  bool TestPrefix(std::string_view const input) const { return automaton_->TestPrefix(input); }
+
   // Checks if the `input` string contains a substring matching this compiled regular expression.
   bool ContainedIn(std::string_view const input) const { return automaton_->PartialTest(input); }
 

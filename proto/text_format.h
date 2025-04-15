@@ -96,7 +96,7 @@ class Parser {
 
   template <typename Float>
   struct ValueParser<Float, std::enable_if_t<std::is_floating_point_v<Float>>> {
-    absl::StatusOr<bool> operator()(Parser* const parent) const {
+    absl::StatusOr<Float> operator()(Parser* const parent) const {
       return parent->ParseFloat<Float>();
     }
   };
@@ -174,7 +174,7 @@ class Parser {
     }
 
     absl::Status operator()(BaseMessageDescriptor::Map& field) const {
-      return parent_->ParseMap(&field);
+      return parent_->ParseMapEntry(&field);
     }
 
     absl::Status operator()(BaseMessageDescriptor::OneOf& field) const {
@@ -198,6 +198,7 @@ class Parser {
 
   static tsdb2::common::NoDestructor<tsdb2::common::RE> const kFieldSeparatorPattern;
   static tsdb2::common::NoDestructor<tsdb2::common::RE> const kIdentifierPattern;
+  static tsdb2::common::NoDestructor<tsdb2::common::RE> const kStringPattern;
   static tsdb2::common::NoDestructor<tsdb2::common::RE> const kIntegerPattern;
   static tsdb2::common::NoDestructor<tsdb2::common::RE> const kHexPattern;
   static tsdb2::common::NoDestructor<tsdb2::common::RE> const kOctalPattern;
@@ -314,7 +315,10 @@ class Parser {
                            std::optional<std::string_view> delimiter);
 
   absl::Status ParseMessage(BaseMessageDescriptor const& descriptor, Message* proto);
-  absl::Status ParseMap(BaseMessageDescriptor::Map* field);
+  absl::Status ParseMapEntry(BaseMessageDescriptor::Map* field);
+
+  absl::Status SkipSubMessage();
+  absl::Status SkipField();
 
   Options const options_;
 

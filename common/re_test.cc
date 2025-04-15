@@ -74,6 +74,18 @@ TEST(RegexpTest, Test) {
   EXPECT_FALSE(re.Test("lrem"));
 }
 
+TEST(RegexpTest, PrefixTest) {
+  auto const status_or_re = RE::Create("lo+rem?");
+  ASSERT_OK(status_or_re);
+  auto const& re = status_or_re.value();
+  EXPECT_TRUE(re.TestPrefix("lore ipsum"));
+  EXPECT_TRUE(re.TestPrefix("lorem ipsum"));
+  EXPECT_TRUE(re.TestPrefix("lorem"));
+  EXPECT_TRUE(re.TestPrefix("looorem ipsum"));
+  EXPECT_FALSE(re.TestPrefix("lrem ipsum"));
+  EXPECT_FALSE(re.TestPrefix("dolor lorem ipsum"));
+}
+
 TEST(RegexpTest, PartialTest) {
   auto const status_or_re = RE::Create("lo+rem?");
   ASSERT_OK(status_or_re);

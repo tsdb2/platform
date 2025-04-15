@@ -37,13 +37,13 @@ TEST(ParserTest, Enum) {
 
 TEST(ParserTest, EmptyMessage) {
   using ::tsdb2::proto::test::EmptyMessage;
-  EXPECT_THAT(Parse<EmptyMessage>(""), IsOkAndHolds(EmptyMessage{}));
-  EXPECT_THAT(Parse<EmptyMessage>("foo: 42"), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<EmptyMessage>(""), IsOkAndHolds(EmptyMessage()));
+  EXPECT_THAT(Parse<EmptyMessage>("foo: 42"), IsOkAndHolds(EmptyMessage()));
 }
 
 TEST(ParserTest, OptionalField) {
   using ::tsdb2::proto::test::OptionalField;
-  EXPECT_THAT(Parse<OptionalField>(""), IsOkAndHolds(OptionalField{}));
+  EXPECT_THAT(Parse<OptionalField>(""), IsOkAndHolds(OptionalField()));
   EXPECT_THAT(Parse<OptionalField>("field:42"), IsOkAndHolds(OptionalField{.field = 42}));
   EXPECT_THAT(Parse<OptionalField>(" field:42"), IsOkAndHolds(OptionalField{.field = 42}));
   EXPECT_THAT(Parse<OptionalField>("field :42"), IsOkAndHolds(OptionalField{.field = 42}));
@@ -110,7 +110,7 @@ TEST(ParserTest, RequiredField) {
 
 TEST(ParserTest, RepeatedField) {
   using ::tsdb2::proto::test::RepeatedField;
-  EXPECT_THAT(Parse<RepeatedField>(""), IsOkAndHolds(RepeatedField{}));
+  EXPECT_THAT(Parse<RepeatedField>(""), IsOkAndHolds(RepeatedField()));
   EXPECT_THAT(Parse<RepeatedField>("field: 42"), IsOkAndHolds(RepeatedField{.field{42}}));
   EXPECT_THAT(Parse<RepeatedField>("field: 12 field: 34"),
               IsOkAndHolds(RepeatedField{.field{12, 34}}));
@@ -142,7 +142,7 @@ TEST(ParserTest, RepeatedField) {
 
 TEST(ParserTest, OptionalEnumField) {
   using ::tsdb2::proto::test::OptionalEnumField;
-  EXPECT_THAT(Parse<OptionalEnumField>(""), IsOkAndHolds(OptionalEnumField{}));
+  EXPECT_THAT(Parse<OptionalEnumField>(""), IsOkAndHolds(OptionalEnumField()));
   EXPECT_THAT(Parse<OptionalEnumField>("color:COLOR_GREEN"),
               IsOkAndHolds(OptionalEnumField{.color = ColorEnum::COLOR_GREEN}));
   EXPECT_THAT(Parse<OptionalEnumField>(" color:COLOR_GREEN"),
@@ -192,10 +192,8 @@ TEST(ParserTest, OptionalEnumField) {
               StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(Parse<OptionalEnumField>("color: true"),
               StatusIs(absl::StatusCode::kInvalidArgument));
-  EXPECT_THAT(Parse<OptionalEnumField>("lorem: COLOR_GREEN"),
-              StatusIs(absl::StatusCode::kInvalidArgument));
-  EXPECT_THAT(Parse<OptionalEnumField>("colorem: COLOR_GREEN"),
-              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<OptionalEnumField>("lorem: COLOR_GREEN"), IsOkAndHolds(OptionalEnumField()));
+  EXPECT_THAT(Parse<OptionalEnumField>("colorem: COLOR_GREEN"), IsOkAndHolds(OptionalEnumField()));
   EXPECT_THAT(Parse<OptionalEnumField>("color: COLOR_BLUE"),
               IsOkAndHolds(OptionalEnumField{.color = ColorEnum::COLOR_BLUE}));
 }
@@ -240,7 +238,7 @@ TEST(ParserTest, RequiredEnumField) {
 
 TEST(ParserTest, RepeatedEnumField) {
   using ::tsdb2::proto::test::RepeatedEnumField;
-  EXPECT_THAT(Parse<RepeatedEnumField>(""), IsOkAndHolds(RepeatedEnumField{}));
+  EXPECT_THAT(Parse<RepeatedEnumField>(""), IsOkAndHolds(RepeatedEnumField()));
   EXPECT_THAT(Parse<RepeatedEnumField>("color: COLOR_GREEN"),
               IsOkAndHolds(RepeatedEnumField{.color{ColorEnum::COLOR_GREEN}}));
   EXPECT_THAT(
