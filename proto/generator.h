@@ -309,6 +309,32 @@ class Generator {
                                       google::protobuf::DescriptorProto const& message_type,
                                       size_t index) const;
 
+  static absl::Status EmitOptionalFieldParsing(
+      internal::TextWriter* writer, google::protobuf::FieldDescriptorProto const& descriptor);
+
+  static absl::Status EmitRepeatedFieldParsing(
+      internal::TextWriter* writer, google::protobuf::FieldDescriptorProto const& descriptor);
+
+  static absl::Status EmitRawFieldParsing(internal::TextWriter* writer,
+                                          google::protobuf::FieldDescriptorProto const& descriptor,
+                                          bool required);
+
+  absl::Status EmitObjectParsing(internal::TextWriter* writer,
+                                 google::protobuf::FieldDescriptorProto const& descriptor) const;
+
+  absl::Status EmitEnumParsing(internal::TextWriter* writer,
+                               google::protobuf::FieldDescriptorProto const& descriptor) const;
+
+  absl::Status EmitGoogleApiFieldParsing(
+      internal::TextWriter* writer, google::protobuf::FieldDescriptorProto const& descriptor) const;
+
+  absl::Status EmitFieldParsing(internal::TextWriter* writer,
+                                google::protobuf::FieldDescriptorProto const& descriptor) const;
+
+  absl::Status EmitOneofFieldParsing(internal::TextWriter* writer,
+                                     google::protobuf::DescriptorProto const& message_type,
+                                     size_t index) const;
+
   static absl::Status EmitOptionalFieldEncoding(
       internal::TextWriter* writer, google::protobuf::FieldDescriptorProto const& descriptor);
 
@@ -335,6 +361,18 @@ class Generator {
   absl::Status EmitOneofFieldEncoding(internal::TextWriter* writer,
                                       google::protobuf::DescriptorProto const& message_type,
                                       size_t index) const;
+
+  absl::Status EmitMessageDecoding(internal::TextWriter* writer, LexicalScope const& scope,
+                                   std::string_view qualified_name,
+                                   google::protobuf::DescriptorProto const& message_type) const;
+
+  absl::Status EmitMessageEncoding(internal::TextWriter* writer, LexicalScope const& scope,
+                                   std::string_view qualified_name,
+                                   google::protobuf::DescriptorProto const& message_type) const;
+
+  absl::Status EmitMessageParsing(internal::TextWriter* writer, LexicalScope const& scope,
+                                  std::string_view qualified_name,
+                                  google::protobuf::DescriptorProto const& message_type) const;
 
   absl::Status EmitMessageImplementation(
       internal::TextWriter* writer, PathView prefix, LexicalScope const& scope,

@@ -27,7 +27,6 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "common/flat_map.h"
-#include "common/to_array.h"
 #include "common/trie_map.h"
 #include "common/utilities.h"
 #include "proto/proto.h"
@@ -1718,9 +1717,6 @@ class BaseMessageDescriptor {
   // Returns the list of field names of the described message.
   virtual absl::Span<std::string_view const> GetAllFieldNames() const = 0;
 
-  // Returns the list of field names of the described message.
-  virtual absl::Span<std::string_view const> GetRequiredFieldNames() const = 0;
-
   // Returns the `LabeledFieldType` of a field from its name.
   virtual absl::StatusOr<LabeledFieldType> GetLabeledFieldType(
       std::string_view field_name) const = 0;
@@ -2653,7 +2649,7 @@ template <typename Message>
 using OneOfField = typename FieldTypes<Message>::OneOfField;
 
 // Allows implementing message descriptors, used for reflection features and TextFormat parsing.
-template <typename Message, size_t num_fields, size_t num_required_fields>
+template <typename Message, size_t num_fields, size_t num_required_fields = 0>
 class MessageDescriptor final : public BaseMessageDescriptor, public FieldTypes<Message> {
  public:
   using BaseMessageDescriptor::ConstFieldValue;
@@ -2673,18 +2669,7 @@ class MessageDescriptor final : public BaseMessageDescriptor, public FieldTypes<
       std::pair<std::string_view, FieldPointer> const (&fields)[num_fields])
       : field_ptrs_(tsdb2::common::fixed_flat_map_of(fields)), field_names_(MakeNameArray()) {}
 
-  explicit constexpr MessageDescriptor(
-      std::pair<std::string_view, FieldPointer> const (&fields)[num_fields],
-      std::string_view const (&required_field_names)[num_required_fields])
-      : field_ptrs_(tsdb2::common::fixed_flat_map_of(fields)),
-        field_names_(MakeNameArray()),
-        required_field_names_(tsdb2::common::to_array(required_field_names)) {}
-
   absl::Span<std::string_view const> GetAllFieldNames() const override { return field_names_; }
-
-  absl::Span<std::string_view const> GetRequiredFieldNames() const override {
-    return required_field_names_;
-  }
 
   absl::StatusOr<LabeledFieldType> GetLabeledFieldType(
       std::string_view const field_name) const override {
@@ -3154,7 +3139,6 @@ class MessageDescriptor final : public BaseMessageDescriptor, public FieldTypes<
 
   tsdb2::common::fixed_flat_map<std::string_view, FieldPointer, num_fields> const field_ptrs_;
   std::array<std::string_view, num_fields> const field_names_;
-  std::array<std::string_view, num_required_fields> const required_field_names_;
 };
 
 // We need to specialize the version with 0 values because zero element arrays are not permitted in
@@ -3179,8 +3163,6 @@ class MessageDescriptor<Message, 0, 0> final : public BaseMessageDescriptor,
   explicit constexpr MessageDescriptor() = default;
 
   absl::Span<std::string_view const> GetAllFieldNames() const override { return {}; }
-
-  absl::Span<std::string_view const> GetRequiredFieldNames() const override { return {}; }
 
   absl::StatusOr<LabeledFieldType> GetLabeledFieldType(
       std::string_view const field_name) const override {

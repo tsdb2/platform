@@ -1,8 +1,7 @@
-#include "proto/flag.h"  // IWYU pragma: keep
+#include "absl/flags/flag.h"
 
 #include <string>
 
-#include "absl/flags/flag.h"
 #include "common/flag_override.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

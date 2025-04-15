@@ -18,7 +18,6 @@ cc_library(
     ],
     hdrs = [
         "duration.pb.sync.h",
-        "flag.h",
         "proto.h",
         "reflection.h",
         "runtime.h",
@@ -266,7 +265,7 @@ tsdb2_cc_proto_library(
     name = "timestamp_cc_proto",
     enable_reflection = True,
     # Set the flag below to True only if you need to update the timestamp.pb.sync.* files.
-    internal_generate_definitions_for_google_api_types_i_dont_care_about_odr_violations = False,
+    internal_generate_definitions_for_google_api_types_i_dont_care_about_odr_violations = True,
     proto = ":timestamp_proto",
     use_raw_google_api_types = True,
 )
@@ -281,7 +280,7 @@ tsdb2_cc_proto_library(
     name = "duration_cc_proto",
     enable_reflection = True,
     # Set the flag below to True only if you need to update the duration.pb.sync.* files.
-    internal_generate_definitions_for_google_api_types_i_dont_care_about_odr_violations = False,
+    internal_generate_definitions_for_google_api_types_i_dont_care_about_odr_violations = True,
     proto = ":duration_proto",
     use_raw_google_api_types = True,
 )

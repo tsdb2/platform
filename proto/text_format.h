@@ -8,24 +8,20 @@
 #include <string_view>
 #include <system_error>
 #include <type_traits>
-#include <utility>
 #include <vector>
 
+#include "absl/base/nullability.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/charconv.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/strip.h"
 #include "absl/time/time.h"
-#include "common/flat_set.h"
 #include "common/no_destructor.h"
 #include "common/re.h"
 #include "common/utilities.h"
-#include "proto/duration.pb.sync.h"
 #include "proto/proto.h"
 #include "proto/reflection.h"
-#include "proto/time_util.h"
-#include "proto/timestamp.pb.sync.h"
 
 namespace tsdb2 {
 namespace proto {
@@ -35,155 +31,6 @@ class Parser {
  public:
   struct Options {
     bool fast_skipping = false;
-  };
-
-  explicit Parser(std::string_view const input, Options const& options)
-      : options_(options), input_(input) {}
-
-  template <typename Message,
-            std::enable_if_t<IsProtoMessageV<Message> && HasProtoReflectionV<Message>, bool> = true>
-  absl::StatusOr<Message> Parse() {
-    Message proto;
-    RETURN_IF_ERROR(ParseFields(Message::MESSAGE_DESCRIPTOR, &proto, /*delimiter=*/std::nullopt));
-    ConsumeSeparators();
-    if (!input_.empty()) {
-      return InvalidSyntaxError();
-    }
-    return std::move(proto);
-  }
-
-  template <typename Enum,
-            std::enable_if_t<std::is_enum_v<Enum> && HasProtoReflectionV<Enum>, bool> = true>
-  absl::StatusOr<Enum> Parse() {
-    DEFINE_CONST_OR_RETURN(value_name, ParseEnum());
-    ConsumeSeparators();
-    if (!input_.empty()) {
-      return InvalidSyntaxError();
-    }
-    DEFINE_CONST_OR_RETURN(value, GetEnumDescriptor<Enum>().GetValueForName(value_name));
-    return static_cast<Enum>(value);
-  }
-
- private:
-  template <typename Value, typename Enable = void>
-  struct ValueParser;
-
-  template <typename Integer>
-  struct ValueParser<Integer, std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>>> {
-    absl::StatusOr<Integer> operator()(Parser* const parent) const {
-      return parent->ParseInteger<Integer>();
-    }
-  };
-
-  template <>
-  struct ValueParser<bool> {
-    absl::StatusOr<bool> operator()(Parser* const parent) const { return parent->ParseBoolean(); }
-  };
-
-  template <>
-  struct ValueParser<std::string> {
-    absl::StatusOr<std::string> operator()(Parser* const parent) const {
-      return parent->ParseString();
-    }
-  };
-
-  template <>
-  struct ValueParser<std::vector<uint8_t>> {
-    absl::StatusOr<std::vector<uint8_t>> operator()(Parser* const parent) const {
-      return parent->ParseBytes();
-    }
-  };
-
-  template <typename Float>
-  struct ValueParser<Float, std::enable_if_t<std::is_floating_point_v<Float>>> {
-    absl::StatusOr<Float> operator()(Parser* const parent) const {
-      return parent->ParseFloat<Float>();
-    }
-  };
-
-  template <>
-  struct ValueParser<absl::Time> {
-    absl::StatusOr<absl::Time> operator()(Parser* const parent) const {
-      ::google::protobuf::Timestamp proto;
-      RETURN_IF_ERROR(
-          parent->ParseMessage(::google::protobuf::Timestamp::MESSAGE_DESCRIPTOR, &proto));
-      return DecodeGoogleApiProto(proto);
-    }
-  };
-
-  template <>
-  struct ValueParser<absl::Duration> {
-    absl::StatusOr<absl::Duration> operator()(Parser* const parent) const {
-      ::google::protobuf::Duration proto;
-      RETURN_IF_ERROR(
-          parent->ParseMessage(::google::protobuf::Duration::MESSAGE_DESCRIPTOR, &proto));
-      return DecodeGoogleApiProto(proto);
-    }
-  };
-
-  class FieldParser final {
-   public:
-    explicit FieldParser(Parser* const parent) : parent_(parent) {}
-
-    template <typename Value>
-    absl::Status operator()(Value* const field) const {
-      DEFINE_CONST_OR_RETURN(value, parent_->ParseValue<Value>());
-      *field = std::move(value);
-      return absl::OkStatus();
-    }
-
-    template <typename Value>
-    absl::Status operator()(std::optional<Value>* const field) const {
-      DEFINE_CONST_OR_RETURN(value, parent_->ParseValue<Value>());
-      field->emplace(std::move(value));
-      return absl::OkStatus();
-    }
-
-    template <typename Element>
-    absl::Status operator()(std::vector<Element>* const field) const {
-      DEFINE_VAR_OR_RETURN(value, parent_->ParseValue<Element>());
-      field->emplace_back(std::move(value));
-      return absl::OkStatus();
-    }
-
-    absl::Status operator()(BaseMessageDescriptor::RawEnum& field) const {
-      DEFINE_CONST_OR_RETURN(name, parent_->ParseEnum());
-      return field.SetValue(name);
-    }
-
-    absl::Status operator()(BaseMessageDescriptor::OptionalEnum& field) const {
-      DEFINE_CONST_OR_RETURN(name, parent_->ParseEnum());
-      return field.SetValue(name);
-    }
-
-    absl::Status operator()(BaseMessageDescriptor::RepeatedEnum& field) const {
-      DEFINE_CONST_OR_RETURN(name, parent_->ParseEnum());
-      return field.AppendValue(name);
-    }
-
-    absl::Status operator()(BaseMessageDescriptor::RawSubMessage& field) const {
-      return parent_->ParseMessage(field.descriptor(), field.mutable_message());
-    }
-
-    absl::Status operator()(BaseMessageDescriptor::OptionalSubMessage& field) const {
-      return parent_->ParseMessage(field.descriptor(), field.Reset());
-    }
-
-    absl::Status operator()(BaseMessageDescriptor::RepeatedSubMessage& field) const {
-      return parent_->ParseMessage(field.descriptor(), field.Append());
-    }
-
-    absl::Status operator()(BaseMessageDescriptor::Map& field) const {
-      return parent_->ParseMapEntry(&field);
-    }
-
-    absl::Status operator()(BaseMessageDescriptor::OneOf& field) const {
-      // TODO: implement parsing of oneof-grouped fields.
-      return absl::UnimplementedError("oneof");
-    }
-
-   private:
-    Parser* const parent_;
   };
 
   static absl::Status InvalidSyntaxError() {
@@ -196,26 +43,18 @@ class Parser {
     return absl::FailedPreconditionError("invalid TextFormat proto format");
   }
 
-  static tsdb2::common::NoDestructor<tsdb2::common::RE> const kFieldSeparatorPattern;
-  static tsdb2::common::NoDestructor<tsdb2::common::RE> const kIdentifierPattern;
-  static tsdb2::common::NoDestructor<tsdb2::common::RE> const kStringPattern;
-  static tsdb2::common::NoDestructor<tsdb2::common::RE> const kIntegerPattern;
-  static tsdb2::common::NoDestructor<tsdb2::common::RE> const kHexPattern;
-  static tsdb2::common::NoDestructor<tsdb2::common::RE> const kOctalPattern;
-  static tsdb2::common::NoDestructor<tsdb2::common::RE> const kFloatPattern;
+  explicit Parser(std::string_view const input, Options const& options)
+      : options_(options), input_(input) {}
 
-  bool ConsumePrefix(std::string_view const prefix) { return absl::ConsumePrefix(&input_, prefix); }
+  // bool at_end() const { return input_.empty(); }
 
-  // Consumes the specified prefix or returns a syntax error.
-  absl::Status RequirePrefix(std::string_view prefix);
-
-  void ConsumeWhitespace();
-
-  // Consumes whitespace and comments.
   void ConsumeSeparators();
 
-  absl::StatusOr<std::string_view> ConsumePattern(tsdb2::common::RE const& pattern);
-  absl::StatusOr<std::string_view> ConsumeIdentifier();
+  void ConsumeFieldSeparators();
+
+  std::optional<std::string> ParseFieldName();
+
+  absl::StatusOr<std::string_view> ParseIdentifier();
 
   template <typename Integer,
             std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>, bool> = true>
@@ -301,40 +140,103 @@ class Parser {
     return result;
   }
 
-  template <typename Value>
-  absl::StatusOr<Value> ParseValue() {
-    return ValueParser<Value>{}(this);
+  template <typename SubMessage, std::enable_if_t<IsProtoMessageV<Message>, bool> = true>
+  absl::StatusOr<SubMessage> ParseSubMessage() {
+    ConsumeSeparators();
+    std::string_view delimiter;
+    if (ConsumePrefix("{")) {
+      delimiter = "}";
+    } else if (ConsumePrefix("<")) {
+      delimiter = ">";
+    } else {
+      return InvalidSyntaxError();
+    }
+    DEFINE_VAR_OR_RETURN(proto, SubMessage::Parse(&input_));
+    RETURN_IF_ERROR(RequirePrefix(delimiter));
+    return std::move(proto);
   }
 
-  absl::StatusOr<std::string_view> ParseEnum();
+  absl::StatusOr<absl::Time> ParseTimestamp();
+  absl::StatusOr<absl::Duration> ParseDuration();
 
-  static tsdb2::common::flat_set<std::string> GetRequiredFieldNames(
-      BaseMessageDescriptor const& descriptor);
+  absl::Status SkipField();
 
-  absl::Status ParseFields(BaseMessageDescriptor const& descriptor, Message* proto,
-                           std::optional<std::string_view> delimiter);
+  std::string_view remainder() && { return input_; }
 
-  absl::Status ParseMessage(BaseMessageDescriptor const& descriptor, Message* proto);
-  absl::Status ParseMapEntry(BaseMessageDescriptor::Map* field);
+  template <typename Message, std::enable_if_t<IsProtoMessageV<Message>, bool> = true>
+  absl::StatusOr<Message> ParseRoot() && {
+    DEFINE_VAR_OR_RETURN(proto, Message::Parse(&input_));
+    ConsumeSeparators();
+    if (input_.empty()) {
+      return std::move(proto);
+    } else {
+      return InvalidSyntaxError();
+    }
+  }
+
+  template <typename Message, std::enable_if_t<IsProtoMessageV<Message>, bool> = true>
+  static bool ParseFlag(std::string_view const text, absl::Nonnull<Message*> const proto,
+                        absl::Nonnull<std::string*> const error) {
+    auto status_or_parsed = Parser(text, /*options=*/{}).ParseRoot<Message>();
+    if (status_or_parsed.ok()) {
+      *proto = std::move(status_or_parsed).value();
+      return true;
+    } else {
+      *error = status_or_parsed.status().ToString();
+      return false;
+    }
+  }
+
+ private:
+  static tsdb2::common::NoDestructor<tsdb2::common::RE> const kIdentifierPattern;
+  static tsdb2::common::NoDestructor<tsdb2::common::RE> const kStringPattern;
+  static tsdb2::common::NoDestructor<tsdb2::common::RE> const kIntegerPattern;
+  static tsdb2::common::NoDestructor<tsdb2::common::RE> const kHexPattern;
+  static tsdb2::common::NoDestructor<tsdb2::common::RE> const kOctalPattern;
+  static tsdb2::common::NoDestructor<tsdb2::common::RE> const kFloatPattern;
+
+  bool ConsumePrefix(std::string_view const prefix) { return absl::ConsumePrefix(&input_, prefix); }
+
+  // Consumes the specified prefix or returns a syntax error.
+  absl::Status RequirePrefix(std::string_view prefix);
+
+  void ConsumeWhitespace();
+
+  absl::StatusOr<std::string_view> ConsumePattern(tsdb2::common::RE const& pattern);
 
   absl::Status SkipSubMessage();
-  absl::Status SkipField();
 
   Options const options_;
 
   std::string_view input_;
 };
 
-template <typename Proto>
-inline absl::StatusOr<Proto> Parse(std::string_view const text,
-                                   Parser::Options const& options = {}) {
-  return Parser{text, options}.Parse<Proto>();
+template <typename Message, std::enable_if_t<IsProtoMessageV<Message>, bool> = true>
+absl::StatusOr<Message> Parse(std::string_view const text, Parser::Options const& options = {}) {
+  return Parser(text, options).ParseRoot<Message>();
 }
 
 class Stringifier {
  public:
+  // Stringification options.
   struct Options {
-    bool compressed = false;
+    enum class Mode {
+      kPretty = 0,
+      kOneLine = 1,
+      kCompressed = 2,
+    };
+
+    enum class Brackets { kCurly = 0, kAngle = 1 };
+
+    enum class FieldSeparators {
+      kNone = 0,
+      kSemicolon = 1,
+      kComma = 2,
+    };
+
+    Mode mode = Mode::kPretty;
+    Brackets brackets = Brackets::kCurly;
+    FieldSeparators field_separators = FieldSeparators::kNone;
   };
 
   explicit Stringifier(Options const& options) : options_(options) {}
@@ -360,11 +262,6 @@ class Stringifier {
  private:
   Options const options_;
 };
-
-template <typename Proto>
-inline std::string Stringify(Proto const& proto, Stringifier::Options const& options = {}) {
-  return Stringifier{options}.Stringify(proto);
-}
 
 }  // namespace text
 }  // namespace proto

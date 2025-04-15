@@ -15,6 +15,9 @@ struct Timestamp : public ::tsdb2::proto::Message {
   static ::absl::StatusOr<Timestamp> Decode(::absl::Span<uint8_t const> data);
   static ::tsdb2::io::Cord Encode(Timestamp const& proto);
 
+  static ::absl::StatusOr<Timestamp> Parse(::absl::Nonnull<std::string_view*> text);
+  static std::string Stringify(Timestamp const& proto);
+
   static auto Tie(Timestamp const& proto) {
     return ::tsdb2::proto::Tie(proto.seconds, proto.nanos);
   }

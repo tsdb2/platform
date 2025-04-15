@@ -15,6 +15,9 @@ struct Duration : public ::tsdb2::proto::Message {
   static ::absl::StatusOr<Duration> Decode(::absl::Span<uint8_t const> data);
   static ::tsdb2::io::Cord Encode(Duration const& proto);
 
+  static ::absl::StatusOr<Duration> Parse(::absl::Nonnull<std::string_view*> text);
+  static std::string Stringify(Duration const& proto);
+
   static auto Tie(Duration const& proto) { return ::tsdb2::proto::Tie(proto.seconds, proto.nanos); }
 
   template <typename H>

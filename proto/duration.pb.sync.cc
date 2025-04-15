@@ -43,6 +43,36 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   return std::move(encoder).Finish();
 }
 
+::absl::StatusOr<Duration> Duration::Parse(::absl::Nonnull<std::string_view*> const text) {
+  Duration proto;
+  ::tsdb2::proto::text::Parser parser{*text, /*options=*/{}};
+  parser.ConsumeSeparators();
+  while (true) {
+    auto const maybe_field_name = parser.ParseFieldName();
+    if (maybe_field_name.has_value()) {
+      break;
+    }
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "seconds") {
+      DEFINE_CONST_OR_RETURN(value, parser.ParseInteger<int64_t>());
+      proto.seconds.emplace(value);
+    } else if (field_name == "nanos") {
+      DEFINE_CONST_OR_RETURN(value, parser.ParseInteger<int32_t>());
+      proto.nanos.emplace(value);
+    } else {
+      RETURN_IF_ERROR(parser.SkipField());
+    }
+    parser.ConsumeFieldSeparators();
+  }
+  *text = std::move(parser).remainder();
+  return std::move(proto);
+}
+
+std::string Duration::Stringify(Duration const& proto) {
+  // TODO
+  return "";
+}
+
 ::tsdb2::proto::MessageDescriptor<Duration, /*num_fields=*/2, /*num_required_fields=*/0> const
     Duration::MESSAGE_DESCRIPTOR{{
         {"seconds", &Duration::seconds},

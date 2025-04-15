@@ -6,21 +6,18 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/match.h"
-#include "absl/strings/str_cat.h"
-#include "absl/strings/str_join.h"
+#include "absl/time/time.h"
 #include "common/flat_map.h"
-#include "common/flat_set.h"
 #include "common/no_destructor.h"
 #include "common/re.h"
 #include "common/utilities.h"
-#include "proto/proto.h"
-#include "proto/reflection.h"
+#include "proto/duration.pb.sync.h"
+#include "proto/time_util.h"
+#include "proto/timestamp.pb.sync.h"
 
 namespace tsdb2 {
 namespace proto {
@@ -62,9 +59,6 @@ uint8_t ParseHexDigit(char const ch) {
 
 }  // namespace
 
-tsdb2::common::NoDestructor<tsdb2::common::RE> const Parser::kFieldSeparatorPattern{
-    tsdb2::common::RE::CreateOrDie("([;,]?)")};
-
 tsdb2::common::NoDestructor<tsdb2::common::RE> const Parser::kIdentifierPattern{
     tsdb2::common::RE::CreateOrDie("([A-Za-z_][A-Za-z0-9_]*)")};
 
@@ -83,22 +77,6 @@ tsdb2::common::NoDestructor<tsdb2::common::RE> const Parser::kOctalPattern{
 tsdb2::common::NoDestructor<tsdb2::common::RE> const Parser::kFloatPattern{
     tsdb2::common::RE::CreateOrDie("((?:[0-9]*\\.)?[0-9]+(?:[Ee][+-]?[0-9]+)?[Ff]?)")};
 
-absl::Status Parser::RequirePrefix(std::string_view const prefix) {
-  if (ConsumePrefix(prefix)) {
-    return absl::OkStatus();
-  } else {
-    return InvalidSyntaxError();
-  }
-}
-
-void Parser::ConsumeWhitespace() {
-  size_t offset = 0;
-  while (offset < input_.size() && IsWhitespace(input_[offset])) {
-    ++offset;
-  }
-  input_.remove_prefix(offset);
-}
-
 void Parser::ConsumeSeparators() {
   ConsumeWhitespace();
   while (ConsumePrefix("#")) {
@@ -111,22 +89,29 @@ void Parser::ConsumeSeparators() {
   }
 }
 
-absl::StatusOr<std::string_view> Parser::ConsumePattern(tsdb2::common::RE const& pattern) {
-  std::string_view match;
-  if (!pattern.MatchPrefixArgs(input_, &match)) {
-    return InvalidSyntaxError();
-  }
-  input_.remove_prefix(match.size());
-  return match;
+void Parser::ConsumeFieldSeparators() {
+  ConsumeSeparators();
+  ConsumePrefix(",") || ConsumePrefix(";");
 }
 
-absl::StatusOr<std::string_view> Parser::ConsumeIdentifier() {
+std::optional<std::string> Parser::ParseFieldName() {
+  ConsumeSeparators();
+  std::string_view name;
+  if (kIdentifierPattern->MatchPrefixArgs(input_, &name)) {
+    input_.remove_prefix(name.size());
+    return std::string(name);
+  } else {
+    return std::nullopt;
+  }
+}
+
+absl::StatusOr<std::string_view> Parser::ParseIdentifier() {
   return ConsumePattern(*kIdentifierPattern);
 }
 
 absl::StatusOr<bool> Parser::ParseBoolean() {
   ConsumeSeparators();
-  DEFINE_CONST_OR_RETURN(word, ConsumeIdentifier());
+  DEFINE_CONST_OR_RETURN(word, ParseIdentifier());
   if (word == "true") {
     return true;
   } else if (word == "false") {
@@ -191,108 +176,14 @@ absl::StatusOr<std::vector<uint8_t>> Parser::ParseBytes() {
   return std::vector<uint8_t>{string.begin(), string.end()};
 }
 
-absl::StatusOr<std::string_view> Parser::ParseEnum() {
-  ConsumeSeparators();
-  return ConsumeIdentifier();
+absl::StatusOr<absl::Time> Parser::ParseTimestamp() {
+  DEFINE_CONST_OR_RETURN(proto, ParseSubMessage<google::protobuf::Timestamp>());
+  return DecodeGoogleApiProto(proto);
 }
 
-tsdb2::common::flat_set<std::string> Parser::GetRequiredFieldNames(
-    BaseMessageDescriptor const& descriptor) {
-  auto const required_fields = descriptor.GetRequiredFieldNames();
-  tsdb2::common::flat_set<std::string> missing_required_fields;
-  missing_required_fields.reserve(required_fields.size());
-  for (auto const name : required_fields) {
-    missing_required_fields.emplace(name);
-  }
-  return missing_required_fields;
-}
-
-absl::Status Parser::ParseFields(BaseMessageDescriptor const& descriptor, Message* const proto,
-                                 std::optional<std::string_view> const delimiter) {
-  ConsumeSeparators();
-  auto missing_required_fields = GetRequiredFieldNames(descriptor);
-  tsdb2::common::flat_set<std::string> parsed_fields;
-  parsed_fields.reserve(descriptor.GetAllFieldNames().size());
-  while (!(input_.empty() || (delimiter && absl::StartsWith(input_, *delimiter)))) {
-    DEFINE_CONST_OR_RETURN(field_name, ConsumeIdentifier());
-    missing_required_fields.erase(field_name);
-    auto const status_or_type_kind = descriptor.GetFieldTypeAndKind(field_name);
-    if (!status_or_type_kind.ok()) {
-      RETURN_IF_ERROR(SkipField());
-      ConsumeSeparators();
-      continue;
-    }
-    auto const [field_type, field_kind] = status_or_type_kind.value();
-    if (field_kind != BaseMessageDescriptor::FieldKind::kRepeated &&
-        field_kind != BaseMessageDescriptor::FieldKind::kMap) {
-      auto const [unused, inserted] = parsed_fields.emplace(field_name);
-      if (!inserted) {
-        return absl::FailedPreconditionError(
-            absl::StrCat("non-repeated field \"", field_name, "\" specified multiple times"));
-      }
-    }
-    ConsumeSeparators();
-    if (field_type != BaseMessageDescriptor::FieldType::kSubMessageField &&
-        field_type != BaseMessageDescriptor::FieldType::kMapField) {
-      RETURN_IF_ERROR(RequirePrefix(":"));
-    } else {
-      ConsumePrefix(":");
-    }
-    DEFINE_VAR_OR_RETURN(field, descriptor.GetFieldValue(proto, field_name));
-    RETURN_IF_ERROR(std::visit(FieldParser(this), field));
-    ConsumeSeparators();
-    RETURN_IF_ERROR(ConsumePattern(*kFieldSeparatorPattern));
-    ConsumeSeparators();
-  }
-  if (missing_required_fields.empty()) {
-    return absl::OkStatus();
-  } else {
-    return absl::FailedPreconditionError(
-        absl::StrCat("the following required fields are missing: ",
-                     absl::StrJoin(missing_required_fields, ", ")));
-  }
-}
-
-absl::Status Parser::ParseMessage(BaseMessageDescriptor const& descriptor, Message* const proto) {
-  ConsumeSeparators();
-  std::string_view delimiter;
-  if (ConsumePrefix("{")) {
-    delimiter = "}";
-  } else if (ConsumePrefix("<")) {
-    delimiter = ">";
-  } else {
-    return InvalidSyntaxError();
-  }
-  RETURN_IF_ERROR(ParseFields(descriptor, proto, delimiter));
-  ConsumeSeparators();
-  return RequirePrefix(delimiter);
-}
-
-absl::Status Parser::ParseMapEntry(BaseMessageDescriptor::Map* const field) {
-  auto const& entry_descriptor = field->entry_descriptor();
-  auto const proto = entry_descriptor.CreateInstance();
-  RETURN_IF_ERROR(ParseMessage(entry_descriptor, proto.get()));
-  // TODO: insert in the map.
-  return absl::OkStatus();
-}
-
-absl::Status Parser::SkipSubMessage() {
-  ConsumeSeparators();
-  std::string_view delimiter;
-  if (ConsumePrefix("{")) {
-    delimiter = "}";
-  } else if (ConsumePrefix("<")) {
-    delimiter = ">";
-  } else {
-    return InvalidSyntaxError();
-  }
-  ConsumeSeparators();
-  while (!ConsumePrefix(delimiter)) {
-    RETURN_IF_ERROR(ConsumeIdentifier());
-    RETURN_IF_ERROR(SkipField());
-    ConsumeSeparators();
-  }
-  return absl::OkStatus();
+absl::StatusOr<absl::Duration> Parser::ParseDuration() {
+  DEFINE_CONST_OR_RETURN(proto, ParseSubMessage<google::protobuf::Duration>());
+  return DecodeGoogleApiProto(proto);
 }
 
 absl::Status Parser::SkipField() {
@@ -317,6 +208,50 @@ absl::Status Parser::SkipField() {
   }
   // All else failing, this must be a sub-message.
   return SkipSubMessage();
+}
+
+absl::Status Parser::RequirePrefix(std::string_view const prefix) {
+  if (ConsumePrefix(prefix)) {
+    return absl::OkStatus();
+  } else {
+    return InvalidSyntaxError();
+  }
+}
+
+void Parser::ConsumeWhitespace() {
+  size_t offset = 0;
+  while (offset < input_.size() && IsWhitespace(input_[offset])) {
+    ++offset;
+  }
+  input_.remove_prefix(offset);
+}
+
+absl::StatusOr<std::string_view> Parser::ConsumePattern(tsdb2::common::RE const& pattern) {
+  std::string_view match;
+  if (!pattern.MatchPrefixArgs(input_, &match)) {
+    return InvalidSyntaxError();
+  }
+  input_.remove_prefix(match.size());
+  return match;
+}
+
+absl::Status Parser::SkipSubMessage() {
+  ConsumeSeparators();
+  std::string_view delimiter;
+  if (ConsumePrefix("{")) {
+    delimiter = "}";
+  } else if (ConsumePrefix("<")) {
+    delimiter = ">";
+  } else {
+    return InvalidSyntaxError();
+  }
+  ConsumeSeparators();
+  while (!ConsumePrefix(delimiter)) {
+    RETURN_IF_ERROR(ParseIdentifier());
+    RETURN_IF_ERROR(SkipField());
+    ConsumeSeparators();
+  }
+  return absl::OkStatus();
 }
 
 }  // namespace text
