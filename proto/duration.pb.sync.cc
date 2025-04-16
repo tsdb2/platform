@@ -48,10 +48,13 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "seconds") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int64_t>());
       proto->seconds.emplace(value);
     } else if (field_name == "nanos") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
       proto->nanos.emplace(value);
     } else {

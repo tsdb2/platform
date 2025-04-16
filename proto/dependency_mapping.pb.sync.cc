@@ -44,7 +44,9 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "cc_header") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->cc_header.emplace_back(std::move(value));
     } else {
@@ -103,10 +105,17 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "key") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->key.emplace(std::move(value));
     } else if (field_name == "value") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(
+          message,
+          parser->ParseSubMessage<::tsdb2::proto::internal::DependencyMapping::Dependency>());
+      proto->value.emplace(std::move(message));
     } else {
       RETURN_IF_ERROR(parser->SkipField());
     }
@@ -155,7 +164,20 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "dependency") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(
+          message,
+          parser->ParseSubMessage<::tsdb2::proto::internal::DependencyMapping::DependencyEntry>());
+      if (!message.key.has_value()) {
+        message.key.emplace();
+      }
+      if (!message.value.has_value()) {
+        message.value.emplace();
+      }
+      proto->dependency.try_emplace(std::move(message.key).value(),
+                                    std::move(message.value).value());
     } else {
       RETURN_IF_ERROR(parser->SkipField());
     }

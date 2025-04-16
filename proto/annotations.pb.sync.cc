@@ -129,11 +129,14 @@ google_protobuf_FieldOptions_extension::Decode(::absl::Span<uint8_t const> const
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "indirect") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       ::tsdb2::proto::FieldIndirectionType value;
       RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
       proto->indirect.emplace(value);
     } else if (field_name == "map_type") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       ::tsdb2::proto::MapType value;
       RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
       proto->map_type.emplace(value);

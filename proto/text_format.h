@@ -45,7 +45,10 @@ class Parser {
   explicit Parser(std::string_view const input, Options const& options)
       : options_(options), input_(input) {}
 
-  // bool at_end() const { return input_.empty(); }
+  bool ConsumePrefix(std::string_view const prefix) { return absl::ConsumePrefix(&input_, prefix); }
+
+  // Consumes the specified prefix or returns a syntax error.
+  absl::Status RequirePrefix(std::string_view prefix);
 
   void ConsumeSeparators();
 
@@ -152,6 +155,7 @@ class Parser {
     }
     SubMessage message;
     RETURN_IF_ERROR(Tsdb2ProtoParse(this, &message));
+    ConsumeSeparators();
     RETURN_IF_ERROR(RequirePrefix(delimiter));
     return std::move(message);
   }
@@ -195,11 +199,6 @@ class Parser {
   static tsdb2::common::NoDestructor<tsdb2::common::RE> const kHexPattern;
   static tsdb2::common::NoDestructor<tsdb2::common::RE> const kOctalPattern;
   static tsdb2::common::NoDestructor<tsdb2::common::RE> const kFloatPattern;
-
-  bool ConsumePrefix(std::string_view const prefix) { return absl::ConsumePrefix(&input_, prefix); }
-
-  // Consumes the specified prefix or returns a syntax error.
-  absl::Status RequirePrefix(std::string_view prefix);
 
   void ConsumeWhitespace();
 

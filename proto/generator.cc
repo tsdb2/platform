@@ -36,7 +36,7 @@
 #include "proto/proto.h"
 #include "proto/text_writer.h"
 
-ABSL_FLAG(std::string /*tsdb2::proto::internal::DependencyMapping*/, proto_dependency_mapping, {},
+ABSL_FLAG(tsdb2::proto::internal::DependencyMapping, proto_dependency_mapping, {},
           "Proto dependency mapping.");
 
 ABSL_FLAG(
@@ -1944,6 +1944,7 @@ absl::Status Generator::EmitOneofFieldDecoding(
 
 absl::Status Generator::EmitOptionalFieldParsing(
     TextWriter* const writer, google::protobuf::FieldDescriptorProto const& descriptor) {
+  writer->AppendLine("RETURN_IF_ERROR(parser->RequirePrefix(\":\"));");
   REQUIRE_FIELD_OR_RETURN(type, descriptor, type);
   auto const it = kFieldParserNames.find(type);
   if (it == kFieldParserNames.end()) {
@@ -1963,6 +1964,7 @@ absl::Status Generator::EmitOptionalFieldParsing(
 
 absl::Status Generator::EmitRepeatedFieldParsing(
     TextWriter* const writer, google::protobuf::FieldDescriptorProto const& descriptor) {
+  writer->AppendLine("RETURN_IF_ERROR(parser->RequirePrefix(\":\"));");
   REQUIRE_FIELD_OR_RETURN(type, descriptor, type);
   auto const it = kFieldParserNames.find(type);
   if (it == kFieldParserNames.end()) {
@@ -1983,6 +1985,7 @@ absl::Status Generator::EmitRepeatedFieldParsing(
 absl::Status Generator::EmitRawFieldParsing(
     TextWriter* const writer, google::protobuf::FieldDescriptorProto const& descriptor,
     bool const required) {
+  writer->AppendLine("RETURN_IF_ERROR(parser->RequirePrefix(\":\"));");
   REQUIRE_FIELD_OR_RETURN(type, descriptor, type);
   auto const it = kFieldParserNames.find(type);
   if (it == kFieldParserNames.end()) {
@@ -2006,12 +2009,54 @@ absl::Status Generator::EmitRawFieldParsing(
 
 absl::Status Generator::EmitObjectParsing(
     TextWriter* const writer, google::protobuf::FieldDescriptorProto const& descriptor) const {
-  // TODO
+  writer->AppendLine("parser->ConsumePrefix(\":\");");
+  REQUIRE_FIELD_OR_RETURN(name, descriptor, name);
+  REQUIRE_FIELD_OR_RETURN(number, descriptor, number);
+  REQUIRE_FIELD_OR_RETURN(label, descriptor, label);
+  std::string const type_name = absl::StrReplaceAll(descriptor.type_name.value(), {{".", "::"}});
+  writer->AppendLine("DEFINE_VAR_OR_RETURN(message, parser->ParseSubMessage<", type_name, ">());");
+  switch (label) {
+    case FieldDescriptorProto::Label::LABEL_OPTIONAL: {
+      DEFINE_CONST_OR_RETURN(indirection, GetFieldIndirection(descriptor));
+      switch (indirection) {
+        case FieldIndirectionType::INDIRECTION_DIRECT:
+          writer->AppendLine("proto->", name, ".emplace(std::move(message));");
+          break;
+        case FieldIndirectionType::INDIRECTION_UNIQUE:
+          writer->AppendLine("proto->", name, " = std::make_unique<", type_name,
+                             ">(std::move(message));");
+          break;
+        case FieldIndirectionType::INDIRECTION_SHARED:
+          writer->AppendLine("proto->", name, " = std::make_shared<", type_name,
+                             ">(std::move(message));");
+          break;
+      }
+    } break;
+    case FieldDescriptorProto::Label::LABEL_REQUIRED:
+      writer->AppendLine("proto->", name, " = std::move(message);");
+      writer->AppendLine("parsed.emplace(", number, ");");
+      break;
+    case FieldDescriptorProto::Label::LABEL_REPEATED: {
+      DEFINE_CONST_OR_RETURN(path, GetTypePath(descriptor.type_name.value()));
+      if (IsMapEntry(path)) {
+        writer->AppendLine("if (!message.key.has_value()) { message.key.emplace(); }");
+        writer->AppendLine("if (!message.value.has_value()) { message.value.emplace(); }");
+        writer->AppendLine("proto->", name, ".try_emplace(");
+        writer->AppendLine("    std::move(message.key).value(),");
+        writer->AppendLine("    std::move(message.value).value());");
+      } else {
+        writer->AppendLine("proto->", name, ".emplace_back(std::move(message));");
+      }
+    } break;
+    default:
+      return absl::InvalidArgumentError("invalid field label");
+  }
   return absl::OkStatus();
 }
 
 absl::Status Generator::EmitEnumParsing(
     TextWriter* const writer, google::protobuf::FieldDescriptorProto const& descriptor) const {
+  writer->AppendLine("RETURN_IF_ERROR(parser->RequirePrefix(\":\"));");
   std::string const type_name = absl::StrReplaceAll(descriptor.type_name.value(), {{".", "::"}});
   writer->AppendLine(type_name, " value;");
   writer->AppendLine("RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));");
@@ -2042,6 +2087,7 @@ absl::Status Generator::EmitEnumParsing(
 
 absl::Status Generator::EmitGoogleApiFieldParsing(
     TextWriter* const writer, google::protobuf::FieldDescriptorProto const& descriptor) const {
+  writer->AppendLine("parser->ConsumePrefix(\":\");");
   REQUIRE_FIELD_OR_RETURN(type_name, descriptor, type_name);
   DEFINE_CONST_OR_RETURN(path, GetTypePath(type_name));
   auto const it = kGoogleApiTypes->find(path);
@@ -2509,6 +2555,7 @@ absl::Status Generator::EmitMessageParsing(
       if (!message_type.field.empty()) {
         writer->AppendLine("auto const& field_name = maybe_field_name.value();");
       }
+      writer->AppendLine("parser->ConsumeSeparators();");
       bool first = true;
       absl::flat_hash_set<size_t> oneof_indices;
       oneof_indices.reserve(message_type.oneof_decl.size());

@@ -63,16 +63,21 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "major") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
       proto->major.emplace(value);
     } else if (field_name == "minor") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
       proto->minor.emplace(value);
     } else if (field_name == "patch") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
       proto->patch.emplace(value);
     } else if (field_name == "suffix") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->suffix.emplace(std::move(value));
     } else {
@@ -152,15 +157,30 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "file_to_generate") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->file_to_generate.emplace_back(std::move(value));
     } else if (field_name == "parameter") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->parameter.emplace(std::move(value));
     } else if (field_name == "proto_file") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message,
+                           parser->ParseSubMessage<::google::protobuf::FileDescriptorProto>());
+      proto->proto_file.emplace_back(std::move(message));
     } else if (field_name == "source_file_descriptors") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message,
+                           parser->ParseSubMessage<::google::protobuf::FileDescriptorProto>());
+      proto->source_file_descriptors.emplace_back(std::move(message));
     } else if (field_name == "compiler_version") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message,
+                           parser->ParseSubMessage<::google::protobuf::compiler::Version>());
+      proto->compiler_version.emplace(std::move(message));
     } else {
       RETURN_IF_ERROR(parser->SkipField());
     }
@@ -263,16 +283,24 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "name") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->name.emplace(std::move(value));
     } else if (field_name == "insertion_point") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->insertion_point.emplace(std::move(value));
     } else if (field_name == "content") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->content.emplace(std::move(value));
     } else if (field_name == "generated_code_info") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message,
+                           parser->ParseSubMessage<::google::protobuf::GeneratedCodeInfo>());
+      proto->generated_code_info.emplace(std::move(message));
     } else {
       RETURN_IF_ERROR(parser->SkipField());
     }
@@ -349,19 +377,29 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "error") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->error.emplace(std::move(value));
     } else if (field_name == "supported_features") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<uint64_t>());
       proto->supported_features.emplace(value);
     } else if (field_name == "minimum_edition") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
       proto->minimum_edition.emplace(value);
     } else if (field_name == "maximum_edition") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
       proto->maximum_edition.emplace(value);
     } else if (field_name == "file") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(
+          message,
+          parser->ParseSubMessage<::google::protobuf::compiler::CodeGeneratorResponse::File>());
+      proto->file.emplace_back(std::move(message));
     } else {
       RETURN_IF_ERROR(parser->SkipField());
     }

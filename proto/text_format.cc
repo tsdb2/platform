@@ -77,6 +77,14 @@ tsdb2::common::NoDestructor<tsdb2::common::RE> const Parser::kOctalPattern{
 tsdb2::common::NoDestructor<tsdb2::common::RE> const Parser::kFloatPattern{
     tsdb2::common::RE::CreateOrDie("((?:[0-9]*\\.)?[0-9]+(?:[Ee][+-]?[0-9]+)?[Ff]?)")};
 
+absl::Status Parser::RequirePrefix(std::string_view const prefix) {
+  if (ConsumePrefix(prefix)) {
+    return absl::OkStatus();
+  } else {
+    return InvalidSyntaxError();
+  }
+}
+
 void Parser::ConsumeSeparators() {
   ConsumeWhitespace();
   while (ConsumePrefix("#")) {
@@ -204,19 +212,12 @@ absl::Status Parser::SkipField() {
        }) {
     if (pattern.MatchPrefixArgs(input_, &prefix)) {
       input_.remove_prefix(prefix.size());
+      ConsumeFieldSeparators();
       return absl::OkStatus();
     }
   }
   // All else failing, this must be a sub-message.
   return SkipSubMessage();
-}
-
-absl::Status Parser::RequirePrefix(std::string_view const prefix) {
-  if (ConsumePrefix(prefix)) {
-    return absl::OkStatus();
-  } else {
-    return InvalidSyntaxError();
-  }
 }
 
 void Parser::ConsumeWhitespace() {
@@ -252,6 +253,7 @@ absl::Status Parser::SkipSubMessage() {
     RETURN_IF_ERROR(SkipField());
     ConsumeSeparators();
   }
+  ConsumeFieldSeparators();
   return absl::OkStatus();
 }
 

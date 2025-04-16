@@ -95,7 +95,12 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "file") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message,
+                           parser->ParseSubMessage<::google::protobuf::FileDescriptorProto>());
+      proto->file.emplace_back(std::move(message));
     } else {
       RETURN_IF_ERROR(parser->SkipField());
     }
@@ -232,31 +237,60 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "name") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->name.emplace(std::move(value));
     } else if (field_name == "package") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->package.emplace(std::move(value));
     } else if (field_name == "dependency") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->dependency.emplace_back(std::move(value));
     } else if (field_name == "public_dependency") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
       proto->public_dependency.emplace_back(value);
     } else if (field_name == "weak_dependency") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
       proto->weak_dependency.emplace_back(value);
     } else if (field_name == "message_type") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message, parser->ParseSubMessage<::google::protobuf::DescriptorProto>());
+      proto->message_type.emplace_back(std::move(message));
     } else if (field_name == "enum_type") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message,
+                           parser->ParseSubMessage<::google::protobuf::EnumDescriptorProto>());
+      proto->enum_type.emplace_back(std::move(message));
     } else if (field_name == "service") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message,
+                           parser->ParseSubMessage<::google::protobuf::ServiceDescriptorProto>());
+      proto->service.emplace_back(std::move(message));
     } else if (field_name == "extension") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message,
+                           parser->ParseSubMessage<::google::protobuf::FieldDescriptorProto>());
+      proto->extension.emplace_back(std::move(message));
     } else if (field_name == "options") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message, parser->ParseSubMessage<::google::protobuf::FileOptions>());
+      proto->options.emplace(std::move(message));
     } else if (field_name == "source_code_info") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message, parser->ParseSubMessage<::google::protobuf::SourceCodeInfo>());
+      proto->source_code_info.emplace(std::move(message));
     } else if (field_name == "syntax") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->syntax.emplace(std::move(value));
     } else if (field_name == "edition") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       ::google::protobuf::Edition value;
       RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
       proto->edition.emplace(value);
@@ -322,13 +356,20 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "start") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
       proto->start.emplace(value);
     } else if (field_name == "end") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
       proto->end.emplace(value);
     } else if (field_name == "options") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message,
+                           parser->ParseSubMessage<::google::protobuf::ExtensionRangeOptions>());
+      proto->options.emplace(std::move(message));
     } else {
       RETURN_IF_ERROR(parser->SkipField());
     }
@@ -382,10 +423,13 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "start") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
       proto->start.emplace(value);
     } else if (field_name == "end") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
       proto->end.emplace(value);
     } else {
@@ -508,18 +552,51 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "name") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->name.emplace(std::move(value));
     } else if (field_name == "field") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message,
+                           parser->ParseSubMessage<::google::protobuf::FieldDescriptorProto>());
+      proto->field.emplace_back(std::move(message));
     } else if (field_name == "extension") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message,
+                           parser->ParseSubMessage<::google::protobuf::FieldDescriptorProto>());
+      proto->extension.emplace_back(std::move(message));
     } else if (field_name == "nested_type") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message, parser->ParseSubMessage<::google::protobuf::DescriptorProto>());
+      proto->nested_type.emplace_back(std::move(message));
     } else if (field_name == "enum_type") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message,
+                           parser->ParseSubMessage<::google::protobuf::EnumDescriptorProto>());
+      proto->enum_type.emplace_back(std::move(message));
     } else if (field_name == "extension_range") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(
+          message, parser->ParseSubMessage<::google::protobuf::DescriptorProto::ExtensionRange>());
+      proto->extension_range.emplace_back(std::move(message));
     } else if (field_name == "oneof_decl") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message,
+                           parser->ParseSubMessage<::google::protobuf::OneofDescriptorProto>());
+      proto->oneof_decl.emplace_back(std::move(message));
     } else if (field_name == "options") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message, parser->ParseSubMessage<::google::protobuf::MessageOptions>());
+      proto->options.emplace(std::move(message));
     } else if (field_name == "reserved_range") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(
+          message, parser->ParseSubMessage<::google::protobuf::DescriptorProto::ReservedRange>());
+      proto->reserved_range.emplace_back(std::move(message));
     } else if (field_name == "reserved_name") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->reserved_name.emplace_back(std::move(value));
     } else {
@@ -630,19 +707,25 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "number") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
       proto->number.emplace(value);
     } else if (field_name == "full_name") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->full_name.emplace(std::move(value));
     } else if (field_name == "type") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->type.emplace(std::move(value));
     } else if (field_name == "reserved") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->reserved.emplace(value);
     } else if (field_name == "repeated") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->repeated.emplace(value);
     } else {
@@ -721,10 +804,24 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "uninterpreted_option") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message,
+                           parser->ParseSubMessage<::google::protobuf::UninterpretedOption>());
+      proto->uninterpreted_option.emplace_back(std::move(message));
     } else if (field_name == "declaration") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(
+          message,
+          parser->ParseSubMessage<::google::protobuf::ExtensionRangeOptions::Declaration>());
+      proto->declaration.emplace_back(std::move(message));
     } else if (field_name == "features") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message, parser->ParseSubMessage<::google::protobuf::FeatureSet>());
+      proto->features.emplace(std::move(message));
     } else if (field_name == "verification") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       ::google::protobuf::ExtensionRangeOptions::VerificationState value;
       RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
       proto->verification = value;
@@ -947,37 +1044,51 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "name") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->name.emplace(std::move(value));
     } else if (field_name == "number") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
       proto->number.emplace(value);
     } else if (field_name == "label") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       ::google::protobuf::FieldDescriptorProto::Label value;
       RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
       proto->label.emplace(value);
     } else if (field_name == "type") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       ::google::protobuf::FieldDescriptorProto::Type value;
       RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
       proto->type.emplace(value);
     } else if (field_name == "type_name") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->type_name.emplace(std::move(value));
     } else if (field_name == "extendee") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->extendee.emplace(std::move(value));
     } else if (field_name == "default_value") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->default_value.emplace(std::move(value));
     } else if (field_name == "oneof_index") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
       proto->oneof_index.emplace(value);
     } else if (field_name == "json_name") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->json_name.emplace(std::move(value));
     } else if (field_name == "options") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message, parser->ParseSubMessage<::google::protobuf::FieldOptions>());
+      proto->options.emplace(std::move(message));
     } else if (field_name == "proto3_optional") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->proto3_optional.emplace(value);
     } else {
@@ -1034,10 +1145,15 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "name") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->name.emplace(std::move(value));
     } else if (field_name == "options") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message, parser->ParseSubMessage<::google::protobuf::OneofOptions>());
+      proto->options.emplace(std::move(message));
     } else {
       RETURN_IF_ERROR(parser->SkipField());
     }
@@ -1091,10 +1207,13 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "start") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
       proto->start.emplace(value);
     } else if (field_name == "end") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
       proto->end.emplace(value);
     } else {
@@ -1177,13 +1296,28 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "name") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->name.emplace(std::move(value));
     } else if (field_name == "value") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message,
+                           parser->ParseSubMessage<::google::protobuf::EnumValueDescriptorProto>());
+      proto->value.emplace_back(std::move(message));
     } else if (field_name == "options") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message, parser->ParseSubMessage<::google::protobuf::EnumOptions>());
+      proto->options.emplace(std::move(message));
     } else if (field_name == "reserved_range") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(
+          message,
+          parser->ParseSubMessage<::google::protobuf::EnumDescriptorProto::EnumReservedRange>());
+      proto->reserved_range.emplace_back(std::move(message));
     } else if (field_name == "reserved_name") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->reserved_name.emplace_back(std::move(value));
     } else {
@@ -1247,13 +1381,20 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "name") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->name.emplace(std::move(value));
     } else if (field_name == "number") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
       proto->number.emplace(value);
     } else if (field_name == "options") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message,
+                           parser->ParseSubMessage<::google::protobuf::EnumValueOptions>());
+      proto->options.emplace(std::move(message));
     } else {
       RETURN_IF_ERROR(parser->SkipField());
     }
@@ -1316,11 +1457,20 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "name") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->name.emplace(std::move(value));
     } else if (field_name == "method") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message,
+                           parser->ParseSubMessage<::google::protobuf::MethodDescriptorProto>());
+      proto->method.emplace_back(std::move(message));
     } else if (field_name == "options") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message, parser->ParseSubMessage<::google::protobuf::ServiceOptions>());
+      proto->options.emplace(std::move(message));
     } else {
       RETURN_IF_ERROR(parser->SkipField());
     }
@@ -1399,20 +1549,29 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "name") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->name.emplace(std::move(value));
     } else if (field_name == "input_type") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->input_type.emplace(std::move(value));
     } else if (field_name == "output_type") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->output_type.emplace(std::move(value));
     } else if (field_name == "options") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message, parser->ParseSubMessage<::google::protobuf::MethodOptions>());
+      proto->options.emplace(std::move(message));
     } else if (field_name == "client_streaming") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->client_streaming = value;
     } else if (field_name == "server_streaming") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->server_streaming = value;
     } else {
@@ -1625,66 +1784,93 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "java_package") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->java_package.emplace(std::move(value));
     } else if (field_name == "java_outer_classname") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->java_outer_classname.emplace(std::move(value));
     } else if (field_name == "java_multiple_files") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->java_multiple_files = value;
     } else if (field_name == "java_generate_equals_and_hash") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->java_generate_equals_and_hash.emplace(value);
     } else if (field_name == "java_string_check_utf8") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->java_string_check_utf8 = value;
     } else if (field_name == "optimize_for") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       ::google::protobuf::FileOptions::OptimizeMode value;
       RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
       proto->optimize_for = value;
     } else if (field_name == "go_package") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->go_package.emplace(std::move(value));
     } else if (field_name == "cc_generic_services") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->cc_generic_services = value;
     } else if (field_name == "java_generic_services") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->java_generic_services = value;
     } else if (field_name == "py_generic_services") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->py_generic_services = value;
     } else if (field_name == "deprecated") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->deprecated = value;
     } else if (field_name == "cc_enable_arenas") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->cc_enable_arenas = value;
     } else if (field_name == "objc_class_prefix") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->objc_class_prefix.emplace(std::move(value));
     } else if (field_name == "csharp_namespace") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->csharp_namespace.emplace(std::move(value));
     } else if (field_name == "swift_prefix") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->swift_prefix.emplace(std::move(value));
     } else if (field_name == "php_class_prefix") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->php_class_prefix.emplace(std::move(value));
     } else if (field_name == "php_namespace") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->php_namespace.emplace(std::move(value));
     } else if (field_name == "php_metadata_namespace") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->php_metadata_namespace.emplace(std::move(value));
     } else if (field_name == "ruby_package") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->ruby_package.emplace(std::move(value));
     } else if (field_name == "features") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message, parser->ParseSubMessage<::google::protobuf::FeatureSet>());
+      proto->features.emplace(std::move(message));
     } else if (field_name == "uninterpreted_option") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message,
+                           parser->ParseSubMessage<::google::protobuf::UninterpretedOption>());
+      proto->uninterpreted_option.emplace_back(std::move(message));
     } else {
       RETURN_IF_ERROR(parser->SkipField());
     }
@@ -1771,23 +1957,36 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "message_set_wire_format") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->message_set_wire_format = value;
     } else if (field_name == "no_standard_descriptor_accessor") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->no_standard_descriptor_accessor = value;
     } else if (field_name == "deprecated") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->deprecated = value;
     } else if (field_name == "map_entry") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->map_entry.emplace(value);
     } else if (field_name == "deprecated_legacy_json_field_conflicts") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->deprecated_legacy_json_field_conflicts.emplace(value);
     } else if (field_name == "features") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message, parser->ParseSubMessage<::google::protobuf::FeatureSet>());
+      proto->features.emplace(std::move(message));
     } else if (field_name == "uninterpreted_option") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message,
+                           parser->ParseSubMessage<::google::protobuf::UninterpretedOption>());
+      proto->uninterpreted_option.emplace_back(std::move(message));
     } else {
       RETURN_IF_ERROR(parser->SkipField());
     }
@@ -1993,11 +2192,14 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "edition") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       ::google::protobuf::Edition value;
       RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
       proto->edition.emplace(value);
     } else if (field_name == "value") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->value.emplace(std::move(value));
     } else {
@@ -2069,18 +2271,23 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "edition_introduced") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       ::google::protobuf::Edition value;
       RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
       proto->edition_introduced.emplace(value);
     } else if (field_name == "edition_deprecated") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       ::google::protobuf::Edition value;
       RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
       proto->edition_deprecated.emplace(value);
     } else if (field_name == "deprecation_warning") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->deprecation_warning.emplace(std::move(value));
     } else if (field_name == "edition_removed") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       ::google::protobuf::Edition value;
       RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
       proto->edition_removed.emplace(value);
@@ -2223,44 +2430,70 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "ctype") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       ::google::protobuf::FieldOptions::CType value;
       RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
       proto->ctype = value;
     } else if (field_name == "packed") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->packed.emplace(value);
     } else if (field_name == "jstype") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       ::google::protobuf::FieldOptions::JSType value;
       RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
       proto->jstype = value;
     } else if (field_name == "lazy") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->lazy = value;
     } else if (field_name == "unverified_lazy") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->unverified_lazy = value;
     } else if (field_name == "deprecated") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->deprecated = value;
     } else if (field_name == "weak") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->weak = value;
     } else if (field_name == "debug_redact") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->debug_redact = value;
     } else if (field_name == "retention") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       ::google::protobuf::FieldOptions::OptionRetention value;
       RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
       proto->retention.emplace(value);
     } else if (field_name == "targets") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       ::google::protobuf::FieldOptions::OptionTargetType value;
       RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
       proto->targets.emplace_back(value);
     } else if (field_name == "edition_defaults") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(
+          message, parser->ParseSubMessage<::google::protobuf::FieldOptions::EditionDefault>());
+      proto->edition_defaults.emplace_back(std::move(message));
     } else if (field_name == "features") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message, parser->ParseSubMessage<::google::protobuf::FeatureSet>());
+      proto->features.emplace(std::move(message));
     } else if (field_name == "feature_support") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(
+          message, parser->ParseSubMessage<::google::protobuf::FieldOptions::FeatureSupport>());
+      proto->feature_support.emplace(std::move(message));
     } else if (field_name == "uninterpreted_option") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message,
+                           parser->ParseSubMessage<::google::protobuf::UninterpretedOption>());
+      proto->uninterpreted_option.emplace_back(std::move(message));
     } else {
       RETURN_IF_ERROR(parser->SkipField());
     }
@@ -2318,8 +2551,16 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "features") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message, parser->ParseSubMessage<::google::protobuf::FeatureSet>());
+      proto->features.emplace(std::move(message));
     } else if (field_name == "uninterpreted_option") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message,
+                           parser->ParseSubMessage<::google::protobuf::UninterpretedOption>());
+      proto->uninterpreted_option.emplace_back(std::move(message));
     } else {
       RETURN_IF_ERROR(parser->SkipField());
     }
@@ -2396,17 +2637,28 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "allow_alias") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->allow_alias.emplace(value);
     } else if (field_name == "deprecated") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->deprecated = value;
     } else if (field_name == "deprecated_legacy_json_field_conflicts") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->deprecated_legacy_json_field_conflicts.emplace(value);
     } else if (field_name == "features") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message, parser->ParseSubMessage<::google::protobuf::FeatureSet>());
+      proto->features.emplace(std::move(message));
     } else if (field_name == "uninterpreted_option") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message,
+                           parser->ParseSubMessage<::google::protobuf::UninterpretedOption>());
+      proto->uninterpreted_option.emplace_back(std::move(message));
     } else {
       RETURN_IF_ERROR(parser->SkipField());
     }
@@ -2485,15 +2737,29 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "deprecated") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->deprecated = value;
     } else if (field_name == "features") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message, parser->ParseSubMessage<::google::protobuf::FeatureSet>());
+      proto->features.emplace(std::move(message));
     } else if (field_name == "debug_redact") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->debug_redact = value;
     } else if (field_name == "feature_support") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(
+          message, parser->ParseSubMessage<::google::protobuf::FieldOptions::FeatureSupport>());
+      proto->feature_support.emplace(std::move(message));
     } else if (field_name == "uninterpreted_option") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message,
+                           parser->ParseSubMessage<::google::protobuf::UninterpretedOption>());
+      proto->uninterpreted_option.emplace_back(std::move(message));
     } else {
       RETURN_IF_ERROR(parser->SkipField());
     }
@@ -2556,11 +2822,20 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "features") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message, parser->ParseSubMessage<::google::protobuf::FeatureSet>());
+      proto->features.emplace(std::move(message));
     } else if (field_name == "deprecated") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->deprecated = value;
     } else if (field_name == "uninterpreted_option") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message,
+                           parser->ParseSubMessage<::google::protobuf::UninterpretedOption>());
+      proto->uninterpreted_option.emplace_back(std::move(message));
     } else {
       RETURN_IF_ERROR(parser->SkipField());
     }
@@ -2664,15 +2939,25 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "deprecated") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->deprecated = value;
     } else if (field_name == "idempotency_level") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       ::google::protobuf::MethodOptions::IdempotencyLevel value;
       RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
       proto->idempotency_level = value;
     } else if (field_name == "features") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message, parser->ParseSubMessage<::google::protobuf::FeatureSet>());
+      proto->features.emplace(std::move(message));
     } else if (field_name == "uninterpreted_option") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message,
+                           parser->ParseSubMessage<::google::protobuf::UninterpretedOption>());
+      proto->uninterpreted_option.emplace_back(std::move(message));
     } else {
       RETURN_IF_ERROR(parser->SkipField());
     }
@@ -2732,11 +3017,14 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "name_part") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->name_part = std::move(value);
       parsed.emplace(1);
     } else if (field_name == "is_extension") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
       proto->is_extension = value;
       parsed.emplace(2);
@@ -2836,23 +3124,34 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "name") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(
+          message, parser->ParseSubMessage<::google::protobuf::UninterpretedOption::NamePart>());
+      proto->name.emplace_back(std::move(message));
     } else if (field_name == "identifier_value") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->identifier_value.emplace(std::move(value));
     } else if (field_name == "positive_int_value") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<uint64_t>());
       proto->positive_int_value.emplace(value);
     } else if (field_name == "negative_int_value") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int64_t>());
       proto->negative_int_value.emplace(value);
     } else if (field_name == "double_value") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseFloat<double>());
       proto->double_value.emplace(value);
     } else if (field_name == "string_value") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseBytes());
       proto->string_value.emplace(std::move(value));
     } else if (field_name == "aggregate_value") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->aggregate_value.emplace(std::move(value));
     } else {
@@ -3157,27 +3456,34 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "field_presence") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       ::google::protobuf::FeatureSet::FieldPresence value;
       RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
       proto->field_presence.emplace(value);
     } else if (field_name == "enum_type") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       ::google::protobuf::FeatureSet::EnumType value;
       RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
       proto->enum_type.emplace(value);
     } else if (field_name == "repeated_field_encoding") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       ::google::protobuf::FeatureSet::RepeatedFieldEncoding value;
       RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
       proto->repeated_field_encoding.emplace(value);
     } else if (field_name == "utf8_validation") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       ::google::protobuf::FeatureSet::Utf8Validation value;
       RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
       proto->utf8_validation.emplace(value);
     } else if (field_name == "message_encoding") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       ::google::protobuf::FeatureSet::MessageEncoding value;
       RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
       proto->message_encoding.emplace(value);
     } else if (field_name == "json_format") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       ::google::protobuf::FeatureSet::JsonFormat value;
       RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
       proto->json_format.emplace(value);
@@ -3246,12 +3552,20 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "edition") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       ::google::protobuf::Edition value;
       RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
       proto->edition.emplace(value);
     } else if (field_name == "overridable_features") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message, parser->ParseSubMessage<::google::protobuf::FeatureSet>());
+      proto->overridable_features.emplace(std::move(message));
     } else if (field_name == "fixed_features") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message, parser->ParseSubMessage<::google::protobuf::FeatureSet>());
+      proto->fixed_features.emplace(std::move(message));
     } else {
       RETURN_IF_ERROR(parser->SkipField());
     }
@@ -3317,12 +3631,20 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "defaults") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message,
+                           parser->ParseSubMessage<
+                               ::google::protobuf::FeatureSetDefaults::FeatureSetEditionDefault>());
+      proto->defaults.emplace_back(std::move(message));
     } else if (field_name == "minimum_edition") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       ::google::protobuf::Edition value;
       RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
       proto->minimum_edition.emplace(value);
     } else if (field_name == "maximum_edition") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       ::google::protobuf::Edition value;
       RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
       proto->maximum_edition.emplace(value);
@@ -3393,19 +3715,25 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "path") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
       proto->path.emplace_back(value);
     } else if (field_name == "span") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
       proto->span.emplace_back(value);
     } else if (field_name == "leading_comments") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->leading_comments.emplace(std::move(value));
     } else if (field_name == "trailing_comments") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->trailing_comments.emplace(std::move(value));
     } else if (field_name == "leading_detached_comments") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->leading_detached_comments.emplace_back(std::move(value));
     } else {
@@ -3454,7 +3782,12 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "location") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(message,
+                           parser->ParseSubMessage<::google::protobuf::SourceCodeInfo::Location>());
+      proto->location.emplace_back(std::move(message));
     } else {
       RETURN_IF_ERROR(parser->SkipField());
     }
@@ -3565,19 +3898,25 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "path") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
       proto->path.emplace_back(value);
     } else if (field_name == "source_file") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_VAR_OR_RETURN(value, parser->ParseString());
       proto->source_file.emplace(std::move(value));
     } else if (field_name == "begin") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
       proto->begin.emplace(value);
     } else if (field_name == "end") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
       proto->end.emplace(value);
     } else if (field_name == "semantic") {
+      RETURN_IF_ERROR(parser->RequirePrefix(":"));
       ::google::protobuf::GeneratedCodeInfo::Annotation::Semantic value;
       RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
       proto->semantic.emplace(value);
@@ -3629,7 +3968,12 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   std::optional<std::string> maybe_field_name;
   while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
+    parser->ConsumeSeparators();
     if (field_name == "annotation") {
+      parser->ConsumePrefix(":");
+      DEFINE_VAR_OR_RETURN(
+          message, parser->ParseSubMessage<::google::protobuf::GeneratedCodeInfo::Annotation>());
+      proto->annotation.emplace_back(std::move(message));
     } else {
       RETURN_IF_ERROR(parser->SkipField());
     }
