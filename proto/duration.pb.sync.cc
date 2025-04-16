@@ -62,7 +62,7 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   return ::absl::OkStatus();
 }
 
-::tsdb2::proto::MessageDescriptor<Duration, /*num_fields=*/2> const Duration::MESSAGE_DESCRIPTOR{{
+::tsdb2::proto::MessageDescriptor<Duration, 2> const Duration::MESSAGE_DESCRIPTOR{{
     {"seconds", &Duration::seconds},
     {"nanos", &Duration::nanos},
 }};
