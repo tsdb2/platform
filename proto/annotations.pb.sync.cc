@@ -132,13 +132,11 @@ google_protobuf_FieldOptions_extension::Decode(::absl::Span<uint8_t const> const
     parser->ConsumeSeparators();
     if (field_name == "indirect") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
-      ::tsdb2::proto::FieldIndirectionType value;
-      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      DEFINE_CONST_OR_RETURN(value, parser->ParseEnum<::tsdb2::proto::FieldIndirectionType>());
       proto->indirect.emplace(value);
     } else if (field_name == "map_type") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
-      ::tsdb2::proto::MapType value;
-      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      DEFINE_CONST_OR_RETURN(value, parser->ParseEnum<::tsdb2::proto::MapType>());
       proto->map_type.emplace(value);
     } else {
       RETURN_IF_ERROR(parser->SkipField());

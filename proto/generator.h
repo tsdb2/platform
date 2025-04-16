@@ -311,7 +311,7 @@ class Generator {
 
   absl::Status EmitOneofFieldDecoding(internal::TextWriter* writer,
                                       google::protobuf::DescriptorProto const& message_type,
-                                      size_t index) const;
+                                      size_t oneof_index) const;
 
   static absl::Status EmitOptionalFieldParsing(
       internal::TextWriter* writer, google::protobuf::FieldDescriptorProto const& descriptor);
@@ -337,7 +337,7 @@ class Generator {
 
   absl::Status EmitOneofFieldParsing(internal::TextWriter* writer,
                                      google::protobuf::DescriptorProto const& message_type,
-                                     size_t index) const;
+                                     size_t oneof_index, bool first) const;
 
   static absl::Status EmitOptionalFieldEncoding(
       internal::TextWriter* writer, google::protobuf::FieldDescriptorProto const& descriptor);

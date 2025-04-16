@@ -291,8 +291,7 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       proto->syntax.emplace(std::move(value));
     } else if (field_name == "edition") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
-      ::google::protobuf::Edition value;
-      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      DEFINE_CONST_OR_RETURN(value, parser->ParseEnum<::google::protobuf::Edition>());
       proto->edition.emplace(value);
     } else {
       RETURN_IF_ERROR(parser->SkipField());
@@ -822,8 +821,8 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       proto->features.emplace(std::move(message));
     } else if (field_name == "verification") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
-      ::google::protobuf::ExtensionRangeOptions::VerificationState value;
-      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      DEFINE_CONST_OR_RETURN(
+          value, parser->ParseEnum<::google::protobuf::ExtensionRangeOptions::VerificationState>());
       proto->verification = value;
     } else {
       RETURN_IF_ERROR(parser->SkipField());
@@ -1055,13 +1054,13 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       proto->number.emplace(value);
     } else if (field_name == "label") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
-      ::google::protobuf::FieldDescriptorProto::Label value;
-      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      DEFINE_CONST_OR_RETURN(value,
+                             parser->ParseEnum<::google::protobuf::FieldDescriptorProto::Label>());
       proto->label.emplace(value);
     } else if (field_name == "type") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
-      ::google::protobuf::FieldDescriptorProto::Type value;
-      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      DEFINE_CONST_OR_RETURN(value,
+                             parser->ParseEnum<::google::protobuf::FieldDescriptorProto::Type>());
       proto->type.emplace(value);
     } else if (field_name == "type_name") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
@@ -1807,8 +1806,8 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       proto->java_string_check_utf8 = value;
     } else if (field_name == "optimize_for") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
-      ::google::protobuf::FileOptions::OptimizeMode value;
-      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      DEFINE_CONST_OR_RETURN(value,
+                             parser->ParseEnum<::google::protobuf::FileOptions::OptimizeMode>());
       proto->optimize_for = value;
     } else if (field_name == "go_package") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
@@ -2195,8 +2194,7 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
     parser->ConsumeSeparators();
     if (field_name == "edition") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
-      ::google::protobuf::Edition value;
-      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      DEFINE_CONST_OR_RETURN(value, parser->ParseEnum<::google::protobuf::Edition>());
       proto->edition.emplace(value);
     } else if (field_name == "value") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
@@ -2274,13 +2272,11 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
     parser->ConsumeSeparators();
     if (field_name == "edition_introduced") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
-      ::google::protobuf::Edition value;
-      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      DEFINE_CONST_OR_RETURN(value, parser->ParseEnum<::google::protobuf::Edition>());
       proto->edition_introduced.emplace(value);
     } else if (field_name == "edition_deprecated") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
-      ::google::protobuf::Edition value;
-      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      DEFINE_CONST_OR_RETURN(value, parser->ParseEnum<::google::protobuf::Edition>());
       proto->edition_deprecated.emplace(value);
     } else if (field_name == "deprecation_warning") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
@@ -2288,8 +2284,7 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       proto->deprecation_warning.emplace(std::move(value));
     } else if (field_name == "edition_removed") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
-      ::google::protobuf::Edition value;
-      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      DEFINE_CONST_OR_RETURN(value, parser->ParseEnum<::google::protobuf::Edition>());
       proto->edition_removed.emplace(value);
     } else {
       RETURN_IF_ERROR(parser->SkipField());
@@ -2433,8 +2428,7 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
     parser->ConsumeSeparators();
     if (field_name == "ctype") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
-      ::google::protobuf::FieldOptions::CType value;
-      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      DEFINE_CONST_OR_RETURN(value, parser->ParseEnum<::google::protobuf::FieldOptions::CType>());
       proto->ctype = value;
     } else if (field_name == "packed") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
@@ -2442,8 +2436,7 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       proto->packed.emplace(value);
     } else if (field_name == "jstype") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
-      ::google::protobuf::FieldOptions::JSType value;
-      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      DEFINE_CONST_OR_RETURN(value, parser->ParseEnum<::google::protobuf::FieldOptions::JSType>());
       proto->jstype = value;
     } else if (field_name == "lazy") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
@@ -2467,13 +2460,13 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       proto->debug_redact = value;
     } else if (field_name == "retention") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
-      ::google::protobuf::FieldOptions::OptionRetention value;
-      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      DEFINE_CONST_OR_RETURN(
+          value, parser->ParseEnum<::google::protobuf::FieldOptions::OptionRetention>());
       proto->retention.emplace(value);
     } else if (field_name == "targets") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
-      ::google::protobuf::FieldOptions::OptionTargetType value;
-      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      DEFINE_CONST_OR_RETURN(
+          value, parser->ParseEnum<::google::protobuf::FieldOptions::OptionTargetType>());
       proto->targets.emplace_back(value);
     } else if (field_name == "edition_defaults") {
       parser->ConsumePrefix(":");
@@ -2946,8 +2939,8 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       proto->deprecated = value;
     } else if (field_name == "idempotency_level") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
-      ::google::protobuf::MethodOptions::IdempotencyLevel value;
-      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      DEFINE_CONST_OR_RETURN(
+          value, parser->ParseEnum<::google::protobuf::MethodOptions::IdempotencyLevel>());
       proto->idempotency_level = value;
     } else if (field_name == "features") {
       parser->ConsumePrefix(":");
@@ -3459,33 +3452,32 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
     parser->ConsumeSeparators();
     if (field_name == "field_presence") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
-      ::google::protobuf::FeatureSet::FieldPresence value;
-      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      DEFINE_CONST_OR_RETURN(value,
+                             parser->ParseEnum<::google::protobuf::FeatureSet::FieldPresence>());
       proto->field_presence.emplace(value);
     } else if (field_name == "enum_type") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
-      ::google::protobuf::FeatureSet::EnumType value;
-      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      DEFINE_CONST_OR_RETURN(value, parser->ParseEnum<::google::protobuf::FeatureSet::EnumType>());
       proto->enum_type.emplace(value);
     } else if (field_name == "repeated_field_encoding") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
-      ::google::protobuf::FeatureSet::RepeatedFieldEncoding value;
-      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      DEFINE_CONST_OR_RETURN(
+          value, parser->ParseEnum<::google::protobuf::FeatureSet::RepeatedFieldEncoding>());
       proto->repeated_field_encoding.emplace(value);
     } else if (field_name == "utf8_validation") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
-      ::google::protobuf::FeatureSet::Utf8Validation value;
-      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      DEFINE_CONST_OR_RETURN(value,
+                             parser->ParseEnum<::google::protobuf::FeatureSet::Utf8Validation>());
       proto->utf8_validation.emplace(value);
     } else if (field_name == "message_encoding") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
-      ::google::protobuf::FeatureSet::MessageEncoding value;
-      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      DEFINE_CONST_OR_RETURN(value,
+                             parser->ParseEnum<::google::protobuf::FeatureSet::MessageEncoding>());
       proto->message_encoding.emplace(value);
     } else if (field_name == "json_format") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
-      ::google::protobuf::FeatureSet::JsonFormat value;
-      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      DEFINE_CONST_OR_RETURN(value,
+                             parser->ParseEnum<::google::protobuf::FeatureSet::JsonFormat>());
       proto->json_format.emplace(value);
     } else {
       RETURN_IF_ERROR(parser->SkipField());
@@ -3555,8 +3547,7 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
     parser->ConsumeSeparators();
     if (field_name == "edition") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
-      ::google::protobuf::Edition value;
-      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      DEFINE_CONST_OR_RETURN(value, parser->ParseEnum<::google::protobuf::Edition>());
       proto->edition.emplace(value);
     } else if (field_name == "overridable_features") {
       parser->ConsumePrefix(":");
@@ -3640,13 +3631,11 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
       proto->defaults.emplace_back(std::move(message));
     } else if (field_name == "minimum_edition") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
-      ::google::protobuf::Edition value;
-      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      DEFINE_CONST_OR_RETURN(value, parser->ParseEnum<::google::protobuf::Edition>());
       proto->minimum_edition.emplace(value);
     } else if (field_name == "maximum_edition") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
-      ::google::protobuf::Edition value;
-      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      DEFINE_CONST_OR_RETURN(value, parser->ParseEnum<::google::protobuf::Edition>());
       proto->maximum_edition.emplace(value);
     } else {
       RETURN_IF_ERROR(parser->SkipField());
@@ -3917,8 +3906,8 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       proto->end.emplace(value);
     } else if (field_name == "semantic") {
       RETURN_IF_ERROR(parser->RequirePrefix(":"));
-      ::google::protobuf::GeneratedCodeInfo::Annotation::Semantic value;
-      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      DEFINE_CONST_OR_RETURN(
+          value, parser->ParseEnum<::google::protobuf::GeneratedCodeInfo::Annotation::Semantic>());
       proto->semantic.emplace(value);
     } else {
       RETURN_IF_ERROR(parser->SkipField());

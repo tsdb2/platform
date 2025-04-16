@@ -160,6 +160,13 @@ class Parser {
     return std::move(message);
   }
 
+  template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+  absl::StatusOr<Enum> ParseEnum() {
+    Enum value;
+    RETURN_IF_ERROR(Tsdb2ProtoParse(this, &value));
+    return value;
+  }
+
   absl::StatusOr<absl::Time> ParseTimestamp();
   absl::StatusOr<absl::Duration> ParseDuration();
 

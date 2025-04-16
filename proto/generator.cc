@@ -2058,8 +2058,7 @@ absl::Status Generator::EmitEnumParsing(
     TextWriter* const writer, google::protobuf::FieldDescriptorProto const& descriptor) const {
   writer->AppendLine("RETURN_IF_ERROR(parser->RequirePrefix(\":\"));");
   std::string const type_name = absl::StrReplaceAll(descriptor.type_name.value(), {{".", "::"}});
-  writer->AppendLine(type_name, " value;");
-  writer->AppendLine("RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));");
+  writer->AppendLine("DEFINE_CONST_OR_RETURN(value, parser->ParseEnum<", type_name, ">());");
   REQUIRE_FIELD_OR_RETURN(name, descriptor, name);
   REQUIRE_FIELD_OR_RETURN(label, descriptor, label);
   switch (label) {
@@ -2156,8 +2155,62 @@ absl::Status Generator::EmitFieldParsing(
 
 absl::Status Generator::EmitOneofFieldParsing(TextWriter* const writer,
                                               google::protobuf::DescriptorProto const& message_type,
-                                              size_t const index) const {
-  // TODO
+                                              size_t const oneof_index, bool first) const {
+  DEFINE_CONST_OR_RETURN(oneof_decl, GetOneofDecl(message_type, oneof_index));
+  REQUIRE_FIELD_OR_RETURN(name, *oneof_decl, name);
+  size_t field_index = 1;
+  for (auto const& field : message_type.field) {
+    if (field.oneof_index.has_value() && field.oneof_index.value() == oneof_index) {
+      REQUIRE_FIELD_OR_RETURN(variant_name, field, name);
+      if (first) {
+        writer->AppendLine("if (field_name == \"", variant_name, "\") {");
+        first = false;
+      } else {
+        writer->AppendLine("} else if (field_name == \"", variant_name, "\") {");
+      }
+      {
+        TextWriter::IndentedScope is{writer};
+        if (field.type_name.has_value()) {
+          DEFINE_CONST_OR_RETURN(path, GetTypePath(field.type_name.value()));
+          auto const it = kGoogleApiTypes->find(path);
+          if (!use_raw_google_api_types_ && it != kGoogleApiTypes->end()) {
+            auto const& info = it->second;
+            writer->AppendLine("DEFINE_CONST_OR_RETURN(value, parser->", info.parser_name, "());");
+            writer->AppendLine("proto->", name, ".emplace<", field_index, ">(value);");
+          } else {
+            std::string const type_name =
+                absl::StrReplaceAll(field.type_name.value(), {{".", "::"}});
+            DEFINE_CONST_OR_RETURN(is_message, IsMessage(field.type_name.value()));
+            if (is_message) {
+              writer->AppendLine("DEFINE_VAR_OR_RETURN(message, parser->ParseSubMessage<",
+                                 type_name, ">());");
+              writer->AppendLine("proto->", name, ".emplace<", field_index,
+                                 ">(std::move(message));");
+            } else {
+              writer->AppendLine("DEFINE_CONST_OR_RETURN(value, parser->ParseEnum<", type_name,
+                                 ">());");
+              writer->AppendLine("proto->", name, ".emplace<", field_index, ">(value);");
+            }
+          }
+        } else {
+          REQUIRE_FIELD_OR_RETURN(type, field, type);
+          auto const it = kFieldParserNames.find(type);
+          if (it == kFieldParserNames.end()) {
+            return absl::InvalidArgumentError("invalid field type");
+          }
+          if (type != FieldDescriptorProto::Type::TYPE_STRING &&
+              type != FieldDescriptorProto::Type::TYPE_BYTES) {
+            writer->AppendLine("DEFINE_CONST_OR_RETURN(value, parser->", it->second, "());");
+            writer->AppendLine("proto->", name, ".emplace<", field_index, ">(value);");
+          } else {
+            writer->AppendLine("DEFINE_VAR_OR_RETURN(value, parser->", it->second, "());");
+            writer->AppendLine("proto->", name, ".emplace<", field_index, ">(std::move(value));");
+          }
+        }
+      }
+      ++field_index;
+    }
+  }
   return absl::OkStatus();
 }
 
@@ -2564,13 +2617,7 @@ absl::Status Generator::EmitMessageParsing(
           size_t const index = field.oneof_index.value();
           auto const [unused_it, inserted] = oneof_indices.emplace(index);
           if (inserted) {
-            REQUIRE_FIELD_OR_RETURN(name, field, name);
-            if (first) {
-              writer->AppendLine("if (field_name == \"", name, "\") {");
-            } else {
-              writer->AppendLine("} else if (field_name == \"", name, "\") {");
-            }
-            RETURN_IF_ERROR(EmitOneofFieldParsing(writer, message_type, index));
+            RETURN_IF_ERROR(EmitOneofFieldParsing(writer, message_type, index, first));
             first = false;
           }
         } else {
