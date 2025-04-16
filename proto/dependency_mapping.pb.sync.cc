@@ -164,29 +164,6 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   return ::absl::OkStatus();
 }
 
-::tsdb2::proto::MessageDescriptor<DependencyMapping::Dependency, 1> const
-    DependencyMapping::Dependency::MESSAGE_DESCRIPTOR{{
-        {"cc_header", &DependencyMapping::Dependency::cc_header},
-    }};
-
-::tsdb2::proto::MessageDescriptor<DependencyMapping::DependencyEntry, 2> const
-    DependencyMapping::DependencyEntry::MESSAGE_DESCRIPTOR{{
-        {"key", &DependencyMapping::DependencyEntry::key},
-        {"value", ::tsdb2::proto::OptionalSubMessageField<DependencyMapping::DependencyEntry>(
-                      &DependencyMapping::DependencyEntry::value,
-                      ::tsdb2::proto::internal::DependencyMapping::Dependency::MESSAGE_DESCRIPTOR)},
-    }};
-
-::tsdb2::proto::MessageDescriptor<DependencyMapping, 1> const DependencyMapping::MESSAGE_DESCRIPTOR{
-    {
-        {"dependency",
-         ::tsdb2::proto::FlatHashMapField<
-             DependencyMapping, ::tsdb2::proto::internal::DependencyMapping::DependencyEntry>(
-             &DependencyMapping::dependency,
-             ::tsdb2::proto::internal::DependencyMapping::DependencyEntry::MESSAGE_DESCRIPTOR,
-             ::tsdb2::proto::internal::DependencyMapping::Dependency::MESSAGE_DESCRIPTOR)},
-    }};
-
 TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING();
 
 }  // namespace tsdb2::proto::internal

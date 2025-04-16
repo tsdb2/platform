@@ -10,14 +10,10 @@ namespace tsdb2::proto::internal {
 struct DependencyMapping;
 
 struct DependencyMapping : public ::tsdb2::proto::Message {
-  static ::tsdb2::proto::MessageDescriptor<DependencyMapping, 1> const MESSAGE_DESCRIPTOR;
-
   struct Dependency;
   struct DependencyEntry;
 
   struct Dependency : public ::tsdb2::proto::Message {
-    static ::tsdb2::proto::MessageDescriptor<Dependency, 1> const MESSAGE_DESCRIPTOR;
-
     static ::absl::StatusOr<Dependency> Decode(::absl::Span<uint8_t const> data);
     static ::tsdb2::io::Cord Encode(Dependency const& proto);
 
@@ -70,8 +66,6 @@ struct DependencyMapping : public ::tsdb2::proto::Message {
   };
 
   struct DependencyEntry : public ::tsdb2::proto::Message {
-    static ::tsdb2::proto::MessageDescriptor<DependencyEntry, 2> const MESSAGE_DESCRIPTOR;
-
     static ::absl::StatusOr<DependencyEntry> Decode(::absl::Span<uint8_t const> data);
     static ::tsdb2::io::Cord Encode(DependencyEntry const& proto);
 
@@ -169,26 +163,6 @@ struct DependencyMapping : public ::tsdb2::proto::Message {
 };
 
 }  // namespace tsdb2::proto::internal
-
-namespace tsdb2::proto {
-
-template <>
-inline auto const& GetMessageDescriptor<::tsdb2::proto::internal::DependencyMapping::Dependency>() {
-  return ::tsdb2::proto::internal::DependencyMapping::Dependency::MESSAGE_DESCRIPTOR;
-};
-
-template <>
-inline auto const&
-GetMessageDescriptor<::tsdb2::proto::internal::DependencyMapping::DependencyEntry>() {
-  return ::tsdb2::proto::internal::DependencyMapping::DependencyEntry::MESSAGE_DESCRIPTOR;
-};
-
-template <>
-inline auto const& GetMessageDescriptor<::tsdb2::proto::internal::DependencyMapping>() {
-  return ::tsdb2::proto::internal::DependencyMapping::MESSAGE_DESCRIPTOR;
-};
-
-}  // namespace tsdb2::proto
 
 TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING();
 

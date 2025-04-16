@@ -184,7 +184,6 @@ proto_library(
 
 tsdb2_cc_proto_library(
     name = "dependency_mapping_cc_proto",
-    enable_reflection = True,
     proto = ":dependency_mapping_proto",
 )
 
