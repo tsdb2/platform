@@ -15,6 +15,10 @@ namespace internal {
 
 class TextWriter {
  public:
+  struct Options {
+    size_t indent_width = 2;
+  };
+
   class IndentedScope final {
    public:
     explicit IndentedScope(TextWriter* const parent) : parent_(parent) { parent_->Indent(); }
@@ -29,18 +33,35 @@ class TextWriter {
     TextWriter* const parent_;
   };
 
+  explicit TextWriter(Options const& options) : options_(options) {}
+  explicit TextWriter() : TextWriter(/*options=*/{}) {}
+
   void Indent();
   void Dedent();
+
+  template <typename... Args>
+  void Append(Args&&... args) {
+    AppendIndentation();
+    content_.Append(absl::StrCat(std::forward<Args>(args)...));
+    new_line_ = false;
+  }
 
   template <typename... Args>
   void AppendLine(Args&&... args) {
     AppendIndentation();
     content_.Append(absl::StrCat(std::forward<Args>(args)..., "\n"));
+    new_line_ = true;
+  }
+
+  template <typename... Args>
+  void FinishLine(Args&&... args) {
+    content_.Append(absl::StrCat(std::forward<Args>(args)..., "\n"));
+    new_line_ = true;
   }
 
   template <typename... Args>
   void AppendUnindentedLine(Args&&... args) {
-    content_.Append(absl::StrCat(std::forward<Args>(args)..., "\n"));
+    FinishLine(std::forward<Args>(args)...);
   }
 
   void AppendEmptyLine();
@@ -48,14 +69,15 @@ class TextWriter {
   std::string Finish() &&;
 
  private:
-  static size_t constexpr kIndentWidth = 2;
-
   void AppendIndentation();
+
+  Options const options_;
 
   size_t indentation_level_ = 0;
   std::vector<absl::Cord> indentation_cords_;
 
   absl::Cord content_;
+  bool new_line_ = true;
 };
 
 }  // namespace internal

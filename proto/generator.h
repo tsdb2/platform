@@ -364,7 +364,7 @@ class Generator {
 
   absl::Status EmitOneofFieldEncoding(internal::TextWriter* writer,
                                       google::protobuf::DescriptorProto const& message_type,
-                                      size_t index) const;
+                                      size_t oneof_index) const;
 
   absl::Status EmitMessageDecoding(internal::TextWriter* writer, LexicalScope const& scope,
                                    std::string_view qualified_name,
@@ -373,6 +373,28 @@ class Generator {
   absl::Status EmitMessageEncoding(internal::TextWriter* writer, LexicalScope const& scope,
                                    std::string_view qualified_name,
                                    google::protobuf::DescriptorProto const& message_type) const;
+
+  static absl::Status EmitEnumFieldStringification(
+      internal::TextWriter* writer, google::protobuf::FieldDescriptorProto const& descriptor,
+      bool is_optional);
+
+  static absl::Status EmitGoogleApiFieldStringification(
+      internal::TextWriter* writer, google::protobuf::FieldDescriptorProto const& descriptor,
+      bool is_optional);
+
+  absl::Status EmitObjectFieldStringification(
+      internal::TextWriter* writer, google::protobuf::FieldDescriptorProto const& descriptor) const;
+
+  absl::Status EmitFieldStringification(
+      internal::TextWriter* writer, google::protobuf::FieldDescriptorProto const& descriptor) const;
+
+  absl::Status EmitOneofFieldStringification(internal::TextWriter* writer,
+                                             google::protobuf::DescriptorProto const& message_type,
+                                             size_t oneof_index) const;
+
+  absl::Status EmitMessageStringification(
+      internal::TextWriter* writer, LexicalScope const& scope, std::string_view qualified_name,
+      google::protobuf::DescriptorProto const& message_type) const;
 
   absl::Status EmitMessageParsing(internal::TextWriter* writer, LexicalScope const& scope,
                                   std::string_view qualified_name,

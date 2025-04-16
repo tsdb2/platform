@@ -2,6 +2,7 @@
 #define __TSDB2_PROTO_TEXT_FORMAT_H__
 
 #include <charconv>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -21,6 +22,8 @@
 #include "common/re.h"
 #include "common/utilities.h"
 #include "proto/proto.h"
+#include "proto/text_writer.h"
+#include "proto/time_util.h"
 
 namespace tsdb2 {
 namespace proto {
@@ -242,20 +245,144 @@ class Stringifier {
     };
 
     Mode mode = Mode::kPretty;
+    size_t indent_width = 2;
     Brackets brackets = Brackets::kCurly;
     FieldSeparators field_separators = FieldSeparators::kNone;
   };
 
   explicit Stringifier(Options const& options) : options_(options) {}
 
+  template <typename Value>
+  void AppendField(std::string_view const name, Value const& value) {
+    return FieldAppender<Value>{}(this, name, value);
+  }
+
+  std::string Finish() && { return std::move(writer_).Finish(); }
+
+  template <typename Proto>
+  std::string Stringify(Proto const& proto, Options const& options) {
+    Stringifier stringifier{options};
+    Tsdb2ProtoStringify(&stringifier, proto);
+    return std::move(stringifier).Finish();
+  }
+
   template <typename Proto>
   std::string Stringify(Proto const& proto) {
-    // TODO
-    return "";
+    return Stringify(proto, Options{});
   }
 
  private:
+  class Scope final {
+   public:
+    explicit Scope(Stringifier* const parent)
+        : parent_(parent), writer_scope_(&parent_->writer_), saved_(parent_->first_field_) {
+      parent_->first_field_ = true;
+    }
+
+    ~Scope() { parent_->first_field_ = saved_; }
+
+   private:
+    Scope(Scope const&) = delete;
+    Scope& operator=(Scope const&) = delete;
+
+    Scope(Scope&&) = delete;
+    Scope& operator=(Scope&&) = delete;
+
+    Stringifier* const parent_;
+    internal::TextWriter::IndentedScope writer_scope_;
+    bool saved_;
+  };
+
+  template <typename Value, typename Enable = void>
+  struct FieldAppender {
+    void operator()(Stringifier* const stringifier, std::string_view const name,
+                    Value const& value) const {
+      stringifier->AppendRegularField(name, value);
+    }
+  };
+
+  template <typename SubMessage>
+  struct FieldAppender<SubMessage, std::enable_if_t<IsProtoMessageV<SubMessage>>> {
+    void operator()(Stringifier* const stringifier, std::string_view const name,
+                    SubMessage const& value) const {
+      stringifier->AppendSubMessageField(name, value);
+    }
+  };
+
+  template <>
+  struct FieldAppender<absl::Time> {
+    void operator()(Stringifier* const stringifier, std::string_view const name,
+                    absl::Time const time) const {
+      stringifier->AppendTimestamp(name, time);
+    }
+  };
+
+  template <>
+  struct FieldAppender<absl::Duration> {
+    void operator()(Stringifier* const stringifier, std::string_view const name,
+                    absl::Duration const duration) const {
+      stringifier->AppendDuration(name, duration);
+    }
+  };
+
+  template <typename Value>
+  void AppendRegularField(std::string_view const name, Value const& value) {
+    writer_.Append(name, ": ");
+    Tsdb2ProtoStringify(this, value);
+    switch (options_.field_separators) {
+      case Options::FieldSeparators::kComma:
+        writer_.FinishLine(",");
+        break;
+      case Options::FieldSeparators::kSemicolon:
+        writer_.FinishLine(";");
+        break;
+      default:
+        writer_.FinishLine();
+        break;
+    }
+    first_field_ = false;
+  }
+
+  template <typename SubMessage, std::enable_if_t<IsProtoMessageV<SubMessage>, bool> = true>
+  void AppendSubMessageField(std::string_view const name, SubMessage const& value) {
+    if (options_.brackets != Options::Brackets::kCurly) {
+      writer_.AppendLine(name, " <");
+    } else {
+      writer_.AppendLine(name, " {");
+    }
+    {
+      Scope scope{this};
+      Tsdb2ProtoStringify(this, value);
+    }
+    if (options_.brackets != Options::Brackets::kCurly) {
+      writer_.Append(name, ">");
+    } else {
+      writer_.Append(name, "}");
+    }
+    switch (options_.field_separators) {
+      case Options::FieldSeparators::kComma:
+        writer_.FinishLine(",");
+        break;
+      case Options::FieldSeparators::kSemicolon:
+        writer_.FinishLine(";");
+        break;
+      default:
+        writer_.FinishLine();
+        break;
+    }
+  }
+
+  void AppendTimestamp(std::string_view const name, absl::Time const value) {
+    AppendSubMessageField(name, EncodeGoogleApiProto(value));
+  }
+
+  void AppendDuration(std::string_view const name, absl::Duration const value) {
+    AppendSubMessageField(name, EncodeGoogleApiProto(value));
+  }
+
   Options const options_;
+  internal::TextWriter writer_;
+  bool first_field_ = true;
 };
 
 template <typename Proto>

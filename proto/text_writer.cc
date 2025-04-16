@@ -8,18 +8,21 @@ namespace internal {
 
 void TextWriter::Indent() {
   if (++indentation_level_ > indentation_cords_.size()) {
-    indentation_cords_.emplace_back(std::string(indentation_level_ * kIndentWidth, ' '));
+    indentation_cords_.emplace_back(std::string(indentation_level_ * options_.indent_width, ' '));
   }
 }
 
 void TextWriter::Dedent() { --indentation_level_; }
 
-void TextWriter::AppendEmptyLine() { content_.Append("\n"); }
+void TextWriter::AppendEmptyLine() {
+  content_.Append("\n");
+  new_line_ = true;
+}
 
 std::string TextWriter::Finish() && { return std::string(content_.Flatten()); }
 
 void TextWriter::AppendIndentation() {
-  if (indentation_level_ > 0) {
+  if (new_line_ && indentation_level_ > 0) {
     content_.Append(indentation_cords_[indentation_level_ - 1]);
   }
 }

@@ -136,4 +136,18 @@ TEST_F(TextWriterTest, NestedIndentedScope) {
   EXPECT_EQ(std::move(writer_).Finish(), "lorem\n  ipsum\n    dolor\n  amet\nadipisci\n");
 }
 
+TEST_F(TextWriterTest, OverrideIndentWidth) {
+  TextWriter writer{TextWriter::Options{.indent_width = 3}};
+  writer.AppendLine("lorem");
+  writer.Indent();
+  writer.AppendLine("ipsum");
+  writer.Indent();
+  writer.AppendLine("dolor");
+  writer.Dedent();
+  writer.AppendLine("amet");
+  writer.Dedent();
+  writer.AppendLine("adipisci");
+  EXPECT_EQ(std::move(writer).Finish(), "lorem\n   ipsum\n      dolor\n   amet\nadipisci\n");
+}
+
 }  // namespace

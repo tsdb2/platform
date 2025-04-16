@@ -1321,8 +1321,8 @@ absl::Status Generator::EmitMessageHeader(
         "* proto);");
     writer->AppendEmptyLine();
     writer->AppendLine(
-        "friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier, ",
-        name, " const& proto);");
+        "friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier, ", name,
+        " const& proto);");
     writer->AppendEmptyLine();
     writer->AppendLine("static auto Tie(", name, " const& proto) {");
     {
@@ -1467,7 +1467,7 @@ absl::Status Generator::EmitHeaderForScope(TextWriter* const writer,
                          name, "* proto);");
       writer->AppendEmptyLine();
       writer->AppendLine(
-          "std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier, ", name,
+          "void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier, ", name,
           " const& proto);");
     } else {
       writer->AppendLine(
@@ -1475,8 +1475,8 @@ absl::Status Generator::EmitHeaderForScope(TextWriter* const writer,
           "* proto);");
       writer->AppendEmptyLine();
       writer->AppendLine(
-          "friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier, ",
-          name, " const& proto);");
+          "friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier, ", name,
+          " const& proto);");
     }
     writer->AppendEmptyLine();
     if (scope.global) {
@@ -1494,7 +1494,20 @@ absl::Status Generator::EmitHeaderForScope(TextWriter* const writer,
     } else {
       writer->AppendLine("friend std::string AbslUnparseFlag(", name, " const& proto) {");
     }
-    writer->AppendLine("  return ::tsdb2::proto::text::Stringify(proto);");
+    {
+      TextWriter::IndentedScope is{writer};
+      writer->AppendLine("return ::tsdb2::proto::text::Stringify(proto, /*options=*/{");
+      {
+        TextWriter::IndentedScope is1{writer};
+        TextWriter::IndentedScope is2{writer};
+        writer->AppendLine(
+            ".mode = ::tsdb2::proto::text::Stringifier::Options::Mode::kCompressed,");
+        writer->AppendLine(
+            ".field_separators = "
+            "::tsdb2::proto::text::Stringifier::Options::FieldSeparators::kComma,");
+      }
+      writer->AppendLine("});");
+    }
     writer->AppendLine("}");
     writer->AppendEmptyLine();
   }
@@ -1601,7 +1614,7 @@ absl::Status Generator::EmitEnumImplementation(
   writer->AppendLine("}");
   writer->AppendEmptyLine();
   writer->AppendLine(
-      "std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier, ",
+      "void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier, ",
       qualified_name, " const& proto) {");
   {
     TextWriter::IndentedScope is{writer};
@@ -1619,9 +1632,9 @@ absl::Status Generator::EmitEnumImplementation(
     writer->AppendLine("});");
     writer->AppendLine("auto const it = kValueNames.find(proto);");
     writer->AppendLine("if (it != kValueNames.end()) {");
-    writer->AppendLine("  return std::string(it->second);");
+    writer->AppendLine("  stringifier->AppendIdentifier(it->second);");
     writer->AppendLine("} else {");
-    writer->AppendLine("  return ::absl::StrCat(::tsdb2::util::to_underlying(proto));");
+    writer->AppendLine("  stringifier->AppendInteger(::tsdb2::util::to_underlying(proto));");
     writer->AppendLine("}");
   }
   writer->AppendLine("}");
@@ -2587,6 +2600,191 @@ absl::Status Generator::EmitMessageEncoding(
   return absl::OkStatus();
 }
 
+absl::Status Generator::EmitEnumFieldStringification(
+    TextWriter* const writer, google::protobuf::FieldDescriptorProto const& descriptor,
+    bool const is_optional) {
+  REQUIRE_FIELD_OR_RETURN(name, descriptor, name);
+  REQUIRE_FIELD_OR_RETURN(label, descriptor, label);
+  switch (label) {
+    case FieldDescriptorProto::Label::LABEL_OPTIONAL:
+      if (is_optional) {
+        writer->AppendLine("if (proto.", name, ".has_value()) {");
+        writer->AppendLine("  stringifier->AppendField(\"", name, "\", proto.", name, ".value());");
+        writer->AppendLine("}");
+      } else {
+        writer->AppendLine("stringifier->AppendField(\"", name, "\", proto.", name, ");");
+      }
+      break;
+    case FieldDescriptorProto::Label::LABEL_REPEATED:
+      writer->AppendLine("for (auto const& value : proto.", name, ") {");
+      writer->AppendLine("  stringifier->AppendField(\"", name, "\", value);");
+      writer->AppendLine("}");
+      break;
+    case FieldDescriptorProto::Label::LABEL_REQUIRED:
+      writer->AppendLine("stringifier->AppendField(\"", name, "\", proto.", name, ");");
+      break;
+    default:
+      return absl::InvalidArgumentError("invalid field label");
+  }
+  return absl::OkStatus();
+}
+
+absl::Status Generator::EmitGoogleApiFieldStringification(
+    TextWriter* const writer, google::protobuf::FieldDescriptorProto const& descriptor,
+    bool const is_optional) {
+  REQUIRE_FIELD_OR_RETURN(name, descriptor, name);
+  REQUIRE_FIELD_OR_RETURN(number, descriptor, number);
+  REQUIRE_FIELD_OR_RETURN(label, descriptor, label);
+  REQUIRE_FIELD_OR_RETURN(type_name, descriptor, type_name);
+  DEFINE_CONST_OR_RETURN(path, GetTypePath(type_name));
+  auto const it = kGoogleApiTypes->find(path);
+  auto const& info = it->second;
+  switch (label) {
+    case FieldDescriptorProto::Label::LABEL_OPTIONAL:
+      if (is_optional) {
+        writer->AppendLine("if (proto.", name, ".has_value()) {");
+        writer->AppendLine("  stringifier->AppendField(\"", name, "\", proto.", name, ".value());");
+        writer->AppendLine("}");
+      } else {
+        writer->AppendLine("encoder.", info.encoder_name, "(", number, ", proto.", name, ");");
+      }
+      break;
+    case FieldDescriptorProto::Label::LABEL_REPEATED:
+      writer->AppendLine("for (auto const& value : proto.", name, ") {");
+      writer->AppendLine("  encoder.", info.encoder_name, "(", number, ", value);");
+      writer->AppendLine("}");
+      break;
+    case FieldDescriptorProto::Label::LABEL_REQUIRED:
+      writer->AppendLine("encoder.", info.encoder_name, "(", number, ", proto.", name, ");");
+      break;
+    default:
+      return absl::InvalidArgumentError("invalid field label");
+  }
+  return absl::OkStatus();
+}
+
+absl::Status Generator::EmitObjectFieldStringification(
+    TextWriter* const writer, google::protobuf::FieldDescriptorProto const& descriptor) const {
+  REQUIRE_FIELD_OR_RETURN(name, descriptor, name);
+  REQUIRE_FIELD_OR_RETURN(label, descriptor, label);
+  REQUIRE_FIELD_OR_RETURN(proto_type_name, descriptor, type_name);
+  auto const type_name = absl::StrReplaceAll(proto_type_name, {{".", "::"}});
+  switch (label) {
+    case FieldDescriptorProto::Label::LABEL_OPTIONAL: {
+      DEFINE_CONST_OR_RETURN(indirection, GetFieldIndirection(descriptor));
+      switch (indirection) {
+        case FieldIndirectionType::INDIRECTION_DIRECT:
+          writer->AppendLine("if (proto.", name, ".has_value()) {");
+          writer->AppendLine("  stringifier->AppendField(\"", name, "\", proto.", name,
+                             ".value());");
+          break;
+        case FieldIndirectionType::INDIRECTION_UNIQUE:
+        case FieldIndirectionType::INDIRECTION_SHARED:
+          writer->AppendLine("if (proto.", name, ") {");
+          writer->AppendLine("  stringifier->AppendField(\"", name, "\", *(proto.", name, "));");
+          break;
+      }
+      writer->AppendLine("}");
+    } break;
+    case FieldDescriptorProto::Label::LABEL_REPEATED: {
+      DEFINE_CONST_OR_RETURN(path, GetTypePath(proto_type_name));
+      if (IsMapEntry(path)) {
+        writer->AppendLine("for (auto const& [key, value] : proto.", name, ") {");
+        writer->AppendLine("  stringifier->AppendField(\"", name, "\", ", type_name,
+                           "{.key = key, .value = value});");
+      } else {
+        writer->AppendLine("for (auto const& value : proto.", name, ") {");
+        writer->AppendLine("  stringifier->AppendField(\"", name, "\", value);");
+      }
+      writer->AppendLine("}");
+    } break;
+    case FieldDescriptorProto::Label::LABEL_REQUIRED:
+      writer->AppendLine("stringifier->AppendField(\"", name, "\", proto.", name, ");");
+      break;
+    default:
+      return absl::InvalidArgumentError("invalid field label");
+  }
+  return absl::OkStatus();
+}
+
+absl::Status Generator::EmitFieldStringification(
+    TextWriter* const writer, google::protobuf::FieldDescriptorProto const& descriptor) const {
+  DEFINE_CONST_OR_RETURN(is_optional, FieldIsWrappedInOptional(descriptor));
+  if (descriptor.type_name.has_value()) {
+    DEFINE_CONST_OR_RETURN(path, GetTypePath(descriptor.type_name.value()));
+    if (!use_raw_google_api_types_ && kGoogleApiTypes->contains(path)) {
+      return EmitGoogleApiFieldStringification(writer, descriptor, is_optional);
+    } else {
+      DEFINE_CONST_OR_RETURN(is_message, IsMessage(descriptor.type_name.value()));
+      if (is_message) {
+        return EmitObjectFieldStringification(writer, descriptor);
+      } else {
+        return EmitEnumFieldStringification(writer, descriptor, is_optional);
+      }
+    }
+  } else {
+    REQUIRE_FIELD_OR_RETURN(name, descriptor, name);
+    REQUIRE_FIELD_OR_RETURN(label, descriptor, label);
+    switch (label) {
+      case FieldDescriptorProto::Label::LABEL_OPTIONAL:
+        if (is_optional) {
+          writer->AppendLine("if (proto.", name, ".has_value()) {");
+          writer->AppendLine("  stringifier->AppendField(\"", name, "\", proto.", name,
+                             ".value());");
+          writer->AppendLine("}");
+        } else {
+          writer->AppendLine("stringifier->AppendField(\"", name, "\", proto.", name, ");");
+        }
+        break;
+      case FieldDescriptorProto::Label::LABEL_REPEATED:
+        writer->AppendLine("for (auto const& value : proto.", name, ") {");
+        writer->AppendLine("  stringifier->AppendField(\"", name, "\", value);");
+        writer->AppendLine("}");
+        break;
+      case FieldDescriptorProto::Label::LABEL_REQUIRED:
+        writer->AppendLine("stringifier->AppendField(\"", name, "\", proto.", name, ");");
+        break;
+      default:
+        return absl::InvalidArgumentError("invalid field label");
+    }
+  }
+  return absl::OkStatus();
+}
+
+absl::Status Generator::EmitOneofFieldStringification(
+    TextWriter* const writer, google::protobuf::DescriptorProto const& message_type,
+    size_t const oneof_index) const {
+  // TODO
+  return absl::OkStatus();
+}
+
+absl::Status Generator::EmitMessageStringification(
+    TextWriter* const writer, LexicalScope const& scope, std::string_view const qualified_name,
+    google::protobuf::DescriptorProto const& message_type) const {
+  writer->AppendEmptyLine();
+  writer->AppendLine(
+      "void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier, ",
+      qualified_name, " const& proto) {");
+  {
+    TextWriter::IndentedScope is{writer};
+    absl::flat_hash_set<size_t> oneof_indices;
+    oneof_indices.reserve(message_type.oneof_decl.size());
+    for (auto const& field : message_type.field) {
+      if (field.oneof_index.has_value()) {
+        size_t const index = field.oneof_index.value();
+        auto const [unused_it, inserted] = oneof_indices.emplace(index);
+        if (inserted) {
+          RETURN_IF_ERROR(EmitOneofFieldStringification(writer, message_type, index));
+        }
+      } else {
+        RETURN_IF_ERROR(EmitFieldStringification(writer, field));
+      }
+    }
+  }
+  writer->AppendLine("}");
+  return absl::OkStatus();
+}
+
 absl::Status Generator::EmitMessageParsing(
     TextWriter* const writer, LexicalScope const& scope, std::string_view const qualified_name,
     google::protobuf::DescriptorProto const& message_type) const {
@@ -2685,6 +2883,7 @@ absl::Status Generator::EmitMessageImplementation(
   RETURN_IF_ERROR(EmitMessageDecoding(writer, scope, qualified_name, message_type));
   RETURN_IF_ERROR(EmitMessageEncoding(writer, scope, qualified_name, message_type));
   RETURN_IF_ERROR(EmitMessageParsing(writer, scope, qualified_name, message_type));
+  RETURN_IF_ERROR(EmitMessageStringification(writer, scope, qualified_name, message_type));
   return absl::OkStatus();
 }
 

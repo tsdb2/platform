@@ -7,6 +7,25 @@ load("//proto:proto.bzl", "tsdb2_cc_proto_library")
 package(default_visibility = ["//visibility:private"])
 
 cc_library(
+    name = "text_writer",
+    srcs = ["text_writer.cc"],
+    hdrs = ["text_writer.h"],
+    deps = [
+        "@com_google_absl//absl/strings:cord",
+    ],
+)
+
+cc_test(
+    name = "text_writer_test",
+    srcs = ["text_writer_test.cc"],
+    deps = [
+        ":text_writer",
+        "//common:testing",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "runtime",
     srcs = [
         "duration.pb.sync.cc",
@@ -28,6 +47,7 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
+        ":text_writer",
         "//common:flat_map",
         "//common:flat_set",
         "//common:no_destructor",
@@ -46,6 +66,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
     ],
@@ -104,25 +125,6 @@ cc_test(
     srcs = ["dependencies_test.cc"],
     deps = [
         ":dependencies",
-        "//common:testing",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_library(
-    name = "text_writer",
-    srcs = ["text_writer.cc"],
-    hdrs = ["text_writer.h"],
-    deps = [
-        "@com_google_absl//absl/strings:cord",
-    ],
-)
-
-cc_test(
-    name = "text_writer_test",
-    srcs = ["text_writer_test.cc"],
-    deps = [
-        ":text_writer",
         "//common:testing",
         "@com_google_googletest//:gtest_main",
     ],
