@@ -106,6 +106,7 @@ std::optional<std::string> Parser::ParseFieldName() {
 }
 
 absl::StatusOr<std::string_view> Parser::ParseIdentifier() {
+  ConsumeSeparators();
   return ConsumePattern(*kIdentifierPattern);
 }
 

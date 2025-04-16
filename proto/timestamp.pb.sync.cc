@@ -43,41 +43,29 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   return std::move(encoder).Finish();
 }
 
-::absl::StatusOr<Timestamp> Timestamp::Parse(::absl::Nonnull<std::string_view*> const text) {
-  Timestamp proto;
-  ::tsdb2::proto::text::Parser parser{*text, /*options=*/{}};
-  parser.ConsumeSeparators();
-  while (true) {
-    auto const maybe_field_name = parser.ParseFieldName();
-    if (maybe_field_name.has_value()) {
-      break;
-    }
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser, Timestamp* const proto) {
+  *proto = Timestamp();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
     auto const& field_name = maybe_field_name.value();
     if (field_name == "seconds") {
-      DEFINE_CONST_OR_RETURN(value, parser.ParseInteger<int64_t>());
-      proto.seconds.emplace(value);
+      DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int64_t>());
+      proto->seconds.emplace(value);
     } else if (field_name == "nanos") {
-      DEFINE_CONST_OR_RETURN(value, parser.ParseInteger<int32_t>());
-      proto.nanos.emplace(value);
+      DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
+      proto->nanos.emplace(value);
     } else {
-      RETURN_IF_ERROR(parser.SkipField());
+      RETURN_IF_ERROR(parser->SkipField());
     }
-    parser.ConsumeFieldSeparators();
+    parser->ConsumeFieldSeparators();
   }
-  *text = std::move(parser).remainder();
-  return std::move(proto);
+  return ::absl::OkStatus();
 }
 
-std::string Timestamp::Stringify(Timestamp const& proto) {
-  // TODO
-  return "";
-}
-
-::tsdb2::proto::MessageDescriptor<Timestamp, /*num_fields=*/2, /*num_required_fields=*/0> const
-    Timestamp::MESSAGE_DESCRIPTOR{{
-        {"seconds", &Timestamp::seconds},
-        {"nanos", &Timestamp::nanos},
-    }};
+::tsdb2::proto::MessageDescriptor<Timestamp, /*num_fields=*/2> const Timestamp::MESSAGE_DESCRIPTOR{{
+    {"seconds", &Timestamp::seconds},
+    {"nanos", &Timestamp::nanos},
+}};
 
 TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING();
 

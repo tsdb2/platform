@@ -58,6 +58,31 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   return std::move(encoder).Finish();
 }
 
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser, Version* const proto) {
+  *proto = Version();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "major") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
+      proto->major.emplace(value);
+    } else if (field_name == "minor") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
+      proto->minor.emplace(value);
+    } else if (field_name == "patch") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
+      proto->patch.emplace(value);
+    } else if (field_name == "suffix") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->suffix.emplace(std::move(value));
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
+}
+
 ::absl::StatusOr<CodeGeneratorRequest> CodeGeneratorRequest::Decode(
     ::absl::Span<uint8_t const> const data) {
   CodeGeneratorRequest proto;
@@ -121,6 +146,63 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   return std::move(encoder).Finish();
 }
 
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               CodeGeneratorRequest* const proto) {
+  *proto = CodeGeneratorRequest();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "file_to_generate") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->file_to_generate.emplace_back(std::move(value));
+    } else if (field_name == "parameter") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->parameter.emplace(std::move(value));
+    } else if (field_name == "proto_file") {
+    } else if (field_name == "source_file_descriptors") {
+    } else if (field_name == "compiler_version") {
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
+                               CodeGeneratorResponse::Feature* const proto) {
+  static auto constexpr kValuesByName =
+      ::tsdb2::common::fixed_flat_map_of<std::string_view, CodeGeneratorResponse::Feature>({
+          {"FEATURE_NONE", CodeGeneratorResponse::Feature::FEATURE_NONE},
+          {"FEATURE_PROTO3_OPTIONAL", CodeGeneratorResponse::Feature::FEATURE_PROTO3_OPTIONAL},
+          {"FEATURE_SUPPORTS_EDITIONS", CodeGeneratorResponse::Feature::FEATURE_SUPPORTS_EDITIONS},
+      });
+  DEFINE_CONST_OR_RETURN(name, parser->ParseIdentifier());
+  auto const it = kValuesByName.find(name);
+  if (it != kValuesByName.end()) {
+    *proto = it->second;
+    return ::absl::OkStatus();
+  } else {
+    return parser->InvalidFormatError();
+  }
+}
+
+std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                                CodeGeneratorResponse::Feature const& proto) {
+  static auto constexpr kValueNames =
+      ::tsdb2::common::fixed_flat_map_of<CodeGeneratorResponse::Feature, std::string_view>({
+          {CodeGeneratorResponse::Feature::FEATURE_NONE, "FEATURE_NONE"},
+          {CodeGeneratorResponse::Feature::FEATURE_PROTO3_OPTIONAL, "FEATURE_PROTO3_OPTIONAL"},
+          {CodeGeneratorResponse::Feature::FEATURE_SUPPORTS_EDITIONS, "FEATURE_SUPPORTS_EDITIONS"},
+      });
+  auto const it = kValueNames.find(proto);
+  if (it != kValueNames.end()) {
+    return std::string(it->second);
+  } else {
+    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+  }
+}
+
 ::absl::StatusOr<CodeGeneratorResponse::File> CodeGeneratorResponse::File::Decode(
     ::absl::Span<uint8_t const> const data) {
   CodeGeneratorResponse::File proto;
@@ -173,6 +255,30 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
         16, ::google::protobuf::GeneratedCodeInfo::Encode(proto.generated_code_info.value()));
   }
   return std::move(encoder).Finish();
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               CodeGeneratorResponse::File* const proto) {
+  *proto = CodeGeneratorResponse::File();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "name") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->name.emplace(std::move(value));
+    } else if (field_name == "insertion_point") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->insertion_point.emplace(std::move(value));
+    } else if (field_name == "content") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->content.emplace(std::move(value));
+    } else if (field_name == "generated_code_info") {
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
 }
 
 ::absl::StatusOr<CodeGeneratorResponse> CodeGeneratorResponse::Decode(
@@ -235,6 +341,33 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
         15, ::google::protobuf::compiler::CodeGeneratorResponse::File::Encode(value));
   }
   return std::move(encoder).Finish();
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               CodeGeneratorResponse* const proto) {
+  *proto = CodeGeneratorResponse();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "error") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->error.emplace(std::move(value));
+    } else if (field_name == "supported_features") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<uint64_t>());
+      proto->supported_features.emplace(value);
+    } else if (field_name == "minimum_edition") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
+      proto->minimum_edition.emplace(value);
+    } else if (field_name == "maximum_edition") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
+      proto->maximum_edition.emplace(value);
+    } else if (field_name == "file") {
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
 }
 
 TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING();

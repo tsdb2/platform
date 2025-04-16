@@ -10,13 +10,15 @@ namespace google::protobuf {
 struct Timestamp;
 
 struct Timestamp : public ::tsdb2::proto::Message {
-  static ::tsdb2::proto::MessageDescriptor<Timestamp, 2, 0> const MESSAGE_DESCRIPTOR;
+  static ::tsdb2::proto::MessageDescriptor<Timestamp, 2> const MESSAGE_DESCRIPTOR;
 
   static ::absl::StatusOr<Timestamp> Decode(::absl::Span<uint8_t const> data);
   static ::tsdb2::io::Cord Encode(Timestamp const& proto);
 
-  static ::absl::StatusOr<Timestamp> Parse(::absl::Nonnull<std::string_view*> text);
-  static std::string Stringify(Timestamp const& proto);
+  friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, Timestamp* proto);
+
+  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                         Timestamp const& proto);
 
   static auto Tie(Timestamp const& proto) {
     return ::tsdb2::proto::Tie(proto.seconds, proto.nanos);
@@ -30,6 +32,15 @@ struct Timestamp : public ::tsdb2::proto::Message {
   template <typename State>
   friend State Tsdb2FingerprintValue(State state, Timestamp const& proto) {
     return State::Combine(std::move(state), Tie(proto));
+  }
+
+  friend bool AbslParseFlag(std::string_view const text, Timestamp* const proto,
+                            std::string* const error) {
+    return ::tsdb2::proto::text::Parser::ParseFlag(text, proto, error);
+  }
+
+  friend std::string AbslUnparseFlag(Timestamp const& proto) {
+    return ::tsdb2::proto::text::Stringify(proto);
   }
 
   friend bool operator==(Timestamp const& lhs, Timestamp const& rhs) {

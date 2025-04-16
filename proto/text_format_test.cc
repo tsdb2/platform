@@ -13,30 +13,32 @@
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
-// using ::absl_testing::StatusIs;
-// using ::tsdb2::proto::test::ColorEnum;
+using ::absl_testing::StatusIs;
+using ::tsdb2::proto::test::ColorEnum;
+using ::tsdb2::proto::text::Parse;
+using ::tsdb2::proto::text::Stringify;
 
-// TEST(ParserTest, Enum) {
-//   EXPECT_THAT(Parse<ColorEnum>(""), StatusIs(absl::StatusCode::kInvalidArgument));
-//   EXPECT_THAT(Parse<ColorEnum>("foobar"), StatusIs(absl::StatusCode::kInvalidArgument));
-//   EXPECT_THAT(Parse<ColorEnum>("123"), StatusIs(absl::StatusCode::kInvalidArgument));
-//   EXPECT_THAT(Parse<ColorEnum>("COLOR_YELLOW"), IsOkAndHolds(ColorEnum::COLOR_YELLOW));
-//   EXPECT_THAT(Parse<ColorEnum>("COLOR_MAGENTA"), IsOkAndHolds(ColorEnum::COLOR_MAGENTA));
-//   EXPECT_THAT(Parse<ColorEnum>("COLOR_CYAN"), IsOkAndHolds(ColorEnum::COLOR_CYAN));
-//   EXPECT_THAT(Parse<ColorEnum>("COLOR_RED"), IsOkAndHolds(ColorEnum::COLOR_RED));
-//   EXPECT_THAT(Parse<ColorEnum>("COLOR_GREEN"), IsOkAndHolds(ColorEnum::COLOR_GREEN));
-//   EXPECT_THAT(Parse<ColorEnum>("COLOR_BLUE"), IsOkAndHolds(ColorEnum::COLOR_BLUE));
-//   EXPECT_THAT(Parse<ColorEnum>(" COLOR_RED"), IsOkAndHolds(ColorEnum::COLOR_RED));
-//   EXPECT_THAT(Parse<ColorEnum>("COLOR_RED "), IsOkAndHolds(ColorEnum::COLOR_RED));
-//   EXPECT_THAT(Parse<ColorEnum>(" COLOR_RED "), IsOkAndHolds(ColorEnum::COLOR_RED));
-//   EXPECT_THAT(Parse<ColorEnum>("COLOR_RED COLOR_GREEN"),
-//               StatusIs(absl::StatusCode::kInvalidArgument));
-// }
+TEST(ParserTest, Enum) {
+  EXPECT_THAT(Parse<ColorEnum>(""), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<ColorEnum>("foobar"), StatusIs(absl::StatusCode::kFailedPrecondition));
+  EXPECT_THAT(Parse<ColorEnum>("123"), StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<ColorEnum>("COLOR_YELLOW"), IsOkAndHolds(ColorEnum::COLOR_YELLOW));
+  EXPECT_THAT(Parse<ColorEnum>("COLOR_MAGENTA"), IsOkAndHolds(ColorEnum::COLOR_MAGENTA));
+  EXPECT_THAT(Parse<ColorEnum>("COLOR_CYAN"), IsOkAndHolds(ColorEnum::COLOR_CYAN));
+  EXPECT_THAT(Parse<ColorEnum>("COLOR_RED"), IsOkAndHolds(ColorEnum::COLOR_RED));
+  EXPECT_THAT(Parse<ColorEnum>("COLOR_GREEN"), IsOkAndHolds(ColorEnum::COLOR_GREEN));
+  EXPECT_THAT(Parse<ColorEnum>("COLOR_BLUE"), IsOkAndHolds(ColorEnum::COLOR_BLUE));
+  EXPECT_THAT(Parse<ColorEnum>(" COLOR_RED"), IsOkAndHolds(ColorEnum::COLOR_RED));
+  EXPECT_THAT(Parse<ColorEnum>("COLOR_RED "), IsOkAndHolds(ColorEnum::COLOR_RED));
+  EXPECT_THAT(Parse<ColorEnum>(" COLOR_RED "), IsOkAndHolds(ColorEnum::COLOR_RED));
+  EXPECT_THAT(Parse<ColorEnum>("COLOR_RED COLOR_GREEN"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
 
 TEST(ParserTest, EmptyMessage) {
   using ::tsdb2::proto::test::EmptyMessage;
-  EXPECT_THAT(EmptyMessage::Parse(""), IsOkAndHolds(EmptyMessage()));
-  EXPECT_THAT(EmptyMessage::Parse("foo: 42"), IsOkAndHolds(EmptyMessage()));
+  EXPECT_THAT(Parse<EmptyMessage>(""), IsOkAndHolds(EmptyMessage()));
+  EXPECT_THAT(Parse<EmptyMessage>("foo: 42"), IsOkAndHolds(EmptyMessage()));
 }
 
 // TEST(ParserTest, OptionalField) {

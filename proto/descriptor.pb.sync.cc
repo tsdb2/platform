@@ -6,6 +6,57 @@ namespace google::protobuf {
 
 TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
 
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, Edition* const proto) {
+  static auto constexpr kValuesByName =
+      ::tsdb2::common::fixed_flat_map_of<std::string_view, Edition>({
+          {"EDITION_UNKNOWN", Edition::EDITION_UNKNOWN},
+          {"EDITION_LEGACY", Edition::EDITION_LEGACY},
+          {"EDITION_PROTO2", Edition::EDITION_PROTO2},
+          {"EDITION_PROTO3", Edition::EDITION_PROTO3},
+          {"EDITION_2023", Edition::EDITION_2023},
+          {"EDITION_2024", Edition::EDITION_2024},
+          {"EDITION_1_TEST_ONLY", Edition::EDITION_1_TEST_ONLY},
+          {"EDITION_2_TEST_ONLY", Edition::EDITION_2_TEST_ONLY},
+          {"EDITION_99997_TEST_ONLY", Edition::EDITION_99997_TEST_ONLY},
+          {"EDITION_99998_TEST_ONLY", Edition::EDITION_99998_TEST_ONLY},
+          {"EDITION_99999_TEST_ONLY", Edition::EDITION_99999_TEST_ONLY},
+          {"EDITION_MAX", Edition::EDITION_MAX},
+      });
+  DEFINE_CONST_OR_RETURN(name, parser->ParseIdentifier());
+  auto const it = kValuesByName.find(name);
+  if (it != kValuesByName.end()) {
+    *proto = it->second;
+    return ::absl::OkStatus();
+  } else {
+    return parser->InvalidFormatError();
+  }
+}
+
+std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                                Edition const& proto) {
+  static auto constexpr kValueNames =
+      ::tsdb2::common::fixed_flat_map_of<Edition, std::string_view>({
+          {Edition::EDITION_UNKNOWN, "EDITION_UNKNOWN"},
+          {Edition::EDITION_LEGACY, "EDITION_LEGACY"},
+          {Edition::EDITION_PROTO2, "EDITION_PROTO2"},
+          {Edition::EDITION_PROTO3, "EDITION_PROTO3"},
+          {Edition::EDITION_2023, "EDITION_2023"},
+          {Edition::EDITION_2024, "EDITION_2024"},
+          {Edition::EDITION_1_TEST_ONLY, "EDITION_1_TEST_ONLY"},
+          {Edition::EDITION_2_TEST_ONLY, "EDITION_2_TEST_ONLY"},
+          {Edition::EDITION_99997_TEST_ONLY, "EDITION_99997_TEST_ONLY"},
+          {Edition::EDITION_99998_TEST_ONLY, "EDITION_99998_TEST_ONLY"},
+          {Edition::EDITION_99999_TEST_ONLY, "EDITION_99999_TEST_ONLY"},
+          {Edition::EDITION_MAX, "EDITION_MAX"},
+      });
+  auto const it = kValueNames.find(proto);
+  if (it != kValueNames.end()) {
+    return std::string(it->second);
+  } else {
+    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+  }
+}
+
 ::absl::StatusOr<FileDescriptorSet> FileDescriptorSet::Decode(
     ::absl::Span<uint8_t const> const data) {
   FileDescriptorSet proto;
@@ -36,6 +87,21 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
     encoder.EncodeSubMessageField(1, ::google::protobuf::FileDescriptorProto::Encode(value));
   }
   return std::move(encoder).Finish();
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               FileDescriptorSet* const proto) {
+  *proto = FileDescriptorSet();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "file") {
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
 }
 
 ::absl::StatusOr<FileDescriptorProto> FileDescriptorProto::Decode(
@@ -160,6 +226,48 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   return std::move(encoder).Finish();
 }
 
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               FileDescriptorProto* const proto) {
+  *proto = FileDescriptorProto();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "name") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->name.emplace(std::move(value));
+    } else if (field_name == "package") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->package.emplace(std::move(value));
+    } else if (field_name == "dependency") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->dependency.emplace_back(std::move(value));
+    } else if (field_name == "public_dependency") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
+      proto->public_dependency.emplace_back(value);
+    } else if (field_name == "weak_dependency") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
+      proto->weak_dependency.emplace_back(value);
+    } else if (field_name == "message_type") {
+    } else if (field_name == "enum_type") {
+    } else if (field_name == "service") {
+    } else if (field_name == "extension") {
+    } else if (field_name == "options") {
+    } else if (field_name == "source_code_info") {
+    } else if (field_name == "syntax") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->syntax.emplace(std::move(value));
+    } else if (field_name == "edition") {
+      ::google::protobuf::Edition value;
+      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      proto->edition.emplace(value);
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
+}
+
 ::absl::StatusOr<DescriptorProto::ExtensionRange> DescriptorProto::ExtensionRange::Decode(
     ::absl::Span<uint8_t const> const data) {
   DescriptorProto::ExtensionRange proto;
@@ -208,6 +316,27 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   return std::move(encoder).Finish();
 }
 
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               DescriptorProto::ExtensionRange* const proto) {
+  *proto = DescriptorProto::ExtensionRange();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "start") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
+      proto->start.emplace(value);
+    } else if (field_name == "end") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
+      proto->end.emplace(value);
+    } else if (field_name == "options") {
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
+}
+
 ::absl::StatusOr<DescriptorProto::ReservedRange> DescriptorProto::ReservedRange::Decode(
     ::absl::Span<uint8_t const> const data) {
   DescriptorProto::ReservedRange proto;
@@ -245,6 +374,26 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
     encoder.EncodeInt32Field(2, proto.end.value());
   }
   return std::move(encoder).Finish();
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               DescriptorProto::ReservedRange* const proto) {
+  *proto = DescriptorProto::ReservedRange();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "start") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
+      proto->start.emplace(value);
+    } else if (field_name == "end") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
+      proto->end.emplace(value);
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
 }
 
 ::absl::StatusOr<DescriptorProto> DescriptorProto::Decode(::absl::Span<uint8_t const> const data) {
@@ -353,6 +502,68 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   return std::move(encoder).Finish();
 }
 
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               DescriptorProto* const proto) {
+  *proto = DescriptorProto();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "name") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->name.emplace(std::move(value));
+    } else if (field_name == "field") {
+    } else if (field_name == "extension") {
+    } else if (field_name == "nested_type") {
+    } else if (field_name == "enum_type") {
+    } else if (field_name == "extension_range") {
+    } else if (field_name == "oneof_decl") {
+    } else if (field_name == "options") {
+    } else if (field_name == "reserved_range") {
+    } else if (field_name == "reserved_name") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->reserved_name.emplace_back(std::move(value));
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
+                               ExtensionRangeOptions::VerificationState* const proto) {
+  static auto constexpr kValuesByName =
+      ::tsdb2::common::fixed_flat_map_of<std::string_view,
+                                         ExtensionRangeOptions::VerificationState>({
+          {"DECLARATION", ExtensionRangeOptions::VerificationState::DECLARATION},
+          {"UNVERIFIED", ExtensionRangeOptions::VerificationState::UNVERIFIED},
+      });
+  DEFINE_CONST_OR_RETURN(name, parser->ParseIdentifier());
+  auto const it = kValuesByName.find(name);
+  if (it != kValuesByName.end()) {
+    *proto = it->second;
+    return ::absl::OkStatus();
+  } else {
+    return parser->InvalidFormatError();
+  }
+}
+
+std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                                ExtensionRangeOptions::VerificationState const& proto) {
+  static auto constexpr kValueNames =
+      ::tsdb2::common::fixed_flat_map_of<ExtensionRangeOptions::VerificationState,
+                                         std::string_view>({
+          {ExtensionRangeOptions::VerificationState::DECLARATION, "DECLARATION"},
+          {ExtensionRangeOptions::VerificationState::UNVERIFIED, "UNVERIFIED"},
+      });
+  auto const it = kValueNames.find(proto);
+  if (it != kValueNames.end()) {
+    return std::string(it->second);
+  } else {
+    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+  }
+}
+
 ::absl::StatusOr<ExtensionRangeOptions::Declaration> ExtensionRangeOptions::Declaration::Decode(
     ::absl::Span<uint8_t const> const data) {
   ExtensionRangeOptions::Declaration proto;
@@ -411,6 +622,35 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
     encoder.EncodeBoolField(6, proto.repeated.value());
   }
   return std::move(encoder).Finish();
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               ExtensionRangeOptions::Declaration* const proto) {
+  *proto = ExtensionRangeOptions::Declaration();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "number") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
+      proto->number.emplace(value);
+    } else if (field_name == "full_name") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->full_name.emplace(std::move(value));
+    } else if (field_name == "type") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->type.emplace(std::move(value));
+    } else if (field_name == "reserved") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->reserved.emplace(value);
+    } else if (field_name == "repeated") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->repeated.emplace(value);
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
 }
 
 ::absl::StatusOr<ExtensionRangeOptions> ExtensionRangeOptions::Decode(
@@ -473,6 +713,125 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   auto cord = std::move(encoder).Finish();
   proto.extension_data.AppendTo(&cord);
   return cord;
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               ExtensionRangeOptions* const proto) {
+  *proto = ExtensionRangeOptions();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "uninterpreted_option") {
+    } else if (field_name == "declaration") {
+    } else if (field_name == "features") {
+    } else if (field_name == "verification") {
+      ::google::protobuf::ExtensionRangeOptions::VerificationState value;
+      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      proto->verification = value;
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
+                               FieldDescriptorProto::Type* const proto) {
+  static auto constexpr kValuesByName =
+      ::tsdb2::common::fixed_flat_map_of<std::string_view, FieldDescriptorProto::Type>({
+          {"TYPE_DOUBLE", FieldDescriptorProto::Type::TYPE_DOUBLE},
+          {"TYPE_FLOAT", FieldDescriptorProto::Type::TYPE_FLOAT},
+          {"TYPE_INT64", FieldDescriptorProto::Type::TYPE_INT64},
+          {"TYPE_UINT64", FieldDescriptorProto::Type::TYPE_UINT64},
+          {"TYPE_INT32", FieldDescriptorProto::Type::TYPE_INT32},
+          {"TYPE_FIXED64", FieldDescriptorProto::Type::TYPE_FIXED64},
+          {"TYPE_FIXED32", FieldDescriptorProto::Type::TYPE_FIXED32},
+          {"TYPE_BOOL", FieldDescriptorProto::Type::TYPE_BOOL},
+          {"TYPE_STRING", FieldDescriptorProto::Type::TYPE_STRING},
+          {"TYPE_GROUP", FieldDescriptorProto::Type::TYPE_GROUP},
+          {"TYPE_MESSAGE", FieldDescriptorProto::Type::TYPE_MESSAGE},
+          {"TYPE_BYTES", FieldDescriptorProto::Type::TYPE_BYTES},
+          {"TYPE_UINT32", FieldDescriptorProto::Type::TYPE_UINT32},
+          {"TYPE_ENUM", FieldDescriptorProto::Type::TYPE_ENUM},
+          {"TYPE_SFIXED32", FieldDescriptorProto::Type::TYPE_SFIXED32},
+          {"TYPE_SFIXED64", FieldDescriptorProto::Type::TYPE_SFIXED64},
+          {"TYPE_SINT32", FieldDescriptorProto::Type::TYPE_SINT32},
+          {"TYPE_SINT64", FieldDescriptorProto::Type::TYPE_SINT64},
+      });
+  DEFINE_CONST_OR_RETURN(name, parser->ParseIdentifier());
+  auto const it = kValuesByName.find(name);
+  if (it != kValuesByName.end()) {
+    *proto = it->second;
+    return ::absl::OkStatus();
+  } else {
+    return parser->InvalidFormatError();
+  }
+}
+
+std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                                FieldDescriptorProto::Type const& proto) {
+  static auto constexpr kValueNames =
+      ::tsdb2::common::fixed_flat_map_of<FieldDescriptorProto::Type, std::string_view>({
+          {FieldDescriptorProto::Type::TYPE_DOUBLE, "TYPE_DOUBLE"},
+          {FieldDescriptorProto::Type::TYPE_FLOAT, "TYPE_FLOAT"},
+          {FieldDescriptorProto::Type::TYPE_INT64, "TYPE_INT64"},
+          {FieldDescriptorProto::Type::TYPE_UINT64, "TYPE_UINT64"},
+          {FieldDescriptorProto::Type::TYPE_INT32, "TYPE_INT32"},
+          {FieldDescriptorProto::Type::TYPE_FIXED64, "TYPE_FIXED64"},
+          {FieldDescriptorProto::Type::TYPE_FIXED32, "TYPE_FIXED32"},
+          {FieldDescriptorProto::Type::TYPE_BOOL, "TYPE_BOOL"},
+          {FieldDescriptorProto::Type::TYPE_STRING, "TYPE_STRING"},
+          {FieldDescriptorProto::Type::TYPE_GROUP, "TYPE_GROUP"},
+          {FieldDescriptorProto::Type::TYPE_MESSAGE, "TYPE_MESSAGE"},
+          {FieldDescriptorProto::Type::TYPE_BYTES, "TYPE_BYTES"},
+          {FieldDescriptorProto::Type::TYPE_UINT32, "TYPE_UINT32"},
+          {FieldDescriptorProto::Type::TYPE_ENUM, "TYPE_ENUM"},
+          {FieldDescriptorProto::Type::TYPE_SFIXED32, "TYPE_SFIXED32"},
+          {FieldDescriptorProto::Type::TYPE_SFIXED64, "TYPE_SFIXED64"},
+          {FieldDescriptorProto::Type::TYPE_SINT32, "TYPE_SINT32"},
+          {FieldDescriptorProto::Type::TYPE_SINT64, "TYPE_SINT64"},
+      });
+  auto const it = kValueNames.find(proto);
+  if (it != kValueNames.end()) {
+    return std::string(it->second);
+  } else {
+    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+  }
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
+                               FieldDescriptorProto::Label* const proto) {
+  static auto constexpr kValuesByName =
+      ::tsdb2::common::fixed_flat_map_of<std::string_view, FieldDescriptorProto::Label>({
+          {"LABEL_OPTIONAL", FieldDescriptorProto::Label::LABEL_OPTIONAL},
+          {"LABEL_REPEATED", FieldDescriptorProto::Label::LABEL_REPEATED},
+          {"LABEL_REQUIRED", FieldDescriptorProto::Label::LABEL_REQUIRED},
+      });
+  DEFINE_CONST_OR_RETURN(name, parser->ParseIdentifier());
+  auto const it = kValuesByName.find(name);
+  if (it != kValuesByName.end()) {
+    *proto = it->second;
+    return ::absl::OkStatus();
+  } else {
+    return parser->InvalidFormatError();
+  }
+}
+
+std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                                FieldDescriptorProto::Label const& proto) {
+  static auto constexpr kValueNames =
+      ::tsdb2::common::fixed_flat_map_of<FieldDescriptorProto::Label, std::string_view>({
+          {FieldDescriptorProto::Label::LABEL_OPTIONAL, "LABEL_OPTIONAL"},
+          {FieldDescriptorProto::Label::LABEL_REPEATED, "LABEL_REPEATED"},
+          {FieldDescriptorProto::Label::LABEL_REQUIRED, "LABEL_REQUIRED"},
+      });
+  auto const it = kValueNames.find(proto);
+  if (it != kValueNames.end()) {
+    return std::string(it->second);
+  } else {
+    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+  }
 }
 
 ::absl::StatusOr<FieldDescriptorProto> FieldDescriptorProto::Decode(
@@ -582,6 +941,53 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   return std::move(encoder).Finish();
 }
 
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               FieldDescriptorProto* const proto) {
+  *proto = FieldDescriptorProto();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "name") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->name.emplace(std::move(value));
+    } else if (field_name == "number") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
+      proto->number.emplace(value);
+    } else if (field_name == "label") {
+      ::google::protobuf::FieldDescriptorProto::Label value;
+      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      proto->label.emplace(value);
+    } else if (field_name == "type") {
+      ::google::protobuf::FieldDescriptorProto::Type value;
+      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      proto->type.emplace(value);
+    } else if (field_name == "type_name") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->type_name.emplace(std::move(value));
+    } else if (field_name == "extendee") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->extendee.emplace(std::move(value));
+    } else if (field_name == "default_value") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->default_value.emplace(std::move(value));
+    } else if (field_name == "oneof_index") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
+      proto->oneof_index.emplace(value);
+    } else if (field_name == "json_name") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->json_name.emplace(std::move(value));
+    } else if (field_name == "options") {
+    } else if (field_name == "proto3_optional") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->proto3_optional.emplace(value);
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
+}
+
 ::absl::StatusOr<OneofDescriptorProto> OneofDescriptorProto::Decode(
     ::absl::Span<uint8_t const> const data) {
   OneofDescriptorProto proto;
@@ -622,6 +1028,24 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   return std::move(encoder).Finish();
 }
 
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               OneofDescriptorProto* const proto) {
+  *proto = OneofDescriptorProto();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "name") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->name.emplace(std::move(value));
+    } else if (field_name == "options") {
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
+}
+
 ::absl::StatusOr<EnumDescriptorProto::EnumReservedRange>
 EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const data) {
   EnumDescriptorProto::EnumReservedRange proto;
@@ -659,6 +1083,26 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     encoder.EncodeInt32Field(2, proto.end.value());
   }
   return std::move(encoder).Finish();
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               EnumDescriptorProto::EnumReservedRange* const proto) {
+  *proto = EnumDescriptorProto::EnumReservedRange();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "start") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
+      proto->start.emplace(value);
+    } else if (field_name == "end") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
+      proto->end.emplace(value);
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
 }
 
 ::absl::StatusOr<EnumDescriptorProto> EnumDescriptorProto::Decode(
@@ -727,6 +1171,29 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   return std::move(encoder).Finish();
 }
 
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               EnumDescriptorProto* const proto) {
+  *proto = EnumDescriptorProto();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "name") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->name.emplace(std::move(value));
+    } else if (field_name == "value") {
+    } else if (field_name == "options") {
+    } else if (field_name == "reserved_range") {
+    } else if (field_name == "reserved_name") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->reserved_name.emplace_back(std::move(value));
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
+}
+
 ::absl::StatusOr<EnumValueDescriptorProto> EnumValueDescriptorProto::Decode(
     ::absl::Span<uint8_t const> const data) {
   EnumValueDescriptorProto proto;
@@ -772,6 +1239,27 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
         3, ::google::protobuf::EnumValueOptions::Encode(proto.options.value()));
   }
   return std::move(encoder).Finish();
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               EnumValueDescriptorProto* const proto) {
+  *proto = EnumValueDescriptorProto();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "name") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->name.emplace(std::move(value));
+    } else if (field_name == "number") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
+      proto->number.emplace(value);
+    } else if (field_name == "options") {
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
 }
 
 ::absl::StatusOr<ServiceDescriptorProto> ServiceDescriptorProto::Decode(
@@ -820,6 +1308,25 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
         3, ::google::protobuf::ServiceOptions::Encode(proto.options.value()));
   }
   return std::move(encoder).Finish();
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               ServiceDescriptorProto* const proto) {
+  *proto = ServiceDescriptorProto();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "name") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->name.emplace(std::move(value));
+    } else if (field_name == "method") {
+    } else if (field_name == "options") {
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
 }
 
 ::absl::StatusOr<MethodDescriptorProto> MethodDescriptorProto::Decode(
@@ -884,6 +1391,70 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   encoder.EncodeBoolField(5, proto.client_streaming);
   encoder.EncodeBoolField(6, proto.server_streaming);
   return std::move(encoder).Finish();
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               MethodDescriptorProto* const proto) {
+  *proto = MethodDescriptorProto();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "name") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->name.emplace(std::move(value));
+    } else if (field_name == "input_type") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->input_type.emplace(std::move(value));
+    } else if (field_name == "output_type") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->output_type.emplace(std::move(value));
+    } else if (field_name == "options") {
+    } else if (field_name == "client_streaming") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->client_streaming = value;
+    } else if (field_name == "server_streaming") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->server_streaming = value;
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
+                               FileOptions::OptimizeMode* const proto) {
+  static auto constexpr kValuesByName =
+      ::tsdb2::common::fixed_flat_map_of<std::string_view, FileOptions::OptimizeMode>({
+          {"SPEED", FileOptions::OptimizeMode::SPEED},
+          {"CODE_SIZE", FileOptions::OptimizeMode::CODE_SIZE},
+          {"LITE_RUNTIME", FileOptions::OptimizeMode::LITE_RUNTIME},
+      });
+  DEFINE_CONST_OR_RETURN(name, parser->ParseIdentifier());
+  auto const it = kValuesByName.find(name);
+  if (it != kValuesByName.end()) {
+    *proto = it->second;
+    return ::absl::OkStatus();
+  } else {
+    return parser->InvalidFormatError();
+  }
+}
+
+std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                                FileOptions::OptimizeMode const& proto) {
+  static auto constexpr kValueNames =
+      ::tsdb2::common::fixed_flat_map_of<FileOptions::OptimizeMode, std::string_view>({
+          {FileOptions::OptimizeMode::SPEED, "SPEED"},
+          {FileOptions::OptimizeMode::CODE_SIZE, "CODE_SIZE"},
+          {FileOptions::OptimizeMode::LITE_RUNTIME, "LITE_RUNTIME"},
+      });
+  auto const it = kValueNames.find(proto);
+  if (it != kValueNames.end()) {
+    return std::string(it->second);
+  } else {
+    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+  }
 }
 
 ::absl::StatusOr<FileOptions> FileOptions::Decode(::absl::Span<uint8_t const> const data) {
@@ -1048,6 +1619,80 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   return cord;
 }
 
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               FileOptions* const proto) {
+  *proto = FileOptions();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "java_package") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->java_package.emplace(std::move(value));
+    } else if (field_name == "java_outer_classname") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->java_outer_classname.emplace(std::move(value));
+    } else if (field_name == "java_multiple_files") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->java_multiple_files = value;
+    } else if (field_name == "java_generate_equals_and_hash") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->java_generate_equals_and_hash.emplace(value);
+    } else if (field_name == "java_string_check_utf8") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->java_string_check_utf8 = value;
+    } else if (field_name == "optimize_for") {
+      ::google::protobuf::FileOptions::OptimizeMode value;
+      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      proto->optimize_for = value;
+    } else if (field_name == "go_package") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->go_package.emplace(std::move(value));
+    } else if (field_name == "cc_generic_services") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->cc_generic_services = value;
+    } else if (field_name == "java_generic_services") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->java_generic_services = value;
+    } else if (field_name == "py_generic_services") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->py_generic_services = value;
+    } else if (field_name == "deprecated") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->deprecated = value;
+    } else if (field_name == "cc_enable_arenas") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->cc_enable_arenas = value;
+    } else if (field_name == "objc_class_prefix") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->objc_class_prefix.emplace(std::move(value));
+    } else if (field_name == "csharp_namespace") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->csharp_namespace.emplace(std::move(value));
+    } else if (field_name == "swift_prefix") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->swift_prefix.emplace(std::move(value));
+    } else if (field_name == "php_class_prefix") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->php_class_prefix.emplace(std::move(value));
+    } else if (field_name == "php_namespace") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->php_namespace.emplace(std::move(value));
+    } else if (field_name == "php_metadata_namespace") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->php_metadata_namespace.emplace(std::move(value));
+    } else if (field_name == "ruby_package") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->ruby_package.emplace(std::move(value));
+    } else if (field_name == "features") {
+    } else if (field_name == "uninterpreted_option") {
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
+}
+
 ::absl::StatusOr<MessageOptions> MessageOptions::Decode(::absl::Span<uint8_t const> const data) {
   MessageOptions proto;
   ::tsdb2::proto::Decoder decoder{data};
@@ -1120,6 +1765,189 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   return cord;
 }
 
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               MessageOptions* const proto) {
+  *proto = MessageOptions();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "message_set_wire_format") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->message_set_wire_format = value;
+    } else if (field_name == "no_standard_descriptor_accessor") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->no_standard_descriptor_accessor = value;
+    } else if (field_name == "deprecated") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->deprecated = value;
+    } else if (field_name == "map_entry") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->map_entry.emplace(value);
+    } else if (field_name == "deprecated_legacy_json_field_conflicts") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->deprecated_legacy_json_field_conflicts.emplace(value);
+    } else if (field_name == "features") {
+    } else if (field_name == "uninterpreted_option") {
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
+                               FieldOptions::CType* const proto) {
+  static auto constexpr kValuesByName =
+      ::tsdb2::common::fixed_flat_map_of<std::string_view, FieldOptions::CType>({
+          {"STRING", FieldOptions::CType::STRING},
+          {"CORD", FieldOptions::CType::CORD},
+          {"STRING_PIECE", FieldOptions::CType::STRING_PIECE},
+      });
+  DEFINE_CONST_OR_RETURN(name, parser->ParseIdentifier());
+  auto const it = kValuesByName.find(name);
+  if (it != kValuesByName.end()) {
+    *proto = it->second;
+    return ::absl::OkStatus();
+  } else {
+    return parser->InvalidFormatError();
+  }
+}
+
+std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                                FieldOptions::CType const& proto) {
+  static auto constexpr kValueNames =
+      ::tsdb2::common::fixed_flat_map_of<FieldOptions::CType, std::string_view>({
+          {FieldOptions::CType::STRING, "STRING"},
+          {FieldOptions::CType::CORD, "CORD"},
+          {FieldOptions::CType::STRING_PIECE, "STRING_PIECE"},
+      });
+  auto const it = kValueNames.find(proto);
+  if (it != kValueNames.end()) {
+    return std::string(it->second);
+  } else {
+    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+  }
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
+                               FieldOptions::JSType* const proto) {
+  static auto constexpr kValuesByName =
+      ::tsdb2::common::fixed_flat_map_of<std::string_view, FieldOptions::JSType>({
+          {"JS_NORMAL", FieldOptions::JSType::JS_NORMAL},
+          {"JS_STRING", FieldOptions::JSType::JS_STRING},
+          {"JS_NUMBER", FieldOptions::JSType::JS_NUMBER},
+      });
+  DEFINE_CONST_OR_RETURN(name, parser->ParseIdentifier());
+  auto const it = kValuesByName.find(name);
+  if (it != kValuesByName.end()) {
+    *proto = it->second;
+    return ::absl::OkStatus();
+  } else {
+    return parser->InvalidFormatError();
+  }
+}
+
+std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                                FieldOptions::JSType const& proto) {
+  static auto constexpr kValueNames =
+      ::tsdb2::common::fixed_flat_map_of<FieldOptions::JSType, std::string_view>({
+          {FieldOptions::JSType::JS_NORMAL, "JS_NORMAL"},
+          {FieldOptions::JSType::JS_STRING, "JS_STRING"},
+          {FieldOptions::JSType::JS_NUMBER, "JS_NUMBER"},
+      });
+  auto const it = kValueNames.find(proto);
+  if (it != kValueNames.end()) {
+    return std::string(it->second);
+  } else {
+    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+  }
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
+                               FieldOptions::OptionRetention* const proto) {
+  static auto constexpr kValuesByName =
+      ::tsdb2::common::fixed_flat_map_of<std::string_view, FieldOptions::OptionRetention>({
+          {"RETENTION_UNKNOWN", FieldOptions::OptionRetention::RETENTION_UNKNOWN},
+          {"RETENTION_RUNTIME", FieldOptions::OptionRetention::RETENTION_RUNTIME},
+          {"RETENTION_SOURCE", FieldOptions::OptionRetention::RETENTION_SOURCE},
+      });
+  DEFINE_CONST_OR_RETURN(name, parser->ParseIdentifier());
+  auto const it = kValuesByName.find(name);
+  if (it != kValuesByName.end()) {
+    *proto = it->second;
+    return ::absl::OkStatus();
+  } else {
+    return parser->InvalidFormatError();
+  }
+}
+
+std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                                FieldOptions::OptionRetention const& proto) {
+  static auto constexpr kValueNames =
+      ::tsdb2::common::fixed_flat_map_of<FieldOptions::OptionRetention, std::string_view>({
+          {FieldOptions::OptionRetention::RETENTION_UNKNOWN, "RETENTION_UNKNOWN"},
+          {FieldOptions::OptionRetention::RETENTION_RUNTIME, "RETENTION_RUNTIME"},
+          {FieldOptions::OptionRetention::RETENTION_SOURCE, "RETENTION_SOURCE"},
+      });
+  auto const it = kValueNames.find(proto);
+  if (it != kValueNames.end()) {
+    return std::string(it->second);
+  } else {
+    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+  }
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
+                               FieldOptions::OptionTargetType* const proto) {
+  static auto constexpr kValuesByName =
+      ::tsdb2::common::fixed_flat_map_of<std::string_view, FieldOptions::OptionTargetType>({
+          {"TARGET_TYPE_UNKNOWN", FieldOptions::OptionTargetType::TARGET_TYPE_UNKNOWN},
+          {"TARGET_TYPE_FILE", FieldOptions::OptionTargetType::TARGET_TYPE_FILE},
+          {"TARGET_TYPE_EXTENSION_RANGE",
+           FieldOptions::OptionTargetType::TARGET_TYPE_EXTENSION_RANGE},
+          {"TARGET_TYPE_MESSAGE", FieldOptions::OptionTargetType::TARGET_TYPE_MESSAGE},
+          {"TARGET_TYPE_FIELD", FieldOptions::OptionTargetType::TARGET_TYPE_FIELD},
+          {"TARGET_TYPE_ONEOF", FieldOptions::OptionTargetType::TARGET_TYPE_ONEOF},
+          {"TARGET_TYPE_ENUM", FieldOptions::OptionTargetType::TARGET_TYPE_ENUM},
+          {"TARGET_TYPE_ENUM_ENTRY", FieldOptions::OptionTargetType::TARGET_TYPE_ENUM_ENTRY},
+          {"TARGET_TYPE_SERVICE", FieldOptions::OptionTargetType::TARGET_TYPE_SERVICE},
+          {"TARGET_TYPE_METHOD", FieldOptions::OptionTargetType::TARGET_TYPE_METHOD},
+      });
+  DEFINE_CONST_OR_RETURN(name, parser->ParseIdentifier());
+  auto const it = kValuesByName.find(name);
+  if (it != kValuesByName.end()) {
+    *proto = it->second;
+    return ::absl::OkStatus();
+  } else {
+    return parser->InvalidFormatError();
+  }
+}
+
+std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                                FieldOptions::OptionTargetType const& proto) {
+  static auto constexpr kValueNames =
+      ::tsdb2::common::fixed_flat_map_of<FieldOptions::OptionTargetType, std::string_view>({
+          {FieldOptions::OptionTargetType::TARGET_TYPE_UNKNOWN, "TARGET_TYPE_UNKNOWN"},
+          {FieldOptions::OptionTargetType::TARGET_TYPE_FILE, "TARGET_TYPE_FILE"},
+          {FieldOptions::OptionTargetType::TARGET_TYPE_EXTENSION_RANGE,
+           "TARGET_TYPE_EXTENSION_RANGE"},
+          {FieldOptions::OptionTargetType::TARGET_TYPE_MESSAGE, "TARGET_TYPE_MESSAGE"},
+          {FieldOptions::OptionTargetType::TARGET_TYPE_FIELD, "TARGET_TYPE_FIELD"},
+          {FieldOptions::OptionTargetType::TARGET_TYPE_ONEOF, "TARGET_TYPE_ONEOF"},
+          {FieldOptions::OptionTargetType::TARGET_TYPE_ENUM, "TARGET_TYPE_ENUM"},
+          {FieldOptions::OptionTargetType::TARGET_TYPE_ENUM_ENTRY, "TARGET_TYPE_ENUM_ENTRY"},
+          {FieldOptions::OptionTargetType::TARGET_TYPE_SERVICE, "TARGET_TYPE_SERVICE"},
+          {FieldOptions::OptionTargetType::TARGET_TYPE_METHOD, "TARGET_TYPE_METHOD"},
+      });
+  auto const it = kValueNames.find(proto);
+  if (it != kValueNames.end()) {
+    return std::string(it->second);
+  } else {
+    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+  }
+}
+
 ::absl::StatusOr<FieldOptions::EditionDefault> FieldOptions::EditionDefault::Decode(
     ::absl::Span<uint8_t const> const data) {
   FieldOptions::EditionDefault proto;
@@ -1157,6 +1985,27 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     encoder.EncodeStringField(2, proto.value.value());
   }
   return std::move(encoder).Finish();
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               FieldOptions::EditionDefault* const proto) {
+  *proto = FieldOptions::EditionDefault();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "edition") {
+      ::google::protobuf::Edition value;
+      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      proto->edition.emplace(value);
+    } else if (field_name == "value") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->value.emplace(std::move(value));
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
 }
 
 ::absl::StatusOr<FieldOptions::FeatureSupport> FieldOptions::FeatureSupport::Decode(
@@ -1212,6 +2061,35 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     encoder.EncodeEnumField(4, proto.edition_removed.value());
   }
   return std::move(encoder).Finish();
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               FieldOptions::FeatureSupport* const proto) {
+  *proto = FieldOptions::FeatureSupport();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "edition_introduced") {
+      ::google::protobuf::Edition value;
+      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      proto->edition_introduced.emplace(value);
+    } else if (field_name == "edition_deprecated") {
+      ::google::protobuf::Edition value;
+      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      proto->edition_deprecated.emplace(value);
+    } else if (field_name == "deprecation_warning") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->deprecation_warning.emplace(std::move(value));
+    } else if (field_name == "edition_removed") {
+      ::google::protobuf::Edition value;
+      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      proto->edition_removed.emplace(value);
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
 }
 
 ::absl::StatusOr<FieldOptions> FieldOptions::Decode(::absl::Span<uint8_t const> const data) {
@@ -1339,6 +2217,58 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   return cord;
 }
 
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               FieldOptions* const proto) {
+  *proto = FieldOptions();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "ctype") {
+      ::google::protobuf::FieldOptions::CType value;
+      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      proto->ctype = value;
+    } else if (field_name == "packed") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->packed.emplace(value);
+    } else if (field_name == "jstype") {
+      ::google::protobuf::FieldOptions::JSType value;
+      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      proto->jstype = value;
+    } else if (field_name == "lazy") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->lazy = value;
+    } else if (field_name == "unverified_lazy") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->unverified_lazy = value;
+    } else if (field_name == "deprecated") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->deprecated = value;
+    } else if (field_name == "weak") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->weak = value;
+    } else if (field_name == "debug_redact") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->debug_redact = value;
+    } else if (field_name == "retention") {
+      ::google::protobuf::FieldOptions::OptionRetention value;
+      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      proto->retention.emplace(value);
+    } else if (field_name == "targets") {
+      ::google::protobuf::FieldOptions::OptionTargetType value;
+      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      proto->targets.emplace_back(value);
+    } else if (field_name == "edition_defaults") {
+    } else if (field_name == "features") {
+    } else if (field_name == "feature_support") {
+    } else if (field_name == "uninterpreted_option") {
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
+}
+
 ::absl::StatusOr<OneofOptions> OneofOptions::Decode(::absl::Span<uint8_t const> const data) {
   OneofOptions proto;
   ::tsdb2::proto::Decoder decoder{data};
@@ -1380,6 +2310,22 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   auto cord = std::move(encoder).Finish();
   proto.extension_data.AppendTo(&cord);
   return cord;
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               OneofOptions* const proto) {
+  *proto = OneofOptions();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "features") {
+    } else if (field_name == "uninterpreted_option") {
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
 }
 
 ::absl::StatusOr<EnumOptions> EnumOptions::Decode(::absl::Span<uint8_t const> const data) {
@@ -1442,6 +2388,31 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   auto cord = std::move(encoder).Finish();
   proto.extension_data.AppendTo(&cord);
   return cord;
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               EnumOptions* const proto) {
+  *proto = EnumOptions();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "allow_alias") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->allow_alias.emplace(value);
+    } else if (field_name == "deprecated") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->deprecated = value;
+    } else if (field_name == "deprecated_legacy_json_field_conflicts") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->deprecated_legacy_json_field_conflicts.emplace(value);
+    } else if (field_name == "features") {
+    } else if (field_name == "uninterpreted_option") {
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
 }
 
 ::absl::StatusOr<EnumValueOptions> EnumValueOptions::Decode(
@@ -1508,6 +2479,29 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   return cord;
 }
 
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               EnumValueOptions* const proto) {
+  *proto = EnumValueOptions();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "deprecated") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->deprecated = value;
+    } else if (field_name == "features") {
+    } else if (field_name == "debug_redact") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->debug_redact = value;
+    } else if (field_name == "feature_support") {
+    } else if (field_name == "uninterpreted_option") {
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
+}
+
 ::absl::StatusOr<ServiceOptions> ServiceOptions::Decode(::absl::Span<uint8_t const> const data) {
   ServiceOptions proto;
   ::tsdb2::proto::Decoder decoder{data};
@@ -1554,6 +2548,59 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   auto cord = std::move(encoder).Finish();
   proto.extension_data.AppendTo(&cord);
   return cord;
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               ServiceOptions* const proto) {
+  *proto = ServiceOptions();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "features") {
+    } else if (field_name == "deprecated") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->deprecated = value;
+    } else if (field_name == "uninterpreted_option") {
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
+                               MethodOptions::IdempotencyLevel* const proto) {
+  static auto constexpr kValuesByName =
+      ::tsdb2::common::fixed_flat_map_of<std::string_view, MethodOptions::IdempotencyLevel>({
+          {"IDEMPOTENCY_UNKNOWN", MethodOptions::IdempotencyLevel::IDEMPOTENCY_UNKNOWN},
+          {"NO_SIDE_EFFECTS", MethodOptions::IdempotencyLevel::NO_SIDE_EFFECTS},
+          {"IDEMPOTENT", MethodOptions::IdempotencyLevel::IDEMPOTENT},
+      });
+  DEFINE_CONST_OR_RETURN(name, parser->ParseIdentifier());
+  auto const it = kValuesByName.find(name);
+  if (it != kValuesByName.end()) {
+    *proto = it->second;
+    return ::absl::OkStatus();
+  } else {
+    return parser->InvalidFormatError();
+  }
+}
+
+std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                                MethodOptions::IdempotencyLevel const& proto) {
+  static auto constexpr kValueNames =
+      ::tsdb2::common::fixed_flat_map_of<MethodOptions::IdempotencyLevel, std::string_view>({
+          {MethodOptions::IdempotencyLevel::IDEMPOTENCY_UNKNOWN, "IDEMPOTENCY_UNKNOWN"},
+          {MethodOptions::IdempotencyLevel::NO_SIDE_EFFECTS, "NO_SIDE_EFFECTS"},
+          {MethodOptions::IdempotencyLevel::IDEMPOTENT, "IDEMPOTENT"},
+      });
+  auto const it = kValueNames.find(proto);
+  if (it != kValueNames.end()) {
+    return std::string(it->second);
+  } else {
+    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+  }
 }
 
 ::absl::StatusOr<MethodOptions> MethodOptions::Decode(::absl::Span<uint8_t const> const data) {
@@ -1611,6 +2658,29 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   return cord;
 }
 
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               MethodOptions* const proto) {
+  *proto = MethodOptions();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "deprecated") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->deprecated = value;
+    } else if (field_name == "idempotency_level") {
+      ::google::protobuf::MethodOptions::IdempotencyLevel value;
+      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      proto->idempotency_level = value;
+    } else if (field_name == "features") {
+    } else if (field_name == "uninterpreted_option") {
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
+}
+
 ::absl::StatusOr<UninterpretedOption::NamePart> UninterpretedOption::NamePart::Decode(
     ::absl::Span<uint8_t const> const data) {
   UninterpretedOption::NamePart proto;
@@ -1653,6 +2723,35 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   encoder.EncodeStringField(1, proto.name_part);
   encoder.EncodeBoolField(2, proto.is_extension);
   return std::move(encoder).Finish();
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               UninterpretedOption::NamePart* const proto) {
+  *proto = UninterpretedOption::NamePart();
+  ::tsdb2::common::flat_set<size_t> parsed;
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "name_part") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->name_part = std::move(value);
+      parsed.emplace(1);
+    } else if (field_name == "is_extension") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseBoolean());
+      proto->is_extension = value;
+      parsed.emplace(2);
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  if (!parsed.contains(1)) {
+    return absl::InvalidArgumentError("missing required field \"name_part\"");
+  }
+  if (!parsed.contains(2)) {
+    return absl::InvalidArgumentError("missing required field \"is_extension\"");
+  }
+  return ::absl::OkStatus();
 }
 
 ::absl::StatusOr<UninterpretedOption> UninterpretedOption::Decode(
@@ -1729,6 +2828,247 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     encoder.EncodeStringField(8, proto.aggregate_value.value());
   }
   return std::move(encoder).Finish();
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               UninterpretedOption* const proto) {
+  *proto = UninterpretedOption();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "name") {
+    } else if (field_name == "identifier_value") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->identifier_value.emplace(std::move(value));
+    } else if (field_name == "positive_int_value") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<uint64_t>());
+      proto->positive_int_value.emplace(value);
+    } else if (field_name == "negative_int_value") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int64_t>());
+      proto->negative_int_value.emplace(value);
+    } else if (field_name == "double_value") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseFloat<double>());
+      proto->double_value.emplace(value);
+    } else if (field_name == "string_value") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseBytes());
+      proto->string_value.emplace(std::move(value));
+    } else if (field_name == "aggregate_value") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->aggregate_value.emplace(std::move(value));
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
+                               FeatureSet::FieldPresence* const proto) {
+  static auto constexpr kValuesByName =
+      ::tsdb2::common::fixed_flat_map_of<std::string_view, FeatureSet::FieldPresence>({
+          {"FIELD_PRESENCE_UNKNOWN", FeatureSet::FieldPresence::FIELD_PRESENCE_UNKNOWN},
+          {"EXPLICIT", FeatureSet::FieldPresence::EXPLICIT},
+          {"IMPLICIT", FeatureSet::FieldPresence::IMPLICIT},
+          {"LEGACY_REQUIRED", FeatureSet::FieldPresence::LEGACY_REQUIRED},
+      });
+  DEFINE_CONST_OR_RETURN(name, parser->ParseIdentifier());
+  auto const it = kValuesByName.find(name);
+  if (it != kValuesByName.end()) {
+    *proto = it->second;
+    return ::absl::OkStatus();
+  } else {
+    return parser->InvalidFormatError();
+  }
+}
+
+std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                                FeatureSet::FieldPresence const& proto) {
+  static auto constexpr kValueNames =
+      ::tsdb2::common::fixed_flat_map_of<FeatureSet::FieldPresence, std::string_view>({
+          {FeatureSet::FieldPresence::FIELD_PRESENCE_UNKNOWN, "FIELD_PRESENCE_UNKNOWN"},
+          {FeatureSet::FieldPresence::EXPLICIT, "EXPLICIT"},
+          {FeatureSet::FieldPresence::IMPLICIT, "IMPLICIT"},
+          {FeatureSet::FieldPresence::LEGACY_REQUIRED, "LEGACY_REQUIRED"},
+      });
+  auto const it = kValueNames.find(proto);
+  if (it != kValueNames.end()) {
+    return std::string(it->second);
+  } else {
+    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+  }
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
+                               FeatureSet::EnumType* const proto) {
+  static auto constexpr kValuesByName =
+      ::tsdb2::common::fixed_flat_map_of<std::string_view, FeatureSet::EnumType>({
+          {"ENUM_TYPE_UNKNOWN", FeatureSet::EnumType::ENUM_TYPE_UNKNOWN},
+          {"OPEN", FeatureSet::EnumType::OPEN},
+          {"CLOSED", FeatureSet::EnumType::CLOSED},
+      });
+  DEFINE_CONST_OR_RETURN(name, parser->ParseIdentifier());
+  auto const it = kValuesByName.find(name);
+  if (it != kValuesByName.end()) {
+    *proto = it->second;
+    return ::absl::OkStatus();
+  } else {
+    return parser->InvalidFormatError();
+  }
+}
+
+std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                                FeatureSet::EnumType const& proto) {
+  static auto constexpr kValueNames =
+      ::tsdb2::common::fixed_flat_map_of<FeatureSet::EnumType, std::string_view>({
+          {FeatureSet::EnumType::ENUM_TYPE_UNKNOWN, "ENUM_TYPE_UNKNOWN"},
+          {FeatureSet::EnumType::OPEN, "OPEN"},
+          {FeatureSet::EnumType::CLOSED, "CLOSED"},
+      });
+  auto const it = kValueNames.find(proto);
+  if (it != kValueNames.end()) {
+    return std::string(it->second);
+  } else {
+    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+  }
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
+                               FeatureSet::RepeatedFieldEncoding* const proto) {
+  static auto constexpr kValuesByName =
+      ::tsdb2::common::fixed_flat_map_of<std::string_view, FeatureSet::RepeatedFieldEncoding>({
+          {"REPEATED_FIELD_ENCODING_UNKNOWN",
+           FeatureSet::RepeatedFieldEncoding::REPEATED_FIELD_ENCODING_UNKNOWN},
+          {"PACKED", FeatureSet::RepeatedFieldEncoding::PACKED},
+          {"EXPANDED", FeatureSet::RepeatedFieldEncoding::EXPANDED},
+      });
+  DEFINE_CONST_OR_RETURN(name, parser->ParseIdentifier());
+  auto const it = kValuesByName.find(name);
+  if (it != kValuesByName.end()) {
+    *proto = it->second;
+    return ::absl::OkStatus();
+  } else {
+    return parser->InvalidFormatError();
+  }
+}
+
+std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                                FeatureSet::RepeatedFieldEncoding const& proto) {
+  static auto constexpr kValueNames =
+      ::tsdb2::common::fixed_flat_map_of<FeatureSet::RepeatedFieldEncoding, std::string_view>({
+          {FeatureSet::RepeatedFieldEncoding::REPEATED_FIELD_ENCODING_UNKNOWN,
+           "REPEATED_FIELD_ENCODING_UNKNOWN"},
+          {FeatureSet::RepeatedFieldEncoding::PACKED, "PACKED"},
+          {FeatureSet::RepeatedFieldEncoding::EXPANDED, "EXPANDED"},
+      });
+  auto const it = kValueNames.find(proto);
+  if (it != kValueNames.end()) {
+    return std::string(it->second);
+  } else {
+    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+  }
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
+                               FeatureSet::Utf8Validation* const proto) {
+  static auto constexpr kValuesByName =
+      ::tsdb2::common::fixed_flat_map_of<std::string_view, FeatureSet::Utf8Validation>({
+          {"UTF8_VALIDATION_UNKNOWN", FeatureSet::Utf8Validation::UTF8_VALIDATION_UNKNOWN},
+          {"VERIFY", FeatureSet::Utf8Validation::VERIFY},
+          {"NONE", FeatureSet::Utf8Validation::NONE},
+      });
+  DEFINE_CONST_OR_RETURN(name, parser->ParseIdentifier());
+  auto const it = kValuesByName.find(name);
+  if (it != kValuesByName.end()) {
+    *proto = it->second;
+    return ::absl::OkStatus();
+  } else {
+    return parser->InvalidFormatError();
+  }
+}
+
+std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                                FeatureSet::Utf8Validation const& proto) {
+  static auto constexpr kValueNames =
+      ::tsdb2::common::fixed_flat_map_of<FeatureSet::Utf8Validation, std::string_view>({
+          {FeatureSet::Utf8Validation::UTF8_VALIDATION_UNKNOWN, "UTF8_VALIDATION_UNKNOWN"},
+          {FeatureSet::Utf8Validation::VERIFY, "VERIFY"},
+          {FeatureSet::Utf8Validation::NONE, "NONE"},
+      });
+  auto const it = kValueNames.find(proto);
+  if (it != kValueNames.end()) {
+    return std::string(it->second);
+  } else {
+    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+  }
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
+                               FeatureSet::MessageEncoding* const proto) {
+  static auto constexpr kValuesByName =
+      ::tsdb2::common::fixed_flat_map_of<std::string_view, FeatureSet::MessageEncoding>({
+          {"MESSAGE_ENCODING_UNKNOWN", FeatureSet::MessageEncoding::MESSAGE_ENCODING_UNKNOWN},
+          {"LENGTH_PREFIXED", FeatureSet::MessageEncoding::LENGTH_PREFIXED},
+          {"DELIMITED", FeatureSet::MessageEncoding::DELIMITED},
+      });
+  DEFINE_CONST_OR_RETURN(name, parser->ParseIdentifier());
+  auto const it = kValuesByName.find(name);
+  if (it != kValuesByName.end()) {
+    *proto = it->second;
+    return ::absl::OkStatus();
+  } else {
+    return parser->InvalidFormatError();
+  }
+}
+
+std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                                FeatureSet::MessageEncoding const& proto) {
+  static auto constexpr kValueNames =
+      ::tsdb2::common::fixed_flat_map_of<FeatureSet::MessageEncoding, std::string_view>({
+          {FeatureSet::MessageEncoding::MESSAGE_ENCODING_UNKNOWN, "MESSAGE_ENCODING_UNKNOWN"},
+          {FeatureSet::MessageEncoding::LENGTH_PREFIXED, "LENGTH_PREFIXED"},
+          {FeatureSet::MessageEncoding::DELIMITED, "DELIMITED"},
+      });
+  auto const it = kValueNames.find(proto);
+  if (it != kValueNames.end()) {
+    return std::string(it->second);
+  } else {
+    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+  }
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
+                               FeatureSet::JsonFormat* const proto) {
+  static auto constexpr kValuesByName =
+      ::tsdb2::common::fixed_flat_map_of<std::string_view, FeatureSet::JsonFormat>({
+          {"JSON_FORMAT_UNKNOWN", FeatureSet::JsonFormat::JSON_FORMAT_UNKNOWN},
+          {"ALLOW", FeatureSet::JsonFormat::ALLOW},
+          {"LEGACY_BEST_EFFORT", FeatureSet::JsonFormat::LEGACY_BEST_EFFORT},
+      });
+  DEFINE_CONST_OR_RETURN(name, parser->ParseIdentifier());
+  auto const it = kValuesByName.find(name);
+  if (it != kValuesByName.end()) {
+    *proto = it->second;
+    return ::absl::OkStatus();
+  } else {
+    return parser->InvalidFormatError();
+  }
+}
+
+std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                                FeatureSet::JsonFormat const& proto) {
+  static auto constexpr kValueNames =
+      ::tsdb2::common::fixed_flat_map_of<FeatureSet::JsonFormat, std::string_view>({
+          {FeatureSet::JsonFormat::JSON_FORMAT_UNKNOWN, "JSON_FORMAT_UNKNOWN"},
+          {FeatureSet::JsonFormat::ALLOW, "ALLOW"},
+          {FeatureSet::JsonFormat::LEGACY_BEST_EFFORT, "LEGACY_BEST_EFFORT"},
+      });
+  auto const it = kValueNames.find(proto);
+  if (it != kValueNames.end()) {
+    return std::string(it->second);
+  } else {
+    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+  }
 }
 
 ::absl::StatusOr<FeatureSet> FeatureSet::Decode(::absl::Span<uint8_t const> const data) {
@@ -1811,6 +3151,44 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   return cord;
 }
 
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               FeatureSet* const proto) {
+  *proto = FeatureSet();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "field_presence") {
+      ::google::protobuf::FeatureSet::FieldPresence value;
+      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      proto->field_presence.emplace(value);
+    } else if (field_name == "enum_type") {
+      ::google::protobuf::FeatureSet::EnumType value;
+      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      proto->enum_type.emplace(value);
+    } else if (field_name == "repeated_field_encoding") {
+      ::google::protobuf::FeatureSet::RepeatedFieldEncoding value;
+      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      proto->repeated_field_encoding.emplace(value);
+    } else if (field_name == "utf8_validation") {
+      ::google::protobuf::FeatureSet::Utf8Validation value;
+      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      proto->utf8_validation.emplace(value);
+    } else if (field_name == "message_encoding") {
+      ::google::protobuf::FeatureSet::MessageEncoding value;
+      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      proto->message_encoding.emplace(value);
+    } else if (field_name == "json_format") {
+      ::google::protobuf::FeatureSet::JsonFormat value;
+      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      proto->json_format.emplace(value);
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
+}
+
 ::absl::StatusOr<FeatureSetDefaults::FeatureSetEditionDefault>
 FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const> const data) {
   FeatureSetDefaults::FeatureSetEditionDefault proto;
@@ -1862,6 +3240,26 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
   return std::move(encoder).Finish();
 }
 
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               FeatureSetDefaults::FeatureSetEditionDefault* const proto) {
+  *proto = FeatureSetDefaults::FeatureSetEditionDefault();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "edition") {
+      ::google::protobuf::Edition value;
+      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      proto->edition.emplace(value);
+    } else if (field_name == "overridable_features") {
+    } else if (field_name == "fixed_features") {
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
+}
+
 ::absl::StatusOr<FeatureSetDefaults> FeatureSetDefaults::Decode(
     ::absl::Span<uint8_t const> const data) {
   FeatureSetDefaults proto;
@@ -1911,6 +3309,29 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
     encoder.EncodeEnumField(5, proto.maximum_edition.value());
   }
   return std::move(encoder).Finish();
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               FeatureSetDefaults* const proto) {
+  *proto = FeatureSetDefaults();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "defaults") {
+    } else if (field_name == "minimum_edition") {
+      ::google::protobuf::Edition value;
+      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      proto->minimum_edition.emplace(value);
+    } else if (field_name == "maximum_edition") {
+      ::google::protobuf::Edition value;
+      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      proto->maximum_edition.emplace(value);
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
 }
 
 ::absl::StatusOr<SourceCodeInfo::Location> SourceCodeInfo::Location::Decode(
@@ -1966,6 +3387,35 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
   return std::move(encoder).Finish();
 }
 
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               SourceCodeInfo::Location* const proto) {
+  *proto = SourceCodeInfo::Location();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "path") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
+      proto->path.emplace_back(value);
+    } else if (field_name == "span") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
+      proto->span.emplace_back(value);
+    } else if (field_name == "leading_comments") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->leading_comments.emplace(std::move(value));
+    } else if (field_name == "trailing_comments") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->trailing_comments.emplace(std::move(value));
+    } else if (field_name == "leading_detached_comments") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->leading_detached_comments.emplace_back(std::move(value));
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
+}
+
 ::absl::StatusOr<SourceCodeInfo> SourceCodeInfo::Decode(::absl::Span<uint8_t const> const data) {
   SourceCodeInfo proto;
   ::tsdb2::proto::Decoder decoder{data};
@@ -1996,6 +3446,57 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
     encoder.EncodeSubMessageField(1, ::google::protobuf::SourceCodeInfo::Location::Encode(value));
   }
   return std::move(encoder).Finish();
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               SourceCodeInfo* const proto) {
+  *proto = SourceCodeInfo();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "location") {
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
+                               GeneratedCodeInfo::Annotation::Semantic* const proto) {
+  static auto constexpr kValuesByName =
+      ::tsdb2::common::fixed_flat_map_of<std::string_view, GeneratedCodeInfo::Annotation::Semantic>(
+          {
+              {"NONE", GeneratedCodeInfo::Annotation::Semantic::NONE},
+              {"SET", GeneratedCodeInfo::Annotation::Semantic::SET},
+              {"ALIAS", GeneratedCodeInfo::Annotation::Semantic::ALIAS},
+          });
+  DEFINE_CONST_OR_RETURN(name, parser->ParseIdentifier());
+  auto const it = kValuesByName.find(name);
+  if (it != kValuesByName.end()) {
+    *proto = it->second;
+    return ::absl::OkStatus();
+  } else {
+    return parser->InvalidFormatError();
+  }
+}
+
+std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                                GeneratedCodeInfo::Annotation::Semantic const& proto) {
+  static auto constexpr kValueNames =
+      ::tsdb2::common::fixed_flat_map_of<GeneratedCodeInfo::Annotation::Semantic, std::string_view>(
+          {
+              {GeneratedCodeInfo::Annotation::Semantic::NONE, "NONE"},
+              {GeneratedCodeInfo::Annotation::Semantic::SET, "SET"},
+              {GeneratedCodeInfo::Annotation::Semantic::ALIAS, "ALIAS"},
+          });
+  auto const it = kValueNames.find(proto);
+  if (it != kValueNames.end()) {
+    return std::string(it->second);
+  } else {
+    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+  }
 }
 
 ::absl::StatusOr<GeneratedCodeInfo::Annotation> GeneratedCodeInfo::Annotation::Decode(
@@ -2058,6 +3559,36 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
   return std::move(encoder).Finish();
 }
 
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               GeneratedCodeInfo::Annotation* const proto) {
+  *proto = GeneratedCodeInfo::Annotation();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "path") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
+      proto->path.emplace_back(value);
+    } else if (field_name == "source_file") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->source_file.emplace(std::move(value));
+    } else if (field_name == "begin") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
+      proto->begin.emplace(value);
+    } else if (field_name == "end") {
+      DEFINE_CONST_OR_RETURN(value, parser->ParseInteger<int32_t>());
+      proto->end.emplace(value);
+    } else if (field_name == "semantic") {
+      ::google::protobuf::GeneratedCodeInfo::Annotation::Semantic value;
+      RETURN_IF_ERROR(Tsdb2ProtoParse(parser, &value));
+      proto->semantic.emplace(value);
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
+}
+
 ::absl::StatusOr<GeneratedCodeInfo> GeneratedCodeInfo::Decode(
     ::absl::Span<uint8_t const> const data) {
   GeneratedCodeInfo proto;
@@ -2090,6 +3621,21 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
                                   ::google::protobuf::GeneratedCodeInfo::Annotation::Encode(value));
   }
   return std::move(encoder).Finish();
+}
+
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               GeneratedCodeInfo* const proto) {
+  *proto = GeneratedCodeInfo();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "annotation") {
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
 }
 
 TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING();

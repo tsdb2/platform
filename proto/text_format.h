@@ -8,20 +8,19 @@
 #include <string_view>
 #include <system_error>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "absl/base/nullability.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/charconv.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/strip.h"
 #include "absl/time/time.h"
 #include "common/no_destructor.h"
 #include "common/re.h"
 #include "common/utilities.h"
 #include "proto/proto.h"
-#include "proto/reflection.h"
 
 namespace tsdb2 {
 namespace proto {
@@ -151,9 +150,10 @@ class Parser {
     } else {
       return InvalidSyntaxError();
     }
-    DEFINE_VAR_OR_RETURN(proto, SubMessage::Parse(&input_));
+    SubMessage message;
+    RETURN_IF_ERROR(Tsdb2ProtoParse(this, &message));
     RETURN_IF_ERROR(RequirePrefix(delimiter));
-    return std::move(proto);
+    return std::move(message);
   }
 
   absl::StatusOr<absl::Time> ParseTimestamp();
@@ -163,9 +163,10 @@ class Parser {
 
   std::string_view remainder() && { return input_; }
 
-  template <typename Message, std::enable_if_t<IsProtoMessageV<Message>, bool> = true>
-  absl::StatusOr<Message> ParseRoot() && {
-    DEFINE_VAR_OR_RETURN(proto, Message::Parse(&input_));
+  template <typename Proto>
+  absl::StatusOr<Proto> ParseRoot() && {
+    Proto proto;
+    RETURN_IF_ERROR(Tsdb2ProtoParse(this, &proto));
     ConsumeSeparators();
     if (input_.empty()) {
       return std::move(proto);
@@ -174,10 +175,10 @@ class Parser {
     }
   }
 
-  template <typename Message, std::enable_if_t<IsProtoMessageV<Message>, bool> = true>
-  static bool ParseFlag(std::string_view const text, absl::Nonnull<Message*> const proto,
+  template <typename Proto>
+  static bool ParseFlag(std::string_view const text, absl::Nonnull<Proto*> const proto,
                         absl::Nonnull<std::string*> const error) {
-    auto status_or_parsed = Parser(text, /*options=*/{}).ParseRoot<Message>();
+    auto status_or_parsed = Parser(text, /*options=*/{}).ParseRoot<Proto>();
     if (status_or_parsed.ok()) {
       *proto = std::move(status_or_parsed).value();
       return true;
@@ -211,9 +212,9 @@ class Parser {
   std::string_view input_;
 };
 
-template <typename Message, std::enable_if_t<IsProtoMessageV<Message>, bool> = true>
-absl::StatusOr<Message> Parse(std::string_view const text, Parser::Options const& options = {}) {
-  return Parser(text, options).ParseRoot<Message>();
+template <typename Proto>
+absl::StatusOr<Proto> Parse(std::string_view const text, Parser::Options const& options = {}) {
+  return Parser(text, options).ParseRoot<Proto>();
 }
 
 class Stringifier {
@@ -241,27 +242,20 @@ class Stringifier {
 
   explicit Stringifier(Options const& options) : options_(options) {}
 
-  template <typename Message,
-            std::enable_if_t<IsProtoMessageV<Message> && HasProtoReflectionV<Message>, bool> = true>
-  std::string Stringify(Message const& value) {
+  template <typename Proto>
+  std::string Stringify(Proto const& proto) {
     // TODO
     return "";
-  }
-
-  template <typename Enum,
-            std::enable_if_t<std::is_enum_v<Enum> && HasProtoReflectionV<Enum>, bool> = true>
-  std::string Stringify(Enum const value) {
-    auto const status_or_name = GetEnumDescriptor<Enum>().GetValueName(value);
-    if (status_or_name.ok()) {
-      return std::string(status_or_name.value());
-    } else {
-      return absl::StrCat(tsdb2::util::to_underlying(value));
-    }
   }
 
  private:
   Options const options_;
 };
+
+template <typename Proto>
+std::string Stringify(Proto const& proto, Stringifier::Options const& options = {}) {
+  return Stringifier(options).Stringify(proto);
+}
 
 }  // namespace text
 }  // namespace proto

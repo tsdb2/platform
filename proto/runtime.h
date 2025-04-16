@@ -22,6 +22,7 @@
 #include "absl/container/node_hash_map.h"  // IWYU pragma: export
 #include "absl/status/status.h"            // IWYU pragma: export
 #include "absl/status/statusor.h"          // IWYU pragma: export
+#include "absl/strings/str_cat.h"          // IWYU pragma: export
 #include "absl/time/time.h"                // IWYU pragma: export
 #include "absl/types/span.h"               // IWYU pragma: export
 #include "common/flat_map.h"               // IWYU pragma: export

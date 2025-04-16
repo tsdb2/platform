@@ -2649,7 +2649,7 @@ template <typename Message>
 using OneOfField = typename FieldTypes<Message>::OneOfField;
 
 // Allows implementing message descriptors, used for reflection features and TextFormat parsing.
-template <typename Message, size_t num_fields, size_t num_required_fields = 0>
+template <typename Message, size_t num_fields>
 class MessageDescriptor final : public BaseMessageDescriptor, public FieldTypes<Message> {
  public:
   using BaseMessageDescriptor::ConstFieldValue;
@@ -3144,8 +3144,8 @@ class MessageDescriptor final : public BaseMessageDescriptor, public FieldTypes<
 // We need to specialize the version with 0 values because zero element arrays are not permitted in
 // C++. The constructor of this specialization takes no arguments.
 template <typename Message>
-class MessageDescriptor<Message, 0, 0> final : public BaseMessageDescriptor,
-                                               public FieldTypes<Message> {
+class MessageDescriptor<Message, 0> final : public BaseMessageDescriptor,
+                                            public FieldTypes<Message> {
  public:
   using BaseMessageDescriptor::ConstFieldValue;
   using BaseMessageDescriptor::FieldValue;

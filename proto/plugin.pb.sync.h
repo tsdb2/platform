@@ -16,6 +16,11 @@ struct Version : public ::tsdb2::proto::Message {
   static ::absl::StatusOr<Version> Decode(::absl::Span<uint8_t const> data);
   static ::tsdb2::io::Cord Encode(Version const& proto);
 
+  friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, Version* proto);
+
+  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                         Version const& proto);
+
   static auto Tie(Version const& proto) {
     return ::tsdb2::proto::Tie(proto.major, proto.minor, proto.patch, proto.suffix);
   }
@@ -28,6 +33,15 @@ struct Version : public ::tsdb2::proto::Message {
   template <typename State>
   friend State Tsdb2FingerprintValue(State state, Version const& proto) {
     return State::Combine(std::move(state), Tie(proto));
+  }
+
+  friend bool AbslParseFlag(std::string_view const text, Version* const proto,
+                            std::string* const error) {
+    return ::tsdb2::proto::text::Parser::ParseFlag(text, proto, error);
+  }
+
+  friend std::string AbslUnparseFlag(Version const& proto) {
+    return ::tsdb2::proto::text::Stringify(proto);
   }
 
   friend bool operator==(Version const& lhs, Version const& rhs) { return Tie(lhs) == Tie(rhs); }
@@ -47,6 +61,12 @@ struct CodeGeneratorRequest : public ::tsdb2::proto::Message {
   static ::absl::StatusOr<CodeGeneratorRequest> Decode(::absl::Span<uint8_t const> data);
   static ::tsdb2::io::Cord Encode(CodeGeneratorRequest const& proto);
 
+  friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
+                                        CodeGeneratorRequest* proto);
+
+  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                         CodeGeneratorRequest const& proto);
+
   static auto Tie(CodeGeneratorRequest const& proto) {
     return ::tsdb2::proto::Tie(proto.file_to_generate, proto.parameter, proto.proto_file,
                                proto.source_file_descriptors,
@@ -61,6 +81,15 @@ struct CodeGeneratorRequest : public ::tsdb2::proto::Message {
   template <typename State>
   friend State Tsdb2FingerprintValue(State state, CodeGeneratorRequest const& proto) {
     return State::Combine(std::move(state), Tie(proto));
+  }
+
+  friend bool AbslParseFlag(std::string_view const text, CodeGeneratorRequest* const proto,
+                            std::string* const error) {
+    return ::tsdb2::proto::text::Parser::ParseFlag(text, proto, error);
+  }
+
+  friend std::string AbslUnparseFlag(CodeGeneratorRequest const& proto) {
+    return ::tsdb2::proto::text::Stringify(proto);
   }
 
   friend bool operator==(CodeGeneratorRequest const& lhs, CodeGeneratorRequest const& rhs) {
@@ -108,9 +137,27 @@ struct CodeGeneratorResponse : public ::tsdb2::proto::Message {
     return State::Combine(std::move(state), ::tsdb2::util::to_underlying(value));
   }
 
+  friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, Feature* proto);
+
+  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                         Feature const& proto);
+
+  friend bool AbslParseFlag(std::string_view const text, Feature* proto, std::string* const error) {
+    return ::tsdb2::proto::text::Parser::ParseFlag(text, proto, error);
+  }
+
+  friend std::string AbslUnparseFlag(Feature const& proto) {
+    return ::tsdb2::proto::text::Stringify(proto);
+  }
+
   struct File : public ::tsdb2::proto::Message {
     static ::absl::StatusOr<File> Decode(::absl::Span<uint8_t const> data);
     static ::tsdb2::io::Cord Encode(File const& proto);
+
+    friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, File* proto);
+
+    friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                           File const& proto);
 
     static auto Tie(File const& proto) {
       return ::tsdb2::proto::Tie(proto.name, proto.insertion_point, proto.content,
@@ -125,6 +172,15 @@ struct CodeGeneratorResponse : public ::tsdb2::proto::Message {
     template <typename State>
     friend State Tsdb2FingerprintValue(State state, File const& proto) {
       return State::Combine(std::move(state), Tie(proto));
+    }
+
+    friend bool AbslParseFlag(std::string_view const text, File* const proto,
+                              std::string* const error) {
+      return ::tsdb2::proto::text::Parser::ParseFlag(text, proto, error);
+    }
+
+    friend std::string AbslUnparseFlag(File const& proto) {
+      return ::tsdb2::proto::text::Stringify(proto);
     }
 
     friend bool operator==(File const& lhs, File const& rhs) { return Tie(lhs) == Tie(rhs); }
@@ -143,6 +199,12 @@ struct CodeGeneratorResponse : public ::tsdb2::proto::Message {
   static ::absl::StatusOr<CodeGeneratorResponse> Decode(::absl::Span<uint8_t const> data);
   static ::tsdb2::io::Cord Encode(CodeGeneratorResponse const& proto);
 
+  friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
+                                        CodeGeneratorResponse* proto);
+
+  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                         CodeGeneratorResponse const& proto);
+
   static auto Tie(CodeGeneratorResponse const& proto) {
     return ::tsdb2::proto::Tie(proto.error, proto.supported_features, proto.minimum_edition,
                                proto.maximum_edition, proto.file);
@@ -156,6 +218,15 @@ struct CodeGeneratorResponse : public ::tsdb2::proto::Message {
   template <typename State>
   friend State Tsdb2FingerprintValue(State state, CodeGeneratorResponse const& proto) {
     return State::Combine(std::move(state), Tie(proto));
+  }
+
+  friend bool AbslParseFlag(std::string_view const text, CodeGeneratorResponse* const proto,
+                            std::string* const error) {
+    return ::tsdb2::proto::text::Parser::ParseFlag(text, proto, error);
+  }
+
+  friend std::string AbslUnparseFlag(CodeGeneratorResponse const& proto) {
+    return ::tsdb2::proto::text::Stringify(proto);
   }
 
   friend bool operator==(CodeGeneratorResponse const& lhs, CodeGeneratorResponse const& rhs) {

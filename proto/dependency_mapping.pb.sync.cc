@@ -38,6 +38,23 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   return std::move(encoder).Finish();
 }
 
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               DependencyMapping::Dependency* const proto) {
+  *proto = DependencyMapping::Dependency();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "cc_header") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->cc_header.emplace_back(std::move(value));
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
+}
+
 ::absl::StatusOr<DependencyMapping::DependencyEntry> DependencyMapping::DependencyEntry::Decode(
     ::absl::Span<uint8_t const> const data) {
   DependencyMapping::DependencyEntry proto;
@@ -80,6 +97,24 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   return std::move(encoder).Finish();
 }
 
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               DependencyMapping::DependencyEntry* const proto) {
+  *proto = DependencyMapping::DependencyEntry();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "key") {
+      DEFINE_VAR_OR_RETURN(value, parser->ParseString());
+      proto->key.emplace(std::move(value));
+    } else if (field_name == "value") {
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
+}
+
 ::absl::StatusOr<DependencyMapping> DependencyMapping::Decode(
     ::absl::Span<uint8_t const> const data) {
   DependencyMapping proto;
@@ -114,14 +149,27 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   return std::move(encoder).Finish();
 }
 
-::tsdb2::proto::MessageDescriptor<DependencyMapping::Dependency, /*num_fields=*/1,
-                                  /*num_required_fields=*/0> const
+::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* const parser,
+                               DependencyMapping* const proto) {
+  *proto = DependencyMapping();
+  std::optional<std::string> maybe_field_name;
+  while (maybe_field_name = parser->ParseFieldName(), maybe_field_name.has_value()) {
+    auto const& field_name = maybe_field_name.value();
+    if (field_name == "dependency") {
+    } else {
+      RETURN_IF_ERROR(parser->SkipField());
+    }
+    parser->ConsumeFieldSeparators();
+  }
+  return ::absl::OkStatus();
+}
+
+::tsdb2::proto::MessageDescriptor<DependencyMapping::Dependency, /*num_fields=*/1> const
     DependencyMapping::Dependency::MESSAGE_DESCRIPTOR{{
         {"cc_header", &DependencyMapping::Dependency::cc_header},
     }};
 
-::tsdb2::proto::MessageDescriptor<DependencyMapping::DependencyEntry, /*num_fields=*/2,
-                                  /*num_required_fields=*/0> const
+::tsdb2::proto::MessageDescriptor<DependencyMapping::DependencyEntry, /*num_fields=*/2> const
     DependencyMapping::DependencyEntry::MESSAGE_DESCRIPTOR{{
         {"key", &DependencyMapping::DependencyEntry::key},
         {"value", ::tsdb2::proto::OptionalSubMessageField<DependencyMapping::DependencyEntry>(
@@ -129,16 +177,15 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
                       ::tsdb2::proto::internal::DependencyMapping::Dependency::MESSAGE_DESCRIPTOR)},
     }};
 
-::tsdb2::proto::MessageDescriptor<DependencyMapping, /*num_fields=*/1,
-                                  /*num_required_fields=*/0> const
-    DependencyMapping::MESSAGE_DESCRIPTOR{{
-        {"dependency",
-         ::tsdb2::proto::FlatHashMapField<
-             DependencyMapping, ::tsdb2::proto::internal::DependencyMapping::DependencyEntry>(
-             &DependencyMapping::dependency,
-             ::tsdb2::proto::internal::DependencyMapping::DependencyEntry::MESSAGE_DESCRIPTOR,
-             ::tsdb2::proto::internal::DependencyMapping::Dependency::MESSAGE_DESCRIPTOR)},
-    }};
+::tsdb2::proto::MessageDescriptor<DependencyMapping,
+                                  /*num_fields=*/1> const DependencyMapping::MESSAGE_DESCRIPTOR{{
+    {"dependency",
+     ::tsdb2::proto::FlatHashMapField<DependencyMapping,
+                                      ::tsdb2::proto::internal::DependencyMapping::DependencyEntry>(
+         &DependencyMapping::dependency,
+         ::tsdb2::proto::internal::DependencyMapping::DependencyEntry::MESSAGE_DESCRIPTOR,
+         ::tsdb2::proto::internal::DependencyMapping::Dependency::MESSAGE_DESCRIPTOR)},
+}};
 
 TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING();
 

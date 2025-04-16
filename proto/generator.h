@@ -283,6 +283,10 @@ class Generator {
   absl::Status EmitDescriptorSpecializationsForScope(internal::TextWriter* writer,
                                                      LexicalScope const& scope) const;
 
+  static absl::Status EmitEnumImplementation(
+      internal::TextWriter* writer, PathView prefix, LexicalScope const& scope,
+      google::protobuf::EnumDescriptorProto const& enum_type);
+
   static absl::Status EmitOptionalFieldDecoding(
       internal::TextWriter* writer, google::protobuf::FieldDescriptorProto const& descriptor);
 
