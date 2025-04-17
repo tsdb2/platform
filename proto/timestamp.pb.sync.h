@@ -17,8 +17,8 @@ struct Timestamp : public ::tsdb2::proto::Message {
 
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, Timestamp* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         Timestamp const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  Timestamp const& proto);
 
   static auto Tie(Timestamp const& proto) {
     return ::tsdb2::proto::Tie(proto.seconds, proto.nanos);
@@ -40,7 +40,7 @@ struct Timestamp : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(Timestamp const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(Timestamp const& lhs, Timestamp const& rhs) {

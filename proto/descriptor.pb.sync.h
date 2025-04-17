@@ -58,15 +58,14 @@ inline State Tsdb2FingerprintValue(State state, Edition const& value) {
 
 ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, Edition* proto);
 
-std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                Edition const& proto);
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier, Edition const& proto);
 
 inline bool AbslParseFlag(std::string_view const text, Edition* proto, std::string* const error) {
   return ::tsdb2::proto::text::Parser::ParseFlag(text, proto, error);
 }
 
 inline std::string AbslUnparseFlag(Edition const& proto) {
-  return ::tsdb2::proto::text::Stringify(proto);
+  return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
 }
 
 struct FeatureSet : public ::tsdb2::proto::Message {
@@ -89,8 +88,8 @@ struct FeatureSet : public ::tsdb2::proto::Message {
 
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, FieldPresence* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         FieldPresence const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  FieldPresence const& proto);
 
   friend bool AbslParseFlag(std::string_view const text, FieldPresence* proto,
                             std::string* const error) {
@@ -98,7 +97,7 @@ struct FeatureSet : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(FieldPresence const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   enum class EnumType {
@@ -119,8 +118,8 @@ struct FeatureSet : public ::tsdb2::proto::Message {
 
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, EnumType* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         EnumType const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  EnumType const& proto);
 
   friend bool AbslParseFlag(std::string_view const text, EnumType* proto,
                             std::string* const error) {
@@ -128,7 +127,7 @@ struct FeatureSet : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(EnumType const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   enum class RepeatedFieldEncoding {
@@ -150,8 +149,8 @@ struct FeatureSet : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         RepeatedFieldEncoding* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         RepeatedFieldEncoding const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  RepeatedFieldEncoding const& proto);
 
   friend bool AbslParseFlag(std::string_view const text, RepeatedFieldEncoding* proto,
                             std::string* const error) {
@@ -159,7 +158,7 @@ struct FeatureSet : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(RepeatedFieldEncoding const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   enum class Utf8Validation {
@@ -181,8 +180,8 @@ struct FeatureSet : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         Utf8Validation* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         Utf8Validation const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  Utf8Validation const& proto);
 
   friend bool AbslParseFlag(std::string_view const text, Utf8Validation* proto,
                             std::string* const error) {
@@ -190,7 +189,7 @@ struct FeatureSet : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(Utf8Validation const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   enum class MessageEncoding {
@@ -212,8 +211,8 @@ struct FeatureSet : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         MessageEncoding* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         MessageEncoding const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  MessageEncoding const& proto);
 
   friend bool AbslParseFlag(std::string_view const text, MessageEncoding* proto,
                             std::string* const error) {
@@ -221,7 +220,7 @@ struct FeatureSet : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(MessageEncoding const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   enum class JsonFormat {
@@ -242,8 +241,8 @@ struct FeatureSet : public ::tsdb2::proto::Message {
 
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, JsonFormat* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         JsonFormat const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  JsonFormat const& proto);
 
   friend bool AbslParseFlag(std::string_view const text, JsonFormat* proto,
                             std::string* const error) {
@@ -251,7 +250,7 @@ struct FeatureSet : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(JsonFormat const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   static ::absl::StatusOr<FeatureSet> Decode(::absl::Span<uint8_t const> data);
@@ -259,8 +258,8 @@ struct FeatureSet : public ::tsdb2::proto::Message {
 
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, FeatureSet* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         FeatureSet const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  FeatureSet const& proto);
 
   static auto Tie(FeatureSet const& proto) {
     return ::tsdb2::proto::Tie(proto.field_presence, proto.enum_type, proto.repeated_field_encoding,
@@ -284,7 +283,7 @@ struct FeatureSet : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(FeatureSet const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(FeatureSet const& lhs, FeatureSet const& rhs) {
@@ -336,8 +335,8 @@ struct ExtensionRangeOptions : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         VerificationState* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         VerificationState const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  VerificationState const& proto);
 
   friend bool AbslParseFlag(std::string_view const text, VerificationState* proto,
                             std::string* const error) {
@@ -345,7 +344,7 @@ struct ExtensionRangeOptions : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(VerificationState const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   struct Declaration : public ::tsdb2::proto::Message {
@@ -354,8 +353,8 @@ struct ExtensionRangeOptions : public ::tsdb2::proto::Message {
 
     friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, Declaration* proto);
 
-    friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                           Declaration const& proto);
+    friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                    Declaration const& proto);
 
     static auto Tie(Declaration const& proto) {
       return ::tsdb2::proto::Tie(proto.number, proto.full_name, proto.type, proto.reserved,
@@ -378,7 +377,7 @@ struct ExtensionRangeOptions : public ::tsdb2::proto::Message {
     }
 
     friend std::string AbslUnparseFlag(Declaration const& proto) {
-      return ::tsdb2::proto::text::Stringify(proto);
+      return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
     }
 
     friend bool operator==(Declaration const& lhs, Declaration const& rhs) {
@@ -413,8 +412,8 @@ struct ExtensionRangeOptions : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         ExtensionRangeOptions* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         ExtensionRangeOptions const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  ExtensionRangeOptions const& proto);
 
   static auto Tie(ExtensionRangeOptions const& proto) {
     return ::tsdb2::proto::Tie(proto.uninterpreted_option, proto.declaration,
@@ -438,7 +437,7 @@ struct ExtensionRangeOptions : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(ExtensionRangeOptions const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(ExtensionRangeOptions const& lhs, ExtensionRangeOptions const& rhs) {
@@ -475,8 +474,8 @@ struct MessageOptions : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         MessageOptions* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         MessageOptions const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  MessageOptions const& proto);
 
   static auto Tie(MessageOptions const& proto) {
     return ::tsdb2::proto::Tie(proto.message_set_wire_format, proto.no_standard_descriptor_accessor,
@@ -502,7 +501,7 @@ struct MessageOptions : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(MessageOptions const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(MessageOptions const& lhs, MessageOptions const& rhs) {
@@ -545,8 +544,8 @@ struct DescriptorProto : public ::tsdb2::proto::Message {
     friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                           ExtensionRange* proto);
 
-    friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                           ExtensionRange const& proto);
+    friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                    ExtensionRange const& proto);
 
     static auto Tie(ExtensionRange const& proto) {
       return ::tsdb2::proto::Tie(proto.start, proto.end,
@@ -569,7 +568,7 @@ struct DescriptorProto : public ::tsdb2::proto::Message {
     }
 
     friend std::string AbslUnparseFlag(ExtensionRange const& proto) {
-      return ::tsdb2::proto::text::Stringify(proto);
+      return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
     }
 
     friend bool operator==(ExtensionRange const& lhs, ExtensionRange const& rhs) {
@@ -603,8 +602,8 @@ struct DescriptorProto : public ::tsdb2::proto::Message {
     friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                           ReservedRange* proto);
 
-    friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                           ReservedRange const& proto);
+    friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                    ReservedRange const& proto);
 
     static auto Tie(ReservedRange const& proto) {
       return ::tsdb2::proto::Tie(proto.start, proto.end);
@@ -626,7 +625,7 @@ struct DescriptorProto : public ::tsdb2::proto::Message {
     }
 
     friend std::string AbslUnparseFlag(ReservedRange const& proto) {
-      return ::tsdb2::proto::text::Stringify(proto);
+      return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
     }
 
     friend bool operator==(ReservedRange const& lhs, ReservedRange const& rhs) {
@@ -658,8 +657,8 @@ struct DescriptorProto : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         DescriptorProto* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         DescriptorProto const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  DescriptorProto const& proto);
 
   static auto Tie(DescriptorProto const& proto) {
     return ::tsdb2::proto::Tie(proto.name, proto.field, proto.extension, proto.nested_type,
@@ -684,7 +683,7 @@ struct DescriptorProto : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(DescriptorProto const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(DescriptorProto const& lhs, DescriptorProto const& rhs) {
@@ -724,8 +723,8 @@ struct EnumOptions : public ::tsdb2::proto::Message {
 
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, EnumOptions* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         EnumOptions const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  EnumOptions const& proto);
 
   static auto Tie(EnumOptions const& proto) {
     return ::tsdb2::proto::Tie(proto.allow_alias, proto.deprecated,
@@ -750,7 +749,7 @@ struct EnumOptions : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(EnumOptions const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(EnumOptions const& lhs, EnumOptions const& rhs) {
@@ -790,8 +789,8 @@ struct EnumDescriptorProto : public ::tsdb2::proto::Message {
     friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                           EnumReservedRange* proto);
 
-    friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                           EnumReservedRange const& proto);
+    friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                    EnumReservedRange const& proto);
 
     static auto Tie(EnumReservedRange const& proto) {
       return ::tsdb2::proto::Tie(proto.start, proto.end);
@@ -813,7 +812,7 @@ struct EnumDescriptorProto : public ::tsdb2::proto::Message {
     }
 
     friend std::string AbslUnparseFlag(EnumReservedRange const& proto) {
-      return ::tsdb2::proto::text::Stringify(proto);
+      return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
     }
 
     friend bool operator==(EnumReservedRange const& lhs, EnumReservedRange const& rhs) {
@@ -845,8 +844,8 @@ struct EnumDescriptorProto : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         EnumDescriptorProto* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         EnumDescriptorProto const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  EnumDescriptorProto const& proto);
 
   static auto Tie(EnumDescriptorProto const& proto) {
     return ::tsdb2::proto::Tie(proto.name, proto.value,
@@ -870,7 +869,7 @@ struct EnumDescriptorProto : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(EnumDescriptorProto const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(EnumDescriptorProto const& lhs, EnumDescriptorProto const& rhs) {
@@ -921,15 +920,15 @@ struct FieldOptions : public ::tsdb2::proto::Message {
 
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, CType* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         CType const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  CType const& proto);
 
   friend bool AbslParseFlag(std::string_view const text, CType* proto, std::string* const error) {
     return ::tsdb2::proto::text::Parser::ParseFlag(text, proto, error);
   }
 
   friend std::string AbslUnparseFlag(CType const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   enum class JSType {
@@ -950,15 +949,15 @@ struct FieldOptions : public ::tsdb2::proto::Message {
 
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, JSType* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         JSType const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  JSType const& proto);
 
   friend bool AbslParseFlag(std::string_view const text, JSType* proto, std::string* const error) {
     return ::tsdb2::proto::text::Parser::ParseFlag(text, proto, error);
   }
 
   friend std::string AbslUnparseFlag(JSType const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   enum class OptionRetention {
@@ -980,8 +979,8 @@ struct FieldOptions : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         OptionRetention* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         OptionRetention const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  OptionRetention const& proto);
 
   friend bool AbslParseFlag(std::string_view const text, OptionRetention* proto,
                             std::string* const error) {
@@ -989,7 +988,7 @@ struct FieldOptions : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(OptionRetention const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   enum class OptionTargetType {
@@ -1018,8 +1017,8 @@ struct FieldOptions : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         OptionTargetType* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         OptionTargetType const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  OptionTargetType const& proto);
 
   friend bool AbslParseFlag(std::string_view const text, OptionTargetType* proto,
                             std::string* const error) {
@@ -1027,7 +1026,7 @@ struct FieldOptions : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(OptionTargetType const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   struct EditionDefault : public ::tsdb2::proto::Message {
@@ -1037,8 +1036,8 @@ struct FieldOptions : public ::tsdb2::proto::Message {
     friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                           EditionDefault* proto);
 
-    friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                           EditionDefault const& proto);
+    friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                    EditionDefault const& proto);
 
     static auto Tie(EditionDefault const& proto) {
       return ::tsdb2::proto::Tie(proto.edition, proto.value);
@@ -1060,7 +1059,7 @@ struct FieldOptions : public ::tsdb2::proto::Message {
     }
 
     friend std::string AbslUnparseFlag(EditionDefault const& proto) {
-      return ::tsdb2::proto::text::Stringify(proto);
+      return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
     }
 
     friend bool operator==(EditionDefault const& lhs, EditionDefault const& rhs) {
@@ -1093,8 +1092,8 @@ struct FieldOptions : public ::tsdb2::proto::Message {
     friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                           FeatureSupport* proto);
 
-    friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                           FeatureSupport const& proto);
+    friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                    FeatureSupport const& proto);
 
     static auto Tie(FeatureSupport const& proto) {
       return ::tsdb2::proto::Tie(proto.edition_introduced, proto.edition_deprecated,
@@ -1117,7 +1116,7 @@ struct FieldOptions : public ::tsdb2::proto::Message {
     }
 
     friend std::string AbslUnparseFlag(FeatureSupport const& proto) {
-      return ::tsdb2::proto::text::Stringify(proto);
+      return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
     }
 
     friend bool operator==(FeatureSupport const& lhs, FeatureSupport const& rhs) {
@@ -1150,8 +1149,8 @@ struct FieldOptions : public ::tsdb2::proto::Message {
 
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, FieldOptions* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         FieldOptions const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  FieldOptions const& proto);
 
   static auto Tie(FieldOptions const& proto) {
     return ::tsdb2::proto::Tie(
@@ -1178,7 +1177,7 @@ struct FieldOptions : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(FieldOptions const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(FieldOptions const& lhs, FieldOptions const& rhs) {
@@ -1225,8 +1224,8 @@ struct EnumValueOptions : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         EnumValueOptions* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         EnumValueOptions const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  EnumValueOptions const& proto);
 
   static auto Tie(EnumValueOptions const& proto) {
     return ::tsdb2::proto::Tie(
@@ -1251,7 +1250,7 @@ struct EnumValueOptions : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(EnumValueOptions const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(EnumValueOptions const& lhs, EnumValueOptions const& rhs) {
@@ -1288,8 +1287,8 @@ struct EnumValueDescriptorProto : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         EnumValueDescriptorProto* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         EnumValueDescriptorProto const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  EnumValueDescriptorProto const& proto);
 
   static auto Tie(EnumValueDescriptorProto const& proto) {
     return ::tsdb2::proto::Tie(proto.name, proto.number,
@@ -1312,7 +1311,7 @@ struct EnumValueDescriptorProto : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(EnumValueDescriptorProto const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(EnumValueDescriptorProto const& lhs, EnumValueDescriptorProto const& rhs) {
@@ -1349,8 +1348,8 @@ struct FeatureSetDefaults : public ::tsdb2::proto::Message {
     friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                           FeatureSetEditionDefault* proto);
 
-    friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                           FeatureSetEditionDefault const& proto);
+    friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                    FeatureSetEditionDefault const& proto);
 
     static auto Tie(FeatureSetEditionDefault const& proto) {
       return ::tsdb2::proto::Tie(proto.edition,
@@ -1374,7 +1373,7 @@ struct FeatureSetDefaults : public ::tsdb2::proto::Message {
     }
 
     friend std::string AbslUnparseFlag(FeatureSetEditionDefault const& proto) {
-      return ::tsdb2::proto::text::Stringify(proto);
+      return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
     }
 
     friend bool operator==(FeatureSetEditionDefault const& lhs,
@@ -1413,8 +1412,8 @@ struct FeatureSetDefaults : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         FeatureSetDefaults* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         FeatureSetDefaults const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  FeatureSetDefaults const& proto);
 
   static auto Tie(FeatureSetDefaults const& proto) {
     return ::tsdb2::proto::Tie(proto.defaults, proto.minimum_edition, proto.maximum_edition);
@@ -1436,7 +1435,7 @@ struct FeatureSetDefaults : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(FeatureSetDefaults const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(FeatureSetDefaults const& lhs, FeatureSetDefaults const& rhs) {
@@ -1497,15 +1496,15 @@ struct FieldDescriptorProto : public ::tsdb2::proto::Message {
 
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, Type* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         Type const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  Type const& proto);
 
   friend bool AbslParseFlag(std::string_view const text, Type* proto, std::string* const error) {
     return ::tsdb2::proto::text::Parser::ParseFlag(text, proto, error);
   }
 
   friend std::string AbslUnparseFlag(Type const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   enum class Label {
@@ -1526,15 +1525,15 @@ struct FieldDescriptorProto : public ::tsdb2::proto::Message {
 
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, Label* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         Label const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  Label const& proto);
 
   friend bool AbslParseFlag(std::string_view const text, Label* proto, std::string* const error) {
     return ::tsdb2::proto::text::Parser::ParseFlag(text, proto, error);
   }
 
   friend std::string AbslUnparseFlag(Label const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   static ::absl::StatusOr<FieldDescriptorProto> Decode(::absl::Span<uint8_t const> data);
@@ -1543,8 +1542,8 @@ struct FieldDescriptorProto : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         FieldDescriptorProto* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         FieldDescriptorProto const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  FieldDescriptorProto const& proto);
 
   static auto Tie(FieldDescriptorProto const& proto) {
     return ::tsdb2::proto::Tie(
@@ -1569,7 +1568,7 @@ struct FieldDescriptorProto : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(FieldDescriptorProto const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(FieldDescriptorProto const& lhs, FieldDescriptorProto const& rhs) {
@@ -1623,8 +1622,8 @@ struct FileOptions : public ::tsdb2::proto::Message {
 
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, OptimizeMode* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         OptimizeMode const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  OptimizeMode const& proto);
 
   friend bool AbslParseFlag(std::string_view const text, OptimizeMode* proto,
                             std::string* const error) {
@@ -1632,7 +1631,7 @@ struct FileOptions : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(OptimizeMode const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   static ::absl::StatusOr<FileOptions> Decode(::absl::Span<uint8_t const> data);
@@ -1640,8 +1639,8 @@ struct FileOptions : public ::tsdb2::proto::Message {
 
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, FileOptions* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         FileOptions const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  FileOptions const& proto);
 
   static auto Tie(FileOptions const& proto) {
     return ::tsdb2::proto::Tie(
@@ -1671,7 +1670,7 @@ struct FileOptions : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(FileOptions const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(FileOptions const& lhs, FileOptions const& rhs) {
@@ -1727,8 +1726,8 @@ struct SourceCodeInfo : public ::tsdb2::proto::Message {
 
     friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, Location* proto);
 
-    friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                           Location const& proto);
+    friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                    Location const& proto);
 
     static auto Tie(Location const& proto) {
       return ::tsdb2::proto::Tie(proto.path, proto.span, proto.leading_comments,
@@ -1751,7 +1750,7 @@ struct SourceCodeInfo : public ::tsdb2::proto::Message {
     }
 
     friend std::string AbslUnparseFlag(Location const& proto) {
-      return ::tsdb2::proto::text::Stringify(proto);
+      return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
     }
 
     friend bool operator==(Location const& lhs, Location const& rhs) {
@@ -1782,8 +1781,8 @@ struct SourceCodeInfo : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         SourceCodeInfo* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         SourceCodeInfo const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  SourceCodeInfo const& proto);
 
   static auto Tie(SourceCodeInfo const& proto) { return ::tsdb2::proto::Tie(proto.location); }
 
@@ -1803,7 +1802,7 @@ struct SourceCodeInfo : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(SourceCodeInfo const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(SourceCodeInfo const& lhs, SourceCodeInfo const& rhs) {
@@ -1835,8 +1834,8 @@ struct FileDescriptorProto : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         FileDescriptorProto* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         FileDescriptorProto const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  FileDescriptorProto const& proto);
 
   static auto Tie(FileDescriptorProto const& proto) {
     return ::tsdb2::proto::Tie(
@@ -1862,7 +1861,7 @@ struct FileDescriptorProto : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(FileDescriptorProto const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(FileDescriptorProto const& lhs, FileDescriptorProto const& rhs) {
@@ -1906,8 +1905,8 @@ struct FileDescriptorSet : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         FileDescriptorSet* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         FileDescriptorSet const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  FileDescriptorSet const& proto);
 
   static auto Tie(FileDescriptorSet const& proto) { return ::tsdb2::proto::Tie(proto.file); }
 
@@ -1927,7 +1926,7 @@ struct FileDescriptorSet : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(FileDescriptorSet const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(FileDescriptorSet const& lhs, FileDescriptorSet const& rhs) {
@@ -1974,8 +1973,8 @@ struct GeneratedCodeInfo : public ::tsdb2::proto::Message {
 
     friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, Semantic* proto);
 
-    friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                           Semantic const& proto);
+    friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                    Semantic const& proto);
 
     friend bool AbslParseFlag(std::string_view const text, Semantic* proto,
                               std::string* const error) {
@@ -1983,7 +1982,7 @@ struct GeneratedCodeInfo : public ::tsdb2::proto::Message {
     }
 
     friend std::string AbslUnparseFlag(Semantic const& proto) {
-      return ::tsdb2::proto::text::Stringify(proto);
+      return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
     }
 
     static ::absl::StatusOr<Annotation> Decode(::absl::Span<uint8_t const> data);
@@ -1991,8 +1990,8 @@ struct GeneratedCodeInfo : public ::tsdb2::proto::Message {
 
     friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, Annotation* proto);
 
-    friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                           Annotation const& proto);
+    friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                    Annotation const& proto);
 
     static auto Tie(Annotation const& proto) {
       return ::tsdb2::proto::Tie(proto.path, proto.source_file, proto.begin, proto.end,
@@ -2015,7 +2014,7 @@ struct GeneratedCodeInfo : public ::tsdb2::proto::Message {
     }
 
     friend std::string AbslUnparseFlag(Annotation const& proto) {
-      return ::tsdb2::proto::text::Stringify(proto);
+      return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
     }
 
     friend bool operator==(Annotation const& lhs, Annotation const& rhs) {
@@ -2050,8 +2049,8 @@ struct GeneratedCodeInfo : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         GeneratedCodeInfo* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         GeneratedCodeInfo const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  GeneratedCodeInfo const& proto);
 
   static auto Tie(GeneratedCodeInfo const& proto) { return ::tsdb2::proto::Tie(proto.annotation); }
 
@@ -2071,7 +2070,7 @@ struct GeneratedCodeInfo : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(GeneratedCodeInfo const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(GeneratedCodeInfo const& lhs, GeneratedCodeInfo const& rhs) {
@@ -2116,8 +2115,8 @@ struct MethodOptions : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         IdempotencyLevel* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         IdempotencyLevel const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  IdempotencyLevel const& proto);
 
   friend bool AbslParseFlag(std::string_view const text, IdempotencyLevel* proto,
                             std::string* const error) {
@@ -2125,7 +2124,7 @@ struct MethodOptions : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(IdempotencyLevel const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   static ::absl::StatusOr<MethodOptions> Decode(::absl::Span<uint8_t const> data);
@@ -2133,8 +2132,8 @@ struct MethodOptions : public ::tsdb2::proto::Message {
 
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, MethodOptions* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         MethodOptions const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  MethodOptions const& proto);
 
   static auto Tie(MethodOptions const& proto) {
     return ::tsdb2::proto::Tie(proto.deprecated, proto.idempotency_level,
@@ -2158,7 +2157,7 @@ struct MethodOptions : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(MethodOptions const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(MethodOptions const& lhs, MethodOptions const& rhs) {
@@ -2195,8 +2194,8 @@ struct MethodDescriptorProto : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         MethodDescriptorProto* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         MethodDescriptorProto const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  MethodDescriptorProto const& proto);
 
   static auto Tie(MethodDescriptorProto const& proto) {
     return ::tsdb2::proto::Tie(proto.name, proto.input_type, proto.output_type,
@@ -2220,7 +2219,7 @@ struct MethodDescriptorProto : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(MethodDescriptorProto const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(MethodDescriptorProto const& lhs, MethodDescriptorProto const& rhs) {
@@ -2256,8 +2255,8 @@ struct OneofOptions : public ::tsdb2::proto::Message {
 
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, OneofOptions* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         OneofOptions const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  OneofOptions const& proto);
 
   static auto Tie(OneofOptions const& proto) {
     return ::tsdb2::proto::Tie(::tsdb2::proto::OptionalSubMessageRef(proto.features),
@@ -2280,7 +2279,7 @@ struct OneofOptions : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(OneofOptions const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(OneofOptions const& lhs, OneofOptions const& rhs) {
@@ -2314,8 +2313,8 @@ struct OneofDescriptorProto : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         OneofDescriptorProto* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         OneofDescriptorProto const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  OneofDescriptorProto const& proto);
 
   static auto Tie(OneofDescriptorProto const& proto) {
     return ::tsdb2::proto::Tie(proto.name, ::tsdb2::proto::OptionalSubMessageRef(proto.options));
@@ -2337,7 +2336,7 @@ struct OneofDescriptorProto : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(OneofDescriptorProto const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(OneofDescriptorProto const& lhs, OneofDescriptorProto const& rhs) {
@@ -2370,8 +2369,8 @@ struct ServiceOptions : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         ServiceOptions* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         ServiceOptions const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  ServiceOptions const& proto);
 
   static auto Tie(ServiceOptions const& proto) {
     return ::tsdb2::proto::Tie(::tsdb2::proto::OptionalSubMessageRef(proto.features),
@@ -2394,7 +2393,7 @@ struct ServiceOptions : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(ServiceOptions const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(ServiceOptions const& lhs, ServiceOptions const& rhs) {
@@ -2429,8 +2428,8 @@ struct ServiceDescriptorProto : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         ServiceDescriptorProto* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         ServiceDescriptorProto const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  ServiceDescriptorProto const& proto);
 
   static auto Tie(ServiceDescriptorProto const& proto) {
     return ::tsdb2::proto::Tie(proto.name, proto.method,
@@ -2453,7 +2452,7 @@ struct ServiceDescriptorProto : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(ServiceDescriptorProto const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(ServiceDescriptorProto const& lhs, ServiceDescriptorProto const& rhs) {
@@ -2489,8 +2488,8 @@ struct UninterpretedOption : public ::tsdb2::proto::Message {
 
     friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, NamePart* proto);
 
-    friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                           NamePart const& proto);
+    friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                    NamePart const& proto);
 
     static auto Tie(NamePart const& proto) {
       return ::tsdb2::proto::Tie(proto.name_part, proto.is_extension);
@@ -2512,7 +2511,7 @@ struct UninterpretedOption : public ::tsdb2::proto::Message {
     }
 
     friend std::string AbslUnparseFlag(NamePart const& proto) {
-      return ::tsdb2::proto::text::Stringify(proto);
+      return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
     }
 
     friend bool operator==(NamePart const& lhs, NamePart const& rhs) {
@@ -2540,8 +2539,8 @@ struct UninterpretedOption : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         UninterpretedOption* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         UninterpretedOption const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  UninterpretedOption const& proto);
 
   static auto Tie(UninterpretedOption const& proto) {
     return ::tsdb2::proto::Tie(proto.name, proto.identifier_value, proto.positive_int_value,
@@ -2565,7 +2564,7 @@ struct UninterpretedOption : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(UninterpretedOption const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(UninterpretedOption const& lhs, UninterpretedOption const& rhs) {

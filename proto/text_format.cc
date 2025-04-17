@@ -257,6 +257,14 @@ absl::Status Parser::SkipSubMessage() {
   return absl::OkStatus();
 }
 
+void Stringifier::AppendTimestamp(std::string_view const name, absl::Time const value) {
+  AppendSubMessageField(name, EncodeGoogleApiProto(value));
+}
+
+void Stringifier::AppendDuration(std::string_view const name, absl::Duration const value) {
+  AppendSubMessageField(name, EncodeGoogleApiProto(value));
+}
+
 }  // namespace text
 }  // namespace proto
 }  // namespace tsdb2

@@ -57,6 +57,13 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   return ::absl::OkStatus();
 }
 
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         DependencyMapping::Dependency const& proto) {
+  for (auto const& value : proto.cc_header) {
+    stringifier->AppendField("cc_header", value);
+  }
+}
+
 ::absl::StatusOr<DependencyMapping::DependencyEntry> DependencyMapping::DependencyEntry::Decode(
     ::absl::Span<uint8_t const> const data) {
   DependencyMapping::DependencyEntry proto;
@@ -124,6 +131,16 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   return ::absl::OkStatus();
 }
 
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         DependencyMapping::DependencyEntry const& proto) {
+  if (proto.key.has_value()) {
+    stringifier->AppendField("key", proto.key.value());
+  }
+  if (proto.value.has_value()) {
+    stringifier->AppendField("value", proto.value.value());
+  }
+}
+
 ::absl::StatusOr<DependencyMapping> DependencyMapping::Decode(
     ::absl::Span<uint8_t const> const data) {
   DependencyMapping proto;
@@ -184,6 +201,15 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
     parser->ConsumeFieldSeparators();
   }
   return ::absl::OkStatus();
+}
+
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         DependencyMapping const& proto) {
+  for (auto const& [key, value] : proto.dependency) {
+    stringifier->AppendField(
+        "dependency",
+        ::tsdb2::proto::internal::DependencyMapping::DependencyEntry{.key = key, .value = value});
+  }
 }
 
 TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING();

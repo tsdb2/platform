@@ -17,8 +17,8 @@ struct Duration : public ::tsdb2::proto::Message {
 
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, Duration* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         Duration const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  Duration const& proto);
 
   static auto Tie(Duration const& proto) { return ::tsdb2::proto::Tie(proto.seconds, proto.nanos); }
 
@@ -38,7 +38,7 @@ struct Duration : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(Duration const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(Duration const& lhs, Duration const& rhs) { return Tie(lhs) == Tie(rhs); }

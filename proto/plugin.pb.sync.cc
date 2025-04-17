@@ -88,6 +88,22 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   return ::absl::OkStatus();
 }
 
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         Version const& proto) {
+  if (proto.major.has_value()) {
+    stringifier->AppendField("major", proto.major.value());
+  }
+  if (proto.minor.has_value()) {
+    stringifier->AppendField("minor", proto.minor.value());
+  }
+  if (proto.patch.has_value()) {
+    stringifier->AppendField("patch", proto.patch.value());
+  }
+  if (proto.suffix.has_value()) {
+    stringifier->AppendField("suffix", proto.suffix.value());
+  }
+}
+
 ::absl::StatusOr<CodeGeneratorRequest> CodeGeneratorRequest::Decode(
     ::absl::Span<uint8_t const> const data) {
   CodeGeneratorRequest proto;
@@ -189,6 +205,25 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   return ::absl::OkStatus();
 }
 
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         CodeGeneratorRequest const& proto) {
+  for (auto const& value : proto.file_to_generate) {
+    stringifier->AppendField("file_to_generate", value);
+  }
+  if (proto.parameter.has_value()) {
+    stringifier->AppendField("parameter", proto.parameter.value());
+  }
+  for (auto const& value : proto.proto_file) {
+    stringifier->AppendField("proto_file", value);
+  }
+  for (auto const& value : proto.source_file_descriptors) {
+    stringifier->AppendField("source_file_descriptors", value);
+  }
+  if (proto.compiler_version.has_value()) {
+    stringifier->AppendField("compiler_version", proto.compiler_version.value());
+  }
+}
+
 ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                CodeGeneratorResponse::Feature* const proto) {
   static auto constexpr kValuesByName =
@@ -207,8 +242,8 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   }
 }
 
-std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
-                                CodeGeneratorResponse::Feature const& proto) {
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         CodeGeneratorResponse::Feature const& proto) {
   static auto constexpr kValueNames =
       ::tsdb2::common::fixed_flat_map_of<CodeGeneratorResponse::Feature, std::string_view>({
           {CodeGeneratorResponse::Feature::FEATURE_NONE, "FEATURE_NONE"},
@@ -217,9 +252,9 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       });
   auto const it = kValueNames.find(proto);
   if (it != kValueNames.end()) {
-    return std::string(it->second);
+    stringifier->AppendIdentifier(it->second);
   } else {
-    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+    stringifier->AppendInteger(::tsdb2::util::to_underlying(proto));
   }
 }
 
@@ -307,6 +342,22 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
     parser->ConsumeFieldSeparators();
   }
   return ::absl::OkStatus();
+}
+
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         CodeGeneratorResponse::File const& proto) {
+  if (proto.name.has_value()) {
+    stringifier->AppendField("name", proto.name.value());
+  }
+  if (proto.insertion_point.has_value()) {
+    stringifier->AppendField("insertion_point", proto.insertion_point.value());
+  }
+  if (proto.content.has_value()) {
+    stringifier->AppendField("content", proto.content.value());
+  }
+  if (proto.generated_code_info.has_value()) {
+    stringifier->AppendField("generated_code_info", proto.generated_code_info.value());
+  }
 }
 
 ::absl::StatusOr<CodeGeneratorResponse> CodeGeneratorResponse::Decode(
@@ -406,6 +457,25 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
     parser->ConsumeFieldSeparators();
   }
   return ::absl::OkStatus();
+}
+
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         CodeGeneratorResponse const& proto) {
+  if (proto.error.has_value()) {
+    stringifier->AppendField("error", proto.error.value());
+  }
+  if (proto.supported_features.has_value()) {
+    stringifier->AppendField("supported_features", proto.supported_features.value());
+  }
+  if (proto.minimum_edition.has_value()) {
+    stringifier->AppendField("minimum_edition", proto.minimum_edition.value());
+  }
+  if (proto.maximum_edition.has_value()) {
+    stringifier->AppendField("maximum_edition", proto.maximum_edition.value());
+  }
+  for (auto const& value : proto.file) {
+    stringifier->AppendField("file", value);
+  }
 }
 
 TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING();

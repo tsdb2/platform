@@ -1,6 +1,7 @@
 #include "common/utilities.h"
 
 #include <cstdint>
+#include <string>
 
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
@@ -185,6 +186,9 @@ TEST(UtilitiesTest, IsIntegralStrict) {
   EXPECT_TRUE(IsIntegralStrictV<uint16_t>);
   EXPECT_TRUE(IsIntegralStrictV<uint32_t>);
   EXPECT_TRUE(IsIntegralStrictV<uint64_t>);
+  EXPECT_FALSE(IsIntegralStrictV<float>);
+  EXPECT_FALSE(IsIntegralStrictV<double>);
+  EXPECT_FALSE(IsIntegralStrictV<std::string>);
 }
 
 }  // namespace

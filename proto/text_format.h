@@ -16,14 +16,16 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/charconv.h"
+#include "absl/strings/escaping.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/strip.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "common/no_destructor.h"
 #include "common/re.h"
 #include "common/utilities.h"
 #include "proto/proto.h"
 #include "proto/text_writer.h"
-#include "proto/time_util.h"
 
 namespace tsdb2 {
 namespace proto {
@@ -252,9 +254,17 @@ class Stringifier {
 
   explicit Stringifier(Options const& options) : options_(options) {}
 
+  void AppendIdentifier(std::string_view const identifier) { writer_.Append(identifier); }
+
+  template <typename Integer,
+            std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>, bool> = true>
+  void AppendInteger(Integer const value) {
+    writer_.Append(absl::StrCat(value));
+  }
+
   template <typename Value>
   void AppendField(std::string_view const name, Value const& value) {
-    return FieldAppender<Value>{}(this, name, value);
+    return FieldAppender<std::decay_t<Value>>{}(this, name, value);
   }
 
   std::string Finish() && { return std::move(writer_).Finish(); }
@@ -269,6 +279,15 @@ class Stringifier {
   template <typename Proto>
   std::string Stringify(Proto const& proto) {
     return Stringify(proto, Options{});
+  }
+
+  template <typename Proto>
+  static std::string StringifyFlag(Proto const& proto) {
+    return Stringifier(Options{
+                           .mode = Options::Mode::kCompressed,
+                           .field_separators = Options::FieldSeparators::kComma,
+                       })
+        .Stringify(proto);
   }
 
  private:
@@ -297,7 +316,7 @@ class Stringifier {
   struct FieldAppender {
     void operator()(Stringifier* const stringifier, std::string_view const name,
                     Value const& value) const {
-      stringifier->AppendRegularField(name, value);
+      stringifier->AppendPrimitiveField(name, value);
     }
   };
 
@@ -306,6 +325,14 @@ class Stringifier {
     void operator()(Stringifier* const stringifier, std::string_view const name,
                     SubMessage const& value) const {
       stringifier->AppendSubMessageField(name, value);
+    }
+  };
+
+  template <typename Enum>
+  struct FieldAppender<Enum, std::enable_if_t<std::is_enum_v<Enum>>> {
+    void operator()(Stringifier* const stringifier, std::string_view const name,
+                    Enum const value) const {
+      stringifier->AppendEnumField(name, value);
     }
   };
 
@@ -325,10 +352,43 @@ class Stringifier {
     }
   };
 
+  template <typename Value, typename Enable = void>
+  struct StringifyPrimitiveValue;
+
+  template <typename Integer>
+  struct StringifyPrimitiveValue<Integer,
+                                 std::enable_if_t<tsdb2::util::IsIntegralStrictV<Integer>>> {
+    std::string operator()(Integer const value) const { return absl::StrCat(value); }
+  };
+
+  template <>
+  struct StringifyPrimitiveValue<bool> {
+    std::string operator()(bool const value) const { return value ? "true" : "false"; }
+  };
+
+  template <typename Float>
+  struct StringifyPrimitiveValue<Float, std::enable_if_t<std::is_floating_point_v<Float>>> {
+    std::string operator()(Float const value) const { return absl::StrCat(value); }
+  };
+
+  template <>
+  struct StringifyPrimitiveValue<std::string> {
+    std::string operator()(std::string_view const value) const {
+      return absl::StrCat("\"", absl::CEscape(value), "\"");
+    }
+  };
+
+  template <>
+  struct StringifyPrimitiveValue<std::vector<uint8_t>> {
+    std::string operator()(absl::Span<uint8_t const> const value) const {
+      // TODO: stringify bytes fields.
+      return "\"\"";
+    }
+  };
+
   template <typename Value>
-  void AppendRegularField(std::string_view const name, Value const& value) {
-    writer_.Append(name, ": ");
-    Tsdb2ProtoStringify(this, value);
+  void AppendPrimitiveField(std::string_view const name, Value const& value) {
+    writer_.Append(name, ": ", StringifyPrimitiveValue<std::decay_t<Value>>{}(value));
     switch (options_.field_separators) {
       case Options::FieldSeparators::kComma:
         writer_.FinishLine(",");
@@ -372,13 +432,26 @@ class Stringifier {
     }
   }
 
-  void AppendTimestamp(std::string_view const name, absl::Time const value) {
-    AppendSubMessageField(name, EncodeGoogleApiProto(value));
+  template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, bool> = true>
+  void AppendEnumField(std::string_view const name, Enum const value) {
+    writer_.Append(name, ": ");
+    Tsdb2ProtoStringify(this, value);
+    switch (options_.field_separators) {
+      case Options::FieldSeparators::kComma:
+        writer_.FinishLine(",");
+        break;
+      case Options::FieldSeparators::kSemicolon:
+        writer_.FinishLine(";");
+        break;
+      default:
+        writer_.FinishLine();
+        break;
+    }
+    first_field_ = false;
   }
 
-  void AppendDuration(std::string_view const name, absl::Duration const value) {
-    AppendSubMessageField(name, EncodeGoogleApiProto(value));
-  }
+  void AppendTimestamp(std::string_view name, absl::Time value);
+  void AppendDuration(std::string_view name, absl::Duration value);
 
   Options const options_;
   internal::TextWriter writer_;

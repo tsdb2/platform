@@ -18,8 +18,8 @@ struct Version : public ::tsdb2::proto::Message {
 
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, Version* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         Version const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  Version const& proto);
 
   static auto Tie(Version const& proto) {
     return ::tsdb2::proto::Tie(proto.major, proto.minor, proto.patch, proto.suffix);
@@ -41,7 +41,7 @@ struct Version : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(Version const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(Version const& lhs, Version const& rhs) { return Tie(lhs) == Tie(rhs); }
@@ -64,8 +64,8 @@ struct CodeGeneratorRequest : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         CodeGeneratorRequest* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         CodeGeneratorRequest const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  CodeGeneratorRequest const& proto);
 
   static auto Tie(CodeGeneratorRequest const& proto) {
     return ::tsdb2::proto::Tie(proto.file_to_generate, proto.parameter, proto.proto_file,
@@ -89,7 +89,7 @@ struct CodeGeneratorRequest : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(CodeGeneratorRequest const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(CodeGeneratorRequest const& lhs, CodeGeneratorRequest const& rhs) {
@@ -139,15 +139,15 @@ struct CodeGeneratorResponse : public ::tsdb2::proto::Message {
 
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, Feature* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         Feature const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  Feature const& proto);
 
   friend bool AbslParseFlag(std::string_view const text, Feature* proto, std::string* const error) {
     return ::tsdb2::proto::text::Parser::ParseFlag(text, proto, error);
   }
 
   friend std::string AbslUnparseFlag(Feature const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   struct File : public ::tsdb2::proto::Message {
@@ -156,8 +156,8 @@ struct CodeGeneratorResponse : public ::tsdb2::proto::Message {
 
     friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, File* proto);
 
-    friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                           File const& proto);
+    friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                    File const& proto);
 
     static auto Tie(File const& proto) {
       return ::tsdb2::proto::Tie(proto.name, proto.insertion_point, proto.content,
@@ -180,7 +180,7 @@ struct CodeGeneratorResponse : public ::tsdb2::proto::Message {
     }
 
     friend std::string AbslUnparseFlag(File const& proto) {
-      return ::tsdb2::proto::text::Stringify(proto);
+      return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
     }
 
     friend bool operator==(File const& lhs, File const& rhs) { return Tie(lhs) == Tie(rhs); }
@@ -202,8 +202,8 @@ struct CodeGeneratorResponse : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         CodeGeneratorResponse* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         CodeGeneratorResponse const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  CodeGeneratorResponse const& proto);
 
   static auto Tie(CodeGeneratorResponse const& proto) {
     return ::tsdb2::proto::Tie(proto.error, proto.supported_features, proto.minimum_edition,
@@ -226,7 +226,7 @@ struct CodeGeneratorResponse : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(CodeGeneratorResponse const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(CodeGeneratorResponse const& lhs, CodeGeneratorResponse const& rhs) {

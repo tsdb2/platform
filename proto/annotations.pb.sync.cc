@@ -25,8 +25,8 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   }
 }
 
-std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
-                                FieldIndirectionType const& proto) {
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         FieldIndirectionType const& proto) {
   static auto constexpr kValueNames =
       ::tsdb2::common::fixed_flat_map_of<FieldIndirectionType, std::string_view>({
           {FieldIndirectionType::INDIRECTION_DIRECT, "INDIRECTION_DIRECT"},
@@ -35,9 +35,9 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       });
   auto const it = kValueNames.find(proto);
   if (it != kValueNames.end()) {
-    return std::string(it->second);
+    stringifier->AppendIdentifier(it->second);
   } else {
-    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+    stringifier->AppendInteger(::tsdb2::util::to_underlying(proto));
   }
 }
 
@@ -62,8 +62,8 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   }
 }
 
-std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
-                                MapType const& proto) {
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         MapType const& proto) {
   static auto constexpr kValueNames =
       ::tsdb2::common::fixed_flat_map_of<MapType, std::string_view>({
           {MapType::MAP_TYPE_STD_MAP, "MAP_TYPE_STD_MAP"},
@@ -76,9 +76,9 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       });
   auto const it = kValueNames.find(proto);
   if (it != kValueNames.end()) {
-    return std::string(it->second);
+    stringifier->AppendIdentifier(it->second);
   } else {
-    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+    stringifier->AppendInteger(::tsdb2::util::to_underlying(proto));
   }
 }
 
@@ -144,6 +144,16 @@ google_protobuf_FieldOptions_extension::Decode(::absl::Span<uint8_t const> const
     parser->ConsumeFieldSeparators();
   }
   return ::absl::OkStatus();
+}
+
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         google_protobuf_FieldOptions_extension const& proto) {
+  if (proto.indirect.has_value()) {
+    stringifier->AppendField("indirect", proto.indirect.value());
+  }
+  if (proto.map_type.has_value()) {
+    stringifier->AppendField("map_type", proto.map_type.value());
+  }
 }
 
 TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING();

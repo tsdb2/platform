@@ -32,8 +32,8 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   }
 }
 
-std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
-                                Edition const& proto) {
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         Edition const& proto) {
   static auto constexpr kValueNames =
       ::tsdb2::common::fixed_flat_map_of<Edition, std::string_view>({
           {Edition::EDITION_UNKNOWN, "EDITION_UNKNOWN"},
@@ -51,9 +51,9 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       });
   auto const it = kValueNames.find(proto);
   if (it != kValueNames.end()) {
-    return std::string(it->second);
+    stringifier->AppendIdentifier(it->second);
   } else {
-    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+    stringifier->AppendInteger(::tsdb2::util::to_underlying(proto));
   }
 }
 
@@ -107,6 +107,13 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
     parser->ConsumeFieldSeparators();
   }
   return ::absl::OkStatus();
+}
+
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         FileDescriptorSet const& proto) {
+  for (auto const& value : proto.file) {
+    stringifier->AppendField("file", value);
+  }
 }
 
 ::absl::StatusOr<FileDescriptorProto> FileDescriptorProto::Decode(
@@ -301,6 +308,49 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   return ::absl::OkStatus();
 }
 
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         FileDescriptorProto const& proto) {
+  if (proto.name.has_value()) {
+    stringifier->AppendField("name", proto.name.value());
+  }
+  if (proto.package.has_value()) {
+    stringifier->AppendField("package", proto.package.value());
+  }
+  for (auto const& value : proto.dependency) {
+    stringifier->AppendField("dependency", value);
+  }
+  for (auto const& value : proto.public_dependency) {
+    stringifier->AppendField("public_dependency", value);
+  }
+  for (auto const& value : proto.weak_dependency) {
+    stringifier->AppendField("weak_dependency", value);
+  }
+  for (auto const& value : proto.message_type) {
+    stringifier->AppendField("message_type", value);
+  }
+  for (auto const& value : proto.enum_type) {
+    stringifier->AppendField("enum_type", value);
+  }
+  for (auto const& value : proto.service) {
+    stringifier->AppendField("service", value);
+  }
+  for (auto const& value : proto.extension) {
+    stringifier->AppendField("extension", value);
+  }
+  if (proto.options.has_value()) {
+    stringifier->AppendField("options", proto.options.value());
+  }
+  if (proto.source_code_info.has_value()) {
+    stringifier->AppendField("source_code_info", proto.source_code_info.value());
+  }
+  if (proto.syntax.has_value()) {
+    stringifier->AppendField("syntax", proto.syntax.value());
+  }
+  if (proto.edition.has_value()) {
+    stringifier->AppendField("edition", proto.edition.value());
+  }
+}
+
 ::absl::StatusOr<DescriptorProto::ExtensionRange> DescriptorProto::ExtensionRange::Decode(
     ::absl::Span<uint8_t const> const data) {
   DescriptorProto::ExtensionRange proto;
@@ -377,6 +427,19 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   return ::absl::OkStatus();
 }
 
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         DescriptorProto::ExtensionRange const& proto) {
+  if (proto.start.has_value()) {
+    stringifier->AppendField("start", proto.start.value());
+  }
+  if (proto.end.has_value()) {
+    stringifier->AppendField("end", proto.end.value());
+  }
+  if (proto.options.has_value()) {
+    stringifier->AppendField("options", proto.options.value());
+  }
+}
+
 ::absl::StatusOr<DescriptorProto::ReservedRange> DescriptorProto::ReservedRange::Decode(
     ::absl::Span<uint8_t const> const data) {
   DescriptorProto::ReservedRange proto;
@@ -437,6 +500,16 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
     parser->ConsumeFieldSeparators();
   }
   return ::absl::OkStatus();
+}
+
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         DescriptorProto::ReservedRange const& proto) {
+  if (proto.start.has_value()) {
+    stringifier->AppendField("start", proto.start.value());
+  }
+  if (proto.end.has_value()) {
+    stringifier->AppendField("end", proto.end.value());
+  }
 }
 
 ::absl::StatusOr<DescriptorProto> DescriptorProto::Decode(::absl::Span<uint8_t const> const data) {
@@ -606,6 +679,40 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   return ::absl::OkStatus();
 }
 
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         DescriptorProto const& proto) {
+  if (proto.name.has_value()) {
+    stringifier->AppendField("name", proto.name.value());
+  }
+  for (auto const& value : proto.field) {
+    stringifier->AppendField("field", value);
+  }
+  for (auto const& value : proto.extension) {
+    stringifier->AppendField("extension", value);
+  }
+  for (auto const& value : proto.nested_type) {
+    stringifier->AppendField("nested_type", value);
+  }
+  for (auto const& value : proto.enum_type) {
+    stringifier->AppendField("enum_type", value);
+  }
+  for (auto const& value : proto.extension_range) {
+    stringifier->AppendField("extension_range", value);
+  }
+  for (auto const& value : proto.oneof_decl) {
+    stringifier->AppendField("oneof_decl", value);
+  }
+  if (proto.options.has_value()) {
+    stringifier->AppendField("options", proto.options.value());
+  }
+  for (auto const& value : proto.reserved_range) {
+    stringifier->AppendField("reserved_range", value);
+  }
+  for (auto const& value : proto.reserved_name) {
+    stringifier->AppendField("reserved_name", value);
+  }
+}
+
 ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                ExtensionRangeOptions::VerificationState* const proto) {
   static auto constexpr kValuesByName =
@@ -624,8 +731,8 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   }
 }
 
-std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
-                                ExtensionRangeOptions::VerificationState const& proto) {
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         ExtensionRangeOptions::VerificationState const& proto) {
   static auto constexpr kValueNames =
       ::tsdb2::common::fixed_flat_map_of<ExtensionRangeOptions::VerificationState,
                                          std::string_view>({
@@ -634,9 +741,9 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       });
   auto const it = kValueNames.find(proto);
   if (it != kValueNames.end()) {
-    return std::string(it->second);
+    stringifier->AppendIdentifier(it->second);
   } else {
-    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+    stringifier->AppendInteger(::tsdb2::util::to_underlying(proto));
   }
 }
 
@@ -733,6 +840,25 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
     parser->ConsumeFieldSeparators();
   }
   return ::absl::OkStatus();
+}
+
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         ExtensionRangeOptions::Declaration const& proto) {
+  if (proto.number.has_value()) {
+    stringifier->AppendField("number", proto.number.value());
+  }
+  if (proto.full_name.has_value()) {
+    stringifier->AppendField("full_name", proto.full_name.value());
+  }
+  if (proto.type.has_value()) {
+    stringifier->AppendField("type", proto.type.value());
+  }
+  if (proto.reserved.has_value()) {
+    stringifier->AppendField("reserved", proto.reserved.value());
+  }
+  if (proto.repeated.has_value()) {
+    stringifier->AppendField("repeated", proto.repeated.value());
+  }
 }
 
 ::absl::StatusOr<ExtensionRangeOptions> ExtensionRangeOptions::Decode(
@@ -832,6 +958,20 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   return ::absl::OkStatus();
 }
 
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         ExtensionRangeOptions const& proto) {
+  for (auto const& value : proto.uninterpreted_option) {
+    stringifier->AppendField("uninterpreted_option", value);
+  }
+  for (auto const& value : proto.declaration) {
+    stringifier->AppendField("declaration", value);
+  }
+  if (proto.features.has_value()) {
+    stringifier->AppendField("features", proto.features.value());
+  }
+  stringifier->AppendField("verification", proto.verification);
+}
+
 ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                FieldDescriptorProto::Type* const proto) {
   static auto constexpr kValuesByName =
@@ -865,8 +1005,8 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   }
 }
 
-std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
-                                FieldDescriptorProto::Type const& proto) {
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         FieldDescriptorProto::Type const& proto) {
   static auto constexpr kValueNames =
       ::tsdb2::common::fixed_flat_map_of<FieldDescriptorProto::Type, std::string_view>({
           {FieldDescriptorProto::Type::TYPE_DOUBLE, "TYPE_DOUBLE"},
@@ -890,9 +1030,9 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       });
   auto const it = kValueNames.find(proto);
   if (it != kValueNames.end()) {
-    return std::string(it->second);
+    stringifier->AppendIdentifier(it->second);
   } else {
-    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+    stringifier->AppendInteger(::tsdb2::util::to_underlying(proto));
   }
 }
 
@@ -914,8 +1054,8 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   }
 }
 
-std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
-                                FieldDescriptorProto::Label const& proto) {
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         FieldDescriptorProto::Label const& proto) {
   static auto constexpr kValueNames =
       ::tsdb2::common::fixed_flat_map_of<FieldDescriptorProto::Label, std::string_view>({
           {FieldDescriptorProto::Label::LABEL_OPTIONAL, "LABEL_OPTIONAL"},
@@ -924,9 +1064,9 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       });
   auto const it = kValueNames.find(proto);
   if (it != kValueNames.end()) {
-    return std::string(it->second);
+    stringifier->AppendIdentifier(it->second);
   } else {
-    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+    stringifier->AppendInteger(::tsdb2::util::to_underlying(proto));
   }
 }
 
@@ -1098,6 +1238,43 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   return ::absl::OkStatus();
 }
 
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         FieldDescriptorProto const& proto) {
+  if (proto.name.has_value()) {
+    stringifier->AppendField("name", proto.name.value());
+  }
+  if (proto.number.has_value()) {
+    stringifier->AppendField("number", proto.number.value());
+  }
+  if (proto.label.has_value()) {
+    stringifier->AppendField("label", proto.label.value());
+  }
+  if (proto.type.has_value()) {
+    stringifier->AppendField("type", proto.type.value());
+  }
+  if (proto.type_name.has_value()) {
+    stringifier->AppendField("type_name", proto.type_name.value());
+  }
+  if (proto.extendee.has_value()) {
+    stringifier->AppendField("extendee", proto.extendee.value());
+  }
+  if (proto.default_value.has_value()) {
+    stringifier->AppendField("default_value", proto.default_value.value());
+  }
+  if (proto.oneof_index.has_value()) {
+    stringifier->AppendField("oneof_index", proto.oneof_index.value());
+  }
+  if (proto.json_name.has_value()) {
+    stringifier->AppendField("json_name", proto.json_name.value());
+  }
+  if (proto.options.has_value()) {
+    stringifier->AppendField("options", proto.options.value());
+  }
+  if (proto.proto3_optional.has_value()) {
+    stringifier->AppendField("proto3_optional", proto.proto3_optional.value());
+  }
+}
+
 ::absl::StatusOr<OneofDescriptorProto> OneofDescriptorProto::Decode(
     ::absl::Span<uint8_t const> const data) {
   OneofDescriptorProto proto;
@@ -1161,6 +1338,16 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   return ::absl::OkStatus();
 }
 
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         OneofDescriptorProto const& proto) {
+  if (proto.name.has_value()) {
+    stringifier->AppendField("name", proto.name.value());
+  }
+  if (proto.options.has_value()) {
+    stringifier->AppendField("options", proto.options.value());
+  }
+}
+
 ::absl::StatusOr<EnumDescriptorProto::EnumReservedRange>
 EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const data) {
   EnumDescriptorProto::EnumReservedRange proto;
@@ -1221,6 +1408,16 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     parser->ConsumeFieldSeparators();
   }
   return ::absl::OkStatus();
+}
+
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         EnumDescriptorProto::EnumReservedRange const& proto) {
+  if (proto.start.has_value()) {
+    stringifier->AppendField("start", proto.start.value());
+  }
+  if (proto.end.has_value()) {
+    stringifier->AppendField("end", proto.end.value());
+  }
 }
 
 ::absl::StatusOr<EnumDescriptorProto> EnumDescriptorProto::Decode(
@@ -1327,6 +1524,25 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   return ::absl::OkStatus();
 }
 
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         EnumDescriptorProto const& proto) {
+  if (proto.name.has_value()) {
+    stringifier->AppendField("name", proto.name.value());
+  }
+  for (auto const& value : proto.value) {
+    stringifier->AppendField("value", value);
+  }
+  if (proto.options.has_value()) {
+    stringifier->AppendField("options", proto.options.value());
+  }
+  for (auto const& value : proto.reserved_range) {
+    stringifier->AppendField("reserved_range", value);
+  }
+  for (auto const& value : proto.reserved_name) {
+    stringifier->AppendField("reserved_name", value);
+  }
+}
+
 ::absl::StatusOr<EnumValueDescriptorProto> EnumValueDescriptorProto::Decode(
     ::absl::Span<uint8_t const> const data) {
   EnumValueDescriptorProto proto;
@@ -1400,6 +1616,19 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     parser->ConsumeFieldSeparators();
   }
   return ::absl::OkStatus();
+}
+
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         EnumValueDescriptorProto const& proto) {
+  if (proto.name.has_value()) {
+    stringifier->AppendField("name", proto.name.value());
+  }
+  if (proto.number.has_value()) {
+    stringifier->AppendField("number", proto.number.value());
+  }
+  if (proto.options.has_value()) {
+    stringifier->AppendField("options", proto.options.value());
+  }
 }
 
 ::absl::StatusOr<ServiceDescriptorProto> ServiceDescriptorProto::Decode(
@@ -1476,6 +1705,19 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
     parser->ConsumeFieldSeparators();
   }
   return ::absl::OkStatus();
+}
+
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         ServiceDescriptorProto const& proto) {
+  if (proto.name.has_value()) {
+    stringifier->AppendField("name", proto.name.value());
+  }
+  for (auto const& value : proto.method) {
+    stringifier->AppendField("method", value);
+  }
+  if (proto.options.has_value()) {
+    stringifier->AppendField("options", proto.options.value());
+  }
 }
 
 ::absl::StatusOr<MethodDescriptorProto> MethodDescriptorProto::Decode(
@@ -1581,6 +1823,24 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   return ::absl::OkStatus();
 }
 
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         MethodDescriptorProto const& proto) {
+  if (proto.name.has_value()) {
+    stringifier->AppendField("name", proto.name.value());
+  }
+  if (proto.input_type.has_value()) {
+    stringifier->AppendField("input_type", proto.input_type.value());
+  }
+  if (proto.output_type.has_value()) {
+    stringifier->AppendField("output_type", proto.output_type.value());
+  }
+  if (proto.options.has_value()) {
+    stringifier->AppendField("options", proto.options.value());
+  }
+  stringifier->AppendField("client_streaming", proto.client_streaming);
+  stringifier->AppendField("server_streaming", proto.server_streaming);
+}
+
 ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                FileOptions::OptimizeMode* const proto) {
   static auto constexpr kValuesByName =
@@ -1599,8 +1859,8 @@ EnumDescriptorProto::EnumReservedRange::Decode(::absl::Span<uint8_t const> const
   }
 }
 
-std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
-                                FileOptions::OptimizeMode const& proto) {
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         FileOptions::OptimizeMode const& proto) {
   static auto constexpr kValueNames =
       ::tsdb2::common::fixed_flat_map_of<FileOptions::OptimizeMode, std::string_view>({
           {FileOptions::OptimizeMode::SPEED, "SPEED"},
@@ -1609,9 +1869,9 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       });
   auto const it = kValueNames.find(proto);
   if (it != kValueNames.end()) {
-    return std::string(it->second);
+    stringifier->AppendIdentifier(it->second);
   } else {
-    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+    stringifier->AppendInteger(::tsdb2::util::to_underlying(proto));
   }
 }
 
@@ -1878,6 +2138,58 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   return ::absl::OkStatus();
 }
 
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         FileOptions const& proto) {
+  if (proto.java_package.has_value()) {
+    stringifier->AppendField("java_package", proto.java_package.value());
+  }
+  if (proto.java_outer_classname.has_value()) {
+    stringifier->AppendField("java_outer_classname", proto.java_outer_classname.value());
+  }
+  stringifier->AppendField("java_multiple_files", proto.java_multiple_files);
+  if (proto.java_generate_equals_and_hash.has_value()) {
+    stringifier->AppendField("java_generate_equals_and_hash",
+                             proto.java_generate_equals_and_hash.value());
+  }
+  stringifier->AppendField("java_string_check_utf8", proto.java_string_check_utf8);
+  stringifier->AppendField("optimize_for", proto.optimize_for);
+  if (proto.go_package.has_value()) {
+    stringifier->AppendField("go_package", proto.go_package.value());
+  }
+  stringifier->AppendField("cc_generic_services", proto.cc_generic_services);
+  stringifier->AppendField("java_generic_services", proto.java_generic_services);
+  stringifier->AppendField("py_generic_services", proto.py_generic_services);
+  stringifier->AppendField("deprecated", proto.deprecated);
+  stringifier->AppendField("cc_enable_arenas", proto.cc_enable_arenas);
+  if (proto.objc_class_prefix.has_value()) {
+    stringifier->AppendField("objc_class_prefix", proto.objc_class_prefix.value());
+  }
+  if (proto.csharp_namespace.has_value()) {
+    stringifier->AppendField("csharp_namespace", proto.csharp_namespace.value());
+  }
+  if (proto.swift_prefix.has_value()) {
+    stringifier->AppendField("swift_prefix", proto.swift_prefix.value());
+  }
+  if (proto.php_class_prefix.has_value()) {
+    stringifier->AppendField("php_class_prefix", proto.php_class_prefix.value());
+  }
+  if (proto.php_namespace.has_value()) {
+    stringifier->AppendField("php_namespace", proto.php_namespace.value());
+  }
+  if (proto.php_metadata_namespace.has_value()) {
+    stringifier->AppendField("php_metadata_namespace", proto.php_metadata_namespace.value());
+  }
+  if (proto.ruby_package.has_value()) {
+    stringifier->AppendField("ruby_package", proto.ruby_package.value());
+  }
+  if (proto.features.has_value()) {
+    stringifier->AppendField("features", proto.features.value());
+  }
+  for (auto const& value : proto.uninterpreted_option) {
+    stringifier->AppendField("uninterpreted_option", value);
+  }
+}
+
 ::absl::StatusOr<MessageOptions> MessageOptions::Decode(::absl::Span<uint8_t const> const data) {
   MessageOptions proto;
   ::tsdb2::proto::Decoder decoder{data};
@@ -1994,6 +2306,27 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   return ::absl::OkStatus();
 }
 
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         MessageOptions const& proto) {
+  stringifier->AppendField("message_set_wire_format", proto.message_set_wire_format);
+  stringifier->AppendField("no_standard_descriptor_accessor",
+                           proto.no_standard_descriptor_accessor);
+  stringifier->AppendField("deprecated", proto.deprecated);
+  if (proto.map_entry.has_value()) {
+    stringifier->AppendField("map_entry", proto.map_entry.value());
+  }
+  if (proto.deprecated_legacy_json_field_conflicts.has_value()) {
+    stringifier->AppendField("deprecated_legacy_json_field_conflicts",
+                             proto.deprecated_legacy_json_field_conflicts.value());
+  }
+  if (proto.features.has_value()) {
+    stringifier->AppendField("features", proto.features.value());
+  }
+  for (auto const& value : proto.uninterpreted_option) {
+    stringifier->AppendField("uninterpreted_option", value);
+  }
+}
+
 ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                FieldOptions::CType* const proto) {
   static auto constexpr kValuesByName =
@@ -2012,8 +2345,8 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   }
 }
 
-std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
-                                FieldOptions::CType const& proto) {
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         FieldOptions::CType const& proto) {
   static auto constexpr kValueNames =
       ::tsdb2::common::fixed_flat_map_of<FieldOptions::CType, std::string_view>({
           {FieldOptions::CType::STRING, "STRING"},
@@ -2022,9 +2355,9 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       });
   auto const it = kValueNames.find(proto);
   if (it != kValueNames.end()) {
-    return std::string(it->second);
+    stringifier->AppendIdentifier(it->second);
   } else {
-    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+    stringifier->AppendInteger(::tsdb2::util::to_underlying(proto));
   }
 }
 
@@ -2046,8 +2379,8 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   }
 }
 
-std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
-                                FieldOptions::JSType const& proto) {
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         FieldOptions::JSType const& proto) {
   static auto constexpr kValueNames =
       ::tsdb2::common::fixed_flat_map_of<FieldOptions::JSType, std::string_view>({
           {FieldOptions::JSType::JS_NORMAL, "JS_NORMAL"},
@@ -2056,9 +2389,9 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       });
   auto const it = kValueNames.find(proto);
   if (it != kValueNames.end()) {
-    return std::string(it->second);
+    stringifier->AppendIdentifier(it->second);
   } else {
-    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+    stringifier->AppendInteger(::tsdb2::util::to_underlying(proto));
   }
 }
 
@@ -2080,8 +2413,8 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   }
 }
 
-std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
-                                FieldOptions::OptionRetention const& proto) {
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         FieldOptions::OptionRetention const& proto) {
   static auto constexpr kValueNames =
       ::tsdb2::common::fixed_flat_map_of<FieldOptions::OptionRetention, std::string_view>({
           {FieldOptions::OptionRetention::RETENTION_UNKNOWN, "RETENTION_UNKNOWN"},
@@ -2090,9 +2423,9 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       });
   auto const it = kValueNames.find(proto);
   if (it != kValueNames.end()) {
-    return std::string(it->second);
+    stringifier->AppendIdentifier(it->second);
   } else {
-    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+    stringifier->AppendInteger(::tsdb2::util::to_underlying(proto));
   }
 }
 
@@ -2122,8 +2455,8 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   }
 }
 
-std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
-                                FieldOptions::OptionTargetType const& proto) {
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         FieldOptions::OptionTargetType const& proto) {
   static auto constexpr kValueNames =
       ::tsdb2::common::fixed_flat_map_of<FieldOptions::OptionTargetType, std::string_view>({
           {FieldOptions::OptionTargetType::TARGET_TYPE_UNKNOWN, "TARGET_TYPE_UNKNOWN"},
@@ -2140,9 +2473,9 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       });
   auto const it = kValueNames.find(proto);
   if (it != kValueNames.end()) {
-    return std::string(it->second);
+    stringifier->AppendIdentifier(it->second);
   } else {
-    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+    stringifier->AppendInteger(::tsdb2::util::to_underlying(proto));
   }
 }
 
@@ -2206,6 +2539,16 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
     parser->ConsumeFieldSeparators();
   }
   return ::absl::OkStatus();
+}
+
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         FieldOptions::EditionDefault const& proto) {
+  if (proto.edition.has_value()) {
+    stringifier->AppendField("edition", proto.edition.value());
+  }
+  if (proto.value.has_value()) {
+    stringifier->AppendField("value", proto.value.value());
+  }
 }
 
 ::absl::StatusOr<FieldOptions::FeatureSupport> FieldOptions::FeatureSupport::Decode(
@@ -2292,6 +2635,22 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
     parser->ConsumeFieldSeparators();
   }
   return ::absl::OkStatus();
+}
+
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         FieldOptions::FeatureSupport const& proto) {
+  if (proto.edition_introduced.has_value()) {
+    stringifier->AppendField("edition_introduced", proto.edition_introduced.value());
+  }
+  if (proto.edition_deprecated.has_value()) {
+    stringifier->AppendField("edition_deprecated", proto.edition_deprecated.value());
+  }
+  if (proto.deprecation_warning.has_value()) {
+    stringifier->AppendField("deprecation_warning", proto.deprecation_warning.value());
+  }
+  if (proto.edition_removed.has_value()) {
+    stringifier->AppendField("edition_removed", proto.edition_removed.value());
+  }
 }
 
 ::absl::StatusOr<FieldOptions> FieldOptions::Decode(::absl::Span<uint8_t const> const data) {
@@ -2495,6 +2854,38 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   return ::absl::OkStatus();
 }
 
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         FieldOptions const& proto) {
+  stringifier->AppendField("ctype", proto.ctype);
+  if (proto.packed.has_value()) {
+    stringifier->AppendField("packed", proto.packed.value());
+  }
+  stringifier->AppendField("jstype", proto.jstype);
+  stringifier->AppendField("lazy", proto.lazy);
+  stringifier->AppendField("unverified_lazy", proto.unverified_lazy);
+  stringifier->AppendField("deprecated", proto.deprecated);
+  stringifier->AppendField("weak", proto.weak);
+  stringifier->AppendField("debug_redact", proto.debug_redact);
+  if (proto.retention.has_value()) {
+    stringifier->AppendField("retention", proto.retention.value());
+  }
+  for (auto const& value : proto.targets) {
+    stringifier->AppendField("targets", value);
+  }
+  for (auto const& value : proto.edition_defaults) {
+    stringifier->AppendField("edition_defaults", value);
+  }
+  if (proto.features.has_value()) {
+    stringifier->AppendField("features", proto.features.value());
+  }
+  if (proto.feature_support.has_value()) {
+    stringifier->AppendField("feature_support", proto.feature_support.value());
+  }
+  for (auto const& value : proto.uninterpreted_option) {
+    stringifier->AppendField("uninterpreted_option", value);
+  }
+}
+
 ::absl::StatusOr<OneofOptions> OneofOptions::Decode(::absl::Span<uint8_t const> const data) {
   OneofOptions proto;
   ::tsdb2::proto::Decoder decoder{data};
@@ -2560,6 +2951,16 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
     parser->ConsumeFieldSeparators();
   }
   return ::absl::OkStatus();
+}
+
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         OneofOptions const& proto) {
+  if (proto.features.has_value()) {
+    stringifier->AppendField("features", proto.features.value());
+  }
+  for (auto const& value : proto.uninterpreted_option) {
+    stringifier->AppendField("uninterpreted_option", value);
+  }
 }
 
 ::absl::StatusOr<EnumOptions> EnumOptions::Decode(::absl::Span<uint8_t const> const data) {
@@ -2658,6 +3059,24 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
     parser->ConsumeFieldSeparators();
   }
   return ::absl::OkStatus();
+}
+
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         EnumOptions const& proto) {
+  if (proto.allow_alias.has_value()) {
+    stringifier->AppendField("allow_alias", proto.allow_alias.value());
+  }
+  stringifier->AppendField("deprecated", proto.deprecated);
+  if (proto.deprecated_legacy_json_field_conflicts.has_value()) {
+    stringifier->AppendField("deprecated_legacy_json_field_conflicts",
+                             proto.deprecated_legacy_json_field_conflicts.value());
+  }
+  if (proto.features.has_value()) {
+    stringifier->AppendField("features", proto.features.value());
+  }
+  for (auto const& value : proto.uninterpreted_option) {
+    stringifier->AppendField("uninterpreted_option", value);
+  }
 }
 
 ::absl::StatusOr<EnumValueOptions> EnumValueOptions::Decode(
@@ -2761,6 +3180,21 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   return ::absl::OkStatus();
 }
 
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         EnumValueOptions const& proto) {
+  stringifier->AppendField("deprecated", proto.deprecated);
+  if (proto.features.has_value()) {
+    stringifier->AppendField("features", proto.features.value());
+  }
+  stringifier->AppendField("debug_redact", proto.debug_redact);
+  if (proto.feature_support.has_value()) {
+    stringifier->AppendField("feature_support", proto.feature_support.value());
+  }
+  for (auto const& value : proto.uninterpreted_option) {
+    stringifier->AppendField("uninterpreted_option", value);
+  }
+}
+
 ::absl::StatusOr<ServiceOptions> ServiceOptions::Decode(::absl::Span<uint8_t const> const data) {
   ServiceOptions proto;
   ::tsdb2::proto::Decoder decoder{data};
@@ -2837,6 +3271,17 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   return ::absl::OkStatus();
 }
 
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         ServiceOptions const& proto) {
+  if (proto.features.has_value()) {
+    stringifier->AppendField("features", proto.features.value());
+  }
+  stringifier->AppendField("deprecated", proto.deprecated);
+  for (auto const& value : proto.uninterpreted_option) {
+    stringifier->AppendField("uninterpreted_option", value);
+  }
+}
+
 ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                MethodOptions::IdempotencyLevel* const proto) {
   static auto constexpr kValuesByName =
@@ -2855,8 +3300,8 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   }
 }
 
-std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
-                                MethodOptions::IdempotencyLevel const& proto) {
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         MethodOptions::IdempotencyLevel const& proto) {
   static auto constexpr kValueNames =
       ::tsdb2::common::fixed_flat_map_of<MethodOptions::IdempotencyLevel, std::string_view>({
           {MethodOptions::IdempotencyLevel::IDEMPOTENCY_UNKNOWN, "IDEMPOTENCY_UNKNOWN"},
@@ -2865,9 +3310,9 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       });
   auto const it = kValueNames.find(proto);
   if (it != kValueNames.end()) {
-    return std::string(it->second);
+    stringifier->AppendIdentifier(it->second);
   } else {
-    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+    stringifier->AppendInteger(::tsdb2::util::to_underlying(proto));
   }
 }
 
@@ -2959,6 +3404,18 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   return ::absl::OkStatus();
 }
 
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         MethodOptions const& proto) {
+  stringifier->AppendField("deprecated", proto.deprecated);
+  stringifier->AppendField("idempotency_level", proto.idempotency_level);
+  if (proto.features.has_value()) {
+    stringifier->AppendField("features", proto.features.value());
+  }
+  for (auto const& value : proto.uninterpreted_option) {
+    stringifier->AppendField("uninterpreted_option", value);
+  }
+}
+
 ::absl::StatusOr<UninterpretedOption::NamePart> UninterpretedOption::NamePart::Decode(
     ::absl::Span<uint8_t const> const data) {
   UninterpretedOption::NamePart proto;
@@ -3033,6 +3490,12 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
     return absl::InvalidArgumentError("missing required field \"is_extension\"");
   }
   return ::absl::OkStatus();
+}
+
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         UninterpretedOption::NamePart const& proto) {
+  stringifier->AppendField("name_part", proto.name_part);
+  stringifier->AppendField("is_extension", proto.is_extension);
 }
 
 ::absl::StatusOr<UninterpretedOption> UninterpretedOption::Decode(
@@ -3155,6 +3618,31 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   return ::absl::OkStatus();
 }
 
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         UninterpretedOption const& proto) {
+  for (auto const& value : proto.name) {
+    stringifier->AppendField("name", value);
+  }
+  if (proto.identifier_value.has_value()) {
+    stringifier->AppendField("identifier_value", proto.identifier_value.value());
+  }
+  if (proto.positive_int_value.has_value()) {
+    stringifier->AppendField("positive_int_value", proto.positive_int_value.value());
+  }
+  if (proto.negative_int_value.has_value()) {
+    stringifier->AppendField("negative_int_value", proto.negative_int_value.value());
+  }
+  if (proto.double_value.has_value()) {
+    stringifier->AppendField("double_value", proto.double_value.value());
+  }
+  if (proto.string_value.has_value()) {
+    stringifier->AppendField("string_value", proto.string_value.value());
+  }
+  if (proto.aggregate_value.has_value()) {
+    stringifier->AppendField("aggregate_value", proto.aggregate_value.value());
+  }
+}
+
 ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                FeatureSet::FieldPresence* const proto) {
   static auto constexpr kValuesByName =
@@ -3174,8 +3662,8 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   }
 }
 
-std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
-                                FeatureSet::FieldPresence const& proto) {
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         FeatureSet::FieldPresence const& proto) {
   static auto constexpr kValueNames =
       ::tsdb2::common::fixed_flat_map_of<FeatureSet::FieldPresence, std::string_view>({
           {FeatureSet::FieldPresence::FIELD_PRESENCE_UNKNOWN, "FIELD_PRESENCE_UNKNOWN"},
@@ -3185,9 +3673,9 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       });
   auto const it = kValueNames.find(proto);
   if (it != kValueNames.end()) {
-    return std::string(it->second);
+    stringifier->AppendIdentifier(it->second);
   } else {
-    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+    stringifier->AppendInteger(::tsdb2::util::to_underlying(proto));
   }
 }
 
@@ -3209,8 +3697,8 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   }
 }
 
-std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
-                                FeatureSet::EnumType const& proto) {
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         FeatureSet::EnumType const& proto) {
   static auto constexpr kValueNames =
       ::tsdb2::common::fixed_flat_map_of<FeatureSet::EnumType, std::string_view>({
           {FeatureSet::EnumType::ENUM_TYPE_UNKNOWN, "ENUM_TYPE_UNKNOWN"},
@@ -3219,9 +3707,9 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       });
   auto const it = kValueNames.find(proto);
   if (it != kValueNames.end()) {
-    return std::string(it->second);
+    stringifier->AppendIdentifier(it->second);
   } else {
-    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+    stringifier->AppendInteger(::tsdb2::util::to_underlying(proto));
   }
 }
 
@@ -3244,8 +3732,8 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   }
 }
 
-std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
-                                FeatureSet::RepeatedFieldEncoding const& proto) {
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         FeatureSet::RepeatedFieldEncoding const& proto) {
   static auto constexpr kValueNames =
       ::tsdb2::common::fixed_flat_map_of<FeatureSet::RepeatedFieldEncoding, std::string_view>({
           {FeatureSet::RepeatedFieldEncoding::REPEATED_FIELD_ENCODING_UNKNOWN,
@@ -3255,9 +3743,9 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       });
   auto const it = kValueNames.find(proto);
   if (it != kValueNames.end()) {
-    return std::string(it->second);
+    stringifier->AppendIdentifier(it->second);
   } else {
-    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+    stringifier->AppendInteger(::tsdb2::util::to_underlying(proto));
   }
 }
 
@@ -3279,8 +3767,8 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   }
 }
 
-std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
-                                FeatureSet::Utf8Validation const& proto) {
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         FeatureSet::Utf8Validation const& proto) {
   static auto constexpr kValueNames =
       ::tsdb2::common::fixed_flat_map_of<FeatureSet::Utf8Validation, std::string_view>({
           {FeatureSet::Utf8Validation::UTF8_VALIDATION_UNKNOWN, "UTF8_VALIDATION_UNKNOWN"},
@@ -3289,9 +3777,9 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       });
   auto const it = kValueNames.find(proto);
   if (it != kValueNames.end()) {
-    return std::string(it->second);
+    stringifier->AppendIdentifier(it->second);
   } else {
-    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+    stringifier->AppendInteger(::tsdb2::util::to_underlying(proto));
   }
 }
 
@@ -3313,8 +3801,8 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   }
 }
 
-std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
-                                FeatureSet::MessageEncoding const& proto) {
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         FeatureSet::MessageEncoding const& proto) {
   static auto constexpr kValueNames =
       ::tsdb2::common::fixed_flat_map_of<FeatureSet::MessageEncoding, std::string_view>({
           {FeatureSet::MessageEncoding::MESSAGE_ENCODING_UNKNOWN, "MESSAGE_ENCODING_UNKNOWN"},
@@ -3323,9 +3811,9 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       });
   auto const it = kValueNames.find(proto);
   if (it != kValueNames.end()) {
-    return std::string(it->second);
+    stringifier->AppendIdentifier(it->second);
   } else {
-    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+    stringifier->AppendInteger(::tsdb2::util::to_underlying(proto));
   }
 }
 
@@ -3347,8 +3835,8 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   }
 }
 
-std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
-                                FeatureSet::JsonFormat const& proto) {
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         FeatureSet::JsonFormat const& proto) {
   static auto constexpr kValueNames =
       ::tsdb2::common::fixed_flat_map_of<FeatureSet::JsonFormat, std::string_view>({
           {FeatureSet::JsonFormat::JSON_FORMAT_UNKNOWN, "JSON_FORMAT_UNKNOWN"},
@@ -3357,9 +3845,9 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
       });
   auto const it = kValueNames.find(proto);
   if (it != kValueNames.end()) {
-    return std::string(it->second);
+    stringifier->AppendIdentifier(it->second);
   } else {
-    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+    stringifier->AppendInteger(::tsdb2::util::to_underlying(proto));
   }
 }
 
@@ -3487,6 +3975,28 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   return ::absl::OkStatus();
 }
 
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         FeatureSet const& proto) {
+  if (proto.field_presence.has_value()) {
+    stringifier->AppendField("field_presence", proto.field_presence.value());
+  }
+  if (proto.enum_type.has_value()) {
+    stringifier->AppendField("enum_type", proto.enum_type.value());
+  }
+  if (proto.repeated_field_encoding.has_value()) {
+    stringifier->AppendField("repeated_field_encoding", proto.repeated_field_encoding.value());
+  }
+  if (proto.utf8_validation.has_value()) {
+    stringifier->AppendField("utf8_validation", proto.utf8_validation.value());
+  }
+  if (proto.message_encoding.has_value()) {
+    stringifier->AppendField("message_encoding", proto.message_encoding.value());
+  }
+  if (proto.json_format.has_value()) {
+    stringifier->AppendField("json_format", proto.json_format.value());
+  }
+}
+
 ::absl::StatusOr<FeatureSetDefaults::FeatureSetEditionDefault>
 FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const> const data) {
   FeatureSetDefaults::FeatureSetEditionDefault proto;
@@ -3563,6 +4073,19 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
     parser->ConsumeFieldSeparators();
   }
   return ::absl::OkStatus();
+}
+
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         FeatureSetDefaults::FeatureSetEditionDefault const& proto) {
+  if (proto.edition.has_value()) {
+    stringifier->AppendField("edition", proto.edition.value());
+  }
+  if (proto.overridable_features.has_value()) {
+    stringifier->AppendField("overridable_features", proto.overridable_features.value());
+  }
+  if (proto.fixed_features.has_value()) {
+    stringifier->AppendField("fixed_features", proto.fixed_features.value());
+  }
 }
 
 ::absl::StatusOr<FeatureSetDefaults> FeatureSetDefaults::Decode(
@@ -3643,6 +4166,19 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
     parser->ConsumeFieldSeparators();
   }
   return ::absl::OkStatus();
+}
+
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         FeatureSetDefaults const& proto) {
+  for (auto const& value : proto.defaults) {
+    stringifier->AppendField("defaults", value);
+  }
+  if (proto.minimum_edition.has_value()) {
+    stringifier->AppendField("minimum_edition", proto.minimum_edition.value());
+  }
+  if (proto.maximum_edition.has_value()) {
+    stringifier->AppendField("maximum_edition", proto.maximum_edition.value());
+  }
 }
 
 ::absl::StatusOr<SourceCodeInfo::Location> SourceCodeInfo::Location::Decode(
@@ -3733,6 +4269,25 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
   return ::absl::OkStatus();
 }
 
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         SourceCodeInfo::Location const& proto) {
+  for (auto const& value : proto.path) {
+    stringifier->AppendField("path", value);
+  }
+  for (auto const& value : proto.span) {
+    stringifier->AppendField("span", value);
+  }
+  if (proto.leading_comments.has_value()) {
+    stringifier->AppendField("leading_comments", proto.leading_comments.value());
+  }
+  if (proto.trailing_comments.has_value()) {
+    stringifier->AppendField("trailing_comments", proto.trailing_comments.value());
+  }
+  for (auto const& value : proto.leading_detached_comments) {
+    stringifier->AppendField("leading_detached_comments", value);
+  }
+}
+
 ::absl::StatusOr<SourceCodeInfo> SourceCodeInfo::Decode(::absl::Span<uint8_t const> const data) {
   SourceCodeInfo proto;
   ::tsdb2::proto::Decoder decoder{data};
@@ -3785,6 +4340,13 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
   return ::absl::OkStatus();
 }
 
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         SourceCodeInfo const& proto) {
+  for (auto const& value : proto.location) {
+    stringifier->AppendField("location", value);
+  }
+}
+
 ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                GeneratedCodeInfo::Annotation::Semantic* const proto) {
   static auto constexpr kValuesByName =
@@ -3804,8 +4366,8 @@ FeatureSetDefaults::FeatureSetEditionDefault::Decode(::absl::Span<uint8_t const>
   }
 }
 
-std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
-                                GeneratedCodeInfo::Annotation::Semantic const& proto) {
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         GeneratedCodeInfo::Annotation::Semantic const& proto) {
   static auto constexpr kValueNames =
       ::tsdb2::common::fixed_flat_map_of<GeneratedCodeInfo::Annotation::Semantic, std::string_view>(
           {
@@ -3815,9 +4377,9 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
           });
   auto const it = kValueNames.find(proto);
   if (it != kValueNames.end()) {
-    return std::string(it->second);
+    stringifier->AppendIdentifier(it->second);
   } else {
-    return ::absl::StrCat(::tsdb2::util::to_underlying(proto));
+    stringifier->AppendInteger(::tsdb2::util::to_underlying(proto));
   }
 }
 
@@ -3917,6 +4479,25 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
   return ::absl::OkStatus();
 }
 
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         GeneratedCodeInfo::Annotation const& proto) {
+  for (auto const& value : proto.path) {
+    stringifier->AppendField("path", value);
+  }
+  if (proto.source_file.has_value()) {
+    stringifier->AppendField("source_file", proto.source_file.value());
+  }
+  if (proto.begin.has_value()) {
+    stringifier->AppendField("begin", proto.begin.value());
+  }
+  if (proto.end.has_value()) {
+    stringifier->AppendField("end", proto.end.value());
+  }
+  if (proto.semantic.has_value()) {
+    stringifier->AppendField("semantic", proto.semantic.value());
+  }
+}
+
 ::absl::StatusOr<GeneratedCodeInfo> GeneratedCodeInfo::Decode(
     ::absl::Span<uint8_t const> const data) {
   GeneratedCodeInfo proto;
@@ -3969,6 +4550,13 @@ std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringi
     parser->ConsumeFieldSeparators();
   }
   return ::absl::OkStatus();
+}
+
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         GeneratedCodeInfo const& proto) {
+  for (auto const& value : proto.annotation) {
+    stringifier->AppendField("annotation", value);
+  }
 }
 
 TSDB2_RESTORE_DEPRECATED_DECLARATION_WARNING();

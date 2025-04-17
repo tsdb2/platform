@@ -65,6 +65,16 @@ TSDB2_DISABLE_DEPRECATED_DECLARATION_WARNING();
   return ::absl::OkStatus();
 }
 
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
+                         Timestamp const& proto) {
+  if (proto.seconds.has_value()) {
+    stringifier->AppendField("seconds", proto.seconds.value());
+  }
+  if (proto.nanos.has_value()) {
+    stringifier->AppendField("nanos", proto.nanos.value());
+  }
+}
+
 ::tsdb2::proto::MessageDescriptor<Timestamp, 2> const Timestamp::MESSAGE_DESCRIPTOR{{
     {"seconds", &Timestamp::seconds},
     {"nanos", &Timestamp::nanos},

@@ -26,8 +26,8 @@ inline State Tsdb2FingerprintValue(State state, FieldIndirectionType const& valu
 
 ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, FieldIndirectionType* proto);
 
-std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                FieldIndirectionType const& proto);
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                         FieldIndirectionType const& proto);
 
 inline bool AbslParseFlag(std::string_view const text, FieldIndirectionType* proto,
                           std::string* const error) {
@@ -35,7 +35,7 @@ inline bool AbslParseFlag(std::string_view const text, FieldIndirectionType* pro
 }
 
 inline std::string AbslUnparseFlag(FieldIndirectionType const& proto) {
-  return ::tsdb2::proto::text::Stringify(proto);
+  return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
 }
 
 enum class MapType {
@@ -60,15 +60,14 @@ inline State Tsdb2FingerprintValue(State state, MapType const& value) {
 
 ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, MapType* proto);
 
-std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                MapType const& proto);
+void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier, MapType const& proto);
 
 inline bool AbslParseFlag(std::string_view const text, MapType* proto, std::string* const error) {
   return ::tsdb2::proto::text::Parser::ParseFlag(text, proto, error);
 }
 
 inline std::string AbslUnparseFlag(MapType const& proto) {
-  return ::tsdb2::proto::text::Stringify(proto);
+  return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
 }
 
 struct google_protobuf_FieldOptions_extension : public ::tsdb2::proto::Message {
@@ -79,8 +78,8 @@ struct google_protobuf_FieldOptions_extension : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         google_protobuf_FieldOptions_extension* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         google_protobuf_FieldOptions_extension const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  google_protobuf_FieldOptions_extension const& proto);
 
   static auto Tie(google_protobuf_FieldOptions_extension const& proto) {
     return ::tsdb2::proto::Tie(proto.indirect, proto.map_type);
@@ -104,7 +103,7 @@ struct google_protobuf_FieldOptions_extension : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(google_protobuf_FieldOptions_extension const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(google_protobuf_FieldOptions_extension const& lhs,

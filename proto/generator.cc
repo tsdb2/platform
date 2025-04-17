@@ -277,7 +277,6 @@ auto const* const kGoogleApiTypes =
              .decoder_name = "DecodeDurationField",
              .encoder_name = "EncodeDurationField",
              .parser_name = "ParseDuration",
-             .stringifier_name = "StringifyDuration",
          }},
         {{"google", "protobuf", "Timestamp"},
          {
@@ -285,7 +284,6 @@ auto const* const kGoogleApiTypes =
              .decoder_name = "DecodeTimeField",
              .encoder_name = "EncodeTimeField",
              .parser_name = "ParseTimestamp",
-             .stringifier_name = "StringifyTimestamp",
          }},
     };
 
@@ -1382,7 +1380,7 @@ absl::Status Generator::EmitMessageHeader(
     writer->AppendLine("}");
     writer->AppendEmptyLine();
     writer->AppendLine("friend std::string AbslUnparseFlag(", name, " const& proto) {");
-    writer->AppendLine("  return ::tsdb2::proto::text::Stringify(proto);");
+    writer->AppendLine("  return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);");
     writer->AppendLine("}");
     writer->AppendEmptyLine();
     DEFINE_CONST_OR_RETURN(has_unordered_maps, HasUnorderedMaps(message_type));
@@ -1494,20 +1492,7 @@ absl::Status Generator::EmitHeaderForScope(TextWriter* const writer,
     } else {
       writer->AppendLine("friend std::string AbslUnparseFlag(", name, " const& proto) {");
     }
-    {
-      TextWriter::IndentedScope is{writer};
-      writer->AppendLine("return ::tsdb2::proto::text::Stringify(proto, /*options=*/{");
-      {
-        TextWriter::IndentedScope is1{writer};
-        TextWriter::IndentedScope is2{writer};
-        writer->AppendLine(
-            ".mode = ::tsdb2::proto::text::Stringifier::Options::Mode::kCompressed,");
-        writer->AppendLine(
-            ".field_separators = "
-            "::tsdb2::proto::text::Stringifier::Options::FieldSeparators::kComma,");
-      }
-      writer->AppendLine("});");
-    }
+    writer->AppendLine("  return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);");
     writer->AppendLine("}");
     writer->AppendEmptyLine();
   }
@@ -2633,12 +2618,7 @@ absl::Status Generator::EmitGoogleApiFieldStringification(
     TextWriter* const writer, google::protobuf::FieldDescriptorProto const& descriptor,
     bool const is_optional) {
   REQUIRE_FIELD_OR_RETURN(name, descriptor, name);
-  REQUIRE_FIELD_OR_RETURN(number, descriptor, number);
   REQUIRE_FIELD_OR_RETURN(label, descriptor, label);
-  REQUIRE_FIELD_OR_RETURN(type_name, descriptor, type_name);
-  DEFINE_CONST_OR_RETURN(path, GetTypePath(type_name));
-  auto const it = kGoogleApiTypes->find(path);
-  auto const& info = it->second;
   switch (label) {
     case FieldDescriptorProto::Label::LABEL_OPTIONAL:
       if (is_optional) {
@@ -2646,16 +2626,16 @@ absl::Status Generator::EmitGoogleApiFieldStringification(
         writer->AppendLine("  stringifier->AppendField(\"", name, "\", proto.", name, ".value());");
         writer->AppendLine("}");
       } else {
-        writer->AppendLine("encoder.", info.encoder_name, "(", number, ", proto.", name, ");");
+        writer->AppendLine("stringifier->AppendField(\"", name, "\", proto.", name, ");");
       }
       break;
     case FieldDescriptorProto::Label::LABEL_REPEATED:
       writer->AppendLine("for (auto const& value : proto.", name, ") {");
-      writer->AppendLine("  encoder.", info.encoder_name, "(", number, ", value);");
+      writer->AppendLine("  stringifier->AppendField(\"", name, "\", value);");
       writer->AppendLine("}");
       break;
     case FieldDescriptorProto::Label::LABEL_REQUIRED:
-      writer->AppendLine("encoder.", info.encoder_name, "(", number, ", proto.", name, ");");
+      writer->AppendLine("stringifier->AppendField(\"", name, "\", proto.", name, ");");
       break;
     default:
       return absl::InvalidArgumentError("invalid field label");

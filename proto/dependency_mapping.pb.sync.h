@@ -19,8 +19,8 @@ struct DependencyMapping : public ::tsdb2::proto::Message {
 
     friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser, Dependency* proto);
 
-    friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                           Dependency const& proto);
+    friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                    Dependency const& proto);
 
     static auto Tie(Dependency const& proto) { return ::tsdb2::proto::Tie(proto.cc_header); }
 
@@ -40,7 +40,7 @@ struct DependencyMapping : public ::tsdb2::proto::Message {
     }
 
     friend std::string AbslUnparseFlag(Dependency const& proto) {
-      return ::tsdb2::proto::text::Stringify(proto);
+      return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
     }
 
     friend bool operator==(Dependency const& lhs, Dependency const& rhs) {
@@ -72,8 +72,8 @@ struct DependencyMapping : public ::tsdb2::proto::Message {
     friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                           DependencyEntry* proto);
 
-    friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                           DependencyEntry const& proto);
+    friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                    DependencyEntry const& proto);
 
     static auto Tie(DependencyEntry const& proto) {
       return ::tsdb2::proto::Tie(proto.key, ::tsdb2::proto::OptionalSubMessageRef(proto.value));
@@ -95,7 +95,7 @@ struct DependencyMapping : public ::tsdb2::proto::Message {
     }
 
     friend std::string AbslUnparseFlag(DependencyEntry const& proto) {
-      return ::tsdb2::proto::text::Stringify(proto);
+      return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
     }
 
     friend bool operator==(DependencyEntry const& lhs, DependencyEntry const& rhs) {
@@ -127,8 +127,8 @@ struct DependencyMapping : public ::tsdb2::proto::Message {
   friend ::absl::Status Tsdb2ProtoParse(::tsdb2::proto::text::Parser* parser,
                                         DependencyMapping* proto);
 
-  friend std::string Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
-                                         DependencyMapping const& proto);
+  friend void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* stringifier,
+                                  DependencyMapping const& proto);
 
   static auto Tie(DependencyMapping const& proto) { return ::tsdb2::proto::Tie(proto.dependency); }
 
@@ -148,7 +148,7 @@ struct DependencyMapping : public ::tsdb2::proto::Message {
   }
 
   friend std::string AbslUnparseFlag(DependencyMapping const& proto) {
-    return ::tsdb2::proto::text::Stringify(proto);
+    return ::tsdb2::proto::text::Stringifier::StringifyFlag(proto);
   }
 
   friend bool operator==(DependencyMapping const& lhs, DependencyMapping const& rhs) {
