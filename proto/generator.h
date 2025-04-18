@@ -374,14 +374,6 @@ class Generator {
                                    std::string_view qualified_name,
                                    google::protobuf::DescriptorProto const& message_type) const;
 
-  static absl::Status EmitEnumFieldStringification(
-      internal::TextWriter* writer, google::protobuf::FieldDescriptorProto const& descriptor,
-      bool is_optional);
-
-  static absl::Status EmitGoogleApiFieldStringification(
-      internal::TextWriter* writer, google::protobuf::FieldDescriptorProto const& descriptor,
-      bool is_optional);
-
   absl::Status EmitObjectFieldStringification(
       internal::TextWriter* writer, google::protobuf::FieldDescriptorProto const& descriptor) const;
 

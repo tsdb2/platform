@@ -2585,64 +2585,6 @@ absl::Status Generator::EmitMessageEncoding(
   return absl::OkStatus();
 }
 
-absl::Status Generator::EmitEnumFieldStringification(
-    TextWriter* const writer, google::protobuf::FieldDescriptorProto const& descriptor,
-    bool const is_optional) {
-  REQUIRE_FIELD_OR_RETURN(name, descriptor, name);
-  REQUIRE_FIELD_OR_RETURN(label, descriptor, label);
-  switch (label) {
-    case FieldDescriptorProto::Label::LABEL_OPTIONAL:
-      if (is_optional) {
-        writer->AppendLine("if (proto.", name, ".has_value()) {");
-        writer->AppendLine("  stringifier->AppendField(\"", name, "\", proto.", name, ".value());");
-        writer->AppendLine("}");
-      } else {
-        writer->AppendLine("stringifier->AppendField(\"", name, "\", proto.", name, ");");
-      }
-      break;
-    case FieldDescriptorProto::Label::LABEL_REPEATED:
-      writer->AppendLine("for (auto const& value : proto.", name, ") {");
-      writer->AppendLine("  stringifier->AppendField(\"", name, "\", value);");
-      writer->AppendLine("}");
-      break;
-    case FieldDescriptorProto::Label::LABEL_REQUIRED:
-      writer->AppendLine("stringifier->AppendField(\"", name, "\", proto.", name, ");");
-      break;
-    default:
-      return absl::InvalidArgumentError("invalid field label");
-  }
-  return absl::OkStatus();
-}
-
-absl::Status Generator::EmitGoogleApiFieldStringification(
-    TextWriter* const writer, google::protobuf::FieldDescriptorProto const& descriptor,
-    bool const is_optional) {
-  REQUIRE_FIELD_OR_RETURN(name, descriptor, name);
-  REQUIRE_FIELD_OR_RETURN(label, descriptor, label);
-  switch (label) {
-    case FieldDescriptorProto::Label::LABEL_OPTIONAL:
-      if (is_optional) {
-        writer->AppendLine("if (proto.", name, ".has_value()) {");
-        writer->AppendLine("  stringifier->AppendField(\"", name, "\", proto.", name, ".value());");
-        writer->AppendLine("}");
-      } else {
-        writer->AppendLine("stringifier->AppendField(\"", name, "\", proto.", name, ");");
-      }
-      break;
-    case FieldDescriptorProto::Label::LABEL_REPEATED:
-      writer->AppendLine("for (auto const& value : proto.", name, ") {");
-      writer->AppendLine("  stringifier->AppendField(\"", name, "\", value);");
-      writer->AppendLine("}");
-      break;
-    case FieldDescriptorProto::Label::LABEL_REQUIRED:
-      writer->AppendLine("stringifier->AppendField(\"", name, "\", proto.", name, ");");
-      break;
-    default:
-      return absl::InvalidArgumentError("invalid field label");
-  }
-  return absl::OkStatus();
-}
-
 absl::Status Generator::EmitObjectFieldStringification(
     TextWriter* const writer, google::protobuf::FieldDescriptorProto const& descriptor) const {
   REQUIRE_FIELD_OR_RETURN(name, descriptor, name);
@@ -2689,44 +2631,38 @@ absl::Status Generator::EmitObjectFieldStringification(
 
 absl::Status Generator::EmitFieldStringification(
     TextWriter* const writer, google::protobuf::FieldDescriptorProto const& descriptor) const {
-  DEFINE_CONST_OR_RETURN(is_optional, FieldIsWrappedInOptional(descriptor));
   if (descriptor.type_name.has_value()) {
     DEFINE_CONST_OR_RETURN(path, GetTypePath(descriptor.type_name.value()));
-    if (!use_raw_google_api_types_ && kGoogleApiTypes->contains(path)) {
-      return EmitGoogleApiFieldStringification(writer, descriptor, is_optional);
-    } else {
+    if (use_raw_google_api_types_ || !kGoogleApiTypes->contains(path)) {
       DEFINE_CONST_OR_RETURN(is_message, IsMessage(descriptor.type_name.value()));
       if (is_message) {
         return EmitObjectFieldStringification(writer, descriptor);
-      } else {
-        return EmitEnumFieldStringification(writer, descriptor, is_optional);
       }
     }
-  } else {
-    REQUIRE_FIELD_OR_RETURN(name, descriptor, name);
-    REQUIRE_FIELD_OR_RETURN(label, descriptor, label);
-    switch (label) {
-      case FieldDescriptorProto::Label::LABEL_OPTIONAL:
-        if (is_optional) {
-          writer->AppendLine("if (proto.", name, ".has_value()) {");
-          writer->AppendLine("  stringifier->AppendField(\"", name, "\", proto.", name,
-                             ".value());");
-          writer->AppendLine("}");
-        } else {
-          writer->AppendLine("stringifier->AppendField(\"", name, "\", proto.", name, ");");
-        }
-        break;
-      case FieldDescriptorProto::Label::LABEL_REPEATED:
-        writer->AppendLine("for (auto const& value : proto.", name, ") {");
-        writer->AppendLine("  stringifier->AppendField(\"", name, "\", value);");
+  }
+  REQUIRE_FIELD_OR_RETURN(name, descriptor, name);
+  REQUIRE_FIELD_OR_RETURN(label, descriptor, label);
+  switch (label) {
+    case FieldDescriptorProto::Label::LABEL_OPTIONAL: {
+      DEFINE_CONST_OR_RETURN(is_optional, FieldIsWrappedInOptional(descriptor));
+      if (is_optional) {
+        writer->AppendLine("if (proto.", name, ".has_value()) {");
+        writer->AppendLine("  stringifier->AppendField(\"", name, "\", proto.", name, ".value());");
         writer->AppendLine("}");
-        break;
-      case FieldDescriptorProto::Label::LABEL_REQUIRED:
+      } else {
         writer->AppendLine("stringifier->AppendField(\"", name, "\", proto.", name, ");");
-        break;
-      default:
-        return absl::InvalidArgumentError("invalid field label");
-    }
+      }
+    } break;
+    case FieldDescriptorProto::Label::LABEL_REPEATED:
+      writer->AppendLine("for (auto const& value : proto.", name, ") {");
+      writer->AppendLine("  stringifier->AppendField(\"", name, "\", value);");
+      writer->AppendLine("}");
+      break;
+    case FieldDescriptorProto::Label::LABEL_REQUIRED:
+      writer->AppendLine("stringifier->AppendField(\"", name, "\", proto.", name, ");");
+      break;
+    default:
+      return absl::InvalidArgumentError("invalid field label");
   }
   return absl::OkStatus();
 }
