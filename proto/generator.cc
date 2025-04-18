@@ -2669,8 +2669,26 @@ absl::Status Generator::EmitFieldStringification(
 
 absl::Status Generator::EmitOneofFieldStringification(
     TextWriter* const writer, google::protobuf::DescriptorProto const& message_type,
-    size_t const oneof_index) const {
-  // TODO
+    size_t const oneof_index) {
+  DEFINE_CONST_OR_RETURN(oneof_decl, GetOneofDecl(message_type, oneof_index));
+  REQUIRE_FIELD_OR_RETURN(name, *oneof_decl, name);
+  writer->AppendLine("switch (proto.", name, ".index()) {");
+  {
+    TextWriter::IndentedScope is{writer};
+    size_t field_index = 1;
+    for (auto const& field : message_type.field) {
+      if (field.oneof_index.has_value() && field.oneof_index.value() == oneof_index) {
+        REQUIRE_FIELD_OR_RETURN(variant_name, field, name);
+        writer->AppendLine("case ", field_index, ":");
+        TextWriter::IndentedScope is{writer};
+        writer->AppendLine("stringifier->AppendField(\"", variant_name, "\", std::get<",
+                           field_index, ">(proto.", name, "));");
+        writer->AppendLine("break;");
+        ++field_index;
+      }
+    }
+  }
+  writer->AppendLine("}");
   return absl::OkStatus();
 }
 

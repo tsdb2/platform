@@ -380,9 +380,9 @@ class Generator {
   absl::Status EmitFieldStringification(
       internal::TextWriter* writer, google::protobuf::FieldDescriptorProto const& descriptor) const;
 
-  absl::Status EmitOneofFieldStringification(internal::TextWriter* writer,
-                                             google::protobuf::DescriptorProto const& message_type,
-                                             size_t oneof_index) const;
+  static absl::Status EmitOneofFieldStringification(
+      internal::TextWriter* writer, google::protobuf::DescriptorProto const& message_type,
+      size_t oneof_index);
 
   absl::Status EmitMessageStringification(
       internal::TextWriter* writer, LexicalScope const& scope, std::string_view qualified_name,
