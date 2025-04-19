@@ -150,4 +150,109 @@ TEST_F(TextWriterTest, OverrideIndentWidth) {
   EXPECT_EQ(std::move(writer).Finish(), "lorem\n   ipsum\n      dolor\n   amet\nadipisci\n");
 }
 
+TEST_F(TextWriterTest, Append) {
+  writer_.Append("lorem ipsum");
+  EXPECT_EQ(std::move(writer_).Finish(), "lorem ipsum");
+}
+
+TEST_F(TextWriterTest, AppendMultiPart) {
+  writer_.Append("lorem ", 42, " ipsum");
+  EXPECT_EQ(std::move(writer_).Finish(), "lorem 42 ipsum");
+}
+
+TEST_F(TextWriterTest, AppendTwice) {
+  writer_.Append("lorem ipsum");
+  writer_.Append(" dolor amet");
+  EXPECT_EQ(std::move(writer_).Finish(), "lorem ipsum dolor amet");
+}
+
+TEST_F(TextWriterTest, AppendAndFinish) {
+  writer_.Append("lorem");
+  writer_.FinishLine();
+  EXPECT_EQ(std::move(writer_).Finish(), "lorem\n");
+}
+
+TEST_F(TextWriterTest, AppendAndFinishSinglePart) {
+  writer_.Append("lorem");
+  writer_.FinishLine(" dolor");
+  EXPECT_EQ(std::move(writer_).Finish(), "lorem dolor\n");
+}
+
+TEST_F(TextWriterTest, AppendAndFinishMultiPart) {
+  writer_.Append("lorem");
+  writer_.FinishLine(" dolor ", 42, " amet");
+  EXPECT_EQ(std::move(writer_).Finish(), "lorem dolor 42 amet\n");
+}
+
+TEST_F(TextWriterTest, AppendIndented) {
+  writer_.Indent();
+  writer_.Append("lorem ipsum");
+  EXPECT_EQ(std::move(writer_).Finish(), "  lorem ipsum");
+}
+
+TEST_F(TextWriterTest, AppendTwiceIndented) {
+  writer_.Indent();
+  writer_.Append("lorem ipsum");
+  writer_.Append(" dolor amet");
+  EXPECT_EQ(std::move(writer_).Finish(), "  lorem ipsum dolor amet");
+}
+
+TEST_F(TextWriterTest, NextIsStillIndented) {
+  writer_.Indent();
+  writer_.Append("lorem");
+  writer_.FinishLine(" ipsum");
+  writer_.Append("dolor");
+  EXPECT_EQ(std::move(writer_).Finish(), "  lorem ipsum\n  dolor");
+}
+
+TEST_F(TextWriterTest, IgnoreIndentInsideLine1) {
+  writer_.Indent();
+  writer_.Append("lorem ipsum");
+  writer_.Indent();
+  writer_.Append(" dolor amet");
+  EXPECT_EQ(std::move(writer_).Finish(), "  lorem ipsum dolor amet");
+}
+
+TEST_F(TextWriterTest, IgnoreIndentInsideLine2) {
+  writer_.Indent();
+  writer_.Append("lorem ipsum");
+  writer_.Indent();
+  writer_.FinishLine(" dolor amet");
+  EXPECT_EQ(std::move(writer_).Finish(), "  lorem ipsum dolor amet\n");
+}
+
+TEST_F(TextWriterTest, NextIsMoreIndented) {
+  writer_.Indent();
+  writer_.Append("lorem");
+  writer_.Indent();
+  writer_.FinishLine(" ipsum");
+  writer_.Append("dolor");
+  EXPECT_EQ(std::move(writer_).Finish(), "  lorem ipsum\n    dolor");
+}
+
+TEST_F(TextWriterTest, IgnoreDedentInsideLine1) {
+  writer_.Indent();
+  writer_.Append("lorem ipsum");
+  writer_.Dedent();
+  writer_.FinishLine(" dolor amet");
+  EXPECT_EQ(std::move(writer_).Finish(), "  lorem ipsum dolor amet\n");
+}
+
+TEST_F(TextWriterTest, IgnoreDedentInsideLine2) {
+  writer_.Indent();
+  writer_.Append("lorem ipsum");
+  writer_.Dedent();
+  writer_.FinishLine(" dolor amet");
+  EXPECT_EQ(std::move(writer_).Finish(), "  lorem ipsum dolor amet\n");
+}
+
+TEST_F(TextWriterTest, NextIsDedented) {
+  writer_.Indent();
+  writer_.Append("lorem");
+  writer_.Dedent();
+  writer_.FinishLine(" ipsum");
+  writer_.Append("dolor");
+  EXPECT_EQ(std::move(writer_).Finish(), "  lorem ipsum\ndolor");
+}
+
 }  // namespace
