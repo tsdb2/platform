@@ -2533,8 +2533,9 @@ absl::Status Generator::EmitMessageDecoding(
             REQUIRE_FIELD_OR_RETURN(name, field, name);
             REQUIRE_FIELD_OR_RETURN(number, field, number);
             writer->AppendLine("if (!decoded.contains(", number, ")) {");
-            writer->AppendLine("  return absl::InvalidArgumentError(\"missing required field \\\"",
-                               name, "\\\"\");");
+            writer->AppendLine(
+                "  return ::absl::FailedPreconditionError(\"missing required field \\\"", name,
+                "\\\"\");");
             writer->AppendLine("}");
           }
         }
@@ -2781,8 +2782,9 @@ absl::Status Generator::EmitMessageParsing(
             REQUIRE_FIELD_OR_RETURN(name, field, name);
             REQUIRE_FIELD_OR_RETURN(number, field, number);
             writer->AppendLine("if (!parsed.contains(", number, ")) {");
-            writer->AppendLine("  return absl::InvalidArgumentError(\"missing required field \\\"",
-                               name, "\\\"\");");
+            writer->AppendLine(
+                "  return ::absl::FailedPreconditionError(\"missing required field \\\"", name,
+                "\\\"\");");
             writer->AppendLine("}");
           }
         }
