@@ -3444,10 +3444,10 @@ void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
     }
   }
   if (!decoded.contains(1)) {
-    return absl::InvalidArgumentError("missing required field \"name_part\"");
+    return ::absl::FailedPreconditionError("missing required field \"name_part\"");
   }
   if (!decoded.contains(2)) {
-    return absl::InvalidArgumentError("missing required field \"is_extension\"");
+    return ::absl::FailedPreconditionError("missing required field \"is_extension\"");
   }
   return std::move(proto);
 }
@@ -3484,10 +3484,10 @@ void Tsdb2ProtoStringify(::tsdb2::proto::text::Stringifier* const stringifier,
     parser->ConsumeFieldSeparators();
   }
   if (!parsed.contains(1)) {
-    return absl::InvalidArgumentError("missing required field \"name_part\"");
+    return ::absl::FailedPreconditionError("missing required field \"name_part\"");
   }
   if (!parsed.contains(2)) {
-    return absl::InvalidArgumentError("missing required field \"is_extension\"");
+    return ::absl::FailedPreconditionError("missing required field \"is_extension\"");
   }
   return ::absl::OkStatus();
 }

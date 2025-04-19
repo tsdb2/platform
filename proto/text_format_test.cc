@@ -75,6 +75,8 @@ TEST(ParserTest, OptionalField) {
   EXPECT_THAT(Parse<OptionalField>("lorem: 42"), IsOkAndHolds(OptionalField()));
   EXPECT_THAT(Parse<OptionalField>("field2: 42"), IsOkAndHolds(OptionalField()));
   EXPECT_THAT(Parse<OptionalField>("field: 123"), IsOkAndHolds(OptionalField{.field = 123}));
+  EXPECT_THAT(Parse<OptionalField>("field: 12 field: 34"),
+              IsOkAndHolds(OptionalField{.field = 34}));
 }
 
 TEST(ParserTest, DefaultedField) {
@@ -91,6 +93,8 @@ TEST(ParserTest, DefaultedField) {
   EXPECT_THAT(Parse<DefaultedField>("field: true"),
               StatusIs(absl::StatusCode::kFailedPrecondition));
   EXPECT_THAT(Parse<DefaultedField>("field: 123"), IsOkAndHolds(DefaultedField{.field = 123}));
+  EXPECT_THAT(Parse<DefaultedField>("field: 12 field: 34"),
+              IsOkAndHolds(DefaultedField{.field = 34}));
 }
 
 TEST(ParserTest, RequiredField) {
@@ -106,6 +110,8 @@ TEST(ParserTest, RequiredField) {
               StatusIs(absl::StatusCode::kFailedPrecondition));
   EXPECT_THAT(Parse<RequiredField>("field: true"), StatusIs(absl::StatusCode::kFailedPrecondition));
   EXPECT_THAT(Parse<RequiredField>("field: 123"), IsOkAndHolds(RequiredField{.field = 123}));
+  EXPECT_THAT(Parse<RequiredField>("field: 12 field: 34"),
+              IsOkAndHolds(RequiredField{.field = 34}));
 }
 
 TEST(ParserTest, RepeatedField) {
@@ -138,6 +144,17 @@ TEST(ParserTest, RepeatedField) {
   EXPECT_THAT(Parse<RepeatedField>("field: true"), StatusIs(absl::StatusCode::kFailedPrecondition));
   EXPECT_THAT(Parse<RepeatedField>("field: 56 field: 34 field: 12"),
               IsOkAndHolds(RepeatedField{.field{56, 34, 12}}));
+  EXPECT_THAT(Parse<RepeatedField>(R"pb(
+                # element 1
+                field: 56
+                # element 2
+                field: 34
+                # element 3
+                field: 12
+              )pb"),
+              IsOkAndHolds(RepeatedField{.field{56, 34, 12}}));
+  EXPECT_THAT(Parse<RepeatedField>("field: 56 unknown_field: 34 field: 12"),
+              IsOkAndHolds(RepeatedField{.field{56, 12}}));
 }
 
 TEST(ParserTest, OptionalEnumField) {
@@ -197,6 +214,10 @@ TEST(ParserTest, OptionalEnumField) {
   EXPECT_THAT(Parse<OptionalEnumField>("colorem: COLOR_GREEN"), IsOkAndHolds(OptionalEnumField()));
   EXPECT_THAT(Parse<OptionalEnumField>("color: COLOR_BLUE"),
               IsOkAndHolds(OptionalEnumField{.color = ColorEnum::COLOR_BLUE}));
+  EXPECT_THAT(Parse<OptionalEnumField>("color: COLOR_BLUE color: COLOR_RED"),
+              IsOkAndHolds(OptionalEnumField{.color = ColorEnum::COLOR_RED}));
+  EXPECT_THAT(Parse<OptionalEnumField>("color: COLOR_BLUE unknown_field: FOO color: COLOR_RED"),
+              IsOkAndHolds(OptionalEnumField{.color = ColorEnum::COLOR_RED}));
 }
 
 TEST(ParserTest, DefaultedEnumField) {
@@ -217,6 +238,10 @@ TEST(ParserTest, DefaultedEnumField) {
               StatusIs(absl::StatusCode::kFailedPrecondition));
   EXPECT_THAT(Parse<DefaultedEnumField>("color: COLOR_BLUE"),
               IsOkAndHolds(DefaultedEnumField{.color = ColorEnum::COLOR_BLUE}));
+  EXPECT_THAT(Parse<DefaultedEnumField>("color: COLOR_BLUE color: COLOR_RED"),
+              IsOkAndHolds(DefaultedEnumField{.color = ColorEnum::COLOR_RED}));
+  EXPECT_THAT(Parse<DefaultedEnumField>("color: COLOR_BLUE unknown_field: 42 color: COLOR_RED"),
+              IsOkAndHolds(DefaultedEnumField{.color = ColorEnum::COLOR_RED}));
 }
 
 TEST(ParserTest, RequiredEnumField) {
@@ -236,6 +261,10 @@ TEST(ParserTest, RequiredEnumField) {
               StatusIs(absl::StatusCode::kFailedPrecondition));
   EXPECT_THAT(Parse<RequiredEnumField>("color: COLOR_BLUE"),
               IsOkAndHolds(RequiredEnumField{.color = ColorEnum::COLOR_BLUE}));
+  EXPECT_THAT(Parse<RequiredEnumField>("color: COLOR_BLUE color: COLOR_RED"),
+              IsOkAndHolds(RequiredEnumField{.color = ColorEnum::COLOR_RED}));
+  EXPECT_THAT(Parse<RequiredEnumField>("color: COLOR_BLUE unknown_field: 42 color: COLOR_RED"),
+              IsOkAndHolds(RequiredEnumField{.color = ColorEnum::COLOR_RED}));
 }
 
 TEST(ParserTest, RepeatedEnumField) {
@@ -280,6 +309,18 @@ TEST(ParserTest, RepeatedEnumField) {
   EXPECT_THAT(Parse<RepeatedEnumField>("color: COLOR_RED color: COLOR_GREEN color: COLOR_BLUE"),
               IsOkAndHolds(RepeatedEnumField{
                   .color{ColorEnum::COLOR_RED, ColorEnum::COLOR_GREEN, ColorEnum::COLOR_BLUE}}));
+  EXPECT_THAT(Parse<RepeatedEnumField>(R"pb(
+                # red
+                color: COLOR_RED
+                # green
+                color: COLOR_GREEN
+                # blue
+                color: COLOR_BLUE
+              )pb"),
+              IsOkAndHolds(RepeatedEnumField{
+                  .color{ColorEnum::COLOR_RED, ColorEnum::COLOR_GREEN, ColorEnum::COLOR_BLUE}}));
+  EXPECT_THAT(Parse<RepeatedEnumField>("color: COLOR_RED unknwon_color: FOO color: COLOR_BLUE"),
+              IsOkAndHolds(RepeatedEnumField{.color{ColorEnum::COLOR_RED, ColorEnum::COLOR_BLUE}}));
 }
 
 TEST(ParserTest, ManyFields) {
@@ -293,6 +334,50 @@ TEST(ParserTest, ManyFields) {
                   .required_bool_field = true,
               }));
   EXPECT_THAT(Parse<ManyFields>(R"pb(
+                required_bool_field: true required_fixed32_field: 42
+              )pb"),
+              IsOkAndHolds(ManyFields{
+                  .required_fixed32_field = 42,
+                  .required_bool_field = true,
+              }));
+  EXPECT_THAT(Parse<ManyFields>(R"pb(
+                required_bool_field: true
+                required_bool_field: false
+                required_fixed32_field: 12
+                required_fixed32_field: 34
+                required_fixed32_field: 56
+              )pb"),
+              IsOkAndHolds(ManyFields{
+                  .required_fixed32_field = 56,
+                  .required_bool_field = false,
+              }));
+  EXPECT_THAT(Parse<ManyFields>(R"pb(
+                required_fixed32_field: 42
+                required_bool_field: true
+                unknown_field: false
+              )pb"),
+              IsOkAndHolds(ManyFields{
+                  .required_fixed32_field = 42,
+                  .required_bool_field = true,
+              }));
+  EXPECT_THAT(Parse<ManyFields>(R"pb(
+                required_fixed32_field: 42
+                unknown_field: "foo"
+                required_bool_field: true
+              )pb"),
+              IsOkAndHolds(ManyFields{
+                  .required_fixed32_field = 42,
+                  .required_bool_field = true,
+              }));
+  EXPECT_THAT(
+      Parse<ManyFields>(R"pb(
+        unknown_field: BAR required_fixed32_field: 42 required_bool_field: true
+      )pb"),
+      IsOkAndHolds(ManyFields{
+          .required_fixed32_field = 42,
+          .required_bool_field = true,
+      }));
+  EXPECT_THAT(Parse<ManyFields>(R"pb(
                 # lorem ipsum
                 required_fixed32_field: 42
                 # dolor amet
@@ -302,6 +387,208 @@ TEST(ParserTest, ManyFields) {
                   .required_fixed32_field = 42,
                   .required_bool_field = true,
               }));
+}
+
+TEST(ParserTest, OptionalStringField) {
+  using ::tsdb2::proto::test::OptionalStringField;
+  EXPECT_THAT(Parse<OptionalStringField>(""), IsOkAndHolds(OptionalStringField()));
+  EXPECT_THAT(Parse<OptionalStringField>("field:\"lorem\""),
+              IsOkAndHolds(OptionalStringField{.field = "lorem"}));
+  EXPECT_THAT(Parse<OptionalStringField>(" field:\"lorem\""),
+              IsOkAndHolds(OptionalStringField{.field = "lorem"}));
+  EXPECT_THAT(Parse<OptionalStringField>("field :\"lorem\""),
+              IsOkAndHolds(OptionalStringField{.field = "lorem"}));
+  EXPECT_THAT(Parse<OptionalStringField>("field: \"lorem\""),
+              IsOkAndHolds(OptionalStringField{.field = "lorem"}));
+  EXPECT_THAT(Parse<OptionalStringField>("field:\"lorem\" "),
+              IsOkAndHolds(OptionalStringField{.field = "lorem"}));
+  EXPECT_THAT(Parse<OptionalStringField>(" field : \"lorem\" "),
+              IsOkAndHolds(OptionalStringField{.field = "lorem"}));
+  EXPECT_THAT(Parse<OptionalStringField>("field:\"lorem\","),
+              IsOkAndHolds(OptionalStringField{.field = "lorem"}));
+  EXPECT_THAT(Parse<OptionalStringField>(" field:\"lorem\","),
+              IsOkAndHolds(OptionalStringField{.field = "lorem"}));
+  EXPECT_THAT(Parse<OptionalStringField>("field :\"lorem\","),
+              IsOkAndHolds(OptionalStringField{.field = "lorem"}));
+  EXPECT_THAT(Parse<OptionalStringField>("field: \"lorem\","),
+              IsOkAndHolds(OptionalStringField{.field = "lorem"}));
+  EXPECT_THAT(Parse<OptionalStringField>("field:\"lorem\" ,"),
+              IsOkAndHolds(OptionalStringField{.field = "lorem"}));
+  EXPECT_THAT(Parse<OptionalStringField>("field:\"lorem\", "),
+              IsOkAndHolds(OptionalStringField{.field = "lorem"}));
+  EXPECT_THAT(Parse<OptionalStringField>(" field : \"lorem\" , "),
+              IsOkAndHolds(OptionalStringField{.field = "lorem"}));
+  EXPECT_THAT(Parse<OptionalStringField>("field:\"lorem\";"),
+              IsOkAndHolds(OptionalStringField{.field = "lorem"}));
+  EXPECT_THAT(Parse<OptionalStringField>(" field:\"lorem\";"),
+              IsOkAndHolds(OptionalStringField{.field = "lorem"}));
+  EXPECT_THAT(Parse<OptionalStringField>("field :\"lorem\";"),
+              IsOkAndHolds(OptionalStringField{.field = "lorem"}));
+  EXPECT_THAT(Parse<OptionalStringField>("field: \"lorem\";"),
+              IsOkAndHolds(OptionalStringField{.field = "lorem"}));
+  EXPECT_THAT(Parse<OptionalStringField>("field:\"lorem\" ;"),
+              IsOkAndHolds(OptionalStringField{.field = "lorem"}));
+  EXPECT_THAT(Parse<OptionalStringField>("field:\"lorem\"; "),
+              IsOkAndHolds(OptionalStringField{.field = "lorem"}));
+  EXPECT_THAT(Parse<OptionalStringField>(" field : \"lorem\" ; "),
+              IsOkAndHolds(OptionalStringField{.field = "lorem"}));
+  EXPECT_THAT(Parse<OptionalStringField>("field: 12.34"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<OptionalStringField>("field: 12.34f"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<OptionalStringField>("field: lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<OptionalStringField>("field: FOO"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<OptionalStringField>("field: 42"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<OptionalStringField>("field: true"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<OptionalStringField>("lorem: \"lorem\""), IsOkAndHolds(OptionalStringField()));
+  EXPECT_THAT(Parse<OptionalStringField>("field2: \"lorem\""), IsOkAndHolds(OptionalStringField()));
+  EXPECT_THAT(Parse<OptionalStringField>("field: \"ipsum\""),
+              IsOkAndHolds(OptionalStringField{.field = "ipsum"}));
+  EXPECT_THAT(Parse<OptionalStringField>("field: \"lorem\" field: \"ipsum\""),
+              IsOkAndHolds(OptionalStringField{.field = "ipsum"}));
+}
+
+TEST(ParserTest, DefaultedStringField) {
+  using ::tsdb2::proto::test::DefaultedStringField;
+  EXPECT_THAT(Parse<DefaultedStringField>(""),
+              IsOkAndHolds(DefaultedStringField{.field = "lorem"}));
+  EXPECT_THAT(Parse<DefaultedStringField>("field: \"sator\""),
+              IsOkAndHolds(DefaultedStringField{.field = "sator"}));
+  EXPECT_THAT(Parse<DefaultedStringField>("field: 12.34"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<DefaultedStringField>("field: 12.34f"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<DefaultedStringField>("field: sator"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<DefaultedStringField>("field: FOO"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<DefaultedStringField>("field: 42"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<DefaultedStringField>("field: true"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<DefaultedStringField>("field: \"arepo\""),
+              IsOkAndHolds(DefaultedStringField{.field = "arepo"}));
+  EXPECT_THAT(Parse<DefaultedStringField>("field: \"sator\" field: \"arepo\""),
+              IsOkAndHolds(DefaultedStringField{.field = "arepo"}));
+}
+
+TEST(ParserTest, RequiredStringField) {
+  using ::tsdb2::proto::test::RequiredStringField;
+  EXPECT_THAT(Parse<RequiredStringField>(""), StatusIs(absl::StatusCode::kFailedPrecondition));
+  EXPECT_THAT(Parse<RequiredStringField>("field: \"lorem\""),
+              IsOkAndHolds(RequiredStringField{.field = "lorem"}));
+  EXPECT_THAT(Parse<RequiredStringField>("field: 12.34"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<RequiredStringField>("field: 12.34f"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<RequiredStringField>("field: lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<RequiredStringField>("field: FOO"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<RequiredStringField>("field: 42"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<RequiredStringField>("field: true"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<RequiredStringField>("field: \"ipsum\""),
+              IsOkAndHolds(RequiredStringField{.field = "ipsum"}));
+  EXPECT_THAT(Parse<RequiredStringField>("field: \"lorem\" field: \"ipsum\""),
+              IsOkAndHolds(RequiredStringField{.field = "ipsum"}));
+}
+
+TEST(ParserTest, RepeatedStringField) {
+  using ::tsdb2::proto::test::RepeatedStringField;
+  EXPECT_THAT(Parse<RepeatedStringField>(""), IsOkAndHolds(RepeatedStringField()));
+  EXPECT_THAT(Parse<RepeatedStringField>("field: \"lorem\""),
+              IsOkAndHolds(RepeatedStringField{.field{"lorem"}}));
+  EXPECT_THAT(Parse<RepeatedStringField>("field: \"lorem\" field: \"ipsum\""),
+              IsOkAndHolds(RepeatedStringField{.field{"lorem", "ipsum"}}));
+  EXPECT_THAT(Parse<RepeatedStringField>("field: \"lorem\", field: \"ipsum\""),
+              IsOkAndHolds(RepeatedStringField{.field{"lorem", "ipsum"}}));
+  EXPECT_THAT(Parse<RepeatedStringField>("field: \"lorem\" field: \"ipsum\","),
+              IsOkAndHolds(RepeatedStringField{.field{"lorem", "ipsum"}}));
+  EXPECT_THAT(Parse<RepeatedStringField>("field: \"lorem\", field: \"ipsum\","),
+              IsOkAndHolds(RepeatedStringField{.field{"lorem", "ipsum"}}));
+  EXPECT_THAT(Parse<RepeatedStringField>("field: \"lorem\" field: \"ipsum\""),
+              IsOkAndHolds(RepeatedStringField{.field{"lorem", "ipsum"}}));
+  EXPECT_THAT(Parse<RepeatedStringField>("field: \"lorem\"; field: \"ipsum\""),
+              IsOkAndHolds(RepeatedStringField{.field{"lorem", "ipsum"}}));
+  EXPECT_THAT(Parse<RepeatedStringField>("field: \"lorem\" field: \"ipsum\";"),
+              IsOkAndHolds(RepeatedStringField{.field{"lorem", "ipsum"}}));
+  EXPECT_THAT(Parse<RepeatedStringField>("field: \"lorem\"; field: \"ipsum\";"),
+              IsOkAndHolds(RepeatedStringField{.field{"lorem", "ipsum"}}));
+  EXPECT_THAT(Parse<RepeatedStringField>("field: 12.34"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<RepeatedStringField>("field: 12.34f"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<RepeatedStringField>("field: lorem"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<RepeatedStringField>("field: FOO"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<RepeatedStringField>("field: 42"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<RepeatedStringField>("field: true"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(Parse<RepeatedStringField>("field: \"sator\" field: \"arepo\" field: \"tenet\""),
+              IsOkAndHolds(RepeatedStringField{.field{"sator", "arepo", "tenet"}}));
+  EXPECT_THAT(Parse<RepeatedStringField>(R"pb(
+                # element 1
+                field: "sator"
+                # element 2
+                field: "arepo"
+                # element 3
+                field: "tenet"
+              )pb"),
+              IsOkAndHolds(RepeatedStringField{.field{"sator", "arepo", "tenet"}}));
+  EXPECT_THAT(
+      Parse<RepeatedStringField>("field: \"sator\" unknown_field: \"arepo\" field: \"tenet\""),
+      IsOkAndHolds(RepeatedStringField{.field{"sator", "tenet"}}));
+}
+
+TEST(ParserTest, OptionalSubMessageField) {
+  using ::tsdb2::proto::test::OptionalEnumField;
+  using ::tsdb2::proto::test::OptionalSubMessageField;
+  EXPECT_THAT(Parse<OptionalSubMessageField>(""), IsOkAndHolds(OptionalSubMessageField{}));
+  EXPECT_THAT(Parse<OptionalSubMessageField>("field:{}"),
+              IsOkAndHolds(OptionalSubMessageField{.field = OptionalEnumField{}}));
+  EXPECT_THAT(Parse<OptionalSubMessageField>(" field:{}"),
+              IsOkAndHolds(OptionalSubMessageField{.field = OptionalEnumField{}}));
+  EXPECT_THAT(Parse<OptionalSubMessageField>("field :{}"),
+              IsOkAndHolds(OptionalSubMessageField{.field = OptionalEnumField{}}));
+  EXPECT_THAT(Parse<OptionalSubMessageField>("field: {}"),
+              IsOkAndHolds(OptionalSubMessageField{.field = OptionalEnumField{}}));
+  EXPECT_THAT(Parse<OptionalSubMessageField>("field:{} "),
+              IsOkAndHolds(OptionalSubMessageField{.field = OptionalEnumField{}}));
+  EXPECT_THAT(Parse<OptionalSubMessageField>(" field : {} "),
+              IsOkAndHolds(OptionalSubMessageField{.field = OptionalEnumField{}}));
+  EXPECT_THAT(Parse<OptionalSubMessageField>("field{}"),
+              IsOkAndHolds(OptionalSubMessageField{.field = OptionalEnumField{}}));
+  EXPECT_THAT(Parse<OptionalSubMessageField>(" field{}"),
+              IsOkAndHolds(OptionalSubMessageField{.field = OptionalEnumField{}}));
+  EXPECT_THAT(Parse<OptionalSubMessageField>("field {}"),
+              IsOkAndHolds(OptionalSubMessageField{.field = OptionalEnumField{}}));
+  EXPECT_THAT(Parse<OptionalSubMessageField>("field{} "),
+              IsOkAndHolds(OptionalSubMessageField{.field = OptionalEnumField{}}));
+  EXPECT_THAT(Parse<OptionalSubMessageField>(" field {} "),
+              IsOkAndHolds(OptionalSubMessageField{.field = OptionalEnumField{}}));
+  EXPECT_THAT(Parse<OptionalSubMessageField>("field: { color: COLOR_GREEN }"),
+              IsOkAndHolds(OptionalSubMessageField{
+                  .field = OptionalEnumField{.color = ColorEnum::COLOR_GREEN}}));
+  EXPECT_THAT(Parse<OptionalSubMessageField>("field { color: COLOR_GREEN }"),
+              IsOkAndHolds(OptionalSubMessageField{
+                  .field = OptionalEnumField{.color = ColorEnum::COLOR_GREEN}}));
+  EXPECT_THAT(Parse<OptionalSubMessageField>("unknown_field: true field { color: COLOR_GREEN }"),
+              IsOkAndHolds(OptionalSubMessageField{
+                  .field = OptionalEnumField{.color = ColorEnum::COLOR_GREEN}}));
+  EXPECT_THAT(Parse<OptionalSubMessageField>(R"pb(
+                field { color: COLOR_GREEN }
+                field { color: COLOR_RED }
+              )pb"),
+              IsOkAndHolds(OptionalSubMessageField{
+                  .field = OptionalEnumField{.color = ColorEnum::COLOR_RED}}));
 }
 
 // TODO
@@ -315,6 +602,16 @@ TEST(StringifierTest, Enum) {
   EXPECT_EQ(Stringify(ColorEnum::COLOR_YELLOW), "COLOR_YELLOW");
   EXPECT_EQ(Stringify(static_cast<ColorEnum>(42)), "42");
   EXPECT_EQ(Stringify(static_cast<ColorEnum>(-43)), "-43");
+}
+
+TEST(StringifierTest, EmptyMessage) {
+  EXPECT_EQ(Stringify(tsdb2::proto::test::EmptyMessage{}), "");
+}
+
+TEST(StringifierTest, OptionalField) {
+  EXPECT_EQ(Stringify(tsdb2::proto::test::OptionalField{}), "");
+  EXPECT_EQ(Stringify(tsdb2::proto::test::OptionalField{.field = 12}), "field: 12\n");
+  EXPECT_EQ(Stringify(tsdb2::proto::test::OptionalField{.field = 34}), "field: 34\n");
 }
 
 // TODO
