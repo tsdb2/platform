@@ -31,8 +31,11 @@ namespace generator {
 absl::StatusOr<std::vector<uint8_t>> ReadFile(FILE* fp);
 absl::Status WriteFile(FILE* fp, absl::Span<uint8_t const> data);
 
-std::string MakeHeaderFileName(std::string_view proto_file_name);
-std::string MakeSourceFileName(std::string_view proto_file_name);
+absl::StatusOr<std::string> MakeHeaderFileName(std::string_view output_directory,
+                                               std::string_view proto_file_path);
+
+absl::StatusOr<std::string> MakeSourceFileName(std::string_view output_directory,
+                                               std::string_view proto_file_path);
 
 }  // namespace generator
 
@@ -50,10 +53,12 @@ class Generator {
   Generator& operator=(Generator&&) noexcept = default;
 
   absl::StatusOr<std::string> GenerateHeaderFileContent();
-  absl::StatusOr<std::string> GenerateSourceFileContent();
+  absl::StatusOr<std::string> GenerateSourceFileContent(std::string_view output_directory);
 
-  absl::StatusOr<google::protobuf::compiler::CodeGeneratorResponse::File> GenerateHeaderFile();
-  absl::StatusOr<google::protobuf::compiler::CodeGeneratorResponse::File> GenerateSourceFile();
+  absl::StatusOr<google::protobuf::compiler::CodeGeneratorResponse::File> GenerateHeaderFile(
+      std::string_view output_directory);
+  absl::StatusOr<google::protobuf::compiler::CodeGeneratorResponse::File> GenerateSourceFile(
+      std::string_view output_directory);
 
  private:
   // Transparent hash & equal functors for indexing `Path`s in hash tables and looking them up by

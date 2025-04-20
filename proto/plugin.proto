@@ -39,7 +39,7 @@ option java_outer_classname = "PluginProtos";
 option csharp_namespace = "Google.Protobuf.Compiler";
 option go_package = "google.golang.org/protobuf/types/pluginpb";
 
-import "proto/descriptor.proto";
+import "google/protobuf/descriptor.proto";
 
 // The version number of protocol compiler.
 message Version {

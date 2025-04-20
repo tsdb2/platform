@@ -25,9 +25,9 @@ absl::StatusOr<CodeGeneratorResponse> Run(CodeGeneratorRequest const& request) {
       tsdb2::util::to_underlying(CodeGeneratorResponse::Feature::FEATURE_NONE);
   for (auto const& proto_file : request.proto_file) {
     DEFINE_VAR_OR_RETURN(generator, Generator::Create(proto_file));
-    DEFINE_VAR_OR_RETURN(header_file, generator.GenerateHeaderFile());
+    DEFINE_VAR_OR_RETURN(header_file, generator.GenerateHeaderFile("."));
     response.file.emplace_back(std::move(header_file));
-    DEFINE_VAR_OR_RETURN(source_file, generator.GenerateSourceFile());
+    DEFINE_VAR_OR_RETURN(source_file, generator.GenerateSourceFile("."));
     response.file.emplace_back(std::move(source_file));
   }
   return std::move(response);

@@ -12,7 +12,7 @@
       "args": [
         "--proto_root_path=/home/jim/test/tsdb2/",
         "--proto_file_descriptor_sets=/home/jim/tsdb2/platform/bazel-bin/proto/tests_proto-descriptor-set.proto.bin",
-        "--proto_dependency_mapping=dependency { key: \"proto/descriptor.proto\" value { cc_header: \"bazel-out/k8-dbg/bin/proto/descriptor.pb.h\" } }",
+        "--proto_dependency_mapping=dependency { key: \"proto/descriptor.proto\" value { cc_header: \"proto/descriptor.pb.h\" } }",
         "--proto_emit_reflection_api",
       ],
       "cwd": "${fileWorkspaceFolder}",

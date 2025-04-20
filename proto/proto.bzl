@@ -19,11 +19,11 @@ def _make_dependency_mapping(deps):
     for dep in deps:
         (proto_info, cc_info) = (dep[ProtoInfo], dep[CcInfo])
         for proto_source in proto_info.direct_sources:
-            proto_source_path = proto_source.path
+            proto_source_path = proto_source.short_path
             if proto_source_path not in mapping:
                 mapping[proto_source_path] = set()
             for header in cc_info.compilation_context.direct_public_headers:
-                mapping[proto_source_path].add(header.path)
+                mapping[proto_source_path].add(header.short_path)
     return struct(dependency = {
         key: struct(cc_header = [header for header in headers])
         for key, headers in mapping.items()
@@ -45,12 +45,10 @@ def _cc_proto_library_impl(ctx):
     for source_file in proto_info.direct_sources:
         generated_header_file = ctx.actions.declare_file(
             _replace_extension(source_file.basename, ".pb.h"),
-            sibling = source_file,
         )
         generated_header_files.append(generated_header_file)
         generated_source_file = ctx.actions.declare_file(
             _replace_extension(source_file.basename, ".pb.cc"),
-            sibling = source_file,
         )
         generated_source_files.append(generated_source_file)
         generated_files += [generated_header_file, generated_source_file]
@@ -58,8 +56,8 @@ def _cc_proto_library_impl(ctx):
         inputs = [proto_info.direct_descriptor_set],
         outputs = generated_files,
         arguments = [
-            "--proto_root_path=" + _join_path(ctx.genfiles_dir.path, proto_info.proto_source_root),
             "--proto_file_descriptor_sets=" + proto_info.direct_descriptor_set.path,
+            "--proto_output_directory=" + _join_path(ctx.genfiles_dir.path, ctx.label.package),
             "--proto_dependency_mapping=" + proto.encode_text(_make_dependency_mapping(ctx.attr.deps)),
             "--proto_emit_reflection_api" if ctx.attr.enable_reflection else "--noproto_emit_reflection_api",
             "--proto_use_raw_google_api_types" if ctx.attr.use_raw_google_api_types else "--noproto_use_raw_google_api_types",

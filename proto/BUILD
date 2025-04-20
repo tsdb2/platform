@@ -148,15 +148,9 @@ cc_test(
     ],
 )
 
-proto_library(
-    name = "descriptor_proto",
-    srcs = ["descriptor.proto"],
-    visibility = ["//visibility:public"],
-)
-
 tsdb2_cc_proto_library(
     name = "descriptor_cc_proto",
-    proto = ":descriptor_proto",
+    proto = "@com_google_protobuf//:descriptor_proto",
     visibility = ["//visibility:public"],
 )
 
@@ -164,18 +158,14 @@ proto_library(
     name = "annotations_proto",
     srcs = ["annotations.proto"],
     visibility = ["//visibility:public"],
-    deps = [
-        ":descriptor_proto",
-    ],
+    deps = ["@com_google_protobuf//:descriptor_proto"],
 )
 
 tsdb2_cc_proto_library(
     name = "annotations_cc_proto",
     proto = ":annotations_proto",
     visibility = ["//visibility:public"],
-    deps = [
-        ":descriptor_cc_proto",
-    ],
+    deps = [":descriptor_cc_proto"],
 )
 
 proto_library(
@@ -210,7 +200,7 @@ proto_library(
     name = "plugin_proto",
     srcs = ["plugin.proto"],
     visibility = ["//visibility:public"],
-    deps = [":descriptor_proto"],
+    deps = ["@com_google_protobuf//:descriptor_proto"],
 )
 
 tsdb2_cc_proto_library(
@@ -354,6 +344,7 @@ cc_binary(
         ":descriptor",
         ":generator",
         ":runtime",
+        "//common:utilities",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/log",

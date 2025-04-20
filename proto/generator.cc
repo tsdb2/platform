@@ -18,6 +18,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/escaping.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
@@ -64,6 +65,9 @@ using ::google::protobuf::FieldDescriptorProto;
 using ::google::protobuf::compiler::CodeGeneratorResponse;
 using ::tsdb2::proto::internal::DependencyManager;
 using ::tsdb2::proto::internal::TextWriter;
+
+tsdb2::common::NoDestructor<tsdb2::common::RE> const kBaseFileNamePattern{
+    tsdb2::common::RE::CreateOrDie("([^/\\\\]*)\\.proto$")};
 
 tsdb2::common::NoDestructor<tsdb2::common::RE> const kFileExtensionPattern{
     tsdb2::common::RE::CreateOrDie("(\\.[^./\\\\]*)$")};
@@ -363,20 +367,32 @@ absl::Status WriteFile(FILE* const fp, absl::Span<uint8_t const> const data) {
   return absl::OkStatus();
 }
 
-std::string MakeHeaderFileName(std::string_view proto_file_name) {
-  std::string_view extension;
-  if (kFileExtensionPattern->PartialMatchArgs(proto_file_name, &extension)) {
-    proto_file_name.remove_suffix(extension.size());
+namespace {
+
+absl::StatusOr<std::string> MakeOutputFilePath(std::string_view const output_directory,
+                                               std::string_view const proto_file_path,
+                                               std::string_view const extension) {
+  std::string_view base_name;
+  if (!kBaseFileNamePattern->PartialMatchArgs(proto_file_path, &base_name)) {
+    return absl::InvalidArgumentError(absl::StrCat("invalid .proto file path: ", proto_file_path));
   }
-  return absl::StrCat(proto_file_name, ".pb.h");
+  if (absl::EndsWith(output_directory, "/")) {
+    return absl::StrCat(output_directory, base_name, extension);
+  } else {
+    return absl::StrCat(output_directory, "/", base_name, extension);
+  }
 }
 
-std::string MakeSourceFileName(std::string_view proto_file_name) {
-  std::string_view extension;
-  if (kFileExtensionPattern->PartialMatchArgs(proto_file_name, &extension)) {
-    proto_file_name.remove_suffix(extension.size());
-  }
-  return absl::StrCat(proto_file_name, ".pb.cc");
+}  // namespace
+
+absl::StatusOr<std::string> MakeHeaderFileName(std::string_view const output_directory,
+                                               std::string_view proto_file_path) {
+  return MakeOutputFilePath(output_directory, proto_file_path, ".pb.h");
+}
+
+absl::StatusOr<std::string> MakeSourceFileName(std::string_view const output_directory,
+                                               std::string_view proto_file_path) {
+  return MakeOutputFilePath(output_directory, proto_file_path, ".pb.cc");
 }
 
 }  // namespace generator
@@ -427,11 +443,12 @@ absl::StatusOr<std::string> Generator::GenerateHeaderFileContent() {
   return std::move(writer).Finish();
 }
 
-absl::StatusOr<std::string> Generator::GenerateSourceFileContent() {
+absl::StatusOr<std::string> Generator::GenerateSourceFileContent(
+    std::string_view const output_directory) {
   TextWriter writer;
   REQUIRE_FIELD_OR_RETURN(name, *file_descriptor_, name);
-  auto const header_path = generator::MakeHeaderFileName(name);
-  writer.AppendUnindentedLine("#include \"", header_path, "\"");
+  DEFINE_VAR_OR_RETURN(header_path, generator::MakeHeaderFileName(output_directory, name));
+  writer.AppendUnindentedLine("#include \"", std::move(header_path), "\"");
   writer.AppendEmptyLine();
   EmitIncludes(&writer);
   DEFINE_CONST_OR_RETURN(package, GetCppPackage());
@@ -461,20 +478,24 @@ absl::StatusOr<std::string> Generator::GenerateSourceFileContent() {
   return std::move(writer).Finish();
 }
 
-absl::StatusOr<CodeGeneratorResponse::File> Generator::GenerateHeaderFile() {
+absl::StatusOr<CodeGeneratorResponse::File> Generator::GenerateHeaderFile(
+    std::string_view const output_directory) {
   REQUIRE_FIELD_OR_RETURN(name, *file_descriptor_, name);
   DEFINE_VAR_OR_RETURN(content, GenerateHeaderFileContent());
   CodeGeneratorResponse::File file;
-  file.name = generator::MakeHeaderFileName(name);
+  DEFINE_VAR_OR_RETURN(file_name, generator::MakeHeaderFileName(output_directory, name));
+  file.name = std::move(file_name);
   file.content = std::move(content);
   return std::move(file);
 }
 
-absl::StatusOr<CodeGeneratorResponse::File> Generator::GenerateSourceFile() {
+absl::StatusOr<CodeGeneratorResponse::File> Generator::GenerateSourceFile(
+    std::string_view const output_directory) {
   REQUIRE_FIELD_OR_RETURN(name, *file_descriptor_, name);
-  DEFINE_VAR_OR_RETURN(content, GenerateSourceFileContent());
+  DEFINE_VAR_OR_RETURN(content, GenerateSourceFileContent(output_directory));
   CodeGeneratorResponse::File file;
-  file.name = generator::MakeSourceFileName(name);
+  DEFINE_VAR_OR_RETURN(file_name, generator::MakeSourceFileName(output_directory, name));
+  file.name = std::move(file_name);
   file.content = std::move(content);
   return std::move(file);
 }
@@ -924,26 +945,19 @@ Generator::GetAllExtensionMessages(LexicalScope const& scope) {
 }
 
 void Generator::EmitIncludes(TextWriter* const writer) const {
-  tsdb2::common::flat_map<std::string, bool> headers;
-  headers.reserve(file_descriptor_->dependency.size() + 1);
-  headers.try_emplace("proto/runtime.h", false);
-  tsdb2::common::flat_set<size_t> const public_dependency_indexes{
-      file_descriptor_->public_dependency.begin(), file_descriptor_->public_dependency.end()};
-  for (size_t i = 0; i < file_descriptor_->dependency.size(); ++i) {
-    headers.try_emplace(generator::MakeHeaderFileName(file_descriptor_->dependency[i]),
-                        /*public=*/public_dependency_indexes.contains(i));
-  }
-  if (!use_raw_google_api_types_) {
-    for (auto const header : kExcludedHeaders) {
-      headers.erase(header);
+  tsdb2::common::flat_set<std::string> header_set;
+  header_set.reserve(file_descriptor_->dependency.size() + 1);
+  header_set.emplace("proto/runtime.h");
+  auto const& dependency_mapping = absl::GetFlag(FLAGS_proto_dependency_mapping);
+  for (auto const& [unused_proto_file, headers] : dependency_mapping.dependency) {
+    for (auto const& header : headers.cc_header) {
+      if (use_raw_google_api_types_ || !kExcludedHeaders.contains(header)) {
+        header_set.emplace(header);
+      }
     }
   }
-  for (auto const& [header, is_public] : headers) {
-    if (is_public) {
-      writer->AppendUnindentedLine("#include \"", header, "\"  // IWYU pragma: export");
-    } else {
-      writer->AppendUnindentedLine("#include \"", header, "\"");
-    }
+  for (auto const& header : header_set) {
+    writer->AppendUnindentedLine("#include \"", header, "\"");
   }
 }
 
